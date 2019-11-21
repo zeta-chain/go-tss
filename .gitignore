@@ -1,0 +1,28 @@
+# OS
+.DS_Store
+*.swp
+*.swo
+.vscode
+.idea
+.env*
+
+# Build
+vendor
+.vendor-new
+observe
+
+# IDE
+.idea/
+*.iml
+
+bin/
+thord
+*.exe
+.testCoverage.txt
+c.out
+*.leveldb/
+.envrc
+log
+*.log
+*.ldb
+*.out

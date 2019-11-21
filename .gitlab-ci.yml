@@ -1,0 +1,27 @@
+image: golang:1.13
+
+cache:
+  paths:
+    - .cache
+
+before_script:
+  - mkdir -p .cache
+  - export GOPATH="$CI_PROJECT_DIR/.cache"
+
+stages:
+  - test
+  - build
+  - smoke-test
+
+unit_tests:
+  stage: test
+  coverage: '/total:\s+\(statements\)\s+(\d+.\d+\%)/'
+  script:
+    - go test -mod=readonly -v -coverprofile=coverage.out ./...
+    - go tool cover -func=coverage.out
+
+lint_code:
+  image: golangci/golangci-lint
+  stage: test
+  script:
+    - golangci-lint run -v

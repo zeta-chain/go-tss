@@ -2,18 +2,16 @@ package main
 
 import (
 	"crypto/rand"
+	"math/big"
+	"strconv"
+	"time"
 
 	"github.com/binance-chain/tss-lib/common"
 	"github.com/binance-chain/tss-lib/ecdsa/keygen"
 	"github.com/binance-chain/tss-lib/tss"
-	//"github.com/spf13/viper"
 
 	"github.com/decred/dcrd/dcrec/secp256k1"
 	"github.com/ipfs/go-log"
-	logging "github.com/ipfs/go-log"
-	"math/big"
-	"strconv"
-	"time"
 )
 
 const PARTIESNUM = 4
@@ -42,21 +40,8 @@ func secpkeygen() localkey {
 
 }
 
-
-//func LoadConfig(){
-//	viper.AddConfigPath("./")
-//	viper.SetConfigFile("Tssconfig.json")
-//	err := viper.ReadInConfig()
-//	if err != nil {
-//		Logger.Error("error in read the ")
-//		return
-//	}
-//
-//	node.ListenAddress = viper.Get("ListenAddress").(string)
-//}
-
 func main() {
-	logging.SetDebugLogging()
+	log.SetDebugLogging()
 
 	Logger.Infof(">>>>>>>>>>>>>>>>>>>>>>we start the TSS\n")
 
@@ -67,17 +52,17 @@ func main() {
 		preParams, _ := keygen.GeneratePreParams(1 * time.Minute)
 		PreParamsarray = append(PreParamsarray, preParams)
 	}
-	//node, err := net.NewNode("Tssconfig.json")
-	//if err != nil {
+	// node, err := net.NewNode("Tssconfig.json")
+	// if err != nil {
 	//	return
-	//}
-	//node.StartNode()
+	// }
+	// node.StartNode()
 
-	pubkeys := []localkey{}
+	// pubkeys := []localkey{}
 	unSortedPartiesID := []*tss.PartyID{}
 	for i := 0; i < PARTIESNUM; i++ {
 		keypair := secpkeygen()
-		pubkeys = append(pubkeys, keypair)
+		// pubkeys = append(pubkeys, keypair)
 		compressedgitint := new(big.Int).SetBytes(keypair.pk)
 		nodeid := strconv.FormatInt(int64(i), 10)
 		unSortedPartiesID = append(unSortedPartiesID, tss.NewPartyID(nodeid, "", compressedgitint))
@@ -98,7 +83,7 @@ func main() {
 	outCh := make(chan tss.Message, len(partiesID))
 	endCh := make(chan keygen.LocalPartySaveData, len(partiesID))
 	//
-	for i, eachparty := range (partiesID) {
+	for i, eachparty := range partiesID {
 		params := tss.NewParameters(ctx, eachparty, len(partiesID), THRESHOLD)
 		P := keygen.NewLocalParty(params, outCh, endCh, *PreParamsarray[i]).(*keygen.LocalParty) // Omit the last arg to compute the pre-params in round 1
 		parties = append(parties, P)
@@ -121,33 +106,44 @@ keygen:
 		case msg := <-outCh:
 			dest := msg.GetTo()
 			if dest == nil {
-				Logger.Infof("get from %s\n",msg.GetFrom().Index)
-				Logger.Infof("get from %s\n",msg.Type())
+				Logger.Infof("get from %s\n", msg.GetFrom().Index)
+				Logger.Infof("get from %s\n", msg.Type())
 
-				for _, P := range parties {
-					if P.PartyID().Index == msg.GetFrom().Index {
+				for _, p := range parties {
+					if p.PartyID().Index == msg.GetFrom().Index {
 						continue
 					}
 					bz, _, err := msg.WireBytes()
 					if err != nil {
-						errCh <- P.WrapError(err)
+						errCh <- p.WrapError(err)
 						return
 					}
-					go P.UpdateFromBytes(bz, msg.GetFrom(), msg.IsBroadcast())
+					go func(party tss.Party) {
+						_, err := party.UpdateFromBytes(bz, msg.GetFrom(), msg.IsBroadcast())
+						if nil != err {
+							Logger.Error(err)
+						}
+					}(p)
 				}
 			} else {
 				for _, eachdst := range dest {
 					if eachdst.Index == msg.GetFrom().Index {
-						common.Logger.Error("party %d tried to send a message to itself (%d)", dest[0].Index, msg.GetFrom().Index)
+						Logger.Error("party %d tried to send a message to itself (%d)", dest[0].Index, msg.GetFrom().Index)
 					}
 
-					P := parties[eachdst.Index]
+					p := parties[eachdst.Index]
 					bz, _, err := msg.WireBytes()
 					if err != nil {
-						errCh <- P.WrapError(err)
+						errCh <- p.WrapError(err)
 						return
 					}
-					go P.UpdateFromBytes(bz, msg.GetFrom(), msg.IsBroadcast())
+					go func(party tss.Party) {
+						_, err := p.UpdateFromBytes(bz, msg.GetFrom(), msg.IsBroadcast())
+						if nil != err {
+							Logger.Error(err)
+						}
+					}(p)
+
 				}
 
 			}
