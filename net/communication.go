@@ -1,23 +1,23 @@
 package net
 
 import (
-	"github.com/hashicorp/yamux"
-	"github.com/ipfs/go-log"
-	"github.com/spf13/viper"
 	"net"
 	"sync"
+
+	"github.com/hashicorp/yamux"
+	"github.com/ipfs/go-log"
 )
 
-const BUFFERSIZE = 2 * 1024 //we set the buffer size as 2k bytes
+const BUFFERSIZE = 2 * 1024 // we set the buffer size as 2k bytes
 
 var Logger = log.Logger("thorchain-tsscom")
 
 type Nodeinfo struct {
 	ListenAddress string
 	port          string
-	wg            sync.WaitGroup
-	send          chan Msg
-	recv          chan Msg
+	// wg            sync.WaitGroup
+	// send          chan Msg
+	recv chan Msg
 }
 
 type Msg struct {
@@ -25,43 +25,41 @@ type Msg struct {
 	length int
 }
 
-func writedefaultconfig() error {
-	viper.SetDefault("ListenAddress", "127.0.0.1")
-	viper.SetDefault("Port", "5433")
-
-	viper.SetConfigType("config")
-	viper.SetConfigFile("Tssconfig.json")
-	viper.AddConfigPath("./")
-	viper.AddConfigPath("../")
-
-	err := viper.WriteConfig()
-	if err != nil {
-		Logger.Errorf("error in write configure file %s\n", err.Error())
-		return err
-	}
-	return nil
-
-}
-
-func NewNode(configname string) (Nodeinfo, error) {
-
-	var node Nodeinfo
-	viper.AddConfigPath("./")
-	viper.SetConfigFile(configname)
-	err := viper.ReadInConfig()
-	if err != nil {
-		Logger.Error("error in read the ")
-		return node, err
-	}
-
-	node.ListenAddress = viper.Get("ListenAddress").(string)
-	node.port = viper.Get("Port").(string)
-	node.send = make(chan Msg, 10)
-	node.recv = make(chan Msg, 10) // we should set it as the number of the participants
-
-	return node, nil
-
-}
+// func writedefaultconfig() error {
+// 	viper.SetDefault("ListenAddress", "127.0.0.1")
+// 	viper.SetDefault("Port", "5433")
+// 	viper.SetConfigType("config")
+// 	viper.SetConfigFile("Tssconfig.json")
+// 	viper.AddConfigPath("./")
+// 	viper.AddConfigPath("../")
+//
+// 	err := viper.WriteConfig()
+// 	if err != nil {
+// 		Logger.Errorf("error in write configure file %s\n", err.Error())
+// 		return err
+// 	}
+// 	return nil
+//
+// }
+//
+// func NewNode(configname string) (Nodeinfo, error) {
+// 	var node Nodeinfo
+// 	viper.AddConfigPath("./")
+// 	viper.SetConfigFile(configname)
+// 	err := viper.ReadInConfig()
+// 	if err != nil {
+// 		Logger.Error("error in read the ")
+// 		return node, err
+// 	}
+//
+// 	node.ListenAddress = viper.Get("ListenAddress").(string)
+// 	node.port = viper.Get("Port").(string)
+// 	node.send = make(chan Msg, 10)
+// 	node.recv = make(chan Msg, 10) // we should set it as the number of the participants
+//
+// 	return node, nil
+//
+// }
 
 func (self *Nodeinfo) Startserver() error {
 
@@ -119,16 +117,19 @@ func (self *Nodeinfo) Startserver() error {
 		tcpwg.Done()
 
 	}
-	//fixme we need a way to shutdown the server gracefully.
+	// fixme we need a way to shutdown the server gracefully.
 
-	return nil
 }
 
-func (self *Nodeinfo) StartNode()  {
+func (self *Nodeinfo) StartNode() {
 
-	//self.SendMsg("127.0.0.1:5433")
+	// self.SendMsg("127.0.0.1:5433")
 
-	go self.Startserver()
+	go func() {
+		if err := self.Startserver(); nil != err {
+			Logger.Error(err)
+		}
+	}()
 
 	for {
 		msg := <-self.recv
