@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	golog "github.com/ipfs/go-log"
 	"github.com/rs/zerolog/log"
@@ -43,18 +42,6 @@ func main() {
 
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		for {
-			select {
-			case <-ch:
-				return
-			default:
-				log.Info().Msg("broadcast")
-				c.Broadcast(nil, []byte("whatever"))
-			}
-			time.Sleep(time.Second)
-		}
-	}()
 	<-ch
 	if err := c.Stop(); nil != err {
 		log.Fatal().Err(err).Msg("fail to stop tss")

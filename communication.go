@@ -64,7 +64,7 @@ func NewCommunication(rendezvous string, bootstrapPeers []maddr.Multiaddr, port 
 }
 
 const LengthHeader = 4
-const MaxPayload = 8192
+const MaxPayload = 8192 // 8kb
 const TimeoutInSecs = 10
 
 // Broadcast message to Peers
