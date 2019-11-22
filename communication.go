@@ -26,7 +26,6 @@ const (
 
 // Communication use p2p to broadcast messages among all the TSS nodes
 type Communication struct {
-	port             int
 	Rendezvous       string // based on group
 	bootstrapPeers   []maddr.Multiaddr
 	logger           zerolog.Logger
@@ -74,20 +73,6 @@ func (c *Communication) Broadcast(peers []peer.ID, msg []byte) {
 	go c.broadcastToPeers(peers, msg)
 }
 
-// closeStreams
-func (c *Communication) closeStreams(peers []string) {
-	c.streamLock.Lock()
-	defer c.streamLock.Unlock()
-	for _, item := range peers {
-		s := c.streams[item]
-		if nil != s {
-			if err := s.Reset(); nil != err {
-				c.logger.Error().Err(err).Msg("fail to close the stream")
-			}
-		}
-		delete(c.streams, item)
-	}
-}
 func (c *Communication) broadcastToPeers(peers []peer.ID, msg []byte) {
 	defer c.wg.Done()
 	for peerID, stream := range c.streams {
@@ -257,30 +242,38 @@ func (c *Communication) continuouslySearchingForNewPeers() {
 	// This is like your friend telling you the location to meet you.
 	defer c.wg.Done()
 	for {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Minute*5)
-		peerChan, err := c.routingDiscovery.FindPeers(ctx, c.Rendezvous)
-		if nil != err {
-			c.logger.Error().Err(err).Msg("fail to find peers")
-			cancel()
-			continue
-		}
-		for {
-			select {
-			case <-c.stopchan:
-				return
-			case ai, more := <-peerChan:
-				if !more {
-					break
-				}
-				if err := c.connectToPeer(ai); nil != err {
-					c.logger.Error().Err(err).Msg("fail to connect to peer")
-				}
+		select {
+		case <-c.stopchan:
+			return
+		default:
+			ctx, cancel := context.WithTimeout(context.Background(), time.Minute*5)
+			peerChan, err := c.routingDiscovery.FindPeers(ctx, c.Rendezvous)
+			if nil != err {
+				c.logger.Error().Err(err).Msg("fail to find peers")
+				cancel()
+				continue
 			}
+			c.connectToPeers(peerChan)
+			cancel()
 		}
-		cancel()
 	}
 }
-func (c *Communication) connectToPeer(ai peer.AddrInfo) error {
+func (c *Communication) connectToPeers(peerChan <-chan peer.AddrInfo) {
+	for {
+		select {
+		case <-c.stopchan:
+			return
+		case ai, more := <-peerChan:
+			if !more {
+				return // no more
+			}
+			if err := c.connectToOnePeer(ai); nil != err {
+				c.logger.Error().Err(err).Msg("fail to connect to peer")
+			}
+		}
+	}
+}
+func (c *Communication) connectToOnePeer(ai peer.AddrInfo) error {
 	c.logger.Info().Msgf("connect to peer : %s", ai.ID.String())
 	// dont connect to itself
 	if ai.ID == c.host.ID() {

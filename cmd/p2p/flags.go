@@ -28,17 +28,6 @@ func (al *addrList) Set(value string) error {
 	return nil
 }
 
-func StringsToAddrs(addrStrings []string) (maddrs []maddr.Multiaddr, err error) {
-	for _, addrString := range addrStrings {
-		addr, err := maddr.NewMultiaddr(addrString)
-		if err != nil {
-			return maddrs, err
-		}
-		maddrs = append(maddrs, addr)
-	}
-	return
-}
-
 type Config struct {
 	RendezvousString string
 	BootstrapPeers   addrList

@@ -15,8 +15,6 @@ import (
 	go_tss "gitlab.com/thorchain/tss/go-tss"
 )
 
-var logger = golog.Logger("tss_p2p")
-
 func main() {
 	golog.SetAllLoggers(logging.INFO)
 	if err := golog.SetLogLevel("tss_p2p", "DEBUG"); nil != err {
