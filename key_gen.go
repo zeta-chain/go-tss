@@ -8,6 +8,7 @@ type KeyGenReq struct {
 
 // KeyGenResponse
 type KeyGenResp struct {
-	PubKey string `json:"pub_key"`
-	Status Status `json:"status"`
+	PubKey     string `json:"pub_key"`
+	BNBAddress string `json:"bnb_address"`
+	Status     Status `json:"status"`
 }

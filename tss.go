@@ -14,6 +14,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/binance-chain/go-sdk/common/types"
+	"github.com/binance-chain/tss-lib/crypto"
 	"github.com/binance-chain/tss-lib/ecdsa/keygen"
 	"github.com/binance-chain/tss-lib/tss"
 	sdk "github.com/cosmos/cosmos-sdk/types"
@@ -131,10 +133,37 @@ func (t *Tss) keygen(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	if err := t.generateNewKey(keygenReq); nil != err {
-		w.WriteHeader(http.StatusOK)
+	k, err := t.generateNewKey(keygenReq)
+	if nil != err {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
-	// start key gen
+	var pk secp256k1.PubKeySecp256k1
+	copy(pk[:], k.Y().Bytes())
+	newPubKey, err := sdk.Bech32ifyAccPub(pk)
+	if nil != err {
+		t.logger.Error().Err(err).Msg("fail to bech32 acc pub key")
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	types.Network = types.TestNetwork
+	bnbAcctAddr := types.AccAddress(pk.Address().Bytes())
+	resp := KeyGenResp{
+		PubKey:     newPubKey,
+		BNBAddress: bnbAcctAddr.String(),
+		Status:     Success,
+	}
+	buf, err := json.Marshal(resp)
+	if nil != err {
+		t.logger.Error().Err(err).Msg("fail to marshal response to json")
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	t.logger.Info().Msg(string(buf))
+	_, err = w.Write(buf)
+	if nil != err {
+		t.logger.Error().Err(err).Msg("fail to write to response")
+	}
 }
 
 func (t *Tss) getPubKey(keygenReq KeyGenReq) (string, error) {
@@ -155,23 +184,23 @@ func (t *Tss) getPubKey(keygenReq KeyGenReq) (string, error) {
 	}
 	return pubKey, nil
 }
-func (t *Tss) generateNewKey(keygenReq KeyGenReq) error {
+func (t *Tss) generateNewKey(keygenReq KeyGenReq) (*crypto.ECPoint, error) {
 	// When using the keygen party it is recommended that you pre-compute the "safe primes" and Paillier secret beforehand because this can take some time.
 	// This code will generate those parameters using a concurrency limit equal to the number of available CPU cores.
 	preParams, err := keygen.GeneratePreParams(1 * time.Minute)
 	if nil != err {
-		return fmt.Errorf("fail to generate pre parameters: %w", err)
+		return nil, fmt.Errorf("fail to generate pre parameters: %w", err)
 	}
 	pubKey, err := t.getPubKey(keygenReq)
 	if nil != err {
-		return fmt.Errorf("fail to get pubkey from the given private key(%s): %w", keygenReq.PrivKey, err)
+		return nil, fmt.Errorf("fail to get pubkey from the given private key(%s): %w", keygenReq.PrivKey, err)
 	}
 	var localPartyID *tss.PartyID
 	var unSortedPartiesID []*tss.PartyID
 	for idx, item := range keygenReq.Keys {
 		pk, err := sdk.GetAccPubKeyBech32(item)
 		if nil != err {
-			return err
+			return nil, fmt.Errorf("fail to get account pub key address(%s): %w", item, err)
 		}
 		key := new(big.Int).SetBytes(pk.Bytes())
 		partyID := tss.NewPartyID(strconv.Itoa(idx), "", key)
@@ -181,7 +210,7 @@ func (t *Tss) generateNewKey(keygenReq KeyGenReq) error {
 		unSortedPartiesID = append(unSortedPartiesID, partyID)
 	}
 	if localPartyID == nil {
-		return fmt.Errorf("local party is not in the list")
+		return nil, fmt.Errorf("local party is not in the list")
 	}
 	partiesID := tss.SortPartyIDs(unSortedPartiesID)
 
@@ -267,8 +296,9 @@ func (t *Tss) generateNewKey(keygenReq KeyGenReq) error {
 	wg.Wait()
 	t.logger.Info().Msg("key gen finished")
 	t.setKeyGenInfo(nil)
-	return nil
+	return saveData.ECDSAPub, nil
 }
+
 func (t *Tss) setKeyGenInfo(keyGenInfo *TssKeyGenInfo) {
 	t.partyLock.Lock()
 	defer t.partyLock.Unlock()

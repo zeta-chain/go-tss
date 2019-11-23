@@ -3,10 +3,10 @@ module gitlab.com/thorchain/tss/go-tss
 go 1.13
 
 require (
+	github.com/binance-chain/go-sdk v1.1.3
 	github.com/binance-chain/tss-lib v1.1.0
 	github.com/cosmos/cosmos-sdk v0.37.4
 	github.com/decred/dcrd/dcrec/secp256k1 v1.0.3
-	github.com/gogo/protobuf v1.3.1
 	github.com/gorilla/mux v1.7.3
 	github.com/hashicorp/yamux v0.0.0-20190923154419-df201c70410d
 	github.com/ipfs/go-log v0.0.1
