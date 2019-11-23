@@ -20,7 +20,7 @@ func main() {
 		panic(err)
 	}
 	help := flag.Bool("h", false, "Display Help")
-	config, err := ParseFlags()
+	config, err := go_tss.ParseFlags()
 	if err != nil {
 		panic(err)
 	}

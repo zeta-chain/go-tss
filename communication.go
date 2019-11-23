@@ -63,6 +63,11 @@ func NewCommunication(rendezvous string, bootstrapPeers []maddr.Multiaddr, port 
 	}, nil
 }
 
+// GetLocalPeerID
+func (c *Communication) GetLocalPeerID() string {
+	return c.host.ID().String()
+}
+
 const LengthHeader = 4
 const MaxPayload = 8192 // 8kb
 const TimeoutInSecs = 10
@@ -101,7 +106,7 @@ func (c *Communication) broadcastToPeers(peers []peer.ID, msg []byte) {
 }
 
 func (c *Communication) writeToStream(stream network.Stream, msg []byte) error {
-	c.logger.Debug().Msg("writing messages to stream")
+	c.logger.Info().Msg("writing messages to stream")
 	length := len(msg)
 	buf := make([]byte, LengthHeader)
 	binary.LittleEndian.PutUint32(buf, uint32(length))
@@ -143,8 +148,11 @@ func (c *Communication) readFromStream(stream network.Stream) {
 		case <-c.stopchan:
 			return
 		default:
-			// TODO read from the stream
 			length := make([]byte, LengthHeader)
+			if err := stream.SetReadDeadline(time.Time{}); nil != err {
+				c.logger.Error().Err(err).Msg("fail to set read timeout")
+				return
+			}
 			n, err := stream.Read(length)
 			if err != nil {
 				c.logger.Error().Err(err).Msg("fail to read from stream")
@@ -173,15 +181,14 @@ func (c *Communication) readFromStream(stream network.Stream) {
 				// short reading
 				c.logger.Error().Err(err).Msgf("we are expecting %d bytes , but we only got %d", l, n)
 			}
-			c.logger.Info().Msg(string(buf))
-			// select {
-			// case <-c.stopchan:
-			// 	return
-			// case c.messages <- &Message{
-			// 	PeerID:  stream.Conn().RemotePeer(),
-			// 	Payload: buf,
-			// }:
-			// }
+			select {
+			case <-c.stopchan:
+				return
+			case c.messages <- &Message{
+				PeerID:  stream.Conn().RemotePeer(),
+				Payload: buf,
+			}:
+			}
 		}
 	}
 }
@@ -255,6 +262,7 @@ func (c *Communication) continuouslySearchingForNewPeers() {
 			}
 			c.connectToPeers(peerChan)
 			cancel()
+			time.Sleep(time.Second * 60)
 		}
 	}
 }
@@ -266,6 +274,9 @@ func (c *Communication) connectToPeers(peerChan <-chan peer.AddrInfo) {
 		case ai, more := <-peerChan:
 			if !more {
 				return // no more
+			}
+			if ai.ID == c.host.ID() {
+				continue
 			}
 			if err := c.connectToOnePeer(ai); nil != err {
 				c.logger.Error().Err(err).Msg("fail to connect to peer")
