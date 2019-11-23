@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"math/big"
 	"net/http"
 	"strconv"
@@ -130,32 +131,40 @@ func (t *Tss) keygen(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	if err := t.prepareKeygen(keygenReq); nil != err {
-
+	if err := t.generateNewKey(keygenReq); nil != err {
+		w.WriteHeader(http.StatusOK)
 	}
 	// start key gen
 }
-func (t *Tss) prepareKeygen(keygenReq KeyGenReq) error {
-	// When using the keygen party it is recommended that you pre-compute the "safe primes" and Paillier secret beforehand because this can take some time.
-	// This code will generate those parameters using a concurrency limit equal to the number of available CPU cores.
-	preParams, err := keygen.GeneratePreParams(1 * time.Minute)
-	if nil != err {
-		return fmt.Errorf("fail to generate pre parameters: %w", err)
-	}
+
+func (t *Tss) getPubKey(keygenReq KeyGenReq) (string, error) {
 	priHexBytes, err := base64.StdEncoding.DecodeString(keygenReq.PrivKey)
 	if nil != err {
-		return fmt.Errorf("fail to decode private key: %w", err)
+		return "", fmt.Errorf("fail to decode private key: %w", err)
 	}
 	rawBytes, err := hex.DecodeString(string(priHexBytes))
 	if nil != err {
-		return fmt.Errorf("fail to hex decode private key: %w", err)
+		return "", fmt.Errorf("fail to hex decode private key: %w", err)
 	}
 	var keyBytesArray [32]byte
 	copy(keyBytesArray[:], rawBytes[:32])
 	priKey := secp256k1.PrivKeySecp256k1(keyBytesArray)
 	pubKey, err := sdk.Bech32ifyAccPub(priKey.PubKey())
 	if nil != err {
-		return fmt.Errorf("fail to get account public key: %w", err)
+		return "", fmt.Errorf("fail to get account public key: %w", err)
+	}
+	return pubKey, nil
+}
+func (t *Tss) generateNewKey(keygenReq KeyGenReq) error {
+	// When using the keygen party it is recommended that you pre-compute the "safe primes" and Paillier secret beforehand because this can take some time.
+	// This code will generate those parameters using a concurrency limit equal to the number of available CPU cores.
+	preParams, err := keygen.GeneratePreParams(1 * time.Minute)
+	if nil != err {
+		return fmt.Errorf("fail to generate pre parameters: %w", err)
+	}
+	pubKey, err := t.getPubKey(keygenReq)
+	if nil != err {
+		return fmt.Errorf("fail to get pubkey from the given private key(%s): %w", keygenReq.PrivKey, err)
 	}
 	var localPartyID *tss.PartyID
 	var unSortedPartiesID []*tss.PartyID
@@ -192,12 +201,10 @@ func (t *Tss) prepareKeygen(keygenReq KeyGenReq) error {
 	for _, id := range partiesID {
 		partyIDMap[id.Id] = id
 	}
-	t.partyLock.Lock()
-	t.keyGenInfo = &TssKeyGenInfo{
+	t.setKeyGenInfo(&TssKeyGenInfo{
 		Party:      keyGenParty,
 		PartyIDMap: partyIDMap,
-	}
-	t.partyLock.Unlock()
+	})
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 	// start keygen
@@ -210,6 +217,7 @@ func (t *Tss) prepareKeygen(keygenReq KeyGenReq) error {
 		}
 	}()
 	wg.Add(1)
+	var saveData keygen.LocalPartySaveData
 	go func() {
 		defer t.logger.Info().Msg("is it possible it has finished?")
 		t.logger.Info().Msg("start to read messages from local party")
@@ -226,6 +234,7 @@ func (t *Tss) prepareKeygen(keygenReq KeyGenReq) error {
 				buf, r, err := msg.WireBytes()
 				if nil != err {
 					t.logger.Error().Err(err).Msg("fail to get wire bytes")
+					continue
 				}
 				tssMsg := TssMessage{
 					Routing: r,
@@ -242,25 +251,43 @@ func (t *Tss) prepareKeygen(keygenReq KeyGenReq) error {
 				t.drainQueuedMessages()
 			case msg := <-endCh:
 				t.logger.Info().Msgf("we have done the keygen %s", msg.ECDSAPub.Y().String())
+				saveData = msg
+				buf, err := json.Marshal(saveData)
+				if nil != err {
+					t.logger.Error().Err(err).Msg("fail to marshal save data to json")
+					return
+				}
+				if err := ioutil.WriteFile("localdata.json", buf, 0655); nil != err {
+					t.logger.Error().Err(err).Msg("fail to save to local disk")
+				}
 				return
 			}
 		}
 	}()
-	t.logger.Info().Msg("Let's wait......")
 	wg.Wait()
+	t.logger.Info().Msg("key gen finished")
+	t.setKeyGenInfo(nil)
 	return nil
+}
+func (t *Tss) setKeyGenInfo(keyGenInfo *TssKeyGenInfo) {
+	t.partyLock.Lock()
+	defer t.partyLock.Unlock()
+	t.keyGenInfo = keyGenInfo
+}
+func (t *Tss) getKeyGenInfo() *TssKeyGenInfo {
+	t.partyLock.Lock()
+	defer t.partyLock.Unlock()
+	return t.keyGenInfo
 }
 func (t *Tss) drainQueuedMessages() {
 	if len(t.queuedMsgs) == 0 {
 		return
 	}
-	t.partyLock.Lock()
-	keyGenInfo := t.keyGenInfo
-	t.partyLock.Unlock()
+	keyGenInfo := t.getKeyGenInfo()
 	for {
 		select {
 		case m := <-t.queuedMsgs:
-			t.logger.Info().Msgf("<<<<<party:%s", m.Routing.From.Id)
+			t.logger.Debug().Msgf("<<<<<party:%s", m.Routing.From.Id)
 			if !t.IsItForCurrentParty(keyGenInfo, m) {
 				continue
 			}
@@ -272,7 +299,7 @@ func (t *Tss) drainQueuedMessages() {
 			if _, err := keyGenInfo.Party.UpdateFromBytes(m.Message, partyID, m.Routing.IsBroadcast); nil != err {
 				t.logger.Error().Err(err).Msgf("fail to update from bytes,party ID: %s", partyID)
 			}
-			t.logger.Info().Msgf("update msg from party:%s", m.Routing.From.Id)
+			t.logger.Debug().Msgf("update msg from party:%s", m.Routing.From.Id)
 		default:
 			return
 		}
@@ -372,9 +399,8 @@ func (t *Tss) processComm() {
 				t.logger.Error().Err(err).Msgf("fail to unmarshal wire bytes")
 				continue
 			}
-			t.partyLock.Lock()
-			keyGenInfo := t.keyGenInfo
-			t.partyLock.Unlock()
+
+			keyGenInfo := t.getKeyGenInfo()
 			if keyGenInfo == nil {
 				// we are not doing any keygen at the moment, so we queue it
 				t.queuedMsgs <- tssMsg
