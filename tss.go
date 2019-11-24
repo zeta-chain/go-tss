@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math/big"
 	"net/http"
+	"os"
 	"strconv"
 	"sync"
 	"time"
@@ -153,7 +154,9 @@ func (t *Tss) keygen(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	types.Network = types.TestNetwork
+	if os.Getenv("NET") == "testnet" {
+		types.Network = types.TestNetwork
+	}
 	resp := KeyGenResp{
 		PubKey:     newPubKey,
 		BNBAddress: addr.String(),
