@@ -126,7 +126,7 @@ func (t *Tss) keygen(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if t.keyGenInfo != nil {
+	if t.getKeyGenInfo() != nil {
 		resp := KeyGenResp{
 			PubKey: "",
 			Status: Fail,
@@ -203,6 +203,27 @@ func (t *Tss) getPubKey(keygenReq KeyGenReq) (string, error) {
 	}
 	return pubKey, nil
 }
+func (t *Tss) getParties(keys []string, localPartyKey string) ([]*tss.PartyID, *tss.PartyID, error) {
+	var localPartyID *tss.PartyID
+	var unSortedPartiesID []*tss.PartyID
+	for idx, item := range keys {
+		pk, err := sdk.GetAccPubKeyBech32(item)
+		if nil != err {
+			return nil, nil, fmt.Errorf("fail to get account pub key address(%s): %w", item, err)
+		}
+		key := new(big.Int).SetBytes(pk.Bytes())
+		partyID := tss.NewPartyID(strconv.Itoa(idx), "", key)
+		if item == localPartyKey {
+			localPartyID = partyID
+		}
+		unSortedPartiesID = append(unSortedPartiesID, partyID)
+	}
+	if localPartyID == nil {
+		return nil, nil, fmt.Errorf("local party is not in the list")
+	}
+	partiesID := tss.SortPartyIDs(unSortedPartiesID)
+	return partiesID, localPartyID, nil
+}
 func (t *Tss) generateNewKey(keygenReq KeyGenReq) (*crypto.ECPoint, error) {
 	// When using the keygen party it is recommended that you pre-compute the "safe primes" and Paillier secret beforehand because this can take some time.
 	// This code will generate those parameters using a concurrency limit equal to the number of available CPU cores.
@@ -214,25 +235,15 @@ func (t *Tss) generateNewKey(keygenReq KeyGenReq) (*crypto.ECPoint, error) {
 	if nil != err {
 		return nil, fmt.Errorf("fail to get pubkey from the given private key(%s): %w", keygenReq.PrivKey, err)
 	}
-	var localPartyID *tss.PartyID
-	var unSortedPartiesID []*tss.PartyID
-	for idx, item := range keygenReq.Keys {
-		pk, err := sdk.GetAccPubKeyBech32(item)
-		if nil != err {
-			return nil, fmt.Errorf("fail to get account pub key address(%s): %w", item, err)
-		}
-		key := new(big.Int).SetBytes(pk.Bytes())
-		partyID := tss.NewPartyID(strconv.Itoa(idx), "", key)
-		if item == pubKey {
-			localPartyID = partyID
-		}
-		unSortedPartiesID = append(unSortedPartiesID, partyID)
+	partiesID, localPartyID, err := t.getParties(keygenReq.Keys, pubKey)
+	if nil != err {
+		return nil, fmt.Errorf("fail to get keygen parties: %w", err)
 	}
-	if localPartyID == nil {
-		return nil, fmt.Errorf("local party is not in the list")
-	}
-	partiesID := tss.SortPartyIDs(unSortedPartiesID)
 
+	keyGenLocalStateItem := KeygenLocalStateItem{
+		ParticipantKeys: keygenReq.Keys,
+		LocalPartyKey:   pubKey,
+	}
 	// Set up the parameters
 	// Note: The `id` and `moniker` fields are for convenience to allow you to easily track participants.
 	// The `id` should be a unique string representing this party in the network and `moniker` can be anything (even left blank).
@@ -269,7 +280,7 @@ func (t *Tss) generateNewKey(keygenReq KeyGenReq) (*crypto.ECPoint, error) {
 
 	}()
 
-	r, err := t.processKeyGen(errChan, outCh, endCh)
+	r, err := t.processKeyGen(errChan, outCh, endCh, keyGenLocalStateItem)
 	if nil != err {
 		t.logger.Error().Err(err).Msg("fail to complete keygen")
 		for _, item := range keyGenParty.WaitingFor() {
@@ -292,7 +303,8 @@ func (t *Tss) emptyQueuedMessages() {
 		}
 	}
 }
-func (t *Tss) processKeyGen(errChan chan struct{}, outCh <-chan tss.Message, endCh <-chan keygen.LocalPartySaveData) (*crypto.ECPoint, error) {
+
+func (t *Tss) processKeyGen(errChan chan struct{}, outCh <-chan tss.Message, endCh <-chan keygen.LocalPartySaveData, keyGenLocalStateItem KeygenLocalStateItem) (*crypto.ECPoint, error) {
 	defer t.logger.Info().Msg("is it possible it has finished?")
 	t.logger.Info().Msg("start to read messages from local party")
 	for {
@@ -329,7 +341,7 @@ func (t *Tss) processKeyGen(errChan chan struct{}, outCh <-chan tss.Message, end
 		case msg := <-endCh:
 			t.logger.Info().Msgf("we have done the keygen %s", msg.ECDSAPub.Y().String())
 
-			if err := t.addLocalPartySaveData(msg); nil != err {
+			if err := t.addLocalPartySaveData(msg, keyGenLocalStateItem); nil != err {
 				return nil, fmt.Errorf("fail to save key gen result to local store: %w", err)
 			}
 			return msg.ECDSAPub, nil
@@ -337,7 +349,7 @@ func (t *Tss) processKeyGen(errChan chan struct{}, outCh <-chan tss.Message, end
 	}
 }
 
-func (t *Tss) addLocalPartySaveData(data keygen.LocalPartySaveData) error {
+func (t *Tss) addLocalPartySaveData(data keygen.LocalPartySaveData, keyGenLocalStateItem KeygenLocalStateItem) error {
 	t.stateLock.Lock()
 	defer t.stateLock.Unlock()
 	pubKey, addr, err := t.getThorPubKey(data.ECDSAPub.Y())
@@ -345,10 +357,9 @@ func (t *Tss) addLocalPartySaveData(data keygen.LocalPartySaveData) error {
 		return fmt.Errorf("fail to get thorchain pubkey: %w", err)
 	}
 	t.logger.Debug().Msgf("pubkey: %s, bnb address: %s", pubKey, addr)
-	t.localState = append(t.localState, KeygenLocalStateItem{
-		PubKey:    pubKey,
-		LocalData: data,
-	})
+	keyGenLocalStateItem.PubKey = pubKey
+	keyGenLocalStateItem.LocalData = data
+	t.localState = append(t.localState, keyGenLocalStateItem)
 	localFileName := fmt.Sprintf("localstate-%d.json", t.port)
 	return SaveLocalStateToFile(localFileName, t.localState)
 
@@ -359,11 +370,13 @@ func (t *Tss) setKeyGenInfo(keyGenInfo *TssKeyGenInfo) {
 	defer t.partyLock.Unlock()
 	t.keyGenInfo = keyGenInfo
 }
+
 func (t *Tss) getKeyGenInfo() *TssKeyGenInfo {
 	t.partyLock.Lock()
 	defer t.partyLock.Unlock()
 	return t.keyGenInfo
 }
+
 func (t *Tss) drainQueuedMessages() {
 	if len(t.queuedMsgs) == 0 {
 		return
@@ -399,6 +412,7 @@ type TssMessage struct {
 	Message []byte              `json:"message"`
 }
 
+// keysign process keysign request
 func (t *Tss) keysign(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
@@ -417,43 +431,43 @@ func (t *Tss) keysign(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
+	signatureData, err := t.signMessage(keysignReq)
+	if nil != err {
+		t.logger.Error().Err(err).Msg("fail to sign message")
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	signResp := KeySignResp{
+		Signature: base64.StdEncoding.EncodeToString(signatureData.Signature),
+		Status:    Success,
+	}
+	jsonResult, err := json.MarshalIndent(signResp, "", "	")
+	if nil != err {
+		t.logger.Error().Err(err).Msg("fail to marshal response to json message")
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	_, err = w.Write(jsonResult)
+	if nil != err {
+		t.logger.Error().Err(err).Msg("fail to write response")
+	}
 
-	// start keysign
 }
 
 // signMessage
-func (t *Tss) signMessage(req KeySignReq) error {
-	pubKey, err := t.getPubKey(req.KeyGenReq)
+func (t *Tss) signMessage(req KeySignReq) (*signing.SignatureData, error) {
+	keyGenLocalStateItem, err := t.getKeyData(req.PoolPubKey)
 	if nil != err {
-		return fmt.Errorf("fail to get pubkey from the given private key(%s): %w", req.PrivKey, err)
-	}
-	localState, err := t.getKeyData(req.PoolPubKey)
-	if nil != err {
-		return fmt.Errorf("fail to get keygen state data for pubkey(%s): %w", req.PoolPubKey, err)
+		return nil, fmt.Errorf("fail to get keygen state data for pubkey(%s): %w", req.PoolPubKey, err)
 	}
 	msgToSign, err := base64.StdEncoding.DecodeString(req.Message)
 	if nil != err {
-		return fmt.Errorf("fail to decode message(%s): %w", req.Message, err)
+		return nil, fmt.Errorf("fail to decode message(%s): %w", req.Message, err)
 	}
-	var localPartyID *tss.PartyID
-	var unSortedPartiesID []*tss.PartyID
-	for idx, item := range req.Keys {
-		pk, err := sdk.GetAccPubKeyBech32(item)
-		if nil != err {
-			return fmt.Errorf("fail to get account pub key address(%s): %w", item, err)
-		}
-		key := new(big.Int).SetBytes(pk.Bytes())
-		partyID := tss.NewPartyID(strconv.Itoa(idx), "", key)
-		if item == pubKey {
-			localPartyID = partyID
-		}
-		unSortedPartiesID = append(unSortedPartiesID, partyID)
+	partiesID, localPartyID, err := t.getParties(keyGenLocalStateItem.ParticipantKeys, keyGenLocalStateItem.LocalPartyKey)
+	if nil != err {
+		return nil, fmt.Errorf("fail to form key sign party: %w", err)
 	}
-	if localPartyID == nil {
-		return fmt.Errorf("local party is not in the list")
-	}
-	partiesID := tss.SortPartyIDs(unSortedPartiesID)
-
 	// Set up the parameters
 	// Note: The `id` and `moniker` fields are for convenience to allow you to easily track participants.
 	// The `id` should be a unique string representing this party in the network and `moniker` can be anything (even left blank).
@@ -465,7 +479,7 @@ func (t *Tss) signMessage(req KeySignReq) error {
 	errCh := make(chan struct{})
 	m := new(big.Int)
 	m = m.SetBytes(msgToSign)
-	keySignParty := signing.NewLocalParty(m, params, localState, outCh, endCh)
+	keySignParty := signing.NewLocalParty(m, params, keyGenLocalStateItem.LocalData, outCh, endCh)
 	// You should keep a local mapping of `id` strings to `*PartyID` instances so that an incoming message can have its origin party's `*PartyID` recovered for passing to `UpdateFromBytes` (see below)
 	partyIDMap := make(map[string]*tss.PartyID)
 	for _, id := range partiesID {
@@ -478,7 +492,7 @@ func (t *Tss) signMessage(req KeySignReq) error {
 
 	go func() {
 		if err := keySignParty.Start(); nil != err {
-			t.logger.Error().Err(err).Msg("fail to start keysign party")
+			t.logger.Error().Err(err).Msg("fail to start key sign party")
 			close(errCh)
 		}
 	}()
@@ -489,10 +503,10 @@ func (t *Tss) signMessage(req KeySignReq) error {
 	result, err := t.processKeySign(errCh, outCh, endCh)
 	if nil != err {
 		// we failed
-
+		return nil, fmt.Errorf("fail to process key sign: %w", err)
 	}
-
-	return nil
+	t.logger.Info().Msg("successfully sign the message")
+	return result, nil
 }
 
 func (t *Tss) processKeySign(errChan chan struct{}, outCh <-chan tss.Message, endCh <-chan signing.SignatureData) (*signing.SignatureData, error) {
@@ -536,15 +550,16 @@ func (t *Tss) processKeySign(errChan chan struct{}, outCh <-chan tss.Message, en
 	}
 }
 
-func (t *Tss) getKeyData(pubKey string) (keygen.LocalPartySaveData, error) {
+func (t *Tss) getKeyData(pubKey string) (KeygenLocalStateItem, error) {
+	var emptyKeyGenLocalStateItem KeygenLocalStateItem
 	t.stateLock.Lock()
 	defer t.stateLock.Unlock()
 	for _, item := range t.localState {
 		if item.PubKey == pubKey {
-			return item.LocalData, nil
+			return item, nil
 		}
 	}
-	return keygen.LocalPartySaveData{}, fmt.Errorf("didnot find keygen state for(%s)", pubKey)
+	return emptyKeyGenLocalStateItem, fmt.Errorf("didnot find keygen state for(%s)", pubKey)
 }
 
 func ping() http.Handler {
