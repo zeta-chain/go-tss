@@ -28,8 +28,9 @@ import (
 )
 
 const (
-	Threshold            = 2
-	KeyGenTimeoutSeconds = 30
+	Threshold             = 2
+	KeyGenTimeoutSeconds  = 30
+	KeySignTimeoutSeconds = 30
 )
 
 // TssKeyGenInfo the information used by tss key gen
@@ -462,15 +463,74 @@ func (t *Tss) signMessage(req KeySignReq) error {
 	m := new(big.Int)
 	m = m.SetBytes(msgToSign)
 	keySignParty := signing.NewLocalParty(m, params, localState, outCh, endCh)
+	// You should keep a local mapping of `id` strings to `*PartyID` instances so that an incoming message can have its origin party's `*PartyID` recovered for passing to `UpdateFromBytes` (see below)
+	partyIDMap := make(map[string]*tss.PartyID)
+	for _, id := range partiesID {
+		partyIDMap[id.Id] = id
+	}
+
+	defer func() {
+		t.setKeyGenInfo(nil)
+	}()
+
 	go func() {
 		if err := keySignParty.Start(); nil != err {
 			t.logger.Error().Err(err).Msg("fail to start keysign party")
 			close(errCh)
 		}
 	}()
-	// TODO deal with messages
+	t.setKeyGenInfo(&TssKeyGenInfo{
+		Party:      keySignParty,
+		PartyIDMap: partyIDMap,
+	})
+	result, err := t.processKeySign(errCh, outCh, endCh)
+	if nil != err {
+		// we failed
+
+	}
 
 	return nil
+}
+
+func (t *Tss) processKeySign(errChan chan struct{}, outCh <-chan tss.Message, endCh <-chan signing.SignatureData) (*signing.SignatureData, error) {
+	defer t.logger.Info().Msg("key sign finished")
+	t.logger.Info().Msg("start to read messages from local party")
+	for {
+		select {
+		case <-errChan: // when keyGenParty return
+			t.logger.Error().Msg("key gen failed")
+			return nil, errors.New("error channel closed fail to start local party")
+		case <-t.stopChan: // when TSS processor receive signal to quit
+			return nil, errors.New("received exit signal")
+		case <-time.After(time.Second * KeySignTimeoutSeconds):
+			// we bail out after KeyGenTimeoutSeconds
+			return nil, fmt.Errorf("fail to sign message with in %d seconds", KeyGenTimeoutSeconds)
+		case msg := <-outCh:
+			t.logger.Info().Msgf(">>>>>>>>>>key sign msg: %s", msg.String())
+			buf, r, err := msg.WireBytes()
+			if nil != err {
+				t.logger.Error().Err(err).Msg("fail to get wire bytes")
+				continue
+			}
+			tssMsg := TssMessage{
+				Routing: r,
+				Message: buf,
+			}
+			wireBytes, err := json.Marshal(tssMsg)
+			if nil != err {
+				return nil, fmt.Errorf("fail to convert tss msg to wire bytes: %w", err)
+			}
+			t.logger.Info().Msgf("broad cast msg to everyone from :%s ", r.From.Id)
+			if err := t.comm.Broadcast(nil, wireBytes); nil != err {
+				t.logger.Error().Err(err).Msg("fail to broadcast messages")
+			}
+			// drain the in memory queue
+			t.drainQueuedMessages()
+		case msg := <-endCh:
+			t.logger.Info().Msgf("we have done the key sign %s", msg.Signature)
+			return &msg, nil
+		}
+	}
 }
 
 func (t *Tss) getKeyData(pubKey string) (keygen.LocalPartySaveData, error) {
@@ -481,7 +541,7 @@ func (t *Tss) getKeyData(pubKey string) (keygen.LocalPartySaveData, error) {
 			return item.LocalData, nil
 		}
 	}
-	return keygen.LocalPartySaveData{}, fmt.Errorf("Didn't find keygen state for(%s)", pubKey)
+	return keygen.LocalPartySaveData{}, fmt.Errorf("didnot find keygen state for(%s)", pubKey)
 }
 
 func ping() http.Handler {
