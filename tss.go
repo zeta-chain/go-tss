@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"math/big"
 	"net/http"
 	"strconv"
@@ -49,6 +48,8 @@ type Tss struct {
 	keyGenInfo *TssKeyGenInfo
 	stopChan   chan struct{} // channel to indicate whether we should stop
 	queuedMsgs chan TssMessage
+	stateLock  *sync.Mutex
+	localState KeygenLocalState
 }
 
 // NewTss create a new instance of Tss
@@ -61,6 +62,11 @@ func NewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int) (*Tss, error
 		return nil, fmt.Errorf("fail to create communication layer: %w", err)
 	}
 	setupBech32Prefix()
+	localFileName := fmt.Sprintf("localstate-%d.json", tssPort)
+	localState, err := GetLocalState(localFileName)
+	if nil != err {
+		return nil, fmt.Errorf("fail to read local state file: %w", err)
+	}
 	t := &Tss{
 		comm:       c,
 		logger:     log.With().Str("module", "tss").Logger(),
@@ -68,6 +74,8 @@ func NewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int) (*Tss, error
 		stopChan:   make(chan struct{}),
 		partyLock:  &sync.Mutex{},
 		queuedMsgs: make(chan TssMessage, 1024),
+		stateLock:  &sync.Mutex{},
+		localState: localState,
 	}
 
 	server := &http.Server{
@@ -139,19 +147,16 @@ func (t *Tss) keygen(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	var pk secp256k1.PubKeySecp256k1
-	copy(pk[:], k.Y().Bytes())
-	newPubKey, err := sdk.Bech32ifyAccPub(pk)
+	newPubKey, addr, err := t.getThorPubKey(k.Y())
 	if nil != err {
 		t.logger.Error().Err(err).Msg("fail to bech32 acc pub key")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	types.Network = types.TestNetwork
-	bnbAcctAddr := types.AccAddress(pk.Address().Bytes())
 	resp := KeyGenResp{
 		PubKey:     newPubKey,
-		BNBAddress: bnbAcctAddr.String(),
+		BNBAddress: addr.String(),
 		Status:     Success,
 	}
 	buf, err := json.Marshal(resp)
@@ -165,6 +170,14 @@ func (t *Tss) keygen(w http.ResponseWriter, r *http.Request) {
 	if nil != err {
 		t.logger.Error().Err(err).Msg("fail to write to response")
 	}
+}
+
+func (t *Tss) getThorPubKey(input *big.Int) (string, types.AccAddress, error) {
+	var pk secp256k1.PubKeySecp256k1
+	copy(pk[:], input.Bytes())
+	pubKey, err := sdk.Bech32ifyAccPub(pk)
+	addr := types.AccAddress(pk.Address().Bytes())
+	return pubKey, addr, err
 }
 
 func (t *Tss) getPubKey(keygenReq KeyGenReq) (string, error) {
@@ -310,16 +323,30 @@ func (t *Tss) processKeyGen(errChan chan struct{}, outCh <-chan tss.Message, end
 			t.drainQueuedMessages()
 		case msg := <-endCh:
 			t.logger.Info().Msgf("we have done the keygen %s", msg.ECDSAPub.Y().String())
-			buf, err := json.Marshal(msg)
-			if nil != err {
-				return nil, fmt.Errorf("fail to marshal save data to json: %w", err)
-			}
-			if err := ioutil.WriteFile(fmt.Sprintf("localdata-%d.json", t.port), buf, 0655); nil != err {
-				return nil, fmt.Errorf("fail to save to local disk: %w", err)
+
+			if err := t.addLocalPartySaveData(msg); nil != err {
+				return nil, fmt.Errorf("fail to save key gen result to local store: %w", err)
 			}
 			return msg.ECDSAPub, nil
 		}
 	}
+}
+
+func (t *Tss) addLocalPartySaveData(data keygen.LocalPartySaveData) error {
+	t.stateLock.Lock()
+	defer t.stateLock.Unlock()
+	pubKey, addr, err := t.getThorPubKey(data.ECDSAPub.Y())
+	if nil != err {
+		return fmt.Errorf("fail to get thorchain pubkey: %w", err)
+	}
+	t.logger.Debug().Msgf("pubkey: %s, bnb address: %s", pubKey, addr)
+	t.localState = append(t.localState, KeygenLocalStateItem{
+		PubKey:    pubKey,
+		LocalData: data,
+	})
+	localFileName := fmt.Sprintf("localstate-%d.json", t.port)
+	return SaveLocalStateToFile(localFileName, t.localState)
+
 }
 
 func (t *Tss) setKeyGenInfo(keyGenInfo *TssKeyGenInfo) {
