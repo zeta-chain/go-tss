@@ -67,7 +67,7 @@ func (c *Communication) GetLocalPeerID() string {
 }
 
 const LengthHeader = 4
-const MaxPayload = 8192 // 8kb
+const MaxPayload = 81920 // 80kb
 const TimeoutInSecs = 10
 
 // Broadcast message to Peers

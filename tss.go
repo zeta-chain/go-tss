@@ -472,6 +472,7 @@ func (t *Tss) signMessage(req KeySignReq) (*signing.SignatureData, error) {
 	// Note: The `id` and `moniker` fields are for convenience to allow you to easily track participants.
 	// The `id` should be a unique string representing this party in the network and `moniker` can be anything (even left blank).
 	// The `uniqueKey` is a unique identifying key for this peer (such as its p2p public key) as a big.Int.
+	t.logger.Info().Msgf("local party: %s", localPartyID.Id)
 	ctx := tss.NewPeerContext(partiesID)
 	params := tss.NewParameters(ctx, localPartyID, len(partiesID), Threshold)
 	outCh := make(chan tss.Message, len(partiesID))
@@ -495,11 +496,12 @@ func (t *Tss) signMessage(req KeySignReq) (*signing.SignatureData, error) {
 			t.logger.Error().Err(err).Msg("fail to start key sign party")
 			close(errCh)
 		}
+		t.setKeyGenInfo(&TssKeyGenInfo{
+			Party:      keySignParty,
+			PartyIDMap: partyIDMap,
+		})
 	}()
-	t.setKeyGenInfo(&TssKeyGenInfo{
-		Party:      keySignParty,
-		PartyIDMap: partyIDMap,
-	})
+
 	result, err := t.processKeySign(errCh, outCh, endCh)
 	if nil != err {
 		// we failed
@@ -521,7 +523,7 @@ func (t *Tss) processKeySign(errChan chan struct{}, outCh <-chan tss.Message, en
 			return nil, errors.New("received exit signal")
 		case <-time.After(time.Second * KeySignTimeoutSeconds):
 			// we bail out after KeyGenTimeoutSeconds
-			return nil, fmt.Errorf("fail to sign message with in %d seconds", KeyGenTimeoutSeconds)
+			return nil, fmt.Errorf("fail to sign message with in %d seconds", KeySignTimeoutSeconds)
 		case msg := <-outCh:
 			t.logger.Info().Msgf(">>>>>>>>>>key sign msg: %s", msg.String())
 			buf, r, err := msg.WireBytes()
@@ -633,6 +635,7 @@ func (t *Tss) processComm() {
 			keyGenInfo := t.getKeyGenInfo()
 			if keyGenInfo == nil {
 				// we are not doing any keygen at the moment, so we queue it
+				t.logger.Info().Msg("queue the message")
 				t.queuedMsgs <- tssMsg
 				continue
 			}
