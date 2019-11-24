@@ -3,7 +3,9 @@ package go_tss
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
+	"io"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -73,44 +75,73 @@ const MaxPayload = 8192 // 8kb
 const TimeoutInSecs = 10
 
 // Broadcast message to Peers
-func (c *Communication) Broadcast(peers []peer.ID, msg []byte) {
+func (c *Communication) Broadcast(peers []peer.ID, msg []byte) error {
+	// try to discover all peers and then broadcast the messages
+	ctx, _ := context.WithTimeout(context.Background(), time.Minute*5)
+	peerChan, err := c.routingDiscovery.FindPeers(ctx, c.Rendezvous)
+	if nil != err {
+		c.logger.Error().Err(err).Msg("fail to find peers")
+		return fmt.Errorf("fail to find peers: %w", err)
+	}
 	c.wg.Add(1)
-	go c.broadcastToPeers(peers, msg)
+	go c.broadcastToPeers(peerChan, peers, msg)
+	return nil
 }
 
-func (c *Communication) broadcastToPeers(peers []peer.ID, msg []byte) {
-	defer c.wg.Done()
-	for peerID, stream := range c.streams {
-		shouldSend := false
-		if len(peers) == 0 {
-			shouldSend = true
-		} else {
-			for _, p := range peers {
-				if p.String() == peerID {
-					shouldSend = true
-					break
-				}
-			}
+func (c *Communication) shouldWeWriteToPeer(ai peer.AddrInfo, peers []peer.ID) bool {
+	if len(peers) == 0 {
+		// broadcast to everyone
+		return true
+	}
+	for _, p := range peers {
+		if ai.ID.String() == p.String() {
+			return true
 		}
-		if shouldSend {
-			if err := c.writeToStream(stream, msg); nil != err {
-				c.logger.Error().Err(err).Msg("fail to write to stream")
-				if err := stream.Reset(); nil != err {
-					c.logger.Error().Err(err).Msg("fail to close the stream")
+	}
+	return false
+}
+func (c *Communication) broadcastToPeers(peerChan <-chan peer.AddrInfo, peers []peer.ID, msg []byte) {
+	defer c.wg.Done()
+	defer c.logger.Info().Msg("finished to broadcast to all peers")
+	for {
+		select {
+		case <-c.stopchan:
+			return // we need to stop the server
+		case ai, more := <-peerChan:
+			if !more {
+				return
+			}
+			if c.shouldWeWriteToPeer(ai, peers) {
+				if err := c.writeToStream(ai, msg); nil != err {
+					c.logger.Error().Err(err).Msg("fail to write to stream")
 				}
-				delete(c.streams, peerID)
 			}
 		}
 	}
-
 }
 
-func (c *Communication) writeToStream(stream network.Stream, msg []byte) error {
-	c.logger.Info().Msg("writing messages to stream")
+func (c *Communication) writeToStream(ai peer.AddrInfo, msg []byte) error {
+	// don't send to ourself
+	if ai.ID.String() == c.host.ID().String() {
+		return nil
+	}
+	stream, err := c.connectToOnePeer(ai)
+	if nil != err {
+		return fmt.Errorf("fail to open stream to peer(%s): %w", ai.ID, err)
+	}
+	if nil == stream {
+		return nil
+	}
+
+	defer func() {
+		if err := stream.Close(); nil != err {
+			c.logger.Error().Err(err).Msgf("fail to reset stream to peer(%s)", ai.ID)
+		}
+	}()
+	c.logger.Info().Msgf("writing messages to peer(%s)", ai.ID)
 	length := len(msg)
 	buf := make([]byte, LengthHeader)
 	binary.LittleEndian.PutUint32(buf, uint32(length))
-
 	if err := stream.SetWriteDeadline(time.Now().Add(time.Second * TimeoutInSecs)); nil != err {
 		return fmt.Errorf("fail to set write deadline")
 	}
@@ -142,6 +173,7 @@ func (c *Communication) readFromStream(stream network.Stream) {
 		if err := stream.Reset(); nil != err {
 			c.logger.Error().Err(err).Msg("fail to close stream")
 		}
+		c.wg.Done()
 	}()
 	for {
 		select {
@@ -149,13 +181,17 @@ func (c *Communication) readFromStream(stream network.Stream) {
 			return
 		default:
 			length := make([]byte, LengthHeader)
-			if err := stream.SetReadDeadline(time.Time{}); nil != err {
-				c.logger.Error().Err(err).Msg("fail to set read timeout")
+			// set read haader timeout
+			if err := stream.SetReadDeadline(time.Now().Add(time.Second * TimeoutInSecs)); nil != err {
+				c.logger.Error().Err(err).Msgf("fail to set read header timeout,peerID:%s", peerID)
 				return
 			}
 			n, err := stream.Read(length)
 			if err != nil {
-				c.logger.Error().Err(err).Msg("fail to read from stream")
+				if errors.Is(err, io.EOF) {
+					return
+				}
+				c.logger.Error().Err(err).Msgf("fail to read from header from stream,peerID: %s", peerID)
 				return
 			}
 			if n < LengthHeader {
@@ -174,7 +210,7 @@ func (c *Communication) readFromStream(stream network.Stream) {
 			}
 			n, err = stream.Read(buf)
 			if nil != err {
-				c.logger.Error().Err(err).Msg("fail to read from stream")
+				c.logger.Error().Err(err).Msgf("fail to read from stream,peerID: %s", peerID)
 				return
 			}
 			if uint32(n) != l {
@@ -194,15 +230,11 @@ func (c *Communication) readFromStream(stream network.Stream) {
 }
 func (c *Communication) handleStream(stream network.Stream) {
 	peerID := stream.Conn().RemotePeer().String()
-	c.streamLock.Lock()
-	defer c.streamLock.Unlock()
-	if _, ok := c.streams[peerID]; ok {
-		return // we have that stream already
-	}
+	c.logger.Debug().Msgf("handle stream from peer: %s", peerID)
 	c.wg.Add(1)
+	// we will read from that stream
 	go c.readFromStream(stream)
 	atomic.AddInt64(&c.streamCount, 1)
-	c.streams[peerID] = stream
 }
 
 func (c *Communication) startChannel() error {
@@ -239,69 +271,24 @@ func (c *Communication) startChannel() error {
 	discovery.Advertise(ctx, routingDiscovery, c.Rendezvous)
 	c.routingDiscovery = routingDiscovery
 	c.logger.Info().Msg("Successfully announced!")
-	c.wg.Add(1)
-	go c.continuouslySearchingForNewPeers()
+
 	return nil
 }
 
-func (c *Communication) continuouslySearchingForNewPeers() {
-	// Now, look for others who have announced
-	// This is like your friend telling you the location to meet you.
-	defer c.wg.Done()
-	for {
-		select {
-		case <-c.stopchan:
-			return
-		default:
-			ctx, cancel := context.WithTimeout(context.Background(), time.Minute*5)
-			peerChan, err := c.routingDiscovery.FindPeers(ctx, c.Rendezvous)
-			if nil != err {
-				c.logger.Error().Err(err).Msg("fail to find peers")
-				cancel()
-				continue
-			}
-			c.connectToPeers(peerChan)
-			cancel()
-			time.Sleep(time.Second * 60)
-		}
-	}
-}
-func (c *Communication) connectToPeers(peerChan <-chan peer.AddrInfo) {
-	for {
-		select {
-		case <-c.stopchan:
-			return
-		case ai, more := <-peerChan:
-			if !more {
-				return // no more
-			}
-			if ai.ID == c.host.ID() {
-				continue
-			}
-			if err := c.connectToOnePeer(ai); nil != err {
-				c.logger.Error().Err(err).Msg("fail to connect to peer")
-			}
-		}
-	}
-}
-func (c *Communication) connectToOnePeer(ai peer.AddrInfo) error {
-	c.logger.Info().Msgf("connect to peer : %s", ai.ID.String())
+func (c *Communication) connectToOnePeer(ai peer.AddrInfo) (network.Stream, error) {
+	c.logger.Info().Msgf("peer:%s,current:%s", ai.ID, c.host.ID())
 	// dont connect to itself
 	if ai.ID == c.host.ID() {
-		return nil
+		return nil, nil
 	}
-	if _, ok := c.streams[ai.ID.String()]; ok {
-		// we already connect to this stream
-		return nil
-	}
+	c.logger.Info().Msgf("connect to peer : %s", ai.ID.String())
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*1)
 	defer cancel()
 	stream, err := c.host.NewStream(ctx, ai.ID, DefaultProtocolID)
 	if nil != err {
-		return fmt.Errorf("fail to create new stream to peer: %s, %w", ai.ID, err)
+		return nil, fmt.Errorf("fail to create new stream to peer: %s, %w", ai.ID, err)
 	}
-	c.handleStream(stream)
-	return nil
+	return stream, nil
 }
 func (c *Communication) connectToBootstrapPeers() error {
 	// Let's connect to the bootstrap nodes first. They will tell us about the
@@ -319,6 +306,7 @@ func (c *Communication) connectToBootstrapPeers() error {
 			defer cancel()
 			if err := c.host.Connect(ctx, *pi); err != nil {
 				c.logger.Error().Err(err)
+				return
 			}
 			c.logger.Info().Msgf("Connection established with bootstrap node: %s", *pi)
 		}()

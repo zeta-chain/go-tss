@@ -28,7 +28,8 @@ import (
 )
 
 const (
-	Threshold = 2
+	Threshold            = 2
+	KeyGenTimeoutSeconds = 30
 )
 
 // TssKeyGenInfo the information used by tss key gen
@@ -230,73 +231,81 @@ func (t *Tss) generateNewKey(keygenReq KeyGenReq) (*crypto.ECPoint, error) {
 	for _, id := range partiesID {
 		partyIDMap[id.Id] = id
 	}
-	t.setKeyGenInfo(&TssKeyGenInfo{
-		Party:      keyGenParty,
-		PartyIDMap: partyIDMap,
-	})
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
+
+	defer func() {
+		t.setKeyGenInfo(nil)
+	}()
+
 	// start keygen
 	go func() {
-		defer wg.Done()
+		defer t.logger.Info().Msg("keyGenParty finished")
 		if err := keyGenParty.Start(); nil != err {
 			t.logger.Error().Err(err).Msg("fail to start keygen party")
 			close(errChan)
 			return
 		}
+		t.setKeyGenInfo(&TssKeyGenInfo{
+			Party:      keyGenParty,
+			PartyIDMap: partyIDMap,
+		})
+
 	}()
-	wg.Add(1)
-	var saveData keygen.LocalPartySaveData
-	go func() {
-		defer t.logger.Info().Msg("is it possible it has finished?")
-		t.logger.Info().Msg("start to read messages from local party")
-		defer wg.Done()
-		for {
-			select {
-			case <-errChan:
-				t.logger.Error().Msg("key gen failed")
-				return
-			case <-t.stopChan:
-				return
-			case msg := <-outCh:
-				t.logger.Info().Msgf(">>>>>>>>>>msg: %s", msg.String())
-				buf, r, err := msg.WireBytes()
-				if nil != err {
-					t.logger.Error().Err(err).Msg("fail to get wire bytes")
-					continue
-				}
-				tssMsg := TssMessage{
-					Routing: r,
-					Message: buf,
-				}
-				wireBytes, err := json.Marshal(tssMsg)
-				if nil != err {
-					t.logger.Error().Err(err).Msg("fail to convert tss msg to wire bytes")
-					return
-				}
-				t.logger.Debug().Msgf("broad cast msg to everyone from :%s ", r.From.Id)
-				t.comm.Broadcast(nil, wireBytes)
-				// drain the in memory queue
-				t.drainQueuedMessages()
-			case msg := <-endCh:
-				t.logger.Info().Msgf("we have done the keygen %s", msg.ECDSAPub.Y().String())
-				saveData = msg
-				buf, err := json.Marshal(saveData)
-				if nil != err {
-					t.logger.Error().Err(err).Msg("fail to marshal save data to json")
-					return
-				}
-				if err := ioutil.WriteFile("localdata.json", buf, 0655); nil != err {
-					t.logger.Error().Err(err).Msg("fail to save to local disk")
-				}
-				return
-			}
+
+	r, err := t.processKeyGen(errChan, outCh, endCh)
+	if nil != err {
+		t.logger.Error().Err(err).Msg("fail to complete keygen")
+		for _, item := range keyGenParty.WaitingFor() {
+			t.logger.Error().Err(err).Msgf("we are still waiting for %s", item.Id)
 		}
-	}()
-	wg.Wait()
-	t.logger.Info().Msg("key gen finished")
-	t.setKeyGenInfo(nil)
-	return saveData.ECDSAPub, nil
+		return nil, err
+	}
+	return r, nil
+}
+
+func (t *Tss) processKeyGen(errChan chan struct{}, outCh <-chan tss.Message, endCh <-chan keygen.LocalPartySaveData) (*crypto.ECPoint, error) {
+	defer t.logger.Info().Msg("is it possible it has finished?")
+	t.logger.Info().Msg("start to read messages from local party")
+	for {
+		select {
+		case <-errChan: // when keyGenParty return
+			t.logger.Error().Msg("key gen failed")
+			return nil, errors.New("error channel closed fail to start local party")
+		case <-t.stopChan: // when TSS processor receive signal to quit
+			return nil, errors.New("received exit signal")
+		case <-time.After(time.Second * KeyGenTimeoutSeconds):
+			// we bail out after KeyGenTimeoutSeconds
+			return nil, fmt.Errorf("fail to finish keygen with in %d seconds", KeyGenTimeoutSeconds)
+		case msg := <-outCh:
+			t.logger.Info().Msgf(">>>>>>>>>>msg: %s", msg.String())
+			buf, r, err := msg.WireBytes()
+			if nil != err {
+				t.logger.Error().Err(err).Msg("fail to get wire bytes")
+				continue
+			}
+			tssMsg := TssMessage{
+				Routing: r,
+				Message: buf,
+			}
+			wireBytes, err := json.Marshal(tssMsg)
+			if nil != err {
+				return nil, fmt.Errorf("fail to convert tss msg to wire bytes: %w", err)
+			}
+			t.logger.Info().Msgf("broad cast msg to everyone from :%s ", r.From.Id)
+			t.comm.Broadcast(nil, wireBytes)
+			// drain the in memory queue
+			t.drainQueuedMessages()
+		case msg := <-endCh:
+			t.logger.Info().Msgf("we have done the keygen %s", msg.ECDSAPub.Y().String())
+			buf, err := json.Marshal(msg)
+			if nil != err {
+				return nil, fmt.Errorf("fail to marshal save data to json: %w", err)
+			}
+			if err := ioutil.WriteFile("localdata.json", buf, 0655); nil != err {
+				return nil, fmt.Errorf("fail to save to local disk: %w", err)
+			}
+			return msg.ECDSAPub, nil
+		}
+	}
 }
 
 func (t *Tss) setKeyGenInfo(keyGenInfo *TssKeyGenInfo) {
@@ -314,10 +323,13 @@ func (t *Tss) drainQueuedMessages() {
 		return
 	}
 	keyGenInfo := t.getKeyGenInfo()
+	if nil == keyGenInfo {
+		return
+	}
 	for {
 		select {
 		case m := <-t.queuedMsgs:
-			t.logger.Debug().Msgf("<<<<<party:%s", m.Routing.From.Id)
+			t.logger.Debug().Msgf("<<<<< queued party:%s", m.Routing.From.Id)
 			if !t.IsItForCurrentParty(keyGenInfo, m) {
 				continue
 			}
@@ -329,7 +341,7 @@ func (t *Tss) drainQueuedMessages() {
 			if _, err := keyGenInfo.Party.UpdateFromBytes(m.Message, partyID, m.Routing.IsBroadcast); nil != err {
 				t.logger.Error().Err(err).Msgf("fail to update from bytes,party ID: %s", partyID)
 			}
-			t.logger.Debug().Msgf("update msg from party:%s", m.Routing.From.Id)
+			t.logger.Debug().Msgf("queued update msg from party:%s", m.Routing.From.Id)
 		default:
 			return
 		}
