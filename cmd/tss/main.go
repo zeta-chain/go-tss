@@ -35,6 +35,6 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	if err := tss.Start(ctx); nil != err {
-
+		panic(err)
 	}
 }

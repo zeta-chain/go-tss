@@ -291,7 +291,9 @@ func (t *Tss) processKeyGen(errChan chan struct{}, outCh <-chan tss.Message, end
 				return nil, fmt.Errorf("fail to convert tss msg to wire bytes: %w", err)
 			}
 			t.logger.Info().Msgf("broad cast msg to everyone from :%s ", r.From.Id)
-			t.comm.Broadcast(nil, wireBytes)
+			if err := t.comm.Broadcast(nil, wireBytes); nil != err {
+				t.logger.Error().Err(err).Msg("fail to broadcast messages")
+			}
 			// drain the in memory queue
 			t.drainQueuedMessages()
 		case msg := <-endCh:

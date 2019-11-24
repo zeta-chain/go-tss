@@ -77,32 +77,21 @@ const TimeoutInSecs = 10
 // Broadcast message to Peers
 func (c *Communication) Broadcast(peers []peer.ID, msg []byte) error {
 	// try to discover all peers and then broadcast the messages
-	ctx, _ := context.WithTimeout(context.Background(), time.Minute*5)
-	peerChan, err := c.routingDiscovery.FindPeers(ctx, c.Rendezvous)
-	if nil != err {
-		c.logger.Error().Err(err).Msg("fail to find peers")
-		return fmt.Errorf("fail to find peers: %w", err)
-	}
 	c.wg.Add(1)
-	go c.broadcastToPeers(peerChan, peers, msg)
+	go c.broadcastToPeers(peers, msg)
 	return nil
 }
 
-func (c *Communication) shouldWeWriteToPeer(ai peer.AddrInfo, peers []peer.ID) bool {
-	if len(peers) == 0 {
-		// broadcast to everyone
-		return true
-	}
-	for _, p := range peers {
-		if ai.ID.String() == p.String() {
-			return true
-		}
-	}
-	return false
-}
-func (c *Communication) broadcastToPeers(peerChan <-chan peer.AddrInfo, peers []peer.ID, msg []byte) {
+func (c *Communication) broadcastToPeers(peers []peer.ID, msg []byte) {
 	defer c.wg.Done()
 	defer c.logger.Info().Msg("finished to broadcast to all peers")
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*5)
+	defer cancel()
+	peerChan, err := c.routingDiscovery.FindPeers(ctx, c.Rendezvous)
+	if nil != err {
+		c.logger.Error().Err(err).Msg("fail to find any peers")
+		return
+	}
 	for {
 		select {
 		case <-c.stopchan:
@@ -120,6 +109,18 @@ func (c *Communication) broadcastToPeers(peerChan <-chan peer.AddrInfo, peers []
 	}
 }
 
+func (c *Communication) shouldWeWriteToPeer(ai peer.AddrInfo, peers []peer.ID) bool {
+	if len(peers) == 0 {
+		// broadcast to everyone
+		return true
+	}
+	for _, p := range peers {
+		if ai.ID.String() == p.String() {
+			return true
+		}
+	}
+	return false
+}
 func (c *Communication) writeToStream(ai peer.AddrInfo, msg []byte) error {
 	// don't send to ourself
 	if ai.ID.String() == c.host.ID().String() {
