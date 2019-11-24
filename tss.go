@@ -257,11 +257,23 @@ func (t *Tss) generateNewKey(keygenReq KeyGenReq) (*crypto.ECPoint, error) {
 		for _, item := range keyGenParty.WaitingFor() {
 			t.logger.Error().Err(err).Msgf("we are still waiting for %s", item.Id)
 		}
+		t.emptyQueuedMessages()
 		return nil, err
 	}
 	return r, nil
 }
 
+// emptyQueuedMessages
+func (t *Tss) emptyQueuedMessages() {
+	for {
+		select {
+		case m := <-t.queuedMsgs:
+			t.logger.Debug().Msgf("drop queued message from %s", m.Routing.From.Id)
+		default:
+			return
+		}
+	}
+}
 func (t *Tss) processKeyGen(errChan chan struct{}, outCh <-chan tss.Message, endCh <-chan keygen.LocalPartySaveData) (*crypto.ECPoint, error) {
 	defer t.logger.Info().Msg("is it possible it has finished?")
 	t.logger.Info().Msg("start to read messages from local party")
