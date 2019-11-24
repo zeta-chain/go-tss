@@ -16,6 +16,7 @@ import (
 	"github.com/binance-chain/go-sdk/common/types"
 	"github.com/binance-chain/tss-lib/crypto"
 	"github.com/binance-chain/tss-lib/ecdsa/keygen"
+	"github.com/binance-chain/tss-lib/ecdsa/signing"
 	"github.com/binance-chain/tss-lib/tss"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/gorilla/mux"
@@ -412,7 +413,75 @@ func (t *Tss) keysign(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
+
 	// start keysign
+}
+
+// signMessage
+func (t *Tss) signMessage(req KeySignReq) error {
+	pubKey, err := t.getPubKey(req.KeyGenReq)
+	if nil != err {
+		return fmt.Errorf("fail to get pubkey from the given private key(%s): %w", req.PrivKey, err)
+	}
+	localState, err := t.getKeyData(req.PoolPubKey)
+	if nil != err {
+		return fmt.Errorf("fail to get keygen state data for pubkey(%s): %w", req.PoolPubKey, err)
+	}
+	msgToSign, err := base64.StdEncoding.DecodeString(req.Message)
+	if nil != err {
+		return fmt.Errorf("fail to decode message(%s): %w", req.Message, err)
+	}
+	var localPartyID *tss.PartyID
+	var unSortedPartiesID []*tss.PartyID
+	for idx, item := range req.Keys {
+		pk, err := sdk.GetAccPubKeyBech32(item)
+		if nil != err {
+			return fmt.Errorf("fail to get account pub key address(%s): %w", item, err)
+		}
+		key := new(big.Int).SetBytes(pk.Bytes())
+		partyID := tss.NewPartyID(strconv.Itoa(idx), "", key)
+		if item == pubKey {
+			localPartyID = partyID
+		}
+		unSortedPartiesID = append(unSortedPartiesID, partyID)
+	}
+	if localPartyID == nil {
+		return fmt.Errorf("local party is not in the list")
+	}
+	partiesID := tss.SortPartyIDs(unSortedPartiesID)
+
+	// Set up the parameters
+	// Note: The `id` and `moniker` fields are for convenience to allow you to easily track participants.
+	// The `id` should be a unique string representing this party in the network and `moniker` can be anything (even left blank).
+	// The `uniqueKey` is a unique identifying key for this peer (such as its p2p public key) as a big.Int.
+	ctx := tss.NewPeerContext(partiesID)
+	params := tss.NewParameters(ctx, localPartyID, len(partiesID), Threshold)
+	outCh := make(chan tss.Message, len(partiesID))
+	endCh := make(chan signing.SignatureData, len(partiesID))
+	errCh := make(chan struct{})
+	m := new(big.Int)
+	m = m.SetBytes(msgToSign)
+	keySignParty := signing.NewLocalParty(m, params, localState, outCh, endCh)
+	go func() {
+		if err := keySignParty.Start(); nil != err {
+			t.logger.Error().Err(err).Msg("fail to start keysign party")
+			close(errCh)
+		}
+	}()
+	// TODO deal with messages
+
+	return nil
+}
+
+func (t *Tss) getKeyData(pubKey string) (keygen.LocalPartySaveData, error) {
+	t.stateLock.Lock()
+	defer t.stateLock.Unlock()
+	for _, item := range t.localState {
+		if item.PubKey == pubKey {
+			return item.LocalData, nil
+		}
+	}
+	return keygen.LocalPartySaveData{}, fmt.Errorf("Didn't find keygen state for(%s)", pubKey)
 }
 
 func ping() http.Handler {
