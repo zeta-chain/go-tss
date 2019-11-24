@@ -36,8 +36,6 @@ type Communication struct {
 	routingDiscovery *discovery.RoutingDiscovery
 	wg               *sync.WaitGroup
 	stopchan         chan struct{}
-	streamLock       *sync.Mutex
-	streams          map[string]network.Stream
 	streamCount      int64
 	messages         chan *Message
 }
@@ -58,8 +56,6 @@ func NewCommunication(rendezvous string, bootstrapPeers []maddr.Multiaddr, port 
 		listenAddr:     addr,
 		wg:             &sync.WaitGroup{},
 		stopchan:       make(chan struct{}),
-		streams:        make(map[string]network.Stream),
-		streamLock:     &sync.Mutex{},
 		streamCount:    0,
 		messages:       make(chan *Message),
 	}, nil

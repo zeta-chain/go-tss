@@ -302,7 +302,7 @@ func (t *Tss) processKeyGen(errChan chan struct{}, outCh <-chan tss.Message, end
 			if nil != err {
 				return nil, fmt.Errorf("fail to marshal save data to json: %w", err)
 			}
-			if err := ioutil.WriteFile("localdata.json", buf, 0655); nil != err {
+			if err := ioutil.WriteFile(fmt.Sprintf("localdata-%d.json", t.port), buf, 0655); nil != err {
 				return nil, fmt.Errorf("fail to save to local disk: %w", err)
 			}
 			return msg.ECDSAPub, nil
