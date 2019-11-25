@@ -40,7 +40,13 @@ type TssKeyGenInfo struct {
 	PartyIDMap map[string]*tss.PartyID
 }
 
-// TSS
+// TssMessage is the message we transfer across the wire to other parties
+type TssMessage struct {
+	Routing *tss.MessageRouting `json:"routing"`
+	Message []byte              `json:"message"`
+}
+
+// TSS all the things for TSS
 type Tss struct {
 	comm       *Communication
 	logger     zerolog.Logger
@@ -103,10 +109,18 @@ func (t *Tss) newHandler(verbose bool) http.Handler {
 	router.Handle("/ping", ping()).Methods(http.MethodGet)
 	router.Handle("/keygen", http.HandlerFunc(t.keygen)).Methods(http.MethodPost)
 	router.Handle("/keysign", http.HandlerFunc(t.keysign)).Methods(http.MethodPost)
+	router.Handle("/p2pid", http.HandlerFunc(t.getP2pID)).Methods(http.MethodGet)
 	router.Use(logMiddleware(verbose))
 	return router
 }
 
+func (t *Tss) getP2pID(w http.ResponseWriter, r *http.Request) {
+	localPeerID := t.comm.GetLocalPeerID()
+	_, err := w.Write([]byte(localPeerID))
+	if nil != err {
+		t.logger.Error().Err(err).Msg("fail to write to response")
+	}
+}
 func (t *Tss) keygen(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
@@ -203,6 +217,7 @@ func (t *Tss) getPubKey(keygenReq KeyGenReq) (string, error) {
 	}
 	return pubKey, nil
 }
+
 func (t *Tss) getParties(keys []string, localPartyKey string) ([]*tss.PartyID, *tss.PartyID, error) {
 	var localPartyID *tss.PartyID
 	var unSortedPartiesID []*tss.PartyID
@@ -224,6 +239,7 @@ func (t *Tss) getParties(keys []string, localPartyKey string) ([]*tss.PartyID, *
 	partiesID := tss.SortPartyIDs(unSortedPartiesID)
 	return partiesID, localPartyID, nil
 }
+
 func (t *Tss) generateNewKey(keygenReq KeyGenReq) (*crypto.ECPoint, error) {
 	// When using the keygen party it is recommended that you pre-compute the "safe primes" and Paillier secret beforehand because this can take some time.
 	// This code will generate those parameters using a concurrency limit equal to the number of available CPU cores.
@@ -389,7 +405,7 @@ func (t *Tss) drainQueuedMessages() {
 		select {
 		case m := <-t.queuedMsgs:
 			t.logger.Debug().Msgf("<<<<< queued party:%s", m.Routing.From.Id)
-			if !t.IsItForCurrentParty(keyGenInfo, m) {
+			if !t.isForCurrentParty(keyGenInfo, m) {
 				continue
 			}
 			partyID, ok := keyGenInfo.PartyIDMap[m.Routing.From.Id]
@@ -405,11 +421,6 @@ func (t *Tss) drainQueuedMessages() {
 			return
 		}
 	}
-}
-
-type TssMessage struct {
-	Routing *tss.MessageRouting `json:"routing"`
-	Message []byte              `json:"message"`
 }
 
 // keysign process keysign request
@@ -639,7 +650,7 @@ func (t *Tss) processComm() {
 				t.queuedMsgs <- tssMsg
 				continue
 			}
-			if !t.IsItForCurrentParty(keyGenInfo, tssMsg) {
+			if !t.isForCurrentParty(keyGenInfo, tssMsg) {
 				continue
 			}
 
@@ -655,7 +666,7 @@ func (t *Tss) processComm() {
 	}
 }
 
-func (t *Tss) IsItForCurrentParty(kgi *TssKeyGenInfo, tssMsg TssMessage) bool {
+func (t *Tss) isForCurrentParty(kgi *TssKeyGenInfo, tssMsg TssMessage) bool {
 	if tssMsg.Routing.To == nil {
 		t.logger.Info().Msgf("broadcast msg from %s", tssMsg.Routing.From.Id)
 		return true
