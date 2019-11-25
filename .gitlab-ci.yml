@@ -25,7 +25,7 @@ lint_code:
   stage: test
   script:
     - golangci-lint run -v
-    -
+
 build-docker:
   stage: build
   image: docker:stable
