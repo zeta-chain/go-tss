@@ -10,6 +10,7 @@ import (
 	"math/big"
 	"net/http"
 	"os"
+	"sort"
 	"strconv"
 	"sync"
 	"time"
@@ -214,6 +215,7 @@ func (t *Tss) generateNewKey(keygenReq KeyGenReq) (*crypto.ECPoint, error) {
 	}
 	var localPartyID *tss.PartyID
 	var unSortedPartiesID []*tss.PartyID
+	sort.Strings(keygenReq.Keys)
 	for idx, item := range keygenReq.Keys {
 		pk, err := sdk.GetAccPubKeyBech32(item)
 		if nil != err {
