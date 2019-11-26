@@ -10,6 +10,7 @@ import (
 	"math/big"
 	"net/http"
 	"os"
+	"sort"
 	"strconv"
 	"sync"
 	"time"
@@ -221,6 +222,7 @@ func (t *Tss) getPubKey(keygenReq KeyGenReq) (string, error) {
 func (t *Tss) getParties(keys []string, localPartyKey string) ([]*tss.PartyID, *tss.PartyID, error) {
 	var localPartyID *tss.PartyID
 	var unSortedPartiesID []*tss.PartyID
+	sort.Strings(keys)
 	for idx, item := range keys {
 		pk, err := sdk.GetAccPubKeyBech32(item)
 		if nil != err {
