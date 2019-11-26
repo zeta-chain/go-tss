@@ -31,7 +31,7 @@ import (
 
 const (
 	Threshold             = 2
-	KeyGenTimeoutSeconds  = 30
+	KeyGenTimeoutSeconds  = 120
 	KeySignTimeoutSeconds = 30
 )
 

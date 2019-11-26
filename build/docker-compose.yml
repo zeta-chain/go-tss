@@ -9,7 +9,7 @@ services:
     build:
       context: ../
       dockerfile: Dockerfile
-    image: registry.gitlab.com/thorchain/tss/go-tss
+    #image: registry.gitlab.com/thorchain/tss/go-tss
     restart: unless-stopped
     command: /go/bin/tss
     networks:
@@ -24,7 +24,7 @@ services:
     build:
       context: ../
       dockerfile: Dockerfile
-    image: registry.gitlab.com/thorchain/tss/go-tss
+    #image: registry.gitlab.com/thorchain/tss/go-tss
     restart: unless-stopped
     depends_on:
       - tss0
@@ -41,7 +41,7 @@ services:
     build:
       context: ../
       dockerfile: Dockerfile
-    image: registry.gitlab.com/thorchain/tss/go-tss
+    #image: registry.gitlab.com/thorchain/tss/go-tss
     restart: unless-stopped
     depends_on:
       - tss0
