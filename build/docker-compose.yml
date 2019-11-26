@@ -2,81 +2,53 @@ version: '3'
 
 services:
   tss0:
-    container_name: tss0
-    image: golang:1.13
-    working_dir: /home/user/
-    command: bash /home/user/config/run.sh
-    stdin_open: true
-    tty: true
+    hostname: tss0
     ports:
-      - 6433:5433
-    environment:
-    - LOG=${LOG:-gaiad.log}
-    volumes:
-    - ./build/Data/data0:/home/user/config:Z
-    - /Users/yb/go/src/thorchain-tss:/home/user/tss:z
+      - 8080:8080
+      - 6668:6668
+    build:
+      context: ../
+      dockerfile: Dockerfile
+    image: registry.gitlab.com/thorchain/tss/go-tss
+    restart: unless-stopped
+    command: /go/bin/tss
+    networks:
+      localnet:
+        ipv4_address: 192.168.10.1
+
+  tss1:
+    hostname: tss1
+    ports:
+      - 8081:8080
+      - 6669:6668
+    build:
+      context: ../
+      dockerfile: Dockerfile
+    image: registry.gitlab.com/thorchain/tss/go-tss
+    restart: unless-stopped
+    depends_on:
+      - tss0
+    command: /go/bin/start-tss.bash
     networks:
       localnet:
         ipv4_address: 192.168.10.2
 
-  tss1:
-    container_name: tss1
-    image: golang:1.13
-    working_dir: /home/user/
-    command: bash /home/user/config/run.sh
-    stdin_open: true
-    tty: true
+  tss2:
+    hostname: tss2
     ports:
-    - 6434:5433
-    environment:
-    - LOG=${LOG:-gaiad.log}
-    volumes:
-    - ./build/Data/data1:/home/user/config:Z
-    - /Users/yb/go/src/thorchain-tss:/home/user/tss:z
-
+      - 8082:8080
+      - 6667:6668
+    build:
+      context: ../
+      dockerfile: Dockerfile
+    image: registry.gitlab.com/thorchain/tss/go-tss
+    restart: unless-stopped
+    depends_on:
+      - tss0
+    command: /go/bin/start-tss.bash
     networks:
       localnet:
         ipv4_address: 192.168.10.3
-
-  tss2:
-    container_name: tss2
-    image: golang:1.13
-    working_dir: /home/user/
-    command: bash /home/user/config/run.sh
-    stdin_open: true
-    tty: true
-    ports:
-    - 6435:5433
-
-    environment:
-    - LOG=${LOG:-gaiad.log}
-    volumes:
-    - ./build/Data/data2:/home/user/config:Z
-    - /Users/yb/go/src/thorchain-tss:/home/user/tss:z
-
-    networks:
-      localnet:
-        ipv4_address: 192.168.10.4
-
-  tss3:
-    container_name: tss3
-    image: golang:1.13
-    working_dir: /home/user/
-    command: bash /home/user/config/run.sh
-    # stdin_open: true
-    # tty: true
-    ports:
-    - 6436:5433
-
-    environment:
-    - LOG=${LOG:-gaiad.log}
-    volumes:
-    - ./build/Data/data3:/home/user/config:Z
-    - /Users/yb/go/src/thorchain-tss:/home/user/tss:z
-
-    networks:
-      localnet:
-        ipv4_address: 192.168.10.5
 
 networks:
   localnet:
@@ -84,4 +56,4 @@ networks:
     ipam:
       driver: default
       config:
-      - subnet: 192.168.10.0/16
+        - subnet: 192.168.10.0/16
