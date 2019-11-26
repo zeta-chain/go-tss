@@ -14,7 +14,7 @@ FROM alpine:latest
 
 RUN apk add --update ca-certificates
 RUN mkdir -p /go/bin
-COPY --from=builder /go/src/app/cmd/tss/tss /go/bin/tss
+COPY --from=builder /go/src/app/cmd/tss /go/bin
 EXPOSE 6668
 EXPOSE 8080
 ENTRYPOINT /go/bin/tss
