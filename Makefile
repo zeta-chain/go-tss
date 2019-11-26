@@ -3,7 +3,7 @@ clear:
 all: lint build
 
 test:
-	@go test -mod=readonly ./...
+	@go test ./...
 
 test-watch: clear
 	@./scripts/watch.bash
