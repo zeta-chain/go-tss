@@ -14,8 +14,10 @@ type KeygenLocalState []KeygenLocalStateItem
 
 // KeygenLocalStateItem
 type KeygenLocalStateItem struct {
-	PubKey    string                    `json:"pub_key"`
-	LocalData keygen.LocalPartySaveData `json:"local_data"`
+	PubKey          string                    `json:"pub_key"`
+	LocalData       keygen.LocalPartySaveData `json:"local_data"`
+	ParticipantKeys []string                  `json:"participant_keys"` // the paticipant of last key gen
+	LocalPartyKey   string                    `json:"local_party_key"`
 }
 
 // GetLocalState from file
