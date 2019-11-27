@@ -101,7 +101,6 @@ func setupBech32Prefix() {
 	config.SetBech32PrefixForAccount(cmd.Bech32PrefixAccAddr, cmd.Bech32PrefixAccPub)
 	config.SetBech32PrefixForValidator(cmd.Bech32PrefixValAddr, cmd.Bech32PrefixValPub)
 	config.SetBech32PrefixForConsensusNode(cmd.Bech32PrefixConsAddr, cmd.Bech32PrefixConsPub)
-	config.Seal()
 }
 
 // NewHandler registers the API routes and returns a new HTTP handler
@@ -464,7 +463,6 @@ func (t *Tss) keysign(w http.ResponseWriter, r *http.Request) {
 	if nil != err {
 		t.logger.Error().Err(err).Msg("fail to write response")
 	}
-
 }
 
 // signMessage
@@ -517,6 +515,7 @@ func (t *Tss) signMessage(req KeySignReq) (*signing.SignatureData, error) {
 
 	result, err := t.processKeySign(errCh, outCh, endCh)
 	if nil != err {
+		t.emptyQueuedMessages()
 		// we failed
 		return nil, fmt.Errorf("fail to process key sign: %w", err)
 	}
