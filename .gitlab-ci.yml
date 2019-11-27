@@ -25,3 +25,19 @@ lint_code:
   stage: test
   script:
     - golangci-lint run -v
+
+build-docker:
+  stage: build
+  image: docker:stable
+  services:
+    - docker:dind
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_DRIVER: overlay2
+  before_script:
+    - apk update
+    - apk add make git jq curl
+    - make docker-gitlab-login
+  script:
+    - make docker-gitlab-build
+    - make docker-gitlab-push
