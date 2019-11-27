@@ -161,6 +161,7 @@ func (t *Tss) keygen(w http.ResponseWriter, r *http.Request) {
 	}
 	k, err := t.generateNewKey(keygenReq)
 	if nil != err {
+		t.logger.Error().Err(err).Msg("fail to generate new key")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -244,10 +245,11 @@ func (t *Tss) getParties(keys []string, localPartyKey string) ([]*tss.PartyID, *
 func (t *Tss) generateNewKey(keygenReq KeyGenReq) (*crypto.ECPoint, error) {
 	// When using the keygen party it is recommended that you pre-compute the "safe primes" and Paillier secret beforehand because this can take some time.
 	// This code will generate those parameters using a concurrency limit equal to the number of available CPU cores.
-	preParams, err := keygen.GeneratePreParams(1 * time.Minute)
+	preParams, err := keygen.GeneratePreParams(1*time.Minute, 1)
 	if nil != err {
 		return nil, fmt.Errorf("fail to generate pre parameters: %w", err)
 	}
+	t.logger.Info().Msg("###generate pre params successfully....")
 	pubKey, err := t.getPubKey(keygenReq)
 	if nil != err {
 		return nil, fmt.Errorf("fail to get pubkey from the given private key(%s): %w", keygenReq.PrivKey, err)
@@ -322,7 +324,7 @@ func (t *Tss) emptyQueuedMessages() {
 }
 
 func (t *Tss) processKeyGen(errChan chan struct{}, outCh <-chan tss.Message, endCh <-chan keygen.LocalPartySaveData, keyGenLocalStateItem KeygenLocalStateItem) (*crypto.ECPoint, error) {
-	defer t.logger.Info().Msg("is it possible it has finished?")
+	defer t.logger.Info().Msg("finished keygen process")
 	t.logger.Info().Msg("start to read messages from local party")
 	for {
 		select {

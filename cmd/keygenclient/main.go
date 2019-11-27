@@ -81,14 +81,7 @@ func appAction(c *cli.Context) error {
 	hexPrivKey := hex.EncodeToString(pk[:])
 	priKey := base64.StdEncoding.EncodeToString([]byte(hexPrivKey))
 	pubkeys := c.StringSlice("pubkey")
-	//for _, item := range pubkeys {
-	//	pk, err := sdk.GetAccPubKeyBech32(item)
-	//	if nil != err {
-	//		return err
-	//	}
-	//	addresses = append(addresses, base64.StdEncoding.EncodeToString(pk.Address().Bytes()))
-	//	pubkeys = append(pubkeys, base64.StdEncoding.EncodeToString(pk.Bytes()))
-	//}
+
 	url := c.String("url")
 	req := gt.KeyGenReq{
 		PrivKey: priKey,
@@ -98,6 +91,7 @@ func appAction(c *cli.Context) error {
 	if nil != err {
 		return fmt.Errorf("fail to marshal req to json: %w", err)
 	}
+	fmt.Println(string(reqBytes))
 	resp, err := http.Post(url, "application/json", bytes.NewBuffer(reqBytes))
 	if nil != err {
 		return fmt.Errorf("fail to send keygen request to(%s): %w", url, err)
@@ -114,6 +108,6 @@ func appAction(c *cli.Context) error {
 	if nil != err {
 		return fmt.Errorf("fail to read from response body: %w", err)
 	}
-	fmt.Println(result)
+	fmt.Println(string(result))
 	return nil
 }
