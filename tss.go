@@ -50,17 +50,18 @@ type TssMessage struct {
 
 // TSS all the things for TSS
 type Tss struct {
-	comm       *Communication
-	logger     zerolog.Logger
-	port       int
-	server     *http.Server
-	wg         sync.WaitGroup
-	partyLock  *sync.Mutex
-	keyGenInfo *TssKeyGenInfo
-	stopChan   chan struct{} // channel to indicate whether we should stop
-	queuedMsgs chan TssMessage
-	stateLock  *sync.Mutex
-	localState KeygenLocalState
+	comm          *Communication
+	logger        zerolog.Logger
+	port          int
+	server        *http.Server
+	wg            sync.WaitGroup
+	partyLock     *sync.Mutex
+	keyGenInfo    *TssKeyGenInfo
+	stopChan      chan struct{} // channel to indicate whether we should stop
+	queuedMsgs    chan TssMessage
+	stateLock     *sync.Mutex
+	localState    KeygenLocalState
+	tssKeygenLock *sync.Mutex
 }
 
 // NewTss create a new instance of Tss
@@ -79,14 +80,15 @@ func NewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int) (*Tss, error
 		return nil, fmt.Errorf("fail to read local state file: %w", err)
 	}
 	t := &Tss{
-		comm:       c,
-		logger:     log.With().Str("module", "tss").Logger(),
-		port:       tssPort,
-		stopChan:   make(chan struct{}),
-		partyLock:  &sync.Mutex{},
-		queuedMsgs: make(chan TssMessage, 1024),
-		stateLock:  &sync.Mutex{},
-		localState: localState,
+		comm:          c,
+		logger:        log.With().Str("module", "tss").Logger(),
+		port:          tssPort,
+		stopChan:      make(chan struct{}),
+		partyLock:     &sync.Mutex{},
+		queuedMsgs:    make(chan TssMessage, 1024),
+		stateLock:     &sync.Mutex{},
+		localState:    localState,
+		tssKeygenLock: &sync.Mutex{},
 	}
 
 	server := &http.Server{
@@ -153,7 +155,10 @@ func (t *Tss) keygen(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+	//we only handle one tss request for a given time
+	t.tssKeygenLock.Lock()
 	k, err := t.generateNewKey(keygenReq)
+	t.tssKeygenLock.Unlock()
 	if nil != err {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
