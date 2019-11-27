@@ -245,7 +245,7 @@ func (t *Tss) getParties(keys []string, localPartyKey string) ([]*tss.PartyID, *
 func (t *Tss) generateNewKey(keygenReq KeyGenReq) (*crypto.ECPoint, error) {
 	// When using the keygen party it is recommended that you pre-compute the "safe primes" and Paillier secret beforehand because this can take some time.
 	// This code will generate those parameters using a concurrency limit equal to the number of available CPU cores.
-	preParams, err := keygen.GeneratePreParams(1*time.Minute, 1)
+	preParams, err := keygen.GeneratePreParams(1 * time.Minute)
 	if nil != err {
 		return nil, fmt.Errorf("fail to generate pre parameters: %w", err)
 	}
