@@ -2,7 +2,9 @@ package go_tss
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -11,6 +13,7 @@ import (
 	"time"
 
 	"github.com/libp2p/go-libp2p"
+	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -234,10 +237,23 @@ func (c *Communication) handleStream(stream network.Stream) {
 	atomic.AddInt64(&c.streamCount, 1)
 }
 
-func (c *Communication) startChannel() error {
+func (c *Communication) startChannel(privKeyBytes []byte) error {
 	ctx := context.Background()
+	priHexBytes, err := base64.StdEncoding.DecodeString(string(privKeyBytes))
+	if nil != err {
+		return fmt.Errorf("fail to decode private key: %w", err)
+	}
+	rawBytes, err := hex.DecodeString(string(priHexBytes))
+	if nil != err {
+		return fmt.Errorf("fail to hex decode private key: %w", err)
+	}
+	p2pPriKey, err := crypto.UnmarshalSecp256k1PrivateKey(rawBytes)
+	if err != nil {
+		c.logger.Info().Msgf("error is %w", err)
+		return err
+	}
 	h, err := libp2p.New(ctx,
-		libp2p.ListenAddrs([]maddr.Multiaddr{c.listenAddr}...),
+		libp2p.ListenAddrs([]maddr.Multiaddr{c.listenAddr}...), libp2p.Identity(p2pPriKey),
 	)
 	if nil != err {
 		return fmt.Errorf("fail to create p2p host: %w", err)
@@ -313,8 +329,8 @@ func (c *Communication) connectToBootstrapPeers() error {
 }
 
 // Start will start the communication
-func (c *Communication) Start() error {
-	return c.startChannel()
+func (c *Communication) Start(priKeyBytes []byte) error {
+	return c.startChannel(priKeyBytes)
 }
 
 // Stop
