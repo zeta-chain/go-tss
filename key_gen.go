@@ -2,7 +2,7 @@ package go_tss
 
 // KeyGenRequest
 type KeyGenReq struct {
-	Keys    []string `json:"keys"`
+	Keys []string `json:"keys"`
 }
 
 // KeyGenResponse
