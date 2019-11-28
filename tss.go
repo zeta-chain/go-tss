@@ -51,21 +51,20 @@ type TssMessage struct {
 
 // TSS all the things for TSS
 type Tss struct {
-	comm           *Communication
-	logger         zerolog.Logger
-	port           int
-	server         *http.Server
-	wg             sync.WaitGroup
-	partyLock      *sync.Mutex
-	keyGenInfo     *TssKeyGenInfo
-	stopChan       chan struct{} // channel to indicate whether we should stop
-	queuedMsgs     chan TssMessage
-	stateLock      *sync.Mutex
-	localState     KeygenLocalState
-	tssKeygenLock  *sync.Mutex
-	tssKeySignLock *sync.Mutex
-	priKey         cryptokey.PrivKey
-	preParams      *keygen.LocalPreParams
+	comm       *Communication
+	logger     zerolog.Logger
+	port       int
+	server     *http.Server
+	wg         sync.WaitGroup
+	partyLock  *sync.Mutex
+	keyGenInfo *TssKeyGenInfo
+	stopChan   chan struct{} // channel to indicate whether we should stop
+	queuedMsgs chan TssMessage
+	stateLock  *sync.Mutex
+	localState KeygenLocalState
+	tssLock    *sync.Mutex
+	priKey     cryptokey.PrivKey
+	preParams  *keygen.LocalPreParams
 }
 
 func getPriKey(priKeyString string) (cryptokey.PrivKey, error) {
@@ -80,9 +79,6 @@ func getPriKey(priKeyString string) (cryptokey.PrivKey, error) {
 	var keyBytesArray [32]byte
 	copy(keyBytesArray[:], rawBytes[:32])
 	priKey := secp256k1.PrivKeySecp256k1(keyBytesArray)
-	if nil != err {
-		return nil, fmt.Errorf("fail to get account public key: %w", err)
-	}
 	return priKey, nil
 }
 
@@ -107,24 +103,23 @@ func NewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, priKeyBytes 
 	}
 	// When using the keygen party it is recommended that you pre-compute the "safe primes" and Paillier secret beforehand because this can take some time.
 	// This code will generate those parameters using a concurrency limit equal to the number of available CPU cores.
-	preParams, err := keygen.GeneratePreParams(50 * time.Minute)
+	preParams, err := keygen.GeneratePreParams(1 * time.Minute)
 	if nil != err {
 		return nil, fmt.Errorf("fail to generate pre parameters: %w", err)
 	}
 
 	t := &Tss{
-		comm:           c,
-		logger:         log.With().Str("module", "tss").Logger(),
-		port:           tssPort,
-		stopChan:       make(chan struct{}),
-		partyLock:      &sync.Mutex{},
-		queuedMsgs:     make(chan TssMessage, 1024),
-		stateLock:      &sync.Mutex{},
-		localState:     localState,
-		tssKeygenLock:  &sync.Mutex{},
-		tssKeySignLock: &sync.Mutex{},
-		priKey:         priKey,
-		preParams:      preParams,
+		comm:       c,
+		logger:     log.With().Str("module", "tss").Logger(),
+		port:       tssPort,
+		stopChan:   make(chan struct{}),
+		partyLock:  &sync.Mutex{},
+		queuedMsgs: make(chan TssMessage, 1024),
+		stateLock:  &sync.Mutex{},
+		localState: localState,
+		tssLock:    &sync.Mutex{},
+		priKey:     priKey,
+		preParams:  preParams,
 	}
 
 	server := &http.Server{
@@ -161,8 +156,7 @@ func (t *Tss) getP2pID(w http.ResponseWriter, r *http.Request) {
 	}
 }
 func (t *Tss) keygen(w http.ResponseWriter, r *http.Request) {
-	t.tssKeygenLock.Lock()
-	defer t.tssKeygenLock.Unlock()
+
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
@@ -181,7 +175,7 @@ func (t *Tss) keygen(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if t.keyGenInfo != nil {
+	if t.getKeyGenInfo() != nil {
 		resp := KeyGenResp{
 			PubKey: "",
 			Status: Fail,
@@ -271,6 +265,8 @@ func (t *Tss) getParties(keys []string, localPartyKey string) ([]*tss.PartyID, *
 }
 
 func (t *Tss) generateNewKey(keygenReq KeyGenReq) (*crypto.ECPoint, error) {
+	t.tssLock.Lock()
+	defer t.tssLock.Unlock()
 	pubKey, err := sdk.Bech32ifyAccPub(t.priKey.PubKey())
 	if nil != err {
 		return nil, fmt.Errorf("fail to genearte the key: %w", err)
@@ -450,8 +446,6 @@ func (t *Tss) drainQueuedMessages() {
 
 // keysign process keysign request
 func (t *Tss) keysign(w http.ResponseWriter, r *http.Request) {
-	t.tssKeySignLock.Lock()
-	defer t.tssKeySignLock.Unlock()
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
@@ -469,14 +463,22 @@ func (t *Tss) keysign(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
+	if t.getKeyGenInfo() != nil {
+		t.logger.Error().Msg("another tss key sign is in progress")
+		t.writeKeySignResult(w, "", Fail)
+	}
 	signatureData, err := t.signMessage(keysignReq)
 	if nil != err {
 		t.logger.Error().Err(err).Msg("fail to sign message")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+	t.writeKeySignResult(w, base64.StdEncoding.EncodeToString(signatureData.Signature), Success)
+}
+
+func (t *Tss) writeKeySignResult(w http.ResponseWriter, signature string, status Status) {
 	signResp := KeySignResp{
-		Signature: base64.StdEncoding.EncodeToString(signatureData.Signature),
+		Signature: signature,
 		Status:    Success,
 	}
 	jsonResult, err := json.MarshalIndent(signResp, "", "	")
@@ -493,6 +495,8 @@ func (t *Tss) keysign(w http.ResponseWriter, r *http.Request) {
 
 // signMessage
 func (t *Tss) signMessage(req KeySignReq) (*signing.SignatureData, error) {
+	t.tssLock.Lock()
+	defer t.tssLock.Unlock()
 	keyGenLocalStateItem, err := t.getKeyData(req.PoolPubKey)
 	if nil != err {
 		return nil, fmt.Errorf("fail to get keygen state data for pubkey(%s): %w", req.PoolPubKey, err)

@@ -11,7 +11,10 @@ services:
       dockerfile: Dockerfile
     #image: registry.gitlab.com/thorchain/tss/go-tss
     restart: unless-stopped
-    command: /go/bin/tss
+    environment:
+      - PRIVKEY=${TSS_0}
+      - NET=testnet
+    command: /go/bin/start.bash
     networks:
       localnet:
         ipv4_address: 192.168.10.1
@@ -26,6 +29,9 @@ services:
       dockerfile: Dockerfile
     #image: registry.gitlab.com/thorchain/tss/go-tss
     restart: unless-stopped
+    environment:
+      - PRIVKEY=${TSS_1}
+      - NET=testnet
     depends_on:
       - tss0
     command: /go/bin/start-tss.bash
@@ -43,6 +49,9 @@ services:
       dockerfile: Dockerfile
     #image: registry.gitlab.com/thorchain/tss/go-tss
     restart: unless-stopped
+    environment:
+      - PRIVKEY=${TSS_2}
+      - NET=testnet
     depends_on:
       - tss0
     command: /go/bin/start-tss.bash
