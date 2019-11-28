@@ -16,7 +16,6 @@ require (
 	github.com/multiformats/go-multiaddr v0.1.2
 	github.com/rs/zerolog v1.17.2
 	github.com/tendermint/tendermint v0.32.7
-	github.com/urfave/cli v1.22.2
 	github.com/whyrusleeping/go-logging v0.0.0-20170515211332-0457bb6b88fc
 	gitlab.com/thorchain/bepswap/thornode v0.0.0-20191121232047-8acb6f8cb031
 	gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127
