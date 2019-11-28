@@ -9,6 +9,7 @@ import (
 	"github.com/whyrusleeping/go-logging"
 
 	go_tss "gitlab.com/thorchain/tss/go-tss"
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 func main() {
@@ -28,13 +29,19 @@ func main() {
 		flag.PrintDefaults()
 		return
 	}
-	tss, err := go_tss.NewTss(config.BootstrapPeers, config.Port, *http)
+	fmt.Println("input node secret key:")
+	priKeyBytes, err := terminal.ReadPassword(0)
+	if err != nil {
+		fmt.Println("error in get the secret key")
+		return
+	}
+	tss, err := go_tss.NewTss(config.BootstrapPeers, config.Port, *http, priKeyBytes)
 	if nil != err {
 		panic(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	if err := tss.Start(ctx); nil != err {
+	if err := tss.Start(ctx, priKeyBytes); nil != err {
 		panic(err)
 	}
 }

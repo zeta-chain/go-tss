@@ -36,7 +36,8 @@ func main() {
 	if nil != err {
 		panic(err)
 	}
-	if err := c.Start(); nil != err {
+	testPriKey := "OTI4OTdkYzFjMWFhMjU3MDNiMTE4MDM1OTQyY2Y3MDVkOWFhOGIzN2JlOGIwOWIwMTZjYTkxZjNjOTBhYjhlYQ=="
+	if err := c.Start([]byte(testPriKey)); nil != err {
 		panic(err)
 	}
 
