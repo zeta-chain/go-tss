@@ -249,7 +249,7 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 	}
 	p2pPriKey, err := crypto.UnmarshalSecp256k1PrivateKey(rawBytes)
 	if err != nil {
-		c.logger.Info().Msgf("error is %w", err)
+		c.logger.Error().Msgf("error is %f", err)
 		return err
 	}
 	h, err := libp2p.New(ctx,

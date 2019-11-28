@@ -107,7 +107,7 @@ func NewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, priKeyBytes 
 	}
 	// When using the keygen party it is recommended that you pre-compute the "safe primes" and Paillier secret beforehand because this can take some time.
 	// This code will generate those parameters using a concurrency limit equal to the number of available CPU cores.
-	preParams, err := keygen.GeneratePreParams(1 * time.Minute)
+	preParams, err := keygen.GeneratePreParams(50 * time.Minute)
 	if nil != err {
 		return nil, fmt.Errorf("fail to generate pre parameters: %w", err)
 	}
@@ -140,7 +140,6 @@ func setupBech32Prefix() {
 	config.SetBech32PrefixForAccount(cmd.Bech32PrefixAccAddr, cmd.Bech32PrefixAccPub)
 	config.SetBech32PrefixForValidator(cmd.Bech32PrefixValAddr, cmd.Bech32PrefixValPub)
 	config.SetBech32PrefixForConsensusNode(cmd.Bech32PrefixConsAddr, cmd.Bech32PrefixConsPub)
-	config.Seal()
 }
 
 // NewHandler registers the API routes and returns a new HTTP handler
@@ -273,7 +272,7 @@ func (t *Tss) getParties(keys []string, localPartyKey string) ([]*tss.PartyID, *
 func (t *Tss) generateNewKey(keygenReq KeyGenReq) (*crypto.ECPoint, error) {
 	pubKey, err := sdk.Bech32ifyAccPub(t.priKey.PubKey())
 	if nil != err {
-		return nil, fmt.Errorf("fail to get key(%s): %w", err)
+		return nil, fmt.Errorf("fail to genearte the key: %w", err)
 	}
 	partiesID, localPartyID, err := t.getParties(keygenReq.Keys, pubKey)
 	if nil != err {
