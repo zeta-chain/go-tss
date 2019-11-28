@@ -20,6 +20,7 @@ import (
 	"github.com/binance-chain/tss-lib/ecdsa/keygen"
 	"github.com/binance-chain/tss-lib/ecdsa/signing"
 	"github.com/binance-chain/tss-lib/tss"
+	"github.com/btcsuite/btcd/btcec"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/gorilla/mux"
 	maddr "github.com/multiformats/go-multiaddr"
@@ -50,20 +51,21 @@ type TssMessage struct {
 
 // TSS all the things for TSS
 type Tss struct {
-	comm          *Communication
-	logger        zerolog.Logger
-	port          int
-	server        *http.Server
-	wg            sync.WaitGroup
-	partyLock     *sync.Mutex
-	keyGenInfo    *TssKeyGenInfo
-	stopChan      chan struct{} // channel to indicate whether we should stop
-	queuedMsgs    chan TssMessage
-	stateLock     *sync.Mutex
-	localState    KeygenLocalState
-	tssKeygenLock *sync.Mutex
-	priKey        cryptokey.PrivKey
-	preParams     *keygen.LocalPreParams
+	comm           *Communication
+	logger         zerolog.Logger
+	port           int
+	server         *http.Server
+	wg             sync.WaitGroup
+	partyLock      *sync.Mutex
+	keyGenInfo     *TssKeyGenInfo
+	stopChan       chan struct{} // channel to indicate whether we should stop
+	queuedMsgs     chan TssMessage
+	stateLock      *sync.Mutex
+	localState     KeygenLocalState
+	tssKeygenLock  *sync.Mutex
+	tssKeySignLock *sync.Mutex
+	priKey         cryptokey.PrivKey
+	preParams      *keygen.LocalPreParams
 }
 
 func getPriKey(priKeyString string) (cryptokey.PrivKey, error) {
@@ -111,17 +113,18 @@ func NewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, priKeyBytes 
 	}
 
 	t := &Tss{
-		comm:          c,
-		logger:        log.With().Str("module", "tss").Logger(),
-		port:          tssPort,
-		stopChan:      make(chan struct{}),
-		partyLock:     &sync.Mutex{},
-		queuedMsgs:    make(chan TssMessage, 1024),
-		stateLock:     &sync.Mutex{},
-		localState:    localState,
-		tssKeygenLock: &sync.Mutex{},
-		priKey:        priKey,
-		preParams: preParams,
+		comm:           c,
+		logger:         log.With().Str("module", "tss").Logger(),
+		port:           tssPort,
+		stopChan:       make(chan struct{}),
+		partyLock:      &sync.Mutex{},
+		queuedMsgs:     make(chan TssMessage, 1024),
+		stateLock:      &sync.Mutex{},
+		localState:     localState,
+		tssKeygenLock:  &sync.Mutex{},
+		tssKeySignLock: &sync.Mutex{},
+		priKey:         priKey,
+		preParams:      preParams,
 	}
 
 	server := &http.Server{
@@ -146,11 +149,21 @@ func (t *Tss) newHandler(verbose bool) http.Handler {
 	router.Handle("/ping", ping()).Methods(http.MethodGet)
 	router.Handle("/keygen", http.HandlerFunc(t.keygen)).Methods(http.MethodPost)
 	router.Handle("/keysign", http.HandlerFunc(t.keysign)).Methods(http.MethodPost)
+	router.Handle("/p2pid", http.HandlerFunc(t.getP2pID)).Methods(http.MethodGet)
 	router.Use(logMiddleware(verbose))
 	return router
 }
 
+func (t *Tss) getP2pID(w http.ResponseWriter, r *http.Request) {
+	localPeerID := t.comm.GetLocalPeerID()
+	_, err := w.Write([]byte(localPeerID))
+	if nil != err {
+		t.logger.Error().Err(err).Msg("fail to write to response")
+	}
+}
 func (t *Tss) keygen(w http.ResponseWriter, r *http.Request) {
+	t.tssKeygenLock.Lock()
+	defer t.tssKeygenLock.Unlock()
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
@@ -189,14 +202,12 @@ func (t *Tss) keygen(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//we only handle one tss request for a given time
-	t.tssKeygenLock.Lock()
 	k, err := t.generateNewKey(keygenReq)
-	t.tssKeygenLock.Unlock()
 	if nil != err {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	newPubKey, addr, err := t.getThorPubKey(k.Y())
+	newPubKey, addr, err := t.getTssPubKey(k)
 	if nil != err {
 		t.logger.Error().Err(err).Msg("fail to bech32 acc pub key")
 		w.WriteHeader(http.StatusInternalServerError)
@@ -223,12 +234,18 @@ func (t *Tss) keygen(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (t *Tss) getThorPubKey(input *big.Int) (string, types.AccAddress, error) {
-	pubKey, err := sdk.Bech32ifyAccPub(t.priKey.PubKey())
-	addr := types.AccAddress(t.priKey.PubKey().Bytes())
+func (t *Tss) getTssPubKey(pubKeyPoint *crypto.ECPoint) (string, types.AccAddress, error) {
+	tssPubKey := btcec.PublicKey{
+		Curve: btcec.S256(),
+		X:     pubKeyPoint.X(),
+		Y:     pubKeyPoint.Y(),
+	}
+	var pubKeyCompressed secp256k1.PubKeySecp256k1
+	copy(pubKeyCompressed[:], tssPubKey.SerializeCompressed())
+	pubKey, err := sdk.Bech32ifyAccPub(pubKeyCompressed)
+	addr := types.AccAddress(pubKeyCompressed.Address().Bytes())
 	return pubKey, addr, err
 }
-
 
 func (t *Tss) getParties(keys []string, localPartyKey string) ([]*tss.PartyID, *tss.PartyID, error) {
 	var localPartyID *tss.PartyID
@@ -252,7 +269,6 @@ func (t *Tss) getParties(keys []string, localPartyKey string) ([]*tss.PartyID, *
 	partiesID := tss.SortPartyIDs(unSortedPartiesID)
 	return partiesID, localPartyID, nil
 }
-
 
 func (t *Tss) generateNewKey(keygenReq KeyGenReq) (*crypto.ECPoint, error) {
 	pubKey, err := sdk.Bech32ifyAccPub(t.priKey.PubKey())
@@ -377,7 +393,7 @@ func (t *Tss) processKeyGen(errChan chan struct{}, outCh <-chan tss.Message, end
 func (t *Tss) addLocalPartySaveData(data keygen.LocalPartySaveData, keyGenLocalStateItem KeygenLocalStateItem) error {
 	t.stateLock.Lock()
 	defer t.stateLock.Unlock()
-	pubKey, addr, err := t.getThorPubKey(data.ECDSAPub.Y())
+	pubKey, addr, err := t.getTssPubKey(data.ECDSAPub)
 	if nil != err {
 		return fmt.Errorf("fail to get thorchain pubkey: %w", err)
 	}
@@ -434,6 +450,8 @@ func (t *Tss) drainQueuedMessages() {
 
 // keysign process keysign request
 func (t *Tss) keysign(w http.ResponseWriter, r *http.Request) {
+	t.tssKeySignLock.Lock()
+	defer t.tssKeySignLock.Unlock()
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
