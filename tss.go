@@ -521,7 +521,10 @@ func (t *Tss) signMessage(req KeySignReq) (*signing.SignatureData, error) {
 	outCh := make(chan tss.Message, len(partiesID))
 	endCh := make(chan signing.SignatureData, len(partiesID))
 	errCh := make(chan struct{})
-	m := msgToHashInt(msgToSign)
+	m, err := msgToHashInt(msgToSign)
+	if nil != err {
+		return nil, fmt.Errorf("fail to convert msg to hash int: %w", err)
+	}
 	keySignParty := signing.NewLocalParty(m, params, keyGenLocalStateItem.LocalData, outCh, endCh)
 	partyIDMap := make(map[string]*tss.PartyID)
 	for _, id := range partiesID {
@@ -552,9 +555,13 @@ func (t *Tss) signMessage(req KeySignReq) (*signing.SignatureData, error) {
 	return result, nil
 }
 
-func msgToHashInt(msg []byte) *big.Int {
+func msgToHashInt(msg []byte) (*big.Int, error) {
 	h := sha256.New()
-	return hashToInt(h.Sum(msg), btcec.S256())
+	_, err := h.Write(msg)
+	if nil != err {
+		return nil, fmt.Errorf("fail to caculate sha256 hash: %w", err)
+	}
+	return hashToInt(h.Sum(nil), btcec.S256()), nil
 }
 func hashToInt(hash []byte, c elliptic.Curve) *big.Int {
 	orderBits := c.Params().N.BitLen()
