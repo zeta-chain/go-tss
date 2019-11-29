@@ -229,16 +229,6 @@ func (t *Tss) keygen(w http.ResponseWriter, r *http.Request) {
 		t.logger.Error().Err(err).Msg("fail to write to response")
 	}
 }
-func (t *Tss) getMyPubKey(pubKeyPoint *crypto.ECPoint) cryptokey.PubKey {
-	tssPubKey := btcec.PublicKey{
-		Curve: btcec.S256(),
-		X:     pubKeyPoint.X(),
-		Y:     pubKeyPoint.Y(),
-	}
-	var pubKeyCompressed secp256k1.PubKeySecp256k1
-	copy(pubKeyCompressed[:], tssPubKey.SerializeCompressed())
-	return pubKeyCompressed
-}
 func (t *Tss) getTssPubKey(pubKeyPoint *crypto.ECPoint) (string, types.AccAddress, error) {
 	tssPubKey := btcec.PublicKey{
 		Curve: btcec.S256(),
