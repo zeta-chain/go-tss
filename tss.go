@@ -554,8 +554,7 @@ func (t *Tss) signMessage(req KeySignReq) (*signing.SignatureData, error) {
 
 func msgToHashInt(msg []byte) *big.Int {
 	h := sha256.New()
-	h.Write(msg)
-	return hashToInt(h.Sum(nil), btcec.S256())
+	return hashToInt(h.Sum(msg), btcec.S256())
 }
 func hashToInt(hash []byte, c elliptic.Curve) *big.Int {
 	orderBits := c.Params().N.BitLen()
