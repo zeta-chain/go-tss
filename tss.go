@@ -22,12 +22,12 @@ import (
 	"github.com/binance-chain/tss-lib/ecdsa/keygen"
 	"github.com/binance-chain/tss-lib/ecdsa/signing"
 	"github.com/binance-chain/tss-lib/tss"
-	"github.com/btcsuite/btcd/btcec"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/gorilla/mux"
 	maddr "github.com/multiformats/go-multiaddr"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"github.com/tendermint/btcd/btcec"
 	cryptokey "github.com/tendermint/tendermint/crypto"
 	"github.com/tendermint/tendermint/crypto/secp256k1"
 	"gitlab.com/thorchain/bepswap/thornode/cmd"
@@ -229,7 +229,16 @@ func (t *Tss) keygen(w http.ResponseWriter, r *http.Request) {
 		t.logger.Error().Err(err).Msg("fail to write to response")
 	}
 }
-
+func (t *Tss) getMyPubKey(pubKeyPoint *crypto.ECPoint) cryptokey.PubKey {
+	tssPubKey := btcec.PublicKey{
+		Curve: btcec.S256(),
+		X:     pubKeyPoint.X(),
+		Y:     pubKeyPoint.Y(),
+	}
+	var pubKeyCompressed secp256k1.PubKeySecp256k1
+	copy(pubKeyCompressed[:], tssPubKey.SerializeCompressed())
+	return pubKeyCompressed
+}
 func (t *Tss) getTssPubKey(pubKeyPoint *crypto.ECPoint) (string, types.AccAddress, error) {
 	tssPubKey := btcec.PublicKey{
 		Curve: btcec.S256(),
@@ -544,18 +553,19 @@ func (t *Tss) signMessage(req KeySignReq) (*signing.SignatureData, error) {
 		})
 	}()
 
+	defer t.emptyQueuedMessages()
 	result, err := t.processKeySign(errCh, outCh, endCh)
 	if nil != err {
-		t.emptyQueuedMessages()
-		// we failed
 		return nil, fmt.Errorf("fail to process key sign: %w", err)
 	}
 	t.logger.Info().Msg("successfully sign the message")
 	return result, nil
 }
+
 func msgToHashInt(msg []byte) *big.Int {
 	h := sha256.New()
-	return hashToInt(h.Sum(msg), btcec.S256())
+	h.Write(msg)
+	return hashToInt(h.Sum(nil), btcec.S256())
 }
 func hashToInt(hash []byte, c elliptic.Curve) *big.Int {
 	orderBits := c.Params().N.BitLen()
@@ -606,7 +616,7 @@ func (t *Tss) processKeySign(errChan chan struct{}, outCh <-chan tss.Message, en
 			// drain the in memory queue
 			t.drainQueuedMessages()
 		case msg := <-endCh:
-			t.logger.Info().Msgf("we have done the key sign %s", msg.Signature)
+			t.logger.Info().Msg("we have done the key sign")
 			return &msg, nil
 		}
 	}
