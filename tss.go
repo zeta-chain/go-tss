@@ -467,7 +467,7 @@ func (t *Tss) keysign(w http.ResponseWriter, r *http.Request) {
 	}
 	if t.getKeyGenInfo() != nil {
 		t.logger.Error().Msg("another tss key sign is in progress")
-		t.writeKeySignResult(w, "", Fail)
+		t.writeKeySignResult(w, "", "", Fail)
 	}
 	signatureData, err := t.signMessage(keysignReq)
 	if nil != err {
@@ -475,13 +475,14 @@ func (t *Tss) keysign(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	t.writeKeySignResult(w, base64.StdEncoding.EncodeToString(signatureData.Signature), Success)
+	t.writeKeySignResult(w, base64.StdEncoding.EncodeToString(signatureData.R), base64.StdEncoding.EncodeToString(signatureData.S), Success)
 }
 
-func (t *Tss) writeKeySignResult(w http.ResponseWriter, signature string, status Status) {
+func (t *Tss) writeKeySignResult(w http.ResponseWriter, R, S string, status Status) {
 	signResp := KeySignResp{
-		Signature: signature,
-		Status:    Success,
+		R:      R,
+		S:      S,
+		Status: Success,
 	}
 	jsonResult, err := json.MarshalIndent(signResp, "", "	")
 	if nil != err {

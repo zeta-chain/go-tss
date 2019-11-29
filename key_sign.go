@@ -8,6 +8,7 @@ type KeySignReq struct {
 
 // KeySignResp key sign response
 type KeySignResp struct {
-	Signature string
-	Status    Status `json:"status"`
+	R      string `json:"r"`
+	S      string `json:"s"`
+	Status Status `json:"status"`
 }
