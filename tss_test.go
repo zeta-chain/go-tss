@@ -3,6 +3,7 @@ package go_tss
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -33,10 +34,11 @@ type TssTestSuite struct{}
 var _ = Suite(&TssTestSuite{})
 
 func setupTssForTest(c *C) *Tss {
+	byPassGeneratePreParam = true
 	tss, err := NewTss(nil, 6668, 8080, []byte(testPriKey))
 	c.Assert(err, IsNil)
 	c.Assert(tss, NotNil)
-	return nil
+	return tss
 }
 
 func (t *TssTestSuite) TestNewTss(c *C) {
@@ -105,4 +107,21 @@ func (t *TssTestSuite) TestSignMessage(c *C) {
 	signatureData, err = tss.signMessage(req)
 	c.Assert(err, NotNil)
 	c.Assert(signatureData, IsNil)
+}
+
+func (t *TssTestSuite) TestGetPriKey(c *C) {
+	pk, err := getPriKey("whatever")
+	c.Assert(err, NotNil)
+	c.Assert(pk, IsNil)
+	input := base64.StdEncoding.EncodeToString([]byte("whatever"))
+	pk, err = getPriKey(input)
+	c.Assert(err, NotNil)
+	c.Assert(pk, IsNil)
+	pk, err = getPriKey("MmVhNTI1ZDk3N2Y1NWU3OWM3M2JhNjZiNzM2NDU0ZGI2Mjc2NmU4ZTMzMzg2ZDlhZGM4YmI2MjE2NmRiMWFkMQ==")
+	c.Assert(err, IsNil)
+	c.Assert(pk, NotNil)
+	result, err := getPriKeyRawBytes(pk)
+	c.Assert(err, IsNil)
+	c.Assert(result, NotNil)
+	c.Assert(result, HasLen, 32)
 }

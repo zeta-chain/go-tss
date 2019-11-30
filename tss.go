@@ -39,6 +39,10 @@ const (
 	KeySignTimeoutSeconds = 30
 )
 
+var (
+	byPassGeneratePreParam = false
+)
+
 // TssKeyGenInfo the information used by tss key gen
 type TssKeyGenInfo struct {
 	Party      tss.Party
@@ -69,31 +73,6 @@ type Tss struct {
 	preParams  *keygen.LocalPreParams
 }
 
-func getPriKey(priKeyString string) (cryptokey.PrivKey, error) {
-	priHexBytes, err := base64.StdEncoding.DecodeString(priKeyString)
-	if nil != err {
-		return nil, fmt.Errorf("fail to decode private key: %w", err)
-	}
-	rawBytes, err := hex.DecodeString(string(priHexBytes))
-	if nil != err {
-		return nil, fmt.Errorf("fail to hex decode private key: %w", err)
-	}
-	var keyBytesArray [32]byte
-	copy(keyBytesArray[:], rawBytes[:32])
-	priKey := secp256k1.PrivKeySecp256k1(keyBytesArray)
-	return priKey, nil
-}
-
-func getPriKeyRawBytes(priKey cryptokey.PrivKey) ([]byte, error) {
-	var keyBytesArray [32]byte
-	pk, ok := priKey.(secp256k1.PrivKeySecp256k1)
-	if !ok {
-		return nil, errors.New("private key is not secp256p1.PrivKeySecp256k1")
-	}
-	copy(keyBytesArray[:], pk[:])
-	return keyBytesArray[:], nil
-}
-
 // NewTss create a new instance of Tss
 func NewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, priKeyBytes []byte) (*Tss, error) {
 	if p2pPort == tssPort {
@@ -115,9 +94,12 @@ func NewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, priKeyBytes 
 	}
 	// When using the keygen party it is recommended that you pre-compute the "safe primes" and Paillier secret beforehand because this can take some time.
 	// This code will generate those parameters using a concurrency limit equal to the number of available CPU cores.
-	preParams, err := keygen.GeneratePreParams(1 * time.Minute)
-	if nil != err {
-		return nil, fmt.Errorf("fail to generate pre parameters: %w", err)
+	var preParams *keygen.LocalPreParams
+	if !byPassGeneratePreParam {
+		preParams, err = keygen.GeneratePreParams(1 * time.Minute)
+		if nil != err {
+			return nil, fmt.Errorf("fail to generate pre parameters: %w", err)
+		}
 	}
 
 	t := &Tss{
@@ -149,6 +131,31 @@ func setupBech32Prefix() {
 	config.SetBech32PrefixForConsensusNode(cmd.Bech32PrefixConsAddr, cmd.Bech32PrefixConsPub)
 }
 
+func getPriKey(priKeyString string) (cryptokey.PrivKey, error) {
+	priHexBytes, err := base64.StdEncoding.DecodeString(priKeyString)
+	if nil != err {
+		return nil, fmt.Errorf("fail to decode private key: %w", err)
+	}
+	rawBytes, err := hex.DecodeString(string(priHexBytes))
+	if nil != err {
+		return nil, fmt.Errorf("fail to hex decode private key: %w", err)
+	}
+	var keyBytesArray [32]byte
+	copy(keyBytesArray[:], rawBytes[:32])
+	priKey := secp256k1.PrivKeySecp256k1(keyBytesArray)
+	return priKey, nil
+}
+
+func getPriKeyRawBytes(priKey cryptokey.PrivKey) ([]byte, error) {
+	var keyBytesArray [32]byte
+	pk, ok := priKey.(secp256k1.PrivKeySecp256k1)
+	if !ok {
+		return nil, errors.New("private key is not secp256p1.PrivKeySecp256k1")
+	}
+	copy(keyBytesArray[:], pk[:])
+	return keyBytesArray[:], nil
+}
+
 // NewHandler registers the API routes and returns a new HTTP handler
 func (t *Tss) newHandler(verbose bool) http.Handler {
 	router := mux.NewRouter()
@@ -168,7 +175,6 @@ func (t *Tss) getP2pID(w http.ResponseWriter, r *http.Request) {
 	}
 }
 func (t *Tss) keygen(w http.ResponseWriter, r *http.Request) {
-
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
