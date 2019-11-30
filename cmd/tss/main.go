@@ -1,17 +1,18 @@
 package main
 
 import (
+	"bufio"
 	"context"
-	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
 
+	"github.com/cosmos/cosmos-sdk/client/input"
 	golog "github.com/ipfs/go-log"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"github.com/whyrusleeping/go-logging"
-
-	"golang.org/x/crypto/ssh/terminal"
 
 	go_tss "gitlab.com/thorchain/tss/go-tss"
 )
@@ -21,6 +22,9 @@ func main() {
 	_ = golog.SetLogLevel("tss-lib", "DEBUG")
 	http := flag.Int("http", 8080, "http port")
 	help := flag.Bool("h", false, "Display Help")
+	logLevel := flag.String("loglevel", "debug", "Log Level")
+	pretty := flag.Bool("pretty-log", false, "Enables unstructured prettified logging. This is useful for local debugging")
+	baseFolder := flag.String("home", "", "home folder to store the keygen state file")
 	config, err := go_tss.ParseFlags()
 	if err != nil {
 		panic(err)
@@ -30,51 +34,32 @@ func main() {
 		flag.PrintDefaults()
 		return
 	}
-	priKeyBytes, err := readPassword("input node secret key:")
+	initLog(*logLevel, *pretty)
+	inBuf := bufio.NewReader(os.Stdin)
+	priKeyBytes, err := input.GetPassword("input node secret key:", inBuf)
 	if err != nil {
 		fmt.Printf("error in get the secret key: %s\n", err.Error())
 		return
 	}
-	tss, err := go_tss.NewTss(config.BootstrapPeers, config.Port, *http, priKeyBytes)
+	tss, err := go_tss.NewTss(config.BootstrapPeers, config.Port, *http, []byte(priKeyBytes), *baseFolder)
 	if nil != err {
 		panic(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	if err := tss.Start(ctx, priKeyBytes); nil != err {
+	if err := tss.Start(ctx); nil != err {
 		panic(err)
 	}
 }
-func readPassword(prompt string) (pw []byte, err error) {
-	fd := int(os.Stdin.Fd())
-	if terminal.IsTerminal(fd) {
-		fmt.Fprint(os.Stderr, prompt)
-		pw, err = terminal.ReadPassword(fd)
-		fmt.Fprintln(os.Stderr)
-		return
+func initLog(level string, pretty bool) {
+	l, err := zerolog.ParseLevel(level)
+	if err != nil {
+		log.Warn().Msgf("%s is not a valid log-level, falling back to 'info'", level)
 	}
-
-	var b [1]byte
-	for {
-		n, err := os.Stdin.Read(b[:])
-		// terminal.ReadPassword discards any '\r', so we do the same
-		if n > 0 && b[0] != '\r' {
-			if b[0] == '\n' {
-				return pw, nil
-			}
-			pw = append(pw, b[0])
-			// limit size, so that a wrong input won't fill up the memory
-			if len(pw) > 1024 {
-				err = errors.New("password too long")
-			}
-		}
-		if err != nil {
-			// terminal.ReadPassword accepts EOF-terminated passwords
-			// if non-empty, so we do the same
-			if err == io.EOF && len(pw) > 0 {
-				err = nil
-			}
-			return pw, err
-		}
+	var out io.Writer = os.Stdout
+	if pretty {
+		out = zerolog.ConsoleWriter{Out: os.Stdout}
 	}
+	zerolog.SetGlobalLevel(l)
+	log.Logger = log.Output(out).With().Str("service", "go-tss").Logger()
 }
