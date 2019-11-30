@@ -2,6 +2,8 @@ package go_tss
 
 import (
 	"context"
+	"crypto/elliptic"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -20,12 +22,12 @@ import (
 	"github.com/binance-chain/tss-lib/ecdsa/keygen"
 	"github.com/binance-chain/tss-lib/ecdsa/signing"
 	"github.com/binance-chain/tss-lib/tss"
-	"github.com/btcsuite/btcd/btcec"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/gorilla/mux"
 	maddr "github.com/multiformats/go-multiaddr"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"github.com/tendermint/btcd/btcec"
 	cryptokey "github.com/tendermint/tendermint/crypto"
 	"github.com/tendermint/tendermint/crypto/secp256k1"
 	"gitlab.com/thorchain/bepswap/thornode/cmd"
@@ -194,7 +196,7 @@ func (t *Tss) keygen(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	//we only handle one tss request for a given time
+	// we only handle one tss request for a given time
 	k, err := t.generateNewKey(keygenReq)
 	if nil != err {
 		t.logger.Error().Err(err).Msg("fail to generate new key")
@@ -227,7 +229,6 @@ func (t *Tss) keygen(w http.ResponseWriter, r *http.Request) {
 		t.logger.Error().Err(err).Msg("fail to write to response")
 	}
 }
-
 func (t *Tss) getTssPubKey(pubKeyPoint *crypto.ECPoint) (string, types.AccAddress, error) {
 	tssPubKey := btcec.PublicKey{
 		Curve: btcec.S256(),
@@ -356,7 +357,7 @@ func (t *Tss) processKeyGen(errChan chan struct{}, outCh <-chan tss.Message, end
 		case msg := <-outCh:
 			t.logger.Info().Msgf(">>>>>>>>>>msg: %s", msg.String())
 			buf, r, err := msg.WireBytes()
-			//if we cannot get the wire share, the tss keygen will fail, we just quit.
+			// if we cannot get the wire share, the tss keygen will fail, we just quit.
 			if nil != err {
 				t.logger.Error().Err(err).Msg("fail to get wire bytes")
 				return nil, fmt.Errorf("fail to get wire bytes")
@@ -465,7 +466,7 @@ func (t *Tss) keysign(w http.ResponseWriter, r *http.Request) {
 	}
 	if t.getKeyGenInfo() != nil {
 		t.logger.Error().Msg("another tss key sign is in progress")
-		t.writeKeySignResult(w, "", Fail)
+		t.writeKeySignResult(w, "", "", Fail)
 	}
 	signatureData, err := t.signMessage(keysignReq)
 	if nil != err {
@@ -473,13 +474,14 @@ func (t *Tss) keysign(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	t.writeKeySignResult(w, base64.StdEncoding.EncodeToString(signatureData.Signature), Success)
+	t.writeKeySignResult(w, base64.StdEncoding.EncodeToString(signatureData.R), base64.StdEncoding.EncodeToString(signatureData.S), Success)
 }
 
-func (t *Tss) writeKeySignResult(w http.ResponseWriter, signature string, status Status) {
+func (t *Tss) writeKeySignResult(w http.ResponseWriter, R, S string, status Status) {
 	signResp := KeySignResp{
-		Signature: signature,
-		Status:    Success,
+		R:      R,
+		S:      S,
+		Status: Success,
 	}
 	jsonResult, err := json.MarshalIndent(signResp, "", "	")
 	if nil != err {
@@ -519,10 +521,11 @@ func (t *Tss) signMessage(req KeySignReq) (*signing.SignatureData, error) {
 	outCh := make(chan tss.Message, len(partiesID))
 	endCh := make(chan signing.SignatureData, len(partiesID))
 	errCh := make(chan struct{})
-	m := new(big.Int)
-	m = m.SetBytes(msgToSign)
+	m, err := msgToHashInt(msgToSign)
+	if nil != err {
+		return nil, fmt.Errorf("fail to convert msg to hash int: %w", err)
+	}
 	keySignParty := signing.NewLocalParty(m, params, keyGenLocalStateItem.LocalData, outCh, endCh)
-	// You should keep a local mapping of `id` strings to `*PartyID` instances so that an incoming message can have its origin party's `*PartyID` recovered for passing to `UpdateFromBytes` (see below)
 	partyIDMap := make(map[string]*tss.PartyID)
 	for _, id := range partiesID {
 		partyIDMap[id.Id] = id
@@ -543,23 +546,44 @@ func (t *Tss) signMessage(req KeySignReq) (*signing.SignatureData, error) {
 		})
 	}()
 
+	defer t.emptyQueuedMessages()
 	result, err := t.processKeySign(errCh, outCh, endCh)
 	if nil != err {
-		t.emptyQueuedMessages()
-		// we failed
 		return nil, fmt.Errorf("fail to process key sign: %w", err)
 	}
 	t.logger.Info().Msg("successfully sign the message")
 	return result, nil
 }
 
+func msgToHashInt(msg []byte) (*big.Int, error) {
+	h := sha256.New()
+	_, err := h.Write(msg)
+	if nil != err {
+		return nil, fmt.Errorf("fail to caculate sha256 hash: %w", err)
+	}
+	return hashToInt(h.Sum(nil), btcec.S256()), nil
+}
+func hashToInt(hash []byte, c elliptic.Curve) *big.Int {
+	orderBits := c.Params().N.BitLen()
+	orderBytes := (orderBits + 7) / 8
+	if len(hash) > orderBytes {
+		hash = hash[:orderBytes]
+	}
+
+	ret := new(big.Int).SetBytes(hash)
+	excess := len(hash)*8 - orderBits
+	if excess > 0 {
+		ret.Rsh(ret, uint(excess))
+	}
+	return ret
+}
 func (t *Tss) processKeySign(errChan chan struct{}, outCh <-chan tss.Message, endCh <-chan signing.SignatureData) (*signing.SignatureData, error) {
 	defer t.logger.Info().Msg("key sign finished")
 	t.logger.Info().Msg("start to read messages from local party")
 	for {
 		select {
 		case <-errChan: // when keyGenParty return
-			t.logger.Error().Msg("key gen failed")
+			t.logger.Error().Msg("key sign failed")
 			return nil, errors.New("error channel closed fail to start local party")
 		case <-t.stopChan: // when TSS processor receive signal to quit
 			return nil, errors.New("received exit signal")
@@ -588,7 +612,7 @@ func (t *Tss) processKeySign(errChan chan struct{}, outCh <-chan tss.Message, en
 			// drain the in memory queue
 			t.drainQueuedMessages()
 		case msg := <-endCh:
-			t.logger.Info().Msgf("we have done the key sign %s", msg.Signature)
+			t.logger.Info().Msg("we have done the key sign")
 			return &msg, nil
 		}
 	}
