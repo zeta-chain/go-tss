@@ -12,6 +12,7 @@ import (
 	"math/big"
 	"net/http"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"sync"
@@ -71,10 +72,11 @@ type Tss struct {
 	tssLock    *sync.Mutex
 	priKey     cryptokey.PrivKey
 	preParams  *keygen.LocalPreParams
+	homeBase   string
 }
 
 // NewTss create a new instance of Tss
-func NewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, priKeyBytes []byte) (*Tss, error) {
+func NewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, priKeyBytes []byte, baseFolder string) (*Tss, error) {
 	if p2pPort == tssPort {
 		return nil, errors.New("tss and p2p can't use the same port")
 	}
@@ -88,6 +90,9 @@ func NewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, priKeyBytes 
 	}
 	setupBech32Prefix()
 	localFileName := fmt.Sprintf("localstate-%d.json", tssPort)
+	if len(baseFolder) > 0 {
+		localFileName = filepath.Join(baseFolder, localFileName)
+	}
 	localState, err := GetLocalState(localFileName)
 	if nil != err {
 		return nil, fmt.Errorf("fail to read local state file: %w", err)
@@ -114,6 +119,7 @@ func NewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, priKeyBytes 
 		tssLock:    &sync.Mutex{},
 		priKey:     priKey,
 		preParams:  preParams,
+		homeBase:   baseFolder,
 	}
 
 	server := &http.Server{
@@ -371,12 +377,11 @@ func (t *Tss) processKeyGen(errChan chan struct{}, outCh <-chan tss.Message, end
 			// we bail out after KeyGenTimeoutSeconds
 			return nil, fmt.Errorf("fail to finish keygen with in %d seconds", KeyGenTimeoutSeconds)
 		case msg := <-outCh:
-			t.logger.Info().Msgf(">>>>>>>>>>msg: %s", msg.String())
+			t.logger.Debug().Msgf(">>>>>>>>>>msg: %s", msg.String())
 			buf, r, err := msg.WireBytes()
 			// if we cannot get the wire share, the tss keygen will fail, we just quit.
 			if nil != err {
-				t.logger.Error().Err(err).Msg("fail to get wire bytes")
-				return nil, fmt.Errorf("fail to get wire bytes")
+				return nil, fmt.Errorf("fail to get wire bytes: %w", err)
 			}
 			tssMsg := TssMessage{
 				Routing: r,
@@ -386,14 +391,14 @@ func (t *Tss) processKeyGen(errChan chan struct{}, outCh <-chan tss.Message, end
 			if nil != err {
 				return nil, fmt.Errorf("fail to convert tss msg to wire bytes: %w", err)
 			}
-			t.logger.Info().Msgf("broad cast msg to everyone from :%s ", r.From.Id)
+			t.logger.Debug().Msgf("broad cast msg to everyone from :%s ", r.From.Id)
 			if err := t.comm.Broadcast(nil, wireBytes); nil != err {
 				t.logger.Error().Err(err).Msg("fail to broadcast messages")
 			}
 			// drain the in memory queue
 			t.drainQueuedMessages()
 		case msg := <-endCh:
-			t.logger.Info().Msgf("we have done the keygen %s", msg.ECDSAPub.Y().String())
+			t.logger.Debug().Msgf("we have done the keygen %s", msg.ECDSAPub.Y().String())
 
 			if err := t.addLocalPartySaveData(msg, keyGenLocalStateItem); nil != err {
 				return nil, fmt.Errorf("fail to save key gen result to local store: %w", err)
@@ -415,6 +420,9 @@ func (t *Tss) addLocalPartySaveData(data keygen.LocalPartySaveData, keyGenLocalS
 	keyGenLocalStateItem.LocalData = data
 	t.localState = append(t.localState, keyGenLocalStateItem)
 	localFileName := fmt.Sprintf("localstate-%d.json", t.port)
+	if len(t.homeBase) > 0 {
+		localFileName = filepath.Join(t.homeBase, localFileName)
+	}
 	return SaveLocalStateToFile(localFileName, t.localState)
 
 }
@@ -483,6 +491,7 @@ func (t *Tss) keysign(w http.ResponseWriter, r *http.Request) {
 	if t.getKeyGenInfo() != nil {
 		t.logger.Error().Msg("another tss key sign is in progress")
 		t.writeKeySignResult(w, "", "", Fail)
+		return
 	}
 	signatureData, err := t.signMessage(keysignReq)
 	if nil != err {
@@ -531,7 +540,7 @@ func (t *Tss) signMessage(req KeySignReq) (*signing.SignatureData, error) {
 	// Note: The `id` and `moniker` fields are for convenience to allow you to easily track participants.
 	// The `id` should be a unique string representing this party in the network and `moniker` can be anything (even left blank).
 	// The `uniqueKey` is a unique identifying key for this peer (such as its p2p public key) as a big.Int.
-	t.logger.Info().Msgf("local party: %s", localPartyID.Id)
+	t.logger.Debug().Msgf("local party: %s", localPartyID.Id)
 	ctx := tss.NewPeerContext(partiesID)
 	params := tss.NewParameters(ctx, localPartyID, len(partiesID), Threshold)
 	outCh := make(chan tss.Message, len(partiesID))
@@ -607,7 +616,7 @@ func (t *Tss) processKeySign(errChan chan struct{}, outCh <-chan tss.Message, en
 			// we bail out after KeyGenTimeoutSeconds
 			return nil, fmt.Errorf("fail to sign message with in %d seconds", KeySignTimeoutSeconds)
 		case msg := <-outCh:
-			t.logger.Info().Msgf(">>>>>>>>>>key sign msg: %s", msg.String())
+			t.logger.Debug().Msgf(">>>>>>>>>>key sign msg: %s", msg.String())
 			buf, r, err := msg.WireBytes()
 			if nil != err {
 				t.logger.Error().Err(err).Msg("fail to get wire bytes")
@@ -621,14 +630,14 @@ func (t *Tss) processKeySign(errChan chan struct{}, outCh <-chan tss.Message, en
 			if nil != err {
 				return nil, fmt.Errorf("fail to convert tss msg to wire bytes: %w", err)
 			}
-			t.logger.Info().Msgf("broad cast msg to everyone from :%s ", r.From.Id)
+			t.logger.Debug().Msgf("broad cast msg to everyone from :%s ", r.From.Id)
 			if err := t.comm.Broadcast(nil, wireBytes); nil != err {
 				t.logger.Error().Err(err).Msg("fail to broadcast messages")
 			}
 			// drain the in memory queue
 			t.drainQueuedMessages()
 		case msg := <-endCh:
-			t.logger.Info().Msg("we have done the key sign")
+			t.logger.Debug().Msg("we have done the key sign")
 			return &msg, nil
 		}
 	}
@@ -704,13 +713,14 @@ func (t *Tss) Start(ctx context.Context) error {
 // processComm is
 func (t *Tss) processComm() {
 	t.logger.Info().Msg("start to process messages coming from communication channels")
+	defer t.logger.Info().Msg("stop processing messages from communication channels")
 	defer t.wg.Done()
 	for {
 		select {
 		case <-t.stopChan:
 			return // time to stop
 		case m := <-t.comm.messages:
-			t.logger.Info().Msg("<<<<<<<<< inbound")
+			t.logger.Debug().Msg("<<<<<<<<< inbound")
 			var tssMsg TssMessage
 			if err := json.Unmarshal(m.Payload, &tssMsg); nil != err {
 				t.logger.Error().Err(err).Msgf("fail to unmarshal wire bytes")
@@ -720,7 +730,7 @@ func (t *Tss) processComm() {
 			keyGenInfo := t.getKeyGenInfo()
 			if keyGenInfo == nil {
 				// we are not doing any keygen at the moment, so we queue it
-				t.logger.Info().Msg("queue the message")
+				t.logger.Debug().Msg("queue the message")
 				t.queuedMsgs <- tssMsg
 				continue
 			}
@@ -742,12 +752,12 @@ func (t *Tss) processComm() {
 
 func (t *Tss) isForCurrentParty(kgi *TssKeyGenInfo, tssMsg TssMessage) bool {
 	if tssMsg.Routing.To == nil {
-		t.logger.Info().Msgf("broadcast msg from %s", tssMsg.Routing.From.Id)
+		t.logger.Debug().Msgf("broadcast msg from %s", tssMsg.Routing.From.Id)
 		return true
 	}
 	for _, item := range tssMsg.Routing.To {
 		if kgi.Party.PartyID().Id == item.Id {
-			t.logger.Info().Msgf("message from %s to %s", tssMsg.Routing.From.Id, item.Id)
+			t.logger.Debug().Msgf("message from %s to %s", tssMsg.Routing.From.Id, item.Id)
 			return true
 		}
 	}

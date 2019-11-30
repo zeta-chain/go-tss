@@ -25,7 +25,6 @@ func GetLocalState(filePathName string) (KeygenLocalState, error) {
 	if len(filePathName) == 0 {
 		return KeygenLocalState{}, nil
 	}
-
 	if _, err := os.Stat(filePathName); os.IsNotExist(err) {
 		return KeygenLocalState{}, nil
 	}

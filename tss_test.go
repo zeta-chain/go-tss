@@ -35,14 +35,15 @@ var _ = Suite(&TssTestSuite{})
 
 func setupTssForTest(c *C) *Tss {
 	byPassGeneratePreParam = true
-	tss, err := NewTss(nil, 6668, 8080, []byte(testPriKey))
+	homeBase := ""
+	tss, err := NewTss(nil, 6668, 8080, []byte(testPriKey), homeBase)
 	c.Assert(err, IsNil)
 	c.Assert(tss, NotNil)
 	return tss
 }
 
 func (t *TssTestSuite) TestNewTss(c *C) {
-	tss, err := NewTss(nil, 6668, 12345, []byte(testPriKey))
+	tss, err := NewTss(nil, 6668, 12345, []byte(testPriKey), "")
 	c.Assert(err, IsNil)
 	c.Assert(tss, NotNil)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -67,7 +68,7 @@ func (t *TssTestSuite) TestNewTss(c *C) {
 	wg.Wait()
 
 	// P2p port and http port can't be the same
-	tss1, err := NewTss(nil, 8080, 8080, []byte(testPriKey))
+	tss1, err := NewTss(nil, 8080, 8080, []byte(testPriKey), "")
 	c.Assert(err, NotNil)
 	c.Assert(tss1, IsNil)
 }
@@ -124,4 +125,11 @@ func (t *TssTestSuite) TestGetPriKey(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(result, NotNil)
 	c.Assert(result, HasLen, 32)
+}
+
+func (t *TssTestSuite) TestMsgToHashInt(c *C) {
+	input := []byte("whatever")
+	result, err := msgToHashInt(input)
+	c.Assert(err, IsNil)
+	c.Assert(result, NotNil)
 }

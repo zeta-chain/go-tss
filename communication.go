@@ -81,7 +81,7 @@ func (c *Communication) Broadcast(peers []peer.ID, msg []byte) error {
 
 func (c *Communication) broadcastToPeers(peers []peer.ID, msg []byte) {
 	defer c.wg.Done()
-	defer c.logger.Info().Msg("finished to broadcast to all peers")
+	defer c.logger.Debug().Msg("finished to broadcast to all peers")
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*5)
 	defer cancel()
 	peerChan, err := c.routingDiscovery.FindPeers(ctx, c.Rendezvous)
@@ -136,7 +136,7 @@ func (c *Communication) writeToStream(ai peer.AddrInfo, msg []byte) error {
 			c.logger.Error().Err(err).Msgf("fail to reset stream to peer(%s)", ai.ID)
 		}
 	}()
-	c.logger.Info().Msgf("writing messages to peer(%s)", ai.ID)
+	c.logger.Debug().Msgf("writing messages to peer(%s)", ai.ID)
 	length := len(msg)
 	buf := make([]byte, LengthHeader)
 	binary.LittleEndian.PutUint32(buf, uint32(length))
@@ -279,12 +279,12 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 }
 
 func (c *Communication) connectToOnePeer(ai peer.AddrInfo) (network.Stream, error) {
-	c.logger.Info().Msgf("peer:%s,current:%s", ai.ID, c.host.ID())
+	c.logger.Debug().Msgf("peer:%s,current:%s", ai.ID, c.host.ID())
 	// dont connect to itself
 	if ai.ID == c.host.ID() {
 		return nil, nil
 	}
-	c.logger.Info().Msgf("connect to peer : %s", ai.ID.String())
+	c.logger.Debug().Msgf("connect to peer : %s", ai.ID.String())
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*1)
 	defer cancel()
 	stream, err := c.host.NewStream(ctx, ai.ID, DefaultProtocolID)
