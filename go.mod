@@ -7,6 +7,7 @@ require (
 	github.com/binance-chain/tss-lib v1.1.0
 	github.com/cosmos/cosmos-sdk v0.37.4
 	github.com/gorilla/mux v1.7.3
+	github.com/hashicorp/go-retryablehttp v0.6.1
 	github.com/ipfs/go-log v0.0.1
 	github.com/libp2p/go-libp2p v0.4.2
 	github.com/libp2p/go-libp2p-core v0.2.4

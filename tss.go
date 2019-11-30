@@ -84,6 +84,16 @@ func getPriKey(priKeyString string) (cryptokey.PrivKey, error) {
 	return priKey, nil
 }
 
+func getPriKeyRawBytes(priKey cryptokey.PrivKey) ([]byte, error) {
+	var keyBytesArray [32]byte
+	pk, ok := priKey.(secp256k1.PrivKeySecp256k1)
+	if !ok {
+		return nil, errors.New("private key is not secp256p1.PrivKeySecp256k1")
+	}
+	copy(keyBytesArray[:], pk[:])
+	return keyBytesArray[:], nil
+}
+
 // NewTss create a new instance of Tss
 func NewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, priKeyBytes []byte) (*Tss, error) {
 	if p2pPort == tssPort {
@@ -651,7 +661,7 @@ func logMiddleware(verbose bool) mux.MiddlewareFunc {
 }
 
 // Start Tss server
-func (t *Tss) Start(ctx context.Context, priKeyBytes []byte) error {
+func (t *Tss) Start(ctx context.Context) error {
 	log.Info().Int("port", t.port).Msg("Starting the HTTP server")
 	t.wg.Add(1)
 	go func() {
@@ -665,14 +675,17 @@ func (t *Tss) Start(ctx context.Context, priKeyBytes []byte) error {
 			log.Error().Err(err).Int("port", t.port).Msg("Failed to shutdown the HTTP server gracefully")
 		}
 	}()
-
-	if err := t.comm.Start(priKeyBytes); nil != err {
+	prikeyBytes, err := getPriKeyRawBytes(t.priKey)
+	if nil != err {
+		return err
+	}
+	if err := t.comm.Start(prikeyBytes); nil != err {
 		return fmt.Errorf("fail to start p2p communication layer: %w", err)
 	}
 
 	t.wg.Add(1)
 	go t.processComm()
-	err := t.server.ListenAndServe()
+	err = t.server.ListenAndServe()
 	t.wg.Wait()
 	if err != nil && err != http.ErrServerClosed {
 		log.Error().Err(err).Int("port", t.port).Msg("Failed to start the HTTP server")

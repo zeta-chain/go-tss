@@ -2,9 +2,7 @@ package go_tss
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/binary"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -239,15 +237,7 @@ func (c *Communication) handleStream(stream network.Stream) {
 
 func (c *Communication) startChannel(privKeyBytes []byte) error {
 	ctx := context.Background()
-	priHexBytes, err := base64.StdEncoding.DecodeString(string(privKeyBytes))
-	if nil != err {
-		return fmt.Errorf("fail to decode private key: %w", err)
-	}
-	rawBytes, err := hex.DecodeString(string(priHexBytes))
-	if nil != err {
-		return fmt.Errorf("fail to hex decode private key: %w", err)
-	}
-	p2pPriKey, err := crypto.UnmarshalSecp256k1PrivateKey(rawBytes)
+	p2pPriKey, err := crypto.UnmarshalSecp256k1PrivateKey(privKeyBytes)
 	if err != nil {
 		c.logger.Error().Msgf("error is %f", err)
 		return err
