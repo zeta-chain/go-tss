@@ -25,6 +25,7 @@ import (
 	"github.com/binance-chain/tss-lib/tss"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/gorilla/mux"
+	"github.com/libp2p/go-libp2p-core/peer"
 	maddr "github.com/multiformats/go-multiaddr"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -273,7 +274,8 @@ func (t *Tss) getParties(keys []string, localPartyKey string) ([]*tss.PartyID, *
 		if nil != err {
 			return nil, nil, fmt.Errorf("fail to get account pub key address(%s): %w", item, err)
 		}
-		key := new(big.Int).SetBytes(pk.Bytes())
+		secpPk := pk.(secp256k1.PubKeySecp256k1)
+		key := new(big.Int).SetBytes(secpPk[:])
 		partyID := tss.NewPartyID(strconv.Itoa(idx), "", key)
 		if item == localPartyKey {
 			localPartyID = partyID
@@ -391,8 +393,16 @@ func (t *Tss) processKeyGen(errChan chan struct{}, outCh <-chan tss.Message, end
 			if nil != err {
 				return nil, fmt.Errorf("fail to convert tss msg to wire bytes: %w", err)
 			}
-			t.logger.Debug().Msgf("broad cast msg to everyone from :%s ", r.From.Id)
-			if err := t.comm.Broadcast(nil, wireBytes); nil != err {
+			peerIDs, err := t.getPeerIDs(r.To)
+			if nil != err {
+				t.logger.Error().Err(err).Msg("fail to get peer ids")
+			}
+			if nil == peerIDs {
+				t.logger.Debug().Msgf("broad cast msg to everyone from :%s ", r.From.Id)
+			} else {
+				t.logger.Debug().Msgf("sending message to (%v) from :%s", peerIDs, r.From.Id)
+			}
+			if err := t.comm.Broadcast(peerIDs, wireBytes); nil != err {
 				t.logger.Error().Err(err).Msg("fail to broadcast messages")
 			}
 			// drain the in memory queue
@@ -406,6 +416,24 @@ func (t *Tss) processKeyGen(errChan chan struct{}, outCh <-chan tss.Message, end
 			return msg.ECDSAPub, nil
 		}
 	}
+}
+func (t *Tss) getPeerIDs(parties []*tss.PartyID) ([]peer.ID, error) {
+	if nil == parties {
+		// broadcast to everyone
+		return nil, nil
+	}
+	var result []peer.ID
+	for _, item := range parties {
+		pkBytes := item.KeyInt().Bytes()
+		var pk secp256k1.PubKeySecp256k1
+		copy(pk[:], pkBytes)
+		peerid, err := getPeerIDFromSecp256PubKey(pk)
+		if nil != err {
+			return nil, fmt.Errorf("fail to get peer id from pub key")
+		}
+		result = append(result, peerid)
+	}
+	return result, nil
 }
 
 func (t *Tss) addLocalPartySaveData(data keygen.LocalPartySaveData, keyGenLocalStateItem KeygenLocalStateItem) error {
@@ -630,8 +658,16 @@ func (t *Tss) processKeySign(errChan chan struct{}, outCh <-chan tss.Message, en
 			if nil != err {
 				return nil, fmt.Errorf("fail to convert tss msg to wire bytes: %w", err)
 			}
-			t.logger.Debug().Msgf("broad cast msg to everyone from :%s ", r.From.Id)
-			if err := t.comm.Broadcast(nil, wireBytes); nil != err {
+			peers, err := t.getPeerIDs(r.To)
+			if nil != err {
+				t.logger.Error().Err(err).Msg("fail to get peer ids")
+			}
+			if nil == peers {
+				t.logger.Debug().Msgf("broad cast msg to everyone from :%s ", r.From.Id)
+			} else {
+				t.logger.Debug().Msgf("sending message to (%v) from :%s", peers, r.From.Id)
+			}
+			if err := t.comm.Broadcast(peers, wireBytes); nil != err {
 				t.logger.Error().Err(err).Msg("fail to broadcast messages")
 			}
 			// drain the in memory queue
