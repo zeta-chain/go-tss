@@ -658,8 +658,16 @@ func (t *Tss) processKeySign(errChan chan struct{}, outCh <-chan tss.Message, en
 			if nil != err {
 				return nil, fmt.Errorf("fail to convert tss msg to wire bytes: %w", err)
 			}
-			t.logger.Debug().Msgf("broad cast msg to everyone from :%s ", r.From.Id)
-			if err := t.comm.Broadcast(nil, wireBytes); nil != err {
+			peers, err := t.getPeerIDs(r.To)
+			if nil != err {
+				t.logger.Error().Err(err).Msg("fail to get peer ids")
+			}
+			if nil == peers {
+				t.logger.Debug().Msgf("broad cast msg to everyone from :%s ", r.From.Id)
+			} else {
+				t.logger.Debug().Msgf("sending message to (%v) from :%s", peers, r.From.Id)
+			}
+			if err := t.comm.Broadcast(peers, wireBytes); nil != err {
 				t.logger.Error().Err(err).Msg("fail to broadcast messages")
 			}
 			// drain the in memory queue
