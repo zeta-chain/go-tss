@@ -142,7 +142,7 @@ func (c *Communication) writeToStream(ai peer.AddrInfo, msg []byte) error {
 			c.logger.Error().Err(err).Msgf("fail to reset stream to peer(%s)", ai.ID)
 		}
 	}()
-	c.logger.Debug().Msgf("writing messages to peer(%s)", ai.ID)
+	c.logger.Debug().Msgf(">>>writing messages to peer(%s)", ai.ID)
 	length := len(msg)
 	buf := make([]byte, LengthHeader)
 	binary.LittleEndian.PutUint32(buf, uint32(length))
@@ -178,6 +178,7 @@ func (c *Communication) readFromStream(stream network.Stream) {
 			c.logger.Error().Err(err).Msg("fail to close stream")
 		}
 		c.wg.Done()
+		atomic.AddInt64(&c.streamCount, -1)
 	}()
 	for {
 		select {
