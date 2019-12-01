@@ -393,10 +393,14 @@ func (t *Tss) processKeyGen(errChan chan struct{}, outCh <-chan tss.Message, end
 			if nil != err {
 				return nil, fmt.Errorf("fail to convert tss msg to wire bytes: %w", err)
 			}
-			t.logger.Debug().Msgf("broad cast msg to everyone from :%s ", r.From.Id)
 			peerIDs, err := t.getPeerIDs(r.To)
 			if nil != err {
 				t.logger.Error().Err(err).Msg("fail to get peer ids")
+			}
+			if nil == peerIDs {
+				t.logger.Debug().Msgf("broad cast msg to everyone from :%s ", r.From.Id)
+			} else {
+				t.logger.Debug().Msgf("sending message to (%v) from :%s", peerIDs, r.From.Id)
 			}
 			if err := t.comm.Broadcast(peerIDs, wireBytes); nil != err {
 				t.logger.Error().Err(err).Msg("fail to broadcast messages")

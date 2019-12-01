@@ -83,9 +83,9 @@ func (c *Communication) broadcastToPeers(peers []peer.ID, msg []byte) {
 	defer c.wg.Done()
 	defer func() {
 		if peers == nil {
-			c.logger.Info().Msg("finished broadcast to all peers")
+			c.logger.Debug().Msg("finished broadcast to all peers")
 		} else {
-			c.logger.Info().Msgf("finished sending message to peer(%v)", peers)
+			c.logger.Debug().Msgf("finished sending message to peer(%v)", peers)
 		}
 	}()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*5)
