@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"github.com/binance-chain/tss-lib/tss"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -124,15 +125,38 @@ func (t *TssTestSuite) TestMsgToHashInt(c *C) {
 	c.Assert(result, NotNil)
 }
 
-func (t *TssTestSuite) TestgetThreshold(c *C) {
+func (t *TssTestSuite) TestGetThreshold(c *C) {
 	_, err := getThreshold(-2)
 	c.Assert(err, NotNil)
-	output, err:=getThreshold(4)
-	c.Assert(output,Equals, 2)
-	output, err =getThreshold(9)
-	c.Assert(output,Equals, 5)
-	output, err =getThreshold(10)
-	c.Assert(output,Equals, 6)
-	output, err =getThreshold(99)
-	c.Assert(output,Equals, 65)
+	output, err := getThreshold(4)
+	c.Assert(output, Equals, 2)
+	output, err = getThreshold(9)
+	c.Assert(output, Equals, 5)
+	output, err = getThreshold(10)
+	c.Assert(output, Equals, 6)
+	output, err = getThreshold(99)
+	c.Assert(output, Equals, 65)
+}
+
+func (t *TssTestSuite) TestContains(c *C) {
+	t1 := tss.PartyID{
+		Index: 1,
+	}
+	ret := contains(nil, &t1)
+	c.Assert(ret, Equals, false)
+
+	t2 := tss.PartyID{
+		Index: 2,
+	}
+	t3 := tss.PartyID{
+		Index: 3,
+	}
+	testParties := []*tss.PartyID{&t2, &t3}
+	ret = contains(testParties, &t1)
+	c.Assert(ret, Equals, false)
+	testParties = append(testParties, &t1)
+	ret = contains(testParties, &t1)
+	c.Assert(ret, Equals, true)
+	ret = contains(testParties, nil)
+	c.Assert(ret, Equals, false)
 }

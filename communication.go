@@ -58,7 +58,7 @@ func NewCommunication(rendezvous string, bootstrapPeers []maddr.Multiaddr, port 
 		wg:             &sync.WaitGroup{},
 		stopchan:       make(chan struct{}),
 		streamCount:    0,
-		messages:       make(chan *Message),
+		messages:       make(chan *Message,1024),
 	}, nil
 }
 

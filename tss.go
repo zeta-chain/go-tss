@@ -53,26 +53,43 @@ type TssKeyGenInfo struct {
 
 // TssMessage is the message we transfer across the wire to other parties
 type TssMessage struct {
-	Routing *tss.MessageRouting `json:"routing"`
-	Message []byte              `json:"message"`
+	Routing   *tss.MessageRouting `json:"routing"`
+	RoundInfo string              `json:"roundInfo"`
+	Message   []byte              `json:"message"`
+}
+
+type MsgWithVer struct {
+	HashVal string
+	TssMsg  TssMessage
+}
+
+type CachedHashWithCount struct {
+	Data      string
+	RoundInfo string
+	Count     int
 }
 
 // TSS all the things for TSS
 type Tss struct {
-	comm       *Communication
-	logger     zerolog.Logger
-	port       int
-	server     *http.Server
-	wg         sync.WaitGroup
-	partyLock  *sync.Mutex
-	keyGenInfo *TssKeyGenInfo
-	stopChan   chan struct{} // channel to indicate whether we should stop
-	queuedMsgs chan TssMessage
-	stateLock  *sync.Mutex
-	tssLock    *sync.Mutex
-	priKey     cryptokey.PrivKey
-	preParams  *keygen.LocalPreParams
-	homeBase   string
+	comm         *Communication
+	logger       zerolog.Logger
+	port         int
+	server       *http.Server
+	wg           sync.WaitGroup
+	partyLock    *sync.Mutex
+	keyGenInfo   *TssKeyGenInfo
+	stopChan     chan struct{} // channel to indicate whether we should stop
+	queuedMsgs   chan TssMessage
+	msgCheckChan chan []byte
+	stateLock    *sync.Mutex
+	tssLock      *sync.Mutex
+	cacheMapLock *sync.Mutex
+	priKey       cryptokey.PrivKey
+	preParams    *keygen.LocalPreParams
+	homeBase     string
+	currentRound string
+	cachedTssMsg map[string]CachedHashWithCount
+	cachedHash   []MsgWithVer
 }
 
 // NewTss create a new instance of Tss
@@ -100,17 +117,21 @@ func NewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, priKeyBytes 
 	}
 
 	t := &Tss{
-		comm:       c,
-		logger:     log.With().Str("module", "tss").Logger(),
-		port:       tssPort,
-		stopChan:   make(chan struct{}),
-		partyLock:  &sync.Mutex{},
-		queuedMsgs: make(chan TssMessage, 1024),
-		stateLock:  &sync.Mutex{},
-		tssLock:    &sync.Mutex{},
-		priKey:     priKey,
-		preParams:  preParams,
-		homeBase:   baseFolder,
+		comm:         c,
+		logger:       log.With().Str("module", "tss").Logger(),
+		port:         tssPort,
+		stopChan:     make(chan struct{}),
+		partyLock:    &sync.Mutex{},
+		queuedMsgs:   make(chan TssMessage, 1024),
+		stateLock:    &sync.Mutex{},
+		tssLock:      &sync.Mutex{},
+		cacheMapLock: &sync.Mutex{},
+		priKey:       priKey,
+		preParams:    preParams,
+		homeBase:     baseFolder,
+		currentRound: "",
+		cachedTssMsg: make(map[string]CachedHashWithCount),
+		cachedHash:   []MsgWithVer{},
 	}
 
 	server := &http.Server{
@@ -346,13 +367,13 @@ func (t *Tss) generateNewKey(keygenReq KeyGenReq) (*crypto.ECPoint, error) {
 
 	}()
 
+	defer t.emptyQueuedMessages()
 	r, err := t.processKeyGen(errChan, outCh, endCh, keyGenLocalStateItem)
 	if nil != err {
 		t.logger.Error().Err(err).Msg("fail to complete keygen")
 		for _, item := range keyGenParty.WaitingFor() {
 			t.logger.Error().Err(err).Msgf("we are still waiting for %s", item.Id)
 		}
-		t.emptyQueuedMessages()
 		return nil, err
 	}
 	return r, nil
@@ -360,6 +381,9 @@ func (t *Tss) generateNewKey(keygenReq KeyGenReq) (*crypto.ECPoint, error) {
 
 // emptyQueuedMessages
 func (t *Tss) emptyQueuedMessages() {
+	t.logger.Info().Msgf("***********EMPTY CACHED*****************")
+	t.cachedTssMsg = make(map[string]CachedHashWithCount)
+	t.cachedHash = []MsgWithVer{}
 	for {
 		select {
 		case m := <-t.queuedMsgs:
@@ -394,10 +418,19 @@ func (t *Tss) processKeyGen(errChan chan struct{}, outCh <-chan tss.Message, end
 				return nil, fmt.Errorf("fail to get wire bytes: %w", err)
 			}
 			tssMsg := TssMessage{
-				Routing: r,
-				Message: buf,
+				Routing:   r,
+				RoundInfo: msg.Type(),
+				Message:   buf,
 			}
 			wireBytes, err := json.Marshal(tssMsg)
+			if nil != err {
+				return nil, fmt.Errorf("fail to convert tss msg to wire bytes: %w", err)
+			}
+			thorMsg := ThorMsg{
+				TssMsg,
+				wireBytes,
+			}
+			thorMsgBytes, err := json.Marshal(thorMsg)
 			if nil != err {
 				return nil, fmt.Errorf("fail to convert tss msg to wire bytes: %w", err)
 			}
@@ -410,7 +443,8 @@ func (t *Tss) processKeyGen(errChan chan struct{}, outCh <-chan tss.Message, end
 			} else {
 				t.logger.Debug().Msgf("sending message to (%v) from :%s", peerIDs, r.From.Id)
 			}
-			if err := t.comm.Broadcast(peerIDs, wireBytes); nil != err {
+			t.currentRound = msg.Type()
+			if err := t.comm.Broadcast(peerIDs, thorMsgBytes); nil != err {
 				t.logger.Error().Err(err).Msg("fail to broadcast messages")
 			}
 			// drain the in memory queue
@@ -485,16 +519,32 @@ func (t *Tss) drainQueuedMessages() {
 	for {
 		select {
 		case m := <-t.queuedMsgs:
-			t.logger.Debug().Msgf("<<<<< queued party:%s", m.Routing.From.Id)
+			if false == m.Routing.IsBroadcast {
+				t.updateLocal(m)
+				continue
+			}
 			partyID, ok := keyGenInfo.PartyIDMap[m.Routing.From.Id]
+			if partyID.Id == keyGenInfo.Party.PartyID().Id {
+				t.logger.Info().Msgf("we skip myself in drain Queue message")
+				continue
+			}
 			if !ok {
 				t.logger.Error().Msgf("get message from unknown party :%s", partyID)
 				continue
 			}
-			if _, err := keyGenInfo.Party.UpdateFromBytes(m.Message, partyID, m.Routing.IsBroadcast); nil != err {
-				t.logger.Error().Err(err).Msgf("fail to update from bytes,party ID: %s", partyID)
+			t.cacheMapLock.Lock()
+			msgFrom := m.Routing.From.Id
+			roundInfo := m.RoundInfo
+			value, _ := t.cachedTssMsg[msgFrom+roundInfo]
+			value.Count += 1
+			t.cachedTssMsg[msgFrom+roundInfo] = value
+			if value.Count == len(t.getKeyGenInfo().PartyIDMap)-2 {
+				t.updateLocal(m)
+				t.cacheMapLock.Unlock()
+				continue
 			}
-			t.logger.Debug().Msgf("queued update msg from party:%s", m.Routing.From.Id)
+			t.cacheMapLock.Unlock()
+			t.logger.Debug().Msgf("hash is matched!!:%s", m.Routing.From.Id)
 		default:
 			return
 		}
@@ -675,10 +725,19 @@ func (t *Tss) processKeySign(errChan chan struct{}, outCh <-chan tss.Message, en
 				continue
 			}
 			tssMsg := TssMessage{
-				Routing: r,
-				Message: buf,
+				Routing:   r,
+				RoundInfo: msg.Type(),
+				Message:   buf,
 			}
 			wireBytes, err := json.Marshal(tssMsg)
+			if nil != err {
+				return nil, fmt.Errorf("fail to convert tss msg to wire bytes: %w", err)
+			}
+			thorMsg := ThorMsg{
+				TssMsg,
+				wireBytes,
+			}
+			thorMsgBytes, err := json.Marshal(thorMsg)
 			if nil != err {
 				return nil, fmt.Errorf("fail to convert tss msg to wire bytes: %w", err)
 			}
@@ -691,7 +750,7 @@ func (t *Tss) processKeySign(errChan chan struct{}, outCh <-chan tss.Message, en
 			} else {
 				t.logger.Debug().Msgf("sending message to (%v) from :%s", peers, r.From.Id)
 			}
-			if err := t.comm.Broadcast(peers, wireBytes); nil != err {
+			if err := t.comm.Broadcast(peers, thorMsgBytes); nil != err {
 				t.logger.Error().Err(err).Msg("fail to broadcast messages")
 			}
 			// drain the in memory queue
@@ -758,6 +817,63 @@ func (t *Tss) Start(ctx context.Context) error {
 	return nil
 }
 
+func (t *Tss) updateLocal(tssMsg TssMessage) {
+	keyGenInfo := t.getKeyGenInfo()
+	if keyGenInfo == nil {
+		t.logger.Debug().Msg("queue the message in updatelocal")
+	}
+
+	partyID, ok := keyGenInfo.PartyIDMap[tssMsg.Routing.From.Id]
+	if !ok {
+		t.logger.Error().Msgf("get message from unknown party %s\n", partyID.Id)
+	}
+	if _, err := keyGenInfo.Party.UpdateFromBytes(tssMsg.Message, partyID, tssMsg.Routing.IsBroadcast); nil != err {
+		t.logger.Error().Err(err).Msgf("fail to update from bytes,party ID: %s", partyID)
+	}
+}
+
+func (t *Tss) doHashCheck(msgFrom string, verMsg *MsgWithVer, roundInfo string) {
+	value, ok := t.cachedTssMsg[msgFrom+roundInfo]
+	if !ok {
+		t.logger.Info().Msgf("the Tss is not ready for check")
+		return
+	}
+	t.cacheMapLock.Lock()
+	defer t.cacheMapLock.Unlock()
+	var VerMsgCheckPool []MsgWithVer
+	if nil != verMsg {
+		VerMsgCheckPool = append(VerMsgCheckPool, *verMsg)
+	}
+	for index, each := range t.cachedHash {
+		if each.TssMsg.Routing.From.Id == msgFrom && each.TssMsg.RoundInfo == roundInfo {
+			VerMsgCheckPool = append(VerMsgCheckPool, each)
+			t.cachedHash[index].TssMsg.RoundInfo = "None"
+		}
+	}
+	if len(VerMsgCheckPool) == 0 {
+		return
+	}
+	for _, each := range VerMsgCheckPool {
+		//we check the hash of the received message
+		if value.Data == each.HashVal {
+			value.Count += 1
+			t.cachedTssMsg[msgFrom+roundInfo] = value
+			keyGenInfo := t.getKeyGenInfo()
+			if nil == keyGenInfo {
+				t.logger.Info().Msg("queue the message")
+				t.queuedMsgs <- each.TssMsg
+				continue
+			}
+			if value.Count == len(t.getKeyGenInfo().PartyIDMap)-2 {
+				t.updateLocal(each.TssMsg)
+			}
+		} else {
+			t.logger.Warn().Msgf("error in check the hash of message>>>>!!")
+			return
+		}
+	}
+}
+
 // processComm is
 func (t *Tss) processComm() {
 	t.logger.Info().Msg("start to process messages coming from communication channels")
@@ -768,33 +884,107 @@ func (t *Tss) processComm() {
 		case <-t.stopChan:
 			return // time to stop
 		case m := <-t.comm.messages:
-			t.logger.Debug().Msg("<<<<<<<<< inbound")
-			var tssMsg TssMessage
-			if err := json.Unmarshal(m.Payload, &tssMsg); nil != err {
+			var thorMsg ThorMsg
+			if err := json.Unmarshal(m.Payload, &thorMsg); nil != err {
 				t.logger.Error().Err(err).Msgf("fail to unmarshal wire bytes")
 				continue
 			}
+			switch thorMsg.MsgType {
+			case TssMsg:
+				var tssMsg TssMessage
+				if err := json.Unmarshal(thorMsg.Msg, &tssMsg); nil != err {
+					t.logger.Error().Err(err).Msgf("fail to unmarshal wire bytes")
+					continue
+				}
+				if tssMsg.Routing.IsBroadcast {
+					msgByte := tssMsg.Message
+					h := sha256.New()
+					_, err := h.Write(msgByte)
+					if nil != err {
+						t.logger.Error().Msgf("error in generate message hash\n")
+						continue
+					}
+					hashMsg := h.Sum(nil)
+					msg := MsgWithVer{
+						hex.EncodeToString(hashMsg),
+						tssMsg,
+					}
+					wiredBytes, err := json.Marshal(msg)
+					if nil != err {
+						t.logger.Error().Err(err).Msgf("fail to marsh wire bytes")
+						continue
+					}
+					cachedHash := CachedHashWithCount{
+						hex.EncodeToString(hashMsg),
+						tssMsg.RoundInfo,
+						0,
+					}
+					t.cacheMapLock.Lock()
+					t.cachedTssMsg[tssMsg.Routing.From.Id+tssMsg.RoundInfo] = cachedHash
+					t.cacheMapLock.Unlock()
 
-			keyGenInfo := t.getKeyGenInfo()
-			if keyGenInfo == nil {
-				// we are not doing any keygen at the moment, so we queue it
-				t.logger.Debug().Msg("queue the message")
-				t.queuedMsgs <- tssMsg
+					thorMsg := ThorMsg{
+						VerMsg,
+						wiredBytes,
+					}
+					thorMsgBytes, err := json.Marshal(thorMsg)
+					if nil != err {
+						t.logger.Error().Err(err).Msgf("fail to marsh wire bytes")
+						continue
+					}
+					if err := t.comm.Broadcast(nil, thorMsgBytes); nil != err {
+						t.logger.Error().Err(err).Msg("fail to broadcast messages")
+					}
+					t.doHashCheck(tssMsg.Routing.From.Id, nil, tssMsg.RoundInfo)
+				} else {
+					keyGenInfo := t.getKeyGenInfo()
+					if nil == keyGenInfo {
+						t.logger.Debug().Msg("queue the message")
+						t.queuedMsgs <- tssMsg
+						continue
+					}
+					t.updateLocal(tssMsg)
+				}
+			case VerMsg:
+				var verMsg MsgWithVer
+				if err := json.Unmarshal(thorMsg.Msg, &verMsg); nil != err {
+					t.logger.Error().Err(err).Msgf("fail to unmarshal wire bytes")
+					continue
+				}
+				msgFrom := verMsg.TssMsg.Routing.From.Id
+				keyGenInfo := t.getKeyGenInfo()
+				if nil == keyGenInfo {
+					t.logger.Info().Msg("queue the message")
+					t.queuedMsgs <- verMsg.TssMsg
+					continue
+				}
+				if msgFrom == keyGenInfo.Party.PartyID().Id {
+					t.logger.Info().Msgf("received my own message skip it")
+					continue
+				}
+
+				_, ok := t.cachedTssMsg[msgFrom+verMsg.TssMsg.RoundInfo]
+				//we receive the signature before receiving the message
+				if !ok {
+					t.logger.Info().Msgf("we received something we haven't cached!!")
+					t.cachedHash = append(t.cachedHash, verMsg)
+					continue
+				}
+				t.doHashCheck(msgFrom, &verMsg, verMsg.TssMsg.RoundInfo)
+			default:
+				t.logger.Info().Msgf("unknown message type")
 				continue
 			}
-			partyID, ok := keyGenInfo.PartyIDMap[tssMsg.Routing.From.Id]
-			if !ok {
-				t.logger.Error().Msgf("get message from unknown party :%s, peer: %s", partyID, m.PeerID.String())
-				continue
-			}
-			if _, err := keyGenInfo.Party.UpdateFromBytes(tssMsg.Message, partyID, tssMsg.Routing.IsBroadcast); nil != err {
-				t.logger.Error().Err(err).Msgf("fail to update from bytes,party ID: %s , peer: %s", partyID, m.PeerID.String())
-			}
+
+
 		}
 	}
 }
 
 func contains(s []*tss.PartyID, e *tss.PartyID) bool {
+	if e == nil {
+		return false
+	}
 	for _, a := range s {
 		if *a == *e {
 			return true
