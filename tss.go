@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"math/big"
 	"net/http"
 	"os"
@@ -36,7 +37,6 @@ import (
 )
 
 const (
-	Threshold             = 2
 	KeyGenTimeoutSeconds  = 120
 	KeySignTimeoutSeconds = 30
 )
@@ -265,10 +265,14 @@ func (t *Tss) getTssPubKey(pubKeyPoint *crypto.ECPoint) (string, types.AccAddres
 	return pubKey, addr, err
 }
 
-func (t *Tss) getParties(keys []string, localPartyKey string) ([]*tss.PartyID, *tss.PartyID, error) {
+func (t *Tss) getParties(keys []string, localPartyKey string, keygen bool) ([]*tss.PartyID, *tss.PartyID, error) {
 	var localPartyID *tss.PartyID
 	var unSortedPartiesID []*tss.PartyID
 	sort.Strings(keys)
+	if !keygen {
+		threshold := int(math.Ceil(float64(len(keys))*2.0/3.0)) - 1
+		keys = keys[:threshold+1]
+	}
 	for idx, item := range keys {
 		pk, err := sdk.GetAccPubKeyBech32(item)
 		if nil != err {
@@ -296,7 +300,7 @@ func (t *Tss) generateNewKey(keygenReq KeyGenReq) (*crypto.ECPoint, error) {
 	if nil != err {
 		return nil, fmt.Errorf("fail to genearte the key: %w", err)
 	}
-	partiesID, localPartyID, err := t.getParties(keygenReq.Keys, pubKey)
+	partiesID, localPartyID, err := t.getParties(keygenReq.Keys, pubKey, true)
 	if nil != err {
 		return nil, fmt.Errorf("fail to get keygen parties: %w", err)
 	}
@@ -309,8 +313,9 @@ func (t *Tss) generateNewKey(keygenReq KeyGenReq) (*crypto.ECPoint, error) {
 	// Note: The `id` and `moniker` fields are for convenience to allow you to easily track participants.
 	// The `id` should be a unique string representing this party in the network and `moniker` can be anything (even left blank).
 	// The `uniqueKey` is a unique identifying key for this peer (such as its p2p public key) as a big.Int.
+	threshold := int(math.Ceil(float64(len(partiesID))*2.0/3.0)) - 1
 	ctx := tss.NewPeerContext(partiesID)
-	params := tss.NewParameters(ctx, localPartyID, len(partiesID), Threshold)
+	params := tss.NewParameters(ctx, localPartyID, len(partiesID), threshold)
 	outCh := make(chan tss.Message, len(partiesID))
 	endCh := make(chan keygen.LocalPartySaveData, len(partiesID))
 	errChan := make(chan struct{})
@@ -527,7 +532,11 @@ func (t *Tss) keysign(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	t.writeKeySignResult(w, base64.StdEncoding.EncodeToString(signatureData.R), base64.StdEncoding.EncodeToString(signatureData.S), Success)
+	if nil == signatureData {
+		t.writeKeySignResult(w, "", "", NA)
+	} else {
+		t.writeKeySignResult(w, base64.StdEncoding.EncodeToString(signatureData.R), base64.StdEncoding.EncodeToString(signatureData.S), Success)
+	}
 }
 
 func (t *Tss) writeKeySignResult(w http.ResponseWriter, R, S string, status Status) {
@@ -567,7 +576,12 @@ func (t *Tss) signMessage(req KeySignReq) (*signing.SignatureData, error) {
 	if nil != err {
 		return nil, fmt.Errorf("fail to decode message(%s): %w", req.Message, err)
 	}
-	partiesID, localPartyID, err := t.getParties(keyGenLocalStateItem.ParticipantKeys, keyGenLocalStateItem.LocalPartyKey)
+	threshold := int(math.Ceil(float64(len(keyGenLocalStateItem.ParticipantKeys))*2.0/3.0)) - 1
+	if !contains(keyGenLocalStateItem.ParticipantKeys[:threshold+1], keyGenLocalStateItem.LocalPartyKey) {
+		t.logger.Info().Msgf("we are not in this rounds key sign")
+		return nil, nil
+	}
+	partiesID, localPartyID, err := t.getParties(keyGenLocalStateItem.ParticipantKeys, keyGenLocalStateItem.LocalPartyKey, false)
 	if nil != err {
 		return nil, fmt.Errorf("fail to form key sign party: %w", err)
 	}
@@ -577,7 +591,7 @@ func (t *Tss) signMessage(req KeySignReq) (*signing.SignatureData, error) {
 	// The `uniqueKey` is a unique identifying key for this peer (such as its p2p public key) as a big.Int.
 	t.logger.Debug().Msgf("local party: %s", localPartyID.Id)
 	ctx := tss.NewPeerContext(partiesID)
-	params := tss.NewParameters(ctx, localPartyID, len(partiesID), Threshold)
+	params := tss.NewParameters(ctx, localPartyID, len(partiesID), threshold)
 	outCh := make(chan tss.Message, len(partiesID))
 	endCh := make(chan signing.SignatureData, len(partiesID))
 	errCh := make(chan struct{})
@@ -801,6 +815,15 @@ func (t *Tss) isForCurrentParty(kgi *TssKeyGenInfo, tssMsg TssMessage) bool {
 	for _, item := range tssMsg.Routing.To {
 		if kgi.Party.PartyID().Id == item.Id {
 			t.logger.Debug().Msgf("message from %s to %s", tssMsg.Routing.From.Id, item.Id)
+			return true
+		}
+	}
+	return false
+}
+
+func contains(s []string, e string) bool {
+	for _, a := range s {
+		if a == e {
 			return true
 		}
 	}
