@@ -133,3 +133,16 @@ func (t *TssTestSuite) TestMsgToHashInt(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(result, NotNil)
 }
+
+func (t *TssTestSuite) TestgetThreshold(c *C) {
+	_, err := getThreshold(-2)
+	c.Assert(err, NotNil)
+	output, err:=getThreshold(4)
+	c.Assert(output,Equals, 2)
+	output, err =getThreshold(9)
+	c.Assert(output,Equals, 5)
+	output, err =getThreshold(10)
+	c.Assert(output,Equals, 6)
+	output, err =getThreshold(99)
+	c.Assert(output,Equals, 65)
+}

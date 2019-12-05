@@ -282,7 +282,10 @@ func (t *Tss) getParties(keys []string, localPartyKey string, keygen bool) ([]*t
 	//we select the node on the "partiesID" rather than on the "keys" as the secret shares are sorted on the "index",
 	//not on the node ID.
 	if !keygen {
-		threshold := int(math.Ceil(float64(len(keys))*2.0/3.0)) - 1
+		threshold, err := getThreshold(len(keys))
+		if nil != err {
+			return nil, nil, err
+		}
 		partiesID = partiesID[:threshold+1]
 	}
 
@@ -309,7 +312,10 @@ func (t *Tss) generateNewKey(keygenReq KeyGenReq) (*crypto.ECPoint, error) {
 	// Note: The `id` and `moniker` fields are for convenience to allow you to easily track participants.
 	// The `id` should be a unique string representing this party in the network and `moniker` can be anything (even left blank).
 	// The `uniqueKey` is a unique identifying key for this peer (such as its p2p public key) as a big.Int.
-	threshold := int(math.Ceil(float64(len(partiesID))*2.0/3.0)) - 1
+	threshold, err := getThreshold(len(partiesID))
+	if nil != err {
+		return nil, err
+	}
 	ctx := tss.NewPeerContext(partiesID)
 	params := tss.NewParameters(ctx, localPartyID, len(partiesID), threshold)
 	outCh := make(chan tss.Message, len(partiesID))
@@ -575,7 +581,10 @@ func (t *Tss) signMessage(req KeySignReq) (*signing.SignatureData, error) {
 	if nil != err {
 		return nil, fmt.Errorf("fail to decode message(%s): %w", req.Message, err)
 	}
-	threshold := int(math.Ceil(float64(len(storedKeyGenLocalStateItem.ParticipantKeys))*2.0/3.0)) - 1
+	threshold, err := getThreshold(len(storedKeyGenLocalStateItem.ParticipantKeys))
+	if nil != err {
+		return nil, err
+	}
 	partiesID, localPartyID, err := t.getParties(storedKeyGenLocalStateItem.ParticipantKeys, storedKeyGenLocalStateItem.LocalPartyKey, false)
 	if nil != err {
 		return nil, fmt.Errorf("fail to form key sign party: %w", err)
@@ -816,4 +825,12 @@ func contains(s []*tss.PartyID, e *tss.PartyID) bool {
 		}
 	}
 	return false
+}
+
+func getThreshold(value int) (int, error) {
+	if value < 0 {
+		return 0, errors.New("negative input")
+	}
+	threshold := int(math.Ceil(float64(value)*2.0/3.0)) - 1
+	return threshold, nil
 }
