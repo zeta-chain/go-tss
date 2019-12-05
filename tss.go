@@ -90,14 +90,6 @@ func NewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, priKeyBytes 
 		return nil, fmt.Errorf("fail to create communication layer: %w", err)
 	}
 	setupBech32Prefix()
-	//localFileName := fmt.Sprintf("localstate-%d.json", tssPort)
-	//if len(baseFolder) > 0 {
-	//	localFileName = filepath.Join(baseFolder, localFileName)
-	//}
-	//localState, err := GetLocalState(localFileName)
-	//if nil != err {
-	//	return nil, fmt.Errorf("fail to read local state file: %w", err)
-	//}
 	// When using the keygen party it is recommended that you pre-compute the "safe primes" and Paillier secret beforehand because this can take some time.
 	// This code will generate those parameters using a concurrency limit equal to the number of available CPU cores.
 	var preParams *keygen.LocalPreParams
@@ -269,10 +261,6 @@ func (t *Tss) getParties(keys []string, localPartyKey string, keygen bool) ([]*t
 	var localPartyID *tss.PartyID
 	var unSortedPartiesID []*tss.PartyID
 	sort.Strings(keys)
-	if !keygen {
-		threshold := int(math.Ceil(float64(len(keys))*2.0/3.0)) - 1
-		keys = keys[:threshold+1]
-	}
 	for idx, item := range keys {
 		pk, err := sdk.GetAccPubKeyBech32(item)
 		if nil != err {
@@ -290,6 +278,14 @@ func (t *Tss) getParties(keys []string, localPartyKey string, keygen bool) ([]*t
 		return nil, nil, fmt.Errorf("local party is not in the list")
 	}
 	partiesID := tss.SortPartyIDs(unSortedPartiesID)
+
+	//we select the node on the "partiesID" rather than on the "keys" as the secret shares are sorted on the "index",
+	//not on the node ID.
+	if !keygen {
+		threshold := int(math.Ceil(float64(len(keys))*2.0/3.0)) - 1
+		partiesID = partiesID[:threshold+1]
+	}
+
 	return partiesID, localPartyID, nil
 }
 
@@ -364,6 +360,9 @@ func (t *Tss) emptyQueuedMessages() {
 		select {
 		case m := <-t.queuedMsgs:
 			t.logger.Debug().Msgf("drop queued message from %s", m.Routing.From.Id)
+		case m := <-t.comm.messages:
+			t.logger.Debug().Msgf("drop queued message from %s", m.PeerID)
+
 		default:
 			return
 		}
@@ -565,7 +564,7 @@ func (t *Tss) signMessage(req KeySignReq) (*signing.SignatureData, error) {
 	if len(t.homeBase) > 0 {
 		localFileName = filepath.Join(t.homeBase, localFileName)
 	}
-	keyGenLocalStateItem, err := GetLocalState(localFileName)
+	storedKeyGenLocalStateItem, err := LoadLocalState(localFileName)
 	if nil != err {
 		return nil, fmt.Errorf("fail to read local state file: %w", err)
 	}
@@ -576,15 +575,16 @@ func (t *Tss) signMessage(req KeySignReq) (*signing.SignatureData, error) {
 	if nil != err {
 		return nil, fmt.Errorf("fail to decode message(%s): %w", req.Message, err)
 	}
-	threshold := int(math.Ceil(float64(len(keyGenLocalStateItem.ParticipantKeys))*2.0/3.0)) - 1
-	if !contains(keyGenLocalStateItem.ParticipantKeys[:threshold+1], keyGenLocalStateItem.LocalPartyKey) {
-		t.logger.Info().Msgf("we are not in this rounds key sign")
-		return nil, nil
-	}
-	partiesID, localPartyID, err := t.getParties(keyGenLocalStateItem.ParticipantKeys, keyGenLocalStateItem.LocalPartyKey, false)
+	threshold := int(math.Ceil(float64(len(storedKeyGenLocalStateItem.ParticipantKeys))*2.0/3.0)) - 1
+	partiesID, localPartyID, err := t.getParties(storedKeyGenLocalStateItem.ParticipantKeys, storedKeyGenLocalStateItem.LocalPartyKey, false)
 	if nil != err {
 		return nil, fmt.Errorf("fail to form key sign party: %w", err)
 	}
+	if !contains(partiesID, localPartyID) {
+		t.logger.Info().Msgf("we are not in this rounds key sign")
+		return nil, nil
+	}
+	localKeyData, partiesID := ProcessStateFile(storedKeyGenLocalStateItem, partiesID)
 	// Set up the parameters
 	// Note: The `id` and `moniker` fields are for convenience to allow you to easily track participants.
 	// The `id` should be a unique string representing this party in the network and `moniker` can be anything (even left blank).
@@ -599,7 +599,7 @@ func (t *Tss) signMessage(req KeySignReq) (*signing.SignatureData, error) {
 	if nil != err {
 		return nil, fmt.Errorf("fail to convert msg to hash int: %w", err)
 	}
-	keySignParty := signing.NewLocalParty(m, params, keyGenLocalStateItem.LocalData, outCh, endCh)
+	keySignParty := signing.NewLocalParty(m, params, localKeyData, outCh, endCh)
 	partyIDMap := make(map[string]*tss.PartyID)
 	for _, id := range partiesID {
 		partyIDMap[id.Id] = id
@@ -699,18 +699,6 @@ func (t *Tss) processKeySign(errChan chan struct{}, outCh <-chan tss.Message, en
 		}
 	}
 }
-
-//func (t *Tss) getKeyData(pubKey string) (KeygenLocalStateItem, error) {
-//	var emptyKeyGenLocalStateItem KeygenLocalStateItem
-//	t.stateLock.Lock()
-//	defer t.stateLock.Unlock()
-//	for _, item := range t.localState {
-//		if item.PubKey == pubKey {
-//			return item, nil
-//		}
-//	}
-//	return emptyKeyGenLocalStateItem, fmt.Errorf("didnot find keygen state for(%s)", pubKey)
-//}
 
 func ping() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -821,9 +809,9 @@ func (t *Tss) isForCurrentParty(kgi *TssKeyGenInfo, tssMsg TssMessage) bool {
 	return false
 }
 
-func contains(s []string, e string) bool {
+func contains(s []*tss.PartyID, e *tss.PartyID) bool {
 	for _, a := range s {
-		if a == e {
+		if *a == *e {
 			return true
 		}
 	}

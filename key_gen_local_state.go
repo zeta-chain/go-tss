@@ -4,9 +4,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math/big"
 	"os"
 
+	"github.com/binance-chain/tss-lib/tss"
+
 	"github.com/binance-chain/tss-lib/ecdsa/keygen"
+
+	"github.com/binance-chain/tss-lib/crypto"
+	"github.com/binance-chain/tss-lib/crypto/paillier"
 )
 
 // KeygenLocalStateItem
@@ -17,8 +23,8 @@ type KeygenLocalStateItem struct {
 	LocalPartyKey   string                    `json:"local_party_key"`
 }
 
-// GetLocalState from file
-func GetLocalState(filePathName string) (KeygenLocalStateItem, error) {
+// LoadLocalState from file
+func LoadLocalState(filePathName string) (KeygenLocalStateItem, error) {
 	if len(filePathName) == 0 {
 		return KeygenLocalStateItem{}, nil
 	}
@@ -30,11 +36,54 @@ func GetLocalState(filePathName string) (KeygenLocalStateItem, error) {
 	if nil != err {
 		return KeygenLocalStateItem{}, fmt.Errorf("file to read from file(%s): %w", filePathName, err)
 	}
-	var LocalState KeygenLocalStateItem
-	if err := json.Unmarshal(buf, &LocalState); nil != err {
+	var localState KeygenLocalStateItem
+	if err := json.Unmarshal(buf, &localState); nil != err {
 		return KeygenLocalStateItem{}, fmt.Errorf("fail to unmarshal KeygenLocalState: %w", err)
 	}
-	return LocalState, nil
+	return localState, nil
+}
+
+func ProcessStateFile(sourceState KeygenLocalStateItem, parties []*tss.PartyID) (keygen.LocalPartySaveData, []*tss.PartyID) {
+	var indexSlice []int
+	for _, each := range parties {
+		indexSlice = append(indexSlice, each.Index)
+	}
+	var localKeyData keygen.LocalPartySaveData
+	localKeyData = sourceState.LocalData
+	var tempKs, tempNTildej, tempH1j, tempH2j []*big.Int
+	var tempBigXj []*crypto.ECPoint
+	var temPaillierPKs []*paillier.PublicKey
+
+	for _, each := range parties {
+		tempKs = append(tempKs, localKeyData.Ks[each.Index])
+		tempNTildej = append(tempNTildej, localKeyData.NTildej[each.Index])
+		tempH1j = append(tempH1j, localKeyData.H1j[each.Index])
+		tempH2j = append(tempH2j, localKeyData.H2j[each.Index])
+		tempBigXj = append(tempBigXj, localKeyData.BigXj[each.Index])
+		temPaillierPKs = append(temPaillierPKs, localKeyData.PaillierPKs[each.Index])
+	}
+
+	keyData := keygen.LocalPartySaveData{
+		LocalPreParams: keygen.LocalPreParams{
+			PaillierSK: localKeyData.PaillierSK,
+			NTildei:    localKeyData.NTildei,
+			H1i:        localKeyData.H1i,
+			H2i:        localKeyData.H2i,
+		},
+		LocalSecrets: keygen.LocalSecrets{
+			Xi:      localKeyData.Xi,
+			ShareID: localKeyData.ShareID,
+		},
+		Ks:          tempKs,
+		NTildej:     tempNTildej,
+		H1j:         tempH1j,
+		H2j:         tempH2j,
+		BigXj:       tempBigXj,
+		PaillierPKs: temPaillierPKs,
+		ECDSAPub:    localKeyData.ECDSAPub,
+	}
+	parties = tss.SortPartyIDs(parties)
+	return keyData, parties
 }
 
 func SaveLocalStateToFile(filePathName string, state KeygenLocalStateItem) error {
