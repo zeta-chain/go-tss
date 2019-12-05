@@ -69,7 +69,7 @@ type Tss struct {
 	stopChan   chan struct{} // channel to indicate whether we should stop
 	queuedMsgs chan TssMessage
 	stateLock  *sync.Mutex
-	localState KeygenLocalState
+	localState KeygenLocalStateItem
 	tssLock    *sync.Mutex
 	priKey     cryptokey.PrivKey
 	preParams  *keygen.LocalPreParams
@@ -90,14 +90,14 @@ func NewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, priKeyBytes 
 		return nil, fmt.Errorf("fail to create communication layer: %w", err)
 	}
 	setupBech32Prefix()
-	localFileName := fmt.Sprintf("localstate-%d.json", tssPort)
-	if len(baseFolder) > 0 {
-		localFileName = filepath.Join(baseFolder, localFileName)
-	}
-	localState, err := GetLocalState(localFileName)
-	if nil != err {
-		return nil, fmt.Errorf("fail to read local state file: %w", err)
-	}
+	//localFileName := fmt.Sprintf("localstate-%d.json", tssPort)
+	//if len(baseFolder) > 0 {
+	//	localFileName = filepath.Join(baseFolder, localFileName)
+	//}
+	//localState, err := GetLocalState(localFileName)
+	//if nil != err {
+	//	return nil, fmt.Errorf("fail to read local state file: %w", err)
+	//}
 	// When using the keygen party it is recommended that you pre-compute the "safe primes" and Paillier secret beforehand because this can take some time.
 	// This code will generate those parameters using a concurrency limit equal to the number of available CPU cores.
 	var preParams *keygen.LocalPreParams
@@ -116,7 +116,7 @@ func NewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, priKeyBytes 
 		partyLock:  &sync.Mutex{},
 		queuedMsgs: make(chan TssMessage, 1024),
 		stateLock:  &sync.Mutex{},
-		localState: localState,
+		localState: KeygenLocalStateItem{},
 		tssLock:    &sync.Mutex{},
 		priKey:     priKey,
 		preParams:  preParams,
@@ -446,8 +446,8 @@ func (t *Tss) addLocalPartySaveData(data keygen.LocalPartySaveData, keyGenLocalS
 	t.logger.Debug().Msgf("pubkey: %s, bnb address: %s", pubKey, addr)
 	keyGenLocalStateItem.PubKey = pubKey
 	keyGenLocalStateItem.LocalData = data
-	t.localState = append(t.localState, keyGenLocalStateItem)
-	localFileName := fmt.Sprintf("localstate-%d.json", t.port)
+	t.localState = keyGenLocalStateItem
+	localFileName := fmt.Sprintf("localstate-%s.json", pubKey)
 	if len(t.homeBase) > 0 {
 		localFileName = filepath.Join(t.homeBase, localFileName)
 	}
@@ -552,7 +552,14 @@ func (t *Tss) writeKeySignResult(w http.ResponseWriter, R, S string, status Stat
 func (t *Tss) signMessage(req KeySignReq) (*signing.SignatureData, error) {
 	t.tssLock.Lock()
 	defer t.tssLock.Unlock()
-	keyGenLocalStateItem, err := t.getKeyData(req.PoolPubKey)
+	localFileName := fmt.Sprintf("localstate-%s.json", req.PoolPubKey)
+	if len(t.homeBase) > 0 {
+		localFileName = filepath.Join(t.homeBase, localFileName)
+	}
+	keyGenLocalStateItem, err := GetLocalState(localFileName)
+	if nil != err {
+		return nil, fmt.Errorf("fail to read local state file: %w", err)
+	}
 	if nil != err {
 		return nil, fmt.Errorf("fail to get keygen state data for pubkey(%s): %w", req.PoolPubKey, err)
 	}
@@ -679,17 +686,17 @@ func (t *Tss) processKeySign(errChan chan struct{}, outCh <-chan tss.Message, en
 	}
 }
 
-func (t *Tss) getKeyData(pubKey string) (KeygenLocalStateItem, error) {
-	var emptyKeyGenLocalStateItem KeygenLocalStateItem
-	t.stateLock.Lock()
-	defer t.stateLock.Unlock()
-	for _, item := range t.localState {
-		if item.PubKey == pubKey {
-			return item, nil
-		}
-	}
-	return emptyKeyGenLocalStateItem, fmt.Errorf("didnot find keygen state for(%s)", pubKey)
-}
+//func (t *Tss) getKeyData(pubKey string) (KeygenLocalStateItem, error) {
+//	var emptyKeyGenLocalStateItem KeygenLocalStateItem
+//	t.stateLock.Lock()
+//	defer t.stateLock.Unlock()
+//	for _, item := range t.localState {
+//		if item.PubKey == pubKey {
+//			return item, nil
+//		}
+//	}
+//	return emptyKeyGenLocalStateItem, fmt.Errorf("didnot find keygen state for(%s)", pubKey)
+//}
 
 func ping() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

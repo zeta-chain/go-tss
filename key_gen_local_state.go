@@ -9,9 +9,6 @@ import (
 	"github.com/binance-chain/tss-lib/ecdsa/keygen"
 )
 
-// KeygenLocalState is used to save the keygen result into local files
-type KeygenLocalState []KeygenLocalStateItem
-
 // KeygenLocalStateItem
 type KeygenLocalStateItem struct {
 	PubKey          string                    `json:"pub_key"`
@@ -21,26 +18,26 @@ type KeygenLocalStateItem struct {
 }
 
 // GetLocalState from file
-func GetLocalState(filePathName string) (KeygenLocalState, error) {
+func GetLocalState(filePathName string) (KeygenLocalStateItem, error) {
 	if len(filePathName) == 0 {
-		return KeygenLocalState{}, nil
+		return KeygenLocalStateItem{}, nil
 	}
 	if _, err := os.Stat(filePathName); os.IsNotExist(err) {
-		return KeygenLocalState{}, nil
+		return KeygenLocalStateItem{}, nil
 	}
 
 	buf, err := ioutil.ReadFile(filePathName)
 	if nil != err {
-		return KeygenLocalState{}, fmt.Errorf("file to read from file(%s): %w", filePathName, err)
+		return KeygenLocalStateItem{}, fmt.Errorf("file to read from file(%s): %w", filePathName, err)
 	}
-	var kLocalState KeygenLocalState
-	if err := json.Unmarshal(buf, &kLocalState); nil != err {
-		return KeygenLocalState{}, fmt.Errorf("fail to unmarshal KeygenLocalState: %w", err)
+	var LocalState KeygenLocalStateItem
+	if err := json.Unmarshal(buf, &LocalState); nil != err {
+		return KeygenLocalStateItem{}, fmt.Errorf("fail to unmarshal KeygenLocalState: %w", err)
 	}
-	return kLocalState, nil
+	return LocalState, nil
 }
 
-func SaveLocalStateToFile(filePathName string, state KeygenLocalState) error {
+func SaveLocalStateToFile(filePathName string, state KeygenLocalStateItem) error {
 	buf, err := json.Marshal(state)
 	if nil != err {
 		return fmt.Errorf("fail to marshal KeygenLocalState to json: %w", err)
