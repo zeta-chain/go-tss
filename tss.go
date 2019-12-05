@@ -69,7 +69,6 @@ type Tss struct {
 	stopChan   chan struct{} // channel to indicate whether we should stop
 	queuedMsgs chan TssMessage
 	stateLock  *sync.Mutex
-	localState KeygenLocalStateItem
 	tssLock    *sync.Mutex
 	priKey     cryptokey.PrivKey
 	preParams  *keygen.LocalPreParams
@@ -108,7 +107,6 @@ func NewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, priKeyBytes 
 		partyLock:  &sync.Mutex{},
 		queuedMsgs: make(chan TssMessage, 1024),
 		stateLock:  &sync.Mutex{},
-		localState: KeygenLocalStateItem{},
 		tssLock:    &sync.Mutex{},
 		priKey:     priKey,
 		preParams:  preParams,
@@ -456,12 +454,11 @@ func (t *Tss) addLocalPartySaveData(data keygen.LocalPartySaveData, keyGenLocalS
 	t.logger.Debug().Msgf("pubkey: %s, bnb address: %s", pubKey, addr)
 	keyGenLocalStateItem.PubKey = pubKey
 	keyGenLocalStateItem.LocalData = data
-	t.localState = keyGenLocalStateItem
 	localFileName := fmt.Sprintf("localstate-%s.json", pubKey)
 	if len(t.homeBase) > 0 {
 		localFileName = filepath.Join(t.homeBase, localFileName)
 	}
-	return SaveLocalStateToFile(localFileName, t.localState)
+	return SaveLocalStateToFile(localFileName, keyGenLocalStateItem)
 
 }
 
@@ -489,9 +486,6 @@ func (t *Tss) drainQueuedMessages() {
 		select {
 		case m := <-t.queuedMsgs:
 			t.logger.Debug().Msgf("<<<<< queued party:%s", m.Routing.From.Id)
-			if !t.isForCurrentParty(keyGenInfo, m) {
-				continue
-			}
 			partyID, ok := keyGenInfo.PartyIDMap[m.Routing.From.Id]
 			if !ok {
 				t.logger.Error().Msgf("get message from unknown party :%s", partyID)
@@ -520,8 +514,8 @@ func (t *Tss) keysign(w http.ResponseWriter, r *http.Request) {
 	}()
 	t.logger.Info().Msg("receive key sign request")
 	decoder := json.NewDecoder(r.Body)
-	var keysignReq KeySignReq
-	if err := decoder.Decode(&keysignReq); nil != err {
+	var keySignReq KeySignReq
+	if err := decoder.Decode(&keySignReq); nil != err {
 		t.logger.Error().Err(err).Msg("fail to decode key sign request")
 		w.WriteHeader(http.StatusBadRequest)
 		return
@@ -531,7 +525,7 @@ func (t *Tss) keysign(w http.ResponseWriter, r *http.Request) {
 		t.writeKeySignResult(w, "", "", Fail)
 		return
 	}
-	signatureData, err := t.signMessage(keysignReq)
+	signatureData, err := t.signMessage(keySignReq)
 	if nil != err {
 		t.logger.Error().Err(err).Msg("fail to sign message")
 		w.WriteHeader(http.StatusInternalServerError)
@@ -788,10 +782,6 @@ func (t *Tss) processComm() {
 				t.queuedMsgs <- tssMsg
 				continue
 			}
-			if !t.isForCurrentParty(keyGenInfo, tssMsg) {
-				continue
-			}
-
 			partyID, ok := keyGenInfo.PartyIDMap[tssMsg.Routing.From.Id]
 			if !ok {
 				t.logger.Error().Msgf("get message from unknown party :%s, peer: %s", partyID, m.PeerID.String())
@@ -802,20 +792,6 @@ func (t *Tss) processComm() {
 			}
 		}
 	}
-}
-
-func (t *Tss) isForCurrentParty(kgi *TssKeyGenInfo, tssMsg TssMessage) bool {
-	if tssMsg.Routing.To == nil {
-		t.logger.Debug().Msgf("broadcast msg from %s", tssMsg.Routing.From.Id)
-		return true
-	}
-	for _, item := range tssMsg.Routing.To {
-		if kgi.Party.PartyID().Id == item.Id {
-			t.logger.Debug().Msgf("message from %s to %s", tssMsg.Routing.From.Id, item.Id)
-			return true
-		}
-	}
-	return false
 }
 
 func contains(s []*tss.PartyID, e *tss.PartyID) bool {
