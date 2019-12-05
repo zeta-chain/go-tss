@@ -44,10 +44,6 @@ func LoadLocalState(filePathName string) (KeygenLocalStateItem, error) {
 }
 
 func ProcessStateFile(sourceState KeygenLocalStateItem, parties []*tss.PartyID) (keygen.LocalPartySaveData, []*tss.PartyID) {
-	var indexSlice []int
-	for _, each := range parties {
-		indexSlice = append(indexSlice, each.Index)
-	}
 	var localKeyData keygen.LocalPartySaveData
 	localKeyData = sourceState.LocalData
 	var tempKs, tempNTildej, tempH1j, tempH2j []*big.Int
