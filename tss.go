@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"math/big"
 	"net/http"
 	"os"
@@ -36,7 +37,6 @@ import (
 )
 
 const (
-	Threshold             = 2
 	KeyGenTimeoutSeconds  = 120
 	KeySignTimeoutSeconds = 30
 )
@@ -69,7 +69,6 @@ type Tss struct {
 	stopChan   chan struct{} // channel to indicate whether we should stop
 	queuedMsgs chan TssMessage
 	stateLock  *sync.Mutex
-	localState KeygenLocalState
 	tssLock    *sync.Mutex
 	priKey     cryptokey.PrivKey
 	preParams  *keygen.LocalPreParams
@@ -90,14 +89,6 @@ func NewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, priKeyBytes 
 		return nil, fmt.Errorf("fail to create communication layer: %w", err)
 	}
 	setupBech32Prefix()
-	localFileName := fmt.Sprintf("localstate-%d.json", tssPort)
-	if len(baseFolder) > 0 {
-		localFileName = filepath.Join(baseFolder, localFileName)
-	}
-	localState, err := GetLocalState(localFileName)
-	if nil != err {
-		return nil, fmt.Errorf("fail to read local state file: %w", err)
-	}
 	// When using the keygen party it is recommended that you pre-compute the "safe primes" and Paillier secret beforehand because this can take some time.
 	// This code will generate those parameters using a concurrency limit equal to the number of available CPU cores.
 	var preParams *keygen.LocalPreParams
@@ -116,7 +107,6 @@ func NewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, priKeyBytes 
 		partyLock:  &sync.Mutex{},
 		queuedMsgs: make(chan TssMessage, 1024),
 		stateLock:  &sync.Mutex{},
-		localState: localState,
 		tssLock:    &sync.Mutex{},
 		priKey:     priKey,
 		preParams:  preParams,
@@ -265,7 +255,7 @@ func (t *Tss) getTssPubKey(pubKeyPoint *crypto.ECPoint) (string, types.AccAddres
 	return pubKey, addr, err
 }
 
-func (t *Tss) getParties(keys []string, localPartyKey string) ([]*tss.PartyID, *tss.PartyID, error) {
+func (t *Tss) getParties(keys []string, localPartyKey string, keygen bool) ([]*tss.PartyID, *tss.PartyID, error) {
 	var localPartyID *tss.PartyID
 	var unSortedPartiesID []*tss.PartyID
 	sort.Strings(keys)
@@ -286,6 +276,17 @@ func (t *Tss) getParties(keys []string, localPartyKey string) ([]*tss.PartyID, *
 		return nil, nil, fmt.Errorf("local party is not in the list")
 	}
 	partiesID := tss.SortPartyIDs(unSortedPartiesID)
+
+	//we select the node on the "partiesID" rather than on the "keys" as the secret shares are sorted on the "index",
+	//not on the node ID.
+	if !keygen {
+		threshold, err := getThreshold(len(keys))
+		if nil != err {
+			return nil, nil, err
+		}
+		partiesID = partiesID[:threshold+1]
+	}
+
 	return partiesID, localPartyID, nil
 }
 
@@ -296,7 +297,7 @@ func (t *Tss) generateNewKey(keygenReq KeyGenReq) (*crypto.ECPoint, error) {
 	if nil != err {
 		return nil, fmt.Errorf("fail to genearte the key: %w", err)
 	}
-	partiesID, localPartyID, err := t.getParties(keygenReq.Keys, pubKey)
+	partiesID, localPartyID, err := t.getParties(keygenReq.Keys, pubKey, true)
 	if nil != err {
 		return nil, fmt.Errorf("fail to get keygen parties: %w", err)
 	}
@@ -309,8 +310,12 @@ func (t *Tss) generateNewKey(keygenReq KeyGenReq) (*crypto.ECPoint, error) {
 	// Note: The `id` and `moniker` fields are for convenience to allow you to easily track participants.
 	// The `id` should be a unique string representing this party in the network and `moniker` can be anything (even left blank).
 	// The `uniqueKey` is a unique identifying key for this peer (such as its p2p public key) as a big.Int.
+	threshold, err := getThreshold(len(partiesID))
+	if nil != err {
+		return nil, err
+	}
 	ctx := tss.NewPeerContext(partiesID)
-	params := tss.NewParameters(ctx, localPartyID, len(partiesID), Threshold)
+	params := tss.NewParameters(ctx, localPartyID, len(partiesID), threshold)
 	outCh := make(chan tss.Message, len(partiesID))
 	endCh := make(chan keygen.LocalPartySaveData, len(partiesID))
 	errChan := make(chan struct{})
@@ -359,6 +364,9 @@ func (t *Tss) emptyQueuedMessages() {
 		select {
 		case m := <-t.queuedMsgs:
 			t.logger.Debug().Msgf("drop queued message from %s", m.Routing.From.Id)
+		case m := <-t.comm.messages:
+			t.logger.Debug().Msgf("drop queued message from %s", m.PeerID)
+
 		default:
 			return
 		}
@@ -446,12 +454,11 @@ func (t *Tss) addLocalPartySaveData(data keygen.LocalPartySaveData, keyGenLocalS
 	t.logger.Debug().Msgf("pubkey: %s, bnb address: %s", pubKey, addr)
 	keyGenLocalStateItem.PubKey = pubKey
 	keyGenLocalStateItem.LocalData = data
-	t.localState = append(t.localState, keyGenLocalStateItem)
-	localFileName := fmt.Sprintf("localstate-%d.json", t.port)
+	localFileName := fmt.Sprintf("localstate-%s.json", pubKey)
 	if len(t.homeBase) > 0 {
 		localFileName = filepath.Join(t.homeBase, localFileName)
 	}
-	return SaveLocalStateToFile(localFileName, t.localState)
+	return SaveLocalStateToFile(localFileName, keyGenLocalStateItem)
 
 }
 
@@ -479,9 +486,6 @@ func (t *Tss) drainQueuedMessages() {
 		select {
 		case m := <-t.queuedMsgs:
 			t.logger.Debug().Msgf("<<<<< queued party:%s", m.Routing.From.Id)
-			if !t.isForCurrentParty(keyGenInfo, m) {
-				continue
-			}
 			partyID, ok := keyGenInfo.PartyIDMap[m.Routing.From.Id]
 			if !ok {
 				t.logger.Error().Msgf("get message from unknown party :%s", partyID)
@@ -510,8 +514,8 @@ func (t *Tss) keysign(w http.ResponseWriter, r *http.Request) {
 	}()
 	t.logger.Info().Msg("receive key sign request")
 	decoder := json.NewDecoder(r.Body)
-	var keysignReq KeySignReq
-	if err := decoder.Decode(&keysignReq); nil != err {
+	var keySignReq KeySignReq
+	if err := decoder.Decode(&keySignReq); nil != err {
 		t.logger.Error().Err(err).Msg("fail to decode key sign request")
 		w.WriteHeader(http.StatusBadRequest)
 		return
@@ -521,13 +525,17 @@ func (t *Tss) keysign(w http.ResponseWriter, r *http.Request) {
 		t.writeKeySignResult(w, "", "", Fail)
 		return
 	}
-	signatureData, err := t.signMessage(keysignReq)
+	signatureData, err := t.signMessage(keySignReq)
 	if nil != err {
 		t.logger.Error().Err(err).Msg("fail to sign message")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	t.writeKeySignResult(w, base64.StdEncoding.EncodeToString(signatureData.R), base64.StdEncoding.EncodeToString(signatureData.S), Success)
+	if nil == signatureData {
+		t.writeKeySignResult(w, "", "", NA)
+	} else {
+		t.writeKeySignResult(w, base64.StdEncoding.EncodeToString(signatureData.R), base64.StdEncoding.EncodeToString(signatureData.S), Success)
+	}
 }
 
 func (t *Tss) writeKeySignResult(w http.ResponseWriter, R, S string, status Status) {
@@ -552,7 +560,14 @@ func (t *Tss) writeKeySignResult(w http.ResponseWriter, R, S string, status Stat
 func (t *Tss) signMessage(req KeySignReq) (*signing.SignatureData, error) {
 	t.tssLock.Lock()
 	defer t.tssLock.Unlock()
-	keyGenLocalStateItem, err := t.getKeyData(req.PoolPubKey)
+	localFileName := fmt.Sprintf("localstate-%s.json", req.PoolPubKey)
+	if len(t.homeBase) > 0 {
+		localFileName = filepath.Join(t.homeBase, localFileName)
+	}
+	storedKeyGenLocalStateItem, err := LoadLocalState(localFileName)
+	if nil != err {
+		return nil, fmt.Errorf("fail to read local state file: %w", err)
+	}
 	if nil != err {
 		return nil, fmt.Errorf("fail to get keygen state data for pubkey(%s): %w", req.PoolPubKey, err)
 	}
@@ -560,17 +575,26 @@ func (t *Tss) signMessage(req KeySignReq) (*signing.SignatureData, error) {
 	if nil != err {
 		return nil, fmt.Errorf("fail to decode message(%s): %w", req.Message, err)
 	}
-	partiesID, localPartyID, err := t.getParties(keyGenLocalStateItem.ParticipantKeys, keyGenLocalStateItem.LocalPartyKey)
+	threshold, err := getThreshold(len(storedKeyGenLocalStateItem.ParticipantKeys))
+	if nil != err {
+		return nil, err
+	}
+	partiesID, localPartyID, err := t.getParties(storedKeyGenLocalStateItem.ParticipantKeys, storedKeyGenLocalStateItem.LocalPartyKey, false)
 	if nil != err {
 		return nil, fmt.Errorf("fail to form key sign party: %w", err)
 	}
+	if !contains(partiesID, localPartyID) {
+		t.logger.Info().Msgf("we are not in this rounds key sign")
+		return nil, nil
+	}
+	localKeyData, partiesID := ProcessStateFile(storedKeyGenLocalStateItem, partiesID)
 	// Set up the parameters
 	// Note: The `id` and `moniker` fields are for convenience to allow you to easily track participants.
 	// The `id` should be a unique string representing this party in the network and `moniker` can be anything (even left blank).
 	// The `uniqueKey` is a unique identifying key for this peer (such as its p2p public key) as a big.Int.
 	t.logger.Debug().Msgf("local party: %s", localPartyID.Id)
 	ctx := tss.NewPeerContext(partiesID)
-	params := tss.NewParameters(ctx, localPartyID, len(partiesID), Threshold)
+	params := tss.NewParameters(ctx, localPartyID, len(partiesID), threshold)
 	outCh := make(chan tss.Message, len(partiesID))
 	endCh := make(chan signing.SignatureData, len(partiesID))
 	errCh := make(chan struct{})
@@ -578,7 +602,7 @@ func (t *Tss) signMessage(req KeySignReq) (*signing.SignatureData, error) {
 	if nil != err {
 		return nil, fmt.Errorf("fail to convert msg to hash int: %w", err)
 	}
-	keySignParty := signing.NewLocalParty(m, params, keyGenLocalStateItem.LocalData, outCh, endCh)
+	keySignParty := signing.NewLocalParty(m, params, localKeyData, outCh, endCh)
 	partyIDMap := make(map[string]*tss.PartyID)
 	for _, id := range partiesID {
 		partyIDMap[id.Id] = id
@@ -679,18 +703,6 @@ func (t *Tss) processKeySign(errChan chan struct{}, outCh <-chan tss.Message, en
 	}
 }
 
-func (t *Tss) getKeyData(pubKey string) (KeygenLocalStateItem, error) {
-	var emptyKeyGenLocalStateItem KeygenLocalStateItem
-	t.stateLock.Lock()
-	defer t.stateLock.Unlock()
-	for _, item := range t.localState {
-		if item.PubKey == pubKey {
-			return item, nil
-		}
-	}
-	return emptyKeyGenLocalStateItem, fmt.Errorf("didnot find keygen state for(%s)", pubKey)
-}
-
 func ping() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -770,10 +782,6 @@ func (t *Tss) processComm() {
 				t.queuedMsgs <- tssMsg
 				continue
 			}
-			if !t.isForCurrentParty(keyGenInfo, tssMsg) {
-				continue
-			}
-
 			partyID, ok := keyGenInfo.PartyIDMap[tssMsg.Routing.From.Id]
 			if !ok {
 				t.logger.Error().Msgf("get message from unknown party :%s, peer: %s", partyID, m.PeerID.String())
@@ -786,16 +794,19 @@ func (t *Tss) processComm() {
 	}
 }
 
-func (t *Tss) isForCurrentParty(kgi *TssKeyGenInfo, tssMsg TssMessage) bool {
-	if tssMsg.Routing.To == nil {
-		t.logger.Debug().Msgf("broadcast msg from %s", tssMsg.Routing.From.Id)
-		return true
-	}
-	for _, item := range tssMsg.Routing.To {
-		if kgi.Party.PartyID().Id == item.Id {
-			t.logger.Debug().Msgf("message from %s to %s", tssMsg.Routing.From.Id, item.Id)
+func contains(s []*tss.PartyID, e *tss.PartyID) bool {
+	for _, a := range s {
+		if *a == *e {
 			return true
 		}
 	}
 	return false
+}
+
+func getThreshold(value int) (int, error) {
+	if value < 0 {
+		return 0, errors.New("negative input")
+	}
+	threshold := int(math.Ceil(float64(value)*2.0/3.0)) - 1
+	return threshold, nil
 }

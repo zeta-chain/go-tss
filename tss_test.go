@@ -10,7 +10,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/binance-chain/tss-lib/ecdsa/keygen"
 	"github.com/hashicorp/go-retryablehttp"
 	// "bytes"
 	// "context"
@@ -96,15 +95,6 @@ func (t *TssTestSuite) TestSignMessage(c *C) {
 	signatureData, err := tss.signMessage(req)
 	c.Assert(err, NotNil)
 	c.Assert(signatureData, IsNil)
-	tss.localState = append(tss.localState, KeygenLocalStateItem{
-		PubKey:    "helloworld",
-		LocalData: keygen.LocalPartySaveData{},
-		ParticipantKeys: []string{
-			"key1", "key2", "key3",
-		},
-		LocalPartyKey: "key1",
-	})
-
 	signatureData, err = tss.signMessage(req)
 	c.Assert(err, NotNil)
 	c.Assert(signatureData, IsNil)
@@ -132,4 +122,17 @@ func (t *TssTestSuite) TestMsgToHashInt(c *C) {
 	result, err := msgToHashInt(input)
 	c.Assert(err, IsNil)
 	c.Assert(result, NotNil)
+}
+
+func (t *TssTestSuite) TestgetThreshold(c *C) {
+	_, err := getThreshold(-2)
+	c.Assert(err, NotNil)
+	output, err:=getThreshold(4)
+	c.Assert(output,Equals, 2)
+	output, err =getThreshold(9)
+	c.Assert(output,Equals, 5)
+	output, err =getThreshold(10)
+	c.Assert(output,Equals, 6)
+	output, err =getThreshold(99)
+	c.Assert(output,Equals, 65)
 }
