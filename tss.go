@@ -37,7 +37,9 @@ import (
 )
 
 const (
-	KeyGenTimeoutSeconds  = 120
+	// KeyGenTimeoutSeconds how long we will wait keygen to finish
+	KeyGenTimeoutSeconds = 120
+	// KeySignTimeoutSeconds how long we are going to wait for keysign to finish
 	KeySignTimeoutSeconds = 30
 )
 
@@ -57,7 +59,7 @@ type TssMessage struct {
 	Message []byte              `json:"message"`
 }
 
-// TSS all the things for TSS
+// Tss all the things for TSS
 type Tss struct {
 	comm       *Communication
 	logger     zerolog.Logger
