@@ -46,7 +46,6 @@ func setupTssForTest(c *C) *Tss {
 func (t *TssTestSuite) TestTssReusePort(c *C) {
 	tss1, err := NewTss(nil, 6660, 8080, []byte(testPriKey), "")
 	c.Assert(err, IsNil)
-	c.Assert(err, IsNil)
 	wg := sync.WaitGroup{}
 	ctx, cancel := context.WithCancel(context.Background())
 
