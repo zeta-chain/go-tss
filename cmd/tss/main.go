@@ -19,10 +19,10 @@ import (
 
 func main() {
 	golog.SetAllLoggers(logging.INFO)
-	_ = golog.SetLogLevel("tss-lib", "DEBUG")
+	_ = golog.SetLogLevel("tss-lib", "INFO")
 	http := flag.Int("http", 8080, "http port")
 	help := flag.Bool("h", false, "Display Help")
-	logLevel := flag.String("loglevel", "debug", "Log Level")
+	logLevel := flag.String("loglevel", "info", "Log Level")
 	pretty := flag.Bool("pretty-log", false, "Enables unstructured prettified logging. This is useful for local debugging")
 	baseFolder := flag.String("home", "", "home folder to store the keygen state file")
 	config, err := go_tss.ParseFlags()
