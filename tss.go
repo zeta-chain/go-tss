@@ -2,7 +2,6 @@ package go_tss
 
 import (
 	"context"
-	"crypto/elliptic"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -11,17 +10,13 @@ import (
 	"fmt"
 	"math/big"
 	"net/http"
-	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"sync"
 	"time"
 
-	"github.com/binance-chain/go-sdk/common/types"
-	"github.com/binance-chain/tss-lib/crypto"
 	"github.com/binance-chain/tss-lib/ecdsa/keygen"
-	"github.com/binance-chain/tss-lib/ecdsa/signing"
 	"github.com/binance-chain/tss-lib/tss"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/gorilla/mux"
@@ -29,14 +24,15 @@ import (
 	maddr "github.com/multiformats/go-multiaddr"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	"github.com/tendermint/btcd/btcec"
 	cryptokey "github.com/tendermint/tendermint/crypto"
 	"github.com/tendermint/tendermint/crypto/secp256k1"
 	"gitlab.com/thorchain/bepswap/thornode/cmd"
 )
 
 const (
-	KeyGenTimeoutSeconds  = 120
+	// KeyGenTimeoutSeconds how long do we wait the keygen parties to pass messages along
+	KeyGenTimeoutSeconds = 120
+	// KeySignTimeoutSeconds how long do we wait keysign
 	KeySignTimeoutSeconds = 30
 )
 
@@ -50,44 +46,25 @@ type TssKeyGenInfo struct {
 	PartyIDMap map[string]*tss.PartyID
 }
 
-// TssMessage is the message we transfer across the wire to other parties
-type TssMessage struct {
-	Routing   *tss.MessageRouting `json:"routing"`
-	RoundInfo string              `json:"roundInfo"`
-	Message   []byte              `json:"message"`
-}
-
-type MsgWithVer struct {
-	HashVal string
-	TssMsg  TssMessage
-}
-
-type CachedHashWithCount struct {
-	Data      string
-	RoundInfo string
-	Count     int
-}
-
-// TSS all the things for TSS
+// Tss all the things for TSS
 type Tss struct {
-	comm         *Communication
-	logger       zerolog.Logger
-	port         int
-	server       *http.Server
-	wg           sync.WaitGroup
-	partyLock    *sync.Mutex
-	keyGenInfo   *TssKeyGenInfo
-	stopChan     chan struct{} // channel to indicate whether we should stop
-	queuedMsgs   chan *WireMessage
-	msgCheckChan chan []byte
-	stateLock    *sync.Mutex
-	tssLock      *sync.Mutex
-	cacheMapLock *sync.Mutex
-	priKey       cryptokey.PrivKey
-	preParams    *keygen.LocalPreParams
-	homeBase     string
-	cachedTssMsg map[string]CachedHashWithCount
-	cachedHash   []MsgWithVer
+	comm                *Communication
+	logger              zerolog.Logger
+	port                int
+	server              *http.Server
+	wg                  sync.WaitGroup
+	partyLock           *sync.Mutex
+	keyGenInfo          *TssKeyGenInfo
+	stopChan            chan struct{}        // channel to indicate whether we should stop
+	queuedMsgs          chan *WrappedMessage // messages we queued up before local party is even ready
+	broadcastChannel    chan *WrappedMessage // channel we used to broadcast message to other parties
+	stateLock           *sync.Mutex
+	tssLock             *sync.Mutex
+	priKey              cryptokey.PrivKey
+	preParams           *keygen.LocalPreParams
+	homeBase            string
+	unConfirmedMsgLock  *sync.Mutex
+	unConfirmedMessages map[string]*LocalCacheItem
 }
 
 // NewTss create a new instance of Tss
@@ -115,20 +92,20 @@ func NewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, priKeyBytes 
 	}
 
 	t := &Tss{
-		comm:         c,
-		logger:       log.With().Str("module", "tss").Logger(),
-		port:         tssPort,
-		stopChan:     make(chan struct{}),
-		partyLock:    &sync.Mutex{},
-		queuedMsgs:   make(chan TssMessage, 1024),
-		stateLock:    &sync.Mutex{},
-		tssLock:      &sync.Mutex{},
-		cacheMapLock: &sync.Mutex{},
-		priKey:       priKey,
-		preParams:    preParams,
-		homeBase:     baseFolder,
-		cachedTssMsg: make(map[string]CachedHashWithCount),
-		cachedHash:   []MsgWithVer{},
+		comm:                c,
+		logger:              log.With().Str("module", "tss").Logger(),
+		port:                tssPort,
+		stopChan:            make(chan struct{}),
+		partyLock:           &sync.Mutex{},
+		queuedMsgs:          make(chan *WrappedMessage, 1024),
+		broadcastChannel:    make(chan *WrappedMessage),
+		stateLock:           &sync.Mutex{},
+		tssLock:             &sync.Mutex{},
+		priKey:              priKey,
+		preParams:           preParams,
+		homeBase:            baseFolder,
+		unConfirmedMsgLock:  &sync.Mutex{},
+		unConfirmedMessages: make(map[string]*LocalCacheItem),
 	}
 
 	server := &http.Server{
@@ -189,89 +166,6 @@ func (t *Tss) getP2pID(w http.ResponseWriter, r *http.Request) {
 		t.logger.Error().Err(err).Msg("fail to write to response")
 	}
 }
-func (t *Tss) keygen(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
-	}
-	defer func() {
-		if err := r.Body.Close(); nil != err {
-			t.logger.Error().Err(err).Msg("fail to close request body")
-		}
-	}()
-	t.logger.Info().Msg("receive key gen request")
-	decoder := json.NewDecoder(r.Body)
-	var keygenReq KeyGenReq
-	if err := decoder.Decode(&keygenReq); nil != err {
-		t.logger.Error().Err(err).Msg("fail to decode keygen request")
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
-	if t.getKeyGenInfo() != nil {
-		resp := KeyGenResp{
-			PubKey: "",
-			Status: Fail,
-		}
-		buf, err := json.MarshalIndent(resp, "", "	")
-		if nil != err {
-			t.logger.Error().Err(err).Msg("fail to marshal response")
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		w.WriteHeader(http.StatusBadRequest)
-		_, err = w.Write(buf)
-		if nil != err {
-			t.logger.Error().Err(err).Msg("fail to write to response")
-			return
-		}
-		return
-	}
-	// we only handle one tss request for a given time
-	k, err := t.generateNewKey(keygenReq)
-	if nil != err {
-		t.logger.Error().Err(err).Msg("fail to generate new key")
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	newPubKey, addr, err := t.getTssPubKey(k)
-	if nil != err {
-		t.logger.Error().Err(err).Msg("fail to bech32 acc pub key")
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	if os.Getenv("NET") == "testnet" {
-		types.Network = types.TestNetwork
-	}
-	resp := KeyGenResp{
-		PubKey:     newPubKey,
-		BNBAddress: addr.String(),
-		Status:     Success,
-	}
-	buf, err := json.Marshal(resp)
-	if nil != err {
-		t.logger.Error().Err(err).Msg("fail to marshal response to json")
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	t.logger.Info().Msg(string(buf))
-	_, err = w.Write(buf)
-	if nil != err {
-		t.logger.Error().Err(err).Msg("fail to write to response")
-	}
-}
-func (t *Tss) getTssPubKey(pubKeyPoint *crypto.ECPoint) (string, types.AccAddress, error) {
-	tssPubKey := btcec.PublicKey{
-		Curve: btcec.S256(),
-		X:     pubKeyPoint.X(),
-		Y:     pubKeyPoint.Y(),
-	}
-	var pubKeyCompressed secp256k1.PubKeySecp256k1
-	copy(pubKeyCompressed[:], tssPubKey.SerializeCompressed())
-	pubKey, err := sdk.Bech32ifyAccPub(pubKeyCompressed)
-	addr := types.AccAddress(pubKeyCompressed.Address().Bytes())
-	return pubKey, addr, err
-}
 
 func (t *Tss) getParties(keys []string, localPartyKey string, keygen bool) ([]*tss.PartyID, *tss.PartyID, error) {
 	var localPartyID *tss.PartyID
@@ -284,6 +178,10 @@ func (t *Tss) getParties(keys []string, localPartyKey string, keygen bool) ([]*t
 		}
 		secpPk := pk.(secp256k1.PubKeySecp256k1)
 		key := new(big.Int).SetBytes(secpPk[:])
+		// Set up the parameters
+		// Note: The `id` and `moniker` fields are for convenience to allow you to easily track participants.
+		// The `id` should be a unique string representing this party in the network and `moniker` can be anything (even left blank).
+		// The `uniqueKey` is a unique identifying key for this peer (such as its p2p public key) as a big.Int.
 		partyID := tss.NewPartyID(strconv.Itoa(idx), "", key)
 		if item == localPartyKey {
 			localPartyID = partyID
@@ -308,158 +206,23 @@ func (t *Tss) getParties(keys []string, localPartyKey string, keygen bool) ([]*t
 	return partiesID, localPartyID, nil
 }
 
-func (t *Tss) generateNewKey(keygenReq KeyGenReq) (*crypto.ECPoint, error) {
-	t.tssLock.Lock()
-	defer t.tssLock.Unlock()
-	pubKey, err := sdk.Bech32ifyAccPub(t.priKey.PubKey())
-	if nil != err {
-		return nil, fmt.Errorf("fail to genearte the key: %w", err)
-	}
-	partiesID, localPartyID, err := t.getParties(keygenReq.Keys, pubKey, true)
-	if nil != err {
-		return nil, fmt.Errorf("fail to get keygen parties: %w", err)
-	}
-
-	keyGenLocalStateItem := KeygenLocalStateItem{
-		ParticipantKeys: keygenReq.Keys,
-		LocalPartyKey:   pubKey,
-	}
-	// Set up the parameters
-	// Note: The `id` and `moniker` fields are for convenience to allow you to easily track participants.
-	// The `id` should be a unique string representing this party in the network and `moniker` can be anything (even left blank).
-	// The `uniqueKey` is a unique identifying key for this peer (such as its p2p public key) as a big.Int.
-	threshold, err := getThreshold(len(partiesID))
-	if nil != err {
-		return nil, err
-	}
-	ctx := tss.NewPeerContext(partiesID)
-	params := tss.NewParameters(ctx, localPartyID, len(partiesID), threshold)
-	outCh := make(chan tss.Message, len(partiesID))
-	endCh := make(chan keygen.LocalPartySaveData, len(partiesID))
-	errChan := make(chan struct{})
-	keyGenParty := keygen.NewLocalParty(params, outCh, endCh, *t.preParams)
-
-	// You should keep a local mapping of `id` strings to `*PartyID` instances so that an incoming message can have its origin party's `*PartyID` recovered for passing to `UpdateFromBytes` (see below)
-	partyIDMap := make(map[string]*tss.PartyID)
-	for _, id := range partiesID {
-		partyIDMap[id.Id] = id
-	}
-
-	defer func() {
-		t.setKeyGenInfo(nil)
-	}()
-
-	// start keygen
-	go func() {
-		defer t.logger.Info().Msg("keyGenParty finished")
-		if err := keyGenParty.Start(); nil != err {
-			t.logger.Error().Err(err).Msg("fail to start keygen party")
-			close(errChan)
-			return
-		}
-		t.setKeyGenInfo(&TssKeyGenInfo{
-			Party:      keyGenParty,
-			PartyIDMap: partyIDMap,
-		})
-
-	}()
-
-	defer t.emptyQueuedMessages()
-	r, err := t.processKeyGen(errChan, outCh, endCh, keyGenLocalStateItem)
-	if nil != err {
-		t.logger.Error().Err(err).Msg("fail to complete keygen")
-		tssErr, ok := err.(*tss.Error)
-		if ok {
-			for _, item := range tssErr.Culprits() {
-				t.logger.Error().Err(err).Msgf("parties that caused this keygen failure: %s", item.Id)
-			}
-		}
-		for _, item := range keyGenParty.WaitingFor() {
-			t.logger.Error().Err(err).Msgf("we are still waiting for %s", item.Id)
-		}
-		return nil, err
-	}
-	return r, nil
-}
-
 // emptyQueuedMessages
 func (t *Tss) emptyQueuedMessages() {
-	t.logger.Info().Msgf("***********EMPTY CACHED*****************")
-	t.cachedTssMsg = make(map[string]CachedHashWithCount)
-	t.cachedHash = []MsgWithVer{}
+	t.logger.Debug().Msg("empty queue messages")
+	defer t.logger.Debug().Msg("finished empty queue messages")
+	t.unConfirmedMsgLock.Lock()
+	defer t.unConfirmedMsgLock.Unlock()
+	t.unConfirmedMessages = make(map[string]*LocalCacheItem)
 	for {
 		select {
 		case m := <-t.queuedMsgs:
-			t.logger.Debug().Msgf("drop queued message from %s", m.Routing.From.Id)
-		case m := <-t.comm.messages:
-			t.logger.Debug().Msgf("drop queued message from %s", m.PeerID)
-
+			t.logger.Debug().Msgf("drop queued message from %s", m.MessageType)
 		default:
 			return
 		}
 	}
 }
 
-func (t *Tss) processKeyGen(errChan chan struct{}, outCh <-chan tss.Message, endCh <-chan keygen.LocalPartySaveData, keyGenLocalStateItem KeygenLocalStateItem) (*crypto.ECPoint, error) {
-	defer t.logger.Info().Msg("finished keygen process")
-	t.logger.Info().Msg("start to read messages from local party")
-	for {
-		select {
-		case <-errChan: // when keyGenParty return
-			t.logger.Error().Msg("key gen failed")
-			return nil, errors.New("error channel closed fail to start local party")
-		case <-t.stopChan: // when TSS processor receive signal to quit
-			return nil, errors.New("received exit signal")
-		case <-time.After(time.Second * KeyGenTimeoutSeconds):
-			// we bail out after KeyGenTimeoutSeconds
-			return nil, fmt.Errorf("fail to finish keygen with in %d seconds", KeyGenTimeoutSeconds)
-		case msg := <-outCh:
-			t.logger.Debug().Msgf(">>>>>>>>>>msg: %s", msg.String())
-			buf, r, err := msg.WireBytes()
-			// if we cannot get the wire share, the tss keygen will fail, we just quit.
-			if nil != err {
-				return nil, fmt.Errorf("fail to get wire bytes: %w", err)
-			}
-			hashOfWireBytes, err := bytesToHashString(buf)
-			if nil != err {
-				return nil, fmt.Errorf("fail to hash the wire bytes generated by tss: %w", err)
-			}
-			wireMsg := WireMessage{
-				MsgType:   TSSMsg,
-				Routing:   r,
-				RoundInfo: msg.Type(),
-				Message:   buf,
-				Hash:      hashOfWireBytes,
-			}
-			wireMsgBytes, err := json.Marshal(wireMsg)
-			if nil != err {
-				return nil, fmt.Errorf("fail to convert tss msg to wire bytes: %w", err)
-			}
-			peerIDs, err := t.getPeerIDs(r.To)
-			if nil != err {
-				t.logger.Error().Err(err).Msg("fail to get peer ids")
-			}
-			if nil == peerIDs {
-				t.logger.Debug().Msgf("broad cast msg to everyone from :%s ", r.From.Id)
-			} else {
-				t.logger.Debug().Msgf("sending message to (%v) from :%s", peerIDs, r.From.Id)
-			}
-			if err := t.comm.Broadcast(peerIDs, wireMsgBytes); nil != err {
-				t.logger.Error().Err(err).Msg("fail to broadcast messages")
-			}
-			// drain the in memory queue
-			// TODO fix it
-			t.drainQueuedMessages()
-		case msg := <-endCh:
-			t.logger.Debug().Msgf("we have done the keygen %s", msg.ECDSAPub.Y().String())
-
-			if err := t.addLocalPartySaveData(msg, keyGenLocalStateItem); nil != err {
-				return nil, fmt.Errorf("fail to save key gen result to local store: %w", err)
-			}
-			return msg.ECDSAPub, nil
-		}
-	}
-}
 func (t *Tss) getPeerIDs(parties []*tss.PartyID) ([]peer.ID, error) {
 	if nil == parties {
 		// broadcast to everyone
@@ -489,7 +252,7 @@ func (t *Tss) addLocalPartySaveData(data keygen.LocalPartySaveData, keyGenLocalS
 	t.logger.Debug().Msgf("pubkey: %s, bnb address: %s", pubKey, addr)
 	keyGenLocalStateItem.PubKey = pubKey
 	keyGenLocalStateItem.LocalData = data
-	localFileName := fmt.Sprintf("localstate-%s.json", pubKey)
+	localFileName := fmt.Sprintf("localstate-%d-%s.json", t.port, pubKey)
 	if len(t.homeBase) > 0 {
 		localFileName = filepath.Join(t.homeBase, localFileName)
 	}
@@ -509,7 +272,9 @@ func (t *Tss) getKeyGenInfo() *TssKeyGenInfo {
 	return t.keyGenInfo
 }
 
-func (t *Tss) drainQueuedMessages() {
+func (t *Tss) processQueuedMessages() {
+	t.logger.Debug().Msg("process queued messages")
+	defer t.logger.Debug().Msg("finished processing queued messages")
 	if len(t.queuedMsgs) == 0 {
 		return
 	}
@@ -520,192 +285,15 @@ func (t *Tss) drainQueuedMessages() {
 	for {
 		select {
 		case m := <-t.queuedMsgs:
-			if false == m.Routing.IsBroadcast {
-				t.updateLocal(m)
-				continue
+			if err := t.processOneMessage(m); nil != err {
+				t.logger.Error().Err(err).Msg("fail to process a message from local queue")
 			}
-			partyID, ok := keyGenInfo.PartyIDMap[m.Routing.From.Id]
-			if partyID.Id == keyGenInfo.Party.PartyID().Id {
-				t.logger.Info().Msgf("we skip myself in drain Queue message")
-				continue
-			}
-			if !ok {
-				t.logger.Error().Msgf("get message from unknown party :%s", partyID)
-				continue
-			}
-			t.cacheMapLock.Lock()
-			msgFrom := m.Routing.From.Id
-			roundInfo := m.RoundInfo
-			value, _ := t.cachedTssMsg[msgFrom+roundInfo]
-			value.Count += 1
-			t.cachedTssMsg[msgFrom+roundInfo] = value
-			if value.Count == len(t.getKeyGenInfo().PartyIDMap)-2 {
-				t.updateLocal(m)
-				t.cacheMapLock.Unlock()
-				continue
-			}
-			t.cacheMapLock.Unlock()
-			t.logger.Debug().Msgf("hash is matched!!:%s", m.Routing.From.Id)
 		default:
 			return
 		}
 	}
 }
 
-// keysign process keysign request
-func (t *Tss) keysign(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
-	}
-	defer func() {
-		if err := r.Body.Close(); nil != err {
-			t.logger.Error().Err(err).Msg("fail to close request body")
-		}
-	}()
-	t.logger.Info().Msg("receive key sign request")
-	decoder := json.NewDecoder(r.Body)
-	var keySignReq KeySignReq
-	if err := decoder.Decode(&keySignReq); nil != err {
-		t.logger.Error().Err(err).Msg("fail to decode key sign request")
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-	if t.getKeyGenInfo() != nil {
-		t.logger.Error().Msg("another tss key sign is in progress")
-		t.writeKeySignResult(w, "", "", Fail)
-		return
-	}
-	signatureData, err := t.signMessage(keySignReq)
-	if nil != err {
-		t.logger.Error().Err(err).Msg("fail to sign message")
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	if nil == signatureData {
-		t.writeKeySignResult(w, "", "", NA)
-	} else {
-		t.writeKeySignResult(w, base64.StdEncoding.EncodeToString(signatureData.R), base64.StdEncoding.EncodeToString(signatureData.S), Success)
-	}
-}
-
-func (t *Tss) writeKeySignResult(w http.ResponseWriter, R, S string, status Status) {
-	signResp := KeySignResp{
-		R:      R,
-		S:      S,
-		Status: Success,
-	}
-	jsonResult, err := json.MarshalIndent(signResp, "", "	")
-	if nil != err {
-		t.logger.Error().Err(err).Msg("fail to marshal response to json message")
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	_, err = w.Write(jsonResult)
-	if nil != err {
-		t.logger.Error().Err(err).Msg("fail to write response")
-	}
-}
-
-// signMessage
-func (t *Tss) signMessage(req KeySignReq) (*signing.SignatureData, error) {
-	t.tssLock.Lock()
-	defer t.tssLock.Unlock()
-	localFileName := fmt.Sprintf("localstate-%s.json", req.PoolPubKey)
-	if len(t.homeBase) > 0 {
-		localFileName = filepath.Join(t.homeBase, localFileName)
-	}
-	storedKeyGenLocalStateItem, err := LoadLocalState(localFileName)
-	if nil != err {
-		return nil, fmt.Errorf("fail to read local state file: %w", err)
-	}
-	if nil != err {
-		return nil, fmt.Errorf("fail to get keygen state data for pubkey(%s): %w", req.PoolPubKey, err)
-	}
-	msgToSign, err := base64.StdEncoding.DecodeString(req.Message)
-	if nil != err {
-		return nil, fmt.Errorf("fail to decode message(%s): %w", req.Message, err)
-	}
-	threshold, err := getThreshold(len(storedKeyGenLocalStateItem.ParticipantKeys))
-	if nil != err {
-		return nil, err
-	}
-	partiesID, localPartyID, err := t.getParties(storedKeyGenLocalStateItem.ParticipantKeys, storedKeyGenLocalStateItem.LocalPartyKey, false)
-	if nil != err {
-		return nil, fmt.Errorf("fail to form key sign party: %w", err)
-	}
-	if !contains(partiesID, localPartyID) {
-		t.logger.Info().Msgf("we are not in this rounds key sign")
-		return nil, nil
-	}
-	localKeyData, partiesID := ProcessStateFile(storedKeyGenLocalStateItem, partiesID)
-	// Set up the parameters
-	// Note: The `id` and `moniker` fields are for convenience to allow you to easily track participants.
-	// The `id` should be a unique string representing this party in the network and `moniker` can be anything (even left blank).
-	// The `uniqueKey` is a unique identifying key for this peer (such as its p2p public key) as a big.Int.
-	t.logger.Debug().Msgf("local party: %s", localPartyID.Id)
-	ctx := tss.NewPeerContext(partiesID)
-	params := tss.NewParameters(ctx, localPartyID, len(partiesID), threshold)
-	outCh := make(chan tss.Message, len(partiesID))
-	endCh := make(chan signing.SignatureData, len(partiesID))
-	errCh := make(chan struct{})
-	m, err := msgToHashInt(msgToSign)
-	if nil != err {
-		return nil, fmt.Errorf("fail to convert msg to hash int: %w", err)
-	}
-	keySignParty := signing.NewLocalParty(m, params, localKeyData, outCh, endCh)
-	partyIDMap := make(map[string]*tss.PartyID)
-	for _, id := range partiesID {
-		partyIDMap[id.Id] = id
-	}
-
-	defer func() {
-		t.setKeyGenInfo(nil)
-	}()
-
-	go func() {
-		if err := keySignParty.Start(); nil != err {
-			t.logger.Error().Err(err).Msg("fail to start key sign party")
-			close(errCh)
-		}
-		t.setKeyGenInfo(&TssKeyGenInfo{
-			Party:      keySignParty,
-			PartyIDMap: partyIDMap,
-		})
-	}()
-
-	defer t.emptyQueuedMessages()
-	result, err := t.processKeySign(errCh, outCh, endCh)
-	if nil != err {
-		return nil, fmt.Errorf("fail to process key sign: %w", err)
-	}
-	t.logger.Info().Msg("successfully sign the message")
-	return result, nil
-}
-
-func msgToHashInt(msg []byte) (*big.Int, error) {
-	h := sha256.New()
-	_, err := h.Write(msg)
-	if nil != err {
-		return nil, fmt.Errorf("fail to caculate sha256 hash: %w", err)
-	}
-	return hashToInt(h.Sum(nil), btcec.S256()), nil
-}
-
-func hashToInt(hash []byte, c elliptic.Curve) *big.Int {
-	orderBits := c.Params().N.BitLen()
-	orderBytes := (orderBits + 7) / 8
-	if len(hash) > orderBytes {
-		hash = hash[:orderBytes]
-	}
-
-	ret := new(big.Int).SetBytes(hash)
-	excess := len(hash)*8 - orderBits
-	if excess > 0 {
-		ret.Rsh(ret, uint(excess))
-	}
-	return ret
-}
 func bytesToHashString(msg []byte) (string, error) {
 	h := sha256.New()
 	_, err := h.Write(msg)
@@ -713,63 +301,6 @@ func bytesToHashString(msg []byte) (string, error) {
 		return "", fmt.Errorf("fail to caculate sha256 hash: %w", err)
 	}
 	return hex.EncodeToString(h.Sum(nil)), nil
-}
-func (t *Tss) processKeySign(errChan chan struct{}, outCh <-chan tss.Message, endCh <-chan signing.SignatureData) (*signing.SignatureData, error) {
-	defer t.logger.Info().Msg("key sign finished")
-	t.logger.Info().Msg("start to read messages from local party")
-	for {
-		select {
-		case <-errChan: // when keyGenParty return
-			t.logger.Error().Msg("key sign failed")
-			return nil, errors.New("error channel closed fail to start local party")
-		case <-t.stopChan: // when TSS processor receive signal to quit
-			return nil, errors.New("received exit signal")
-		case <-time.After(time.Second * KeySignTimeoutSeconds):
-			// we bail out after KeyGenTimeoutSeconds
-			return nil, fmt.Errorf("fail to sign message with in %d seconds", KeySignTimeoutSeconds)
-		case msg := <-outCh:
-			t.logger.Debug().Msgf(">>>>>>>>>>key sign msg: %s", msg.String())
-			buf, r, err := msg.WireBytes()
-			if nil != err {
-				t.logger.Error().Err(err).Msg("fail to get wire bytes")
-				continue
-			}
-			tssMsg := TssMessage{
-				Routing:   r,
-				RoundInfo: msg.Type(),
-				Message:   buf,
-			}
-			wireBytes, err := json.Marshal(tssMsg)
-			if nil != err {
-				return nil, fmt.Errorf("fail to convert tss msg to wire bytes: %w", err)
-			}
-			thorMsg := ThorMsg{
-				TssMsg,
-				wireBytes,
-			}
-			thorMsgBytes, err := json.Marshal(thorMsg)
-			if nil != err {
-				return nil, fmt.Errorf("fail to convert tss msg to wire bytes: %w", err)
-			}
-			peers, err := t.getPeerIDs(r.To)
-			if nil != err {
-				t.logger.Error().Err(err).Msg("fail to get peer ids")
-			}
-			if nil == peers {
-				t.logger.Debug().Msgf("broad cast msg to everyone from :%s ", r.From.Id)
-			} else {
-				t.logger.Debug().Msgf("sending message to (%v) from :%s", peers, r.From.Id)
-			}
-			if err := t.comm.Broadcast(peers, thorMsgBytes); nil != err {
-				t.logger.Error().Err(err).Msg("fail to broadcast messages")
-			}
-			// drain the in memory queue
-			t.drainQueuedMessages()
-		case msg := <-endCh:
-			t.logger.Debug().Msg("we have done the key sign")
-			return &msg, nil
-		}
-	}
 }
 
 func ping() http.Handler {
@@ -817,6 +348,8 @@ func (t *Tss) Start(ctx context.Context) error {
 
 	t.wg.Add(1)
 	go t.processComm()
+	t.wg.Add(1)
+	go t.processBroadcastChannel()
 	err = t.server.ListenAndServe()
 	t.wg.Wait()
 	if err != nil && err != http.ErrServerClosed {
@@ -827,59 +360,25 @@ func (t *Tss) Start(ctx context.Context) error {
 	return nil
 }
 
-func (t *Tss) updateLocal(tssMsg TssMessage) {
-	keyGenInfo := t.getKeyGenInfo()
-	if keyGenInfo == nil {
-		t.logger.Debug().Msg("queue the message in updatelocal")
-	}
-
-	partyID, ok := keyGenInfo.PartyIDMap[tssMsg.Routing.From.Id]
-	if !ok {
-		t.logger.Error().Msgf("get message from unknown party %s\n", partyID.Id)
-	}
-	if _, err := keyGenInfo.Party.UpdateFromBytes(tssMsg.Message, partyID, tssMsg.Routing.IsBroadcast); nil != err {
-		t.logger.Error().Err(err).Msgf("fail to update from bytes,party ID: %s", partyID)
-	}
-}
-
-func (t *Tss) doHashCheck(msgFrom string, verMsg *MsgWithVer, roundInfo string) {
-	value, ok := t.cachedTssMsg[msgFrom+roundInfo]
-	if !ok {
-		t.logger.Info().Msgf("the Tss is not ready for check")
-		return
-	}
-	t.cacheMapLock.Lock()
-	defer t.cacheMapLock.Unlock()
-	var VerMsgCheckPool []MsgWithVer
-	if nil != verMsg {
-		VerMsgCheckPool = append(VerMsgCheckPool, *verMsg)
-	}
-	for index, each := range t.cachedHash {
-		if each.TssMsg.Routing.From.Id == msgFrom && each.TssMsg.RoundInfo == roundInfo {
-			VerMsgCheckPool = append(VerMsgCheckPool, each)
-			t.cachedHash[index].TssMsg.RoundInfo = "None"
-		}
-	}
-	if len(VerMsgCheckPool) == 0 {
-		return
-	}
-	for _, each := range VerMsgCheckPool {
-		//we check the hash of the received message
-		if value.Data == each.HashVal {
-			value.Count += 1
-			t.cachedTssMsg[msgFrom+roundInfo] = value
-			keyGenInfo := t.getKeyGenInfo()
-			if nil == keyGenInfo {
-				t.logger.Info().Msg("queue the message")
-				t.queuedMsgs <- each.TssMsg
+func (t *Tss) processBroadcastChannel() {
+	t.logger.Info().Msg("start to process broadcast message channel")
+	defer t.logger.Info().Msg("stop process broadcast message channel")
+	defer t.wg.Done()
+	for {
+		select {
+		case <-t.stopChan:
+			return // time to stop
+		case msg := <-t.broadcastChannel:
+			wireMsgBytes, err := json.Marshal(msg)
+			if nil != err {
+				t.logger.Error().Err(err).Msg("fail to marshal a wrapped message to json bytes")
 				continue
 			}
-			if value.Count == len(t.getKeyGenInfo().PartyIDMap)-2 {
-				t.updateLocal(each.TssMsg)
+
+			t.logger.Debug().Msgf("broadcast message %s to all", msg.MessageType)
+			if err := t.comm.Broadcast(nil, wireMsgBytes); nil != err {
+				t.logger.Error().Err(err).Msg("fail to broadcast confirm message to all other parties")
 			}
-		} else {
-			t.logger.Warn().Msgf("error in check the hash of message>>>>!!")
-			return
 		}
 	}
 }
@@ -894,96 +393,35 @@ func (t *Tss) processComm() {
 		case <-t.stopChan:
 			return // time to stop
 		case m := <-t.comm.messages:
-			var wireMsg WireMessage
-			if err := json.Unmarshal(m.Payload, &wireMsg); nil != err {
-				t.logger.Error().Err(err).Msgf("fail to unmarshal wire bytes")
+			var wrappedMsg WrappedMessage
+			if err := json.Unmarshal(m.Payload, &wrappedMsg); nil != err {
+				t.logger.Error().Err(err).Msg("fail to unmarshal wrapped message bytes")
 				continue
 			}
-			switch wireMsg.MsgType {
-			case TSSMsg:
-
-				if wireMsg.Routing.IsBroadcast {
-					msgByte := tssMsg.Message
-					h := sha256.New()
-					_, err := h.Write(msgByte)
-					if nil != err {
-						t.logger.Error().Msgf("error in generate message hash\n")
-						continue
-					}
-					hashMsg := h.Sum(nil)
-					msg := MsgWithVer{
-						hex.EncodeToString(hashMsg),
-						tssMsg,
-					}
-					wiredBytes, err := json.Marshal(msg)
-					if nil != err {
-						t.logger.Error().Err(err).Msgf("fail to marsh wire bytes")
-						continue
-					}
-					cachedHash := CachedHashWithCount{
-						hex.EncodeToString(hashMsg),
-						tssMsg.RoundInfo,
-						0,
-					}
-					t.cacheMapLock.Lock()
-					t.cachedTssMsg[tssMsg.Routing.From.Id+tssMsg.RoundInfo] = cachedHash
-					t.cacheMapLock.Unlock()
-
-					thorMsg := ThorMsg{
-						VerMsg,
-						wiredBytes,
-					}
-					thorMsgBytes, err := json.Marshal(thorMsg)
-					if nil != err {
-						t.logger.Error().Err(err).Msgf("fail to marsh wire bytes")
-						continue
-					}
-					if err := t.comm.Broadcast(nil, thorMsgBytes); nil != err {
-						t.logger.Error().Err(err).Msg("fail to broadcast messages")
-					}
-					t.doHashCheck(tssMsg.Routing.From.Id, nil, tssMsg.RoundInfo)
-				} else {
-					keyGenInfo := t.getKeyGenInfo()
-					if nil == keyGenInfo {
-						t.logger.Debug().Msg("queue the message")
-						t.queuedMsgs <- tssMsg
-						continue
-					}
-					t.updateLocal(tssMsg)
-				}
-			case VerMsg:
-				var verMsg MsgWithVer
-				if err := json.Unmarshal(thorMsg.Msg, &verMsg); nil != err {
-					t.logger.Error().Err(err).Msgf("fail to unmarshal wire bytes")
-					continue
-				}
-				msgFrom := verMsg.TssMsg.Routing.From.Id
-				keyGenInfo := t.getKeyGenInfo()
-				if nil == keyGenInfo {
-					t.logger.Info().Msg("queue the message")
-					t.queuedMsgs <- verMsg.TssMsg
-					continue
-				}
-				if msgFrom == keyGenInfo.Party.PartyID().Id {
-					t.logger.Info().Msgf("received my own message skip it")
-					continue
-				}
-
-				_, ok := t.cachedTssMsg[msgFrom+verMsg.TssMsg.RoundInfo]
-				//we receive the signature before receiving the message
-				if !ok {
-					t.logger.Info().Msgf("we received something we haven't cached!!")
-					t.cachedHash = append(t.cachedHash, verMsg)
-					continue
-				}
-				t.doHashCheck(msgFrom, &verMsg, verMsg.TssMsg.RoundInfo)
-			default:
-				t.logger.Info().Msgf("unknown message type")
-				continue
+			if err := t.processOneMessage(&wrappedMsg); nil != err {
+				t.logger.Error().Err(err).Msg("fail to process message")
 			}
-
 		}
 	}
+}
+
+// updateLocal will apply the wireMsg to local keygen/keysign party
+func (t *Tss) updateLocal(wireMsg *WireMessage) error {
+	if nil == wireMsg {
+		t.logger.Warn().Msg("wire msg is nil")
+	}
+	keyGenInfo := t.getKeyGenInfo()
+	if keyGenInfo == nil {
+		return nil
+	}
+	partyID, ok := keyGenInfo.PartyIDMap[wireMsg.Routing.From.Id]
+	if !ok {
+		return fmt.Errorf("get message from unknown party %s", partyID.Id)
+	}
+	if _, err := keyGenInfo.Party.UpdateFromBytes(wireMsg.Message, partyID, wireMsg.Routing.IsBroadcast); nil != err {
+		return fmt.Errorf("fail to set bytes to local party: %w", err)
+	}
+	return nil
 }
 
 func (t *Tss) isLocalPartyReady() bool {
@@ -993,24 +431,152 @@ func (t *Tss) isLocalPartyReady() bool {
 	}
 	return true
 }
-func (t *Tss) processOneMessage(wireMsg *WireMessage) error {
-	if nil == wireMsg {
+
+func (t *Tss) processOneMessage(wrappedMsg *WrappedMessage) error {
+	t.logger.Debug().Msg("start process one message")
+	defer t.logger.Debug().Msg("finish processing one message")
+	if nil == wrappedMsg {
 		return errors.New("invalid wireMessage")
 	}
 	if !t.isLocalPartyReady() {
 		// local part is not ready , the tss node might not receive keygen request yet, Let's queue the message
-		t.queuedMsgs <- wireMsg
+		t.logger.Debug().Msg("local party is not ready,queue it")
+		t.queuedMsgs <- wrappedMsg
+		return nil
 	}
-	switch wireMsg.MsgType {
+	switch wrappedMsg.MessageType {
 	case TSSMsg:
+		var wireMsg WireMessage
+		if err := json.Unmarshal(wrappedMsg.Payload, &wireMsg); nil != err {
+			return fmt.Errorf("fail to unmarshal wire message: %w", err)
+		}
+		return t.processTSSMsg(&wireMsg)
 	case VerMsg:
+		var bMsg BroadcastConfirmMessage
+		if err := json.Unmarshal(wrappedMsg.Payload, &bMsg); nil != err {
+			return fmt.Errorf("fail to unmarshal broadcast confirm message")
+		}
+		return t.processVerMsg(&bMsg)
 	}
 	return nil
 }
 
+func (t *Tss) processVerMsg(broadcastConfirmMsg *BroadcastConfirmMessage) error {
+	t.logger.Debug().Msg("process ver msg")
+	defer t.logger.Debug().Msg("finish process ver msg")
+	if nil == broadcastConfirmMsg {
+		return nil
+	}
+	keyGenInfo := t.getKeyGenInfo()
+	if nil == keyGenInfo {
+		return errors.New("can't process ver msg , local party is not ready")
+	}
+	key := broadcastConfirmMsg.Key
+	localCacheItem := t.tryGetLocalCacheItem(key)
+	if nil == localCacheItem {
+		// we didn't receive the TSS Message yet
+		localCacheItem = &LocalCacheItem{
+			Msg:           nil,
+			Hash:          broadcastConfirmMsg.Hash,
+			lock:          &sync.Mutex{},
+			ConfirmedList: make(map[string]string),
+		}
+		t.updateLocalUnconfirmedMessages(key, localCacheItem)
+	}
+	localCacheItem.UpdateConfirmList(broadcastConfirmMsg.PartyID, broadcastConfirmMsg.Hash)
+	t.logger.Info().Msgf("total confirmed parties:%+v", localCacheItem.ConfirmedList)
+	if localCacheItem.TotalConfirmParty() == (len(keyGenInfo.PartyIDMap)-1) && localCacheItem.Msg != nil {
+		if err := t.updateLocal(localCacheItem.Msg); nil != err {
+			return fmt.Errorf("fail to update the message to local party: %w", err)
+		}
+		// the information had been confirmed by all party , we don't need it anymore
+		t.removeKey(key)
+	}
+	return nil
+}
+
+// processTSSMsg
 func (t *Tss) processTSSMsg(wireMsg *WireMessage) error {
+	t.logger.Debug().Msg("process wire message")
+	defer t.logger.Debug().Msg("finish process wire message")
 	// we only update it local party
 	if !wireMsg.Routing.IsBroadcast {
-
+		t.logger.Debug().Msgf("msg from %s to %+v", wireMsg.Routing.From, wireMsg.Routing.To)
+		return t.updateLocal(wireMsg)
 	}
+	// broadcast message , we save a copy locally , and then tell all others what we got
+	msgHash, err := bytesToHashString(wireMsg.Message)
+	if nil != err {
+		return fmt.Errorf("fail to calculate hash of the wire message: %w", err)
+	}
+	keyGenInfo := t.getKeyGenInfo()
+	key := wireMsg.GetCacheKey()
+	localPartyID := keyGenInfo.Party.PartyID().Id
+	broadcastConfirmMsg := &BroadcastConfirmMessage{
+		PartyID: localPartyID,
+		Key:     key,
+		Hash:    msgHash,
+	}
+	localCacheItem := t.tryGetLocalCacheItem(key)
+	if nil == localCacheItem {
+		t.logger.Debug().Msgf("++%s doesn't exist yet,add a new one", key)
+		localCacheItem = &LocalCacheItem{
+			Msg:           wireMsg,
+			Hash:          msgHash,
+			lock:          &sync.Mutex{},
+			ConfirmedList: make(map[string]string),
+		}
+		t.updateLocalUnconfirmedMessages(key, localCacheItem)
+	} else {
+		// this means we received the broadcast confirm message from other party first
+		t.logger.Debug().Msgf("==%s exist", key)
+		if localCacheItem.Msg == nil {
+			t.logger.Debug().Msgf("==%s exist, set message", key)
+			localCacheItem.Msg = wireMsg
+			localCacheItem.Hash = msgHash
+		}
+	}
+	localCacheItem.UpdateConfirmList(localPartyID, msgHash)
+	if localCacheItem.TotalConfirmParty() == (len(keyGenInfo.PartyIDMap) - 1) {
+		if err := t.updateLocal(localCacheItem.Msg); nil != err {
+			return fmt.Errorf("fail to update the message to local party: %w", err)
+		}
+	}
+	buf, err := json.Marshal(broadcastConfirmMsg)
+	if nil != err {
+		return fmt.Errorf("fail to marshal borad cast confirm message: %w", err)
+	}
+	t.logger.Debug().Msg("broadcast VerMsg to all other parties")
+	select {
+	case t.broadcastChannel <- &WrappedMessage{
+		MessageType: VerMsg,
+		Payload:     buf,
+	}:
+		return nil
+	case <-t.stopChan:
+		// time to stop
+		return nil
+	}
+}
+
+func (t *Tss) tryGetLocalCacheItem(key string) *LocalCacheItem {
+	t.unConfirmedMsgLock.Lock()
+	defer t.unConfirmedMsgLock.Unlock()
+	localCacheItem, ok := t.unConfirmedMessages[key]
+	if !ok {
+		return nil
+	}
+	return localCacheItem
+}
+
+func (t *Tss) updateLocalUnconfirmedMessages(key string, cacheItem *LocalCacheItem) {
+	t.unConfirmedMsgLock.Lock()
+	defer t.unConfirmedMsgLock.Unlock()
+	t.unConfirmedMessages[key] = cacheItem
+}
+
+func (t *Tss) removeKey(key string) {
+	t.unConfirmedMsgLock.Lock()
+	defer t.unConfirmedMsgLock.Unlock()
+	delete(t.unConfirmedMessages, key)
 }
