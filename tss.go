@@ -158,7 +158,7 @@ func getPriKeyRawBytes(priKey cryptokey.PrivKey) ([]byte, error) {
 // NewHandler registers the API routes and returns a new HTTP handler
 func (t *Tss) newHandler(verbose bool) http.Handler {
 	router := mux.NewRouter()
-	router.Handle("/ping", ping()).Methods(http.MethodGet)
+	router.Handle("/ping", http.HandlerFunc(t.ping)).Methods(http.MethodGet)
 	router.Handle("/keygen", http.HandlerFunc(t.keygen)).Methods(http.MethodPost)
 	router.Handle("/keysign", http.HandlerFunc(t.keysign)).Methods(http.MethodPost)
 	router.Handle("/p2pid", http.HandlerFunc(t.getP2pID)).Methods(http.MethodGet)
@@ -705,11 +705,11 @@ func (t *Tss) processKeySign(errChan chan struct{}, outCh <-chan tss.Message, en
 	}
 }
 
-func ping() http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
+func (t *Tss) ping(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	return
 }
+
 func logMiddleware(verbose bool) mux.MiddlewareFunc {
 	return func(handler http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -751,11 +751,11 @@ func (t *Tss) Start(ctx context.Context) error {
 	t.wg.Add(1)
 	go t.processComm()
 	err = t.server.ListenAndServe()
-	t.wg.Wait()
 	if err != nil && err != http.ErrServerClosed {
 		log.Error().Err(err).Int("port", t.port).Msg("Failed to start the HTTP server")
 		return err
 	}
+	t.wg.Wait()
 	log.Info().Int("port", t.port).Msg("The HTTP server has been stopped successfully")
 	return nil
 }
