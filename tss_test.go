@@ -41,6 +41,30 @@ func setupTssForTest(c *C) *Tss {
 	return tss
 }
 
+func (t *TssTestSuite) TestTssReusePort(c *C) {
+	tss1, err := NewTss(nil, 6660, 8080, []byte(testPriKey), "")
+	c.Assert(err, IsNil)
+	c.Assert(err, IsNil)
+	wg := sync.WaitGroup{}
+	ctx, cancel := context.WithCancel(context.Background())
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		err = tss1.Start(ctx)
+		c.Assert(err, IsNil)
+	}()
+	_, err = retryablehttp.Get("http://127.0.0.1:8080/ping")
+	c.Assert(err, IsNil)
+	tss2, err := NewTss(nil, 6661, 8080, []byte(testPriKey), "")
+	ctx2, cancel2 := context.WithCancel(context.Background())
+	err = tss2.Start(ctx2)
+	c.Assert(err.Error() == "listen tcp :8080: bind: address already in use", Equals, true)
+	cancel2()
+	cancel()
+	wg.Wait()
+}
+
 func (t *TssTestSuite) TestNewTss(c *C) {
 	tss, err := NewTss(nil, 6668, 12345, []byte(testPriKey), "")
 	c.Assert(err, IsNil)
@@ -127,12 +151,12 @@ func (t *TssTestSuite) TestMsgToHashInt(c *C) {
 func (t *TssTestSuite) TestgetThreshold(c *C) {
 	_, err := getThreshold(-2)
 	c.Assert(err, NotNil)
-	output, err:=getThreshold(4)
-	c.Assert(output,Equals, 2)
-	output, err =getThreshold(9)
-	c.Assert(output,Equals, 5)
-	output, err =getThreshold(10)
-	c.Assert(output,Equals, 6)
-	output, err =getThreshold(99)
-	c.Assert(output,Equals, 65)
+	output, err := getThreshold(4)
+	c.Assert(output, Equals, 2)
+	output, err = getThreshold(9)
+	c.Assert(output, Equals, 5)
+	output, err = getThreshold(10)
+	c.Assert(output, Equals, 6)
+	output, err = getThreshold(99)
+	c.Assert(output, Equals, 65)
 }
