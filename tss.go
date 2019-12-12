@@ -33,7 +33,7 @@ import (
 	"github.com/tendermint/btcd/btcec"
 	cryptokey "github.com/tendermint/tendermint/crypto"
 	"github.com/tendermint/tendermint/crypto/secp256k1"
-	"gitlab.com/thorchain/bepswap/thornode/cmd"
+	"gitlab.com/thorchain/thornode/cmd"
 )
 
 const (
