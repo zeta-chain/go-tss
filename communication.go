@@ -58,18 +58,23 @@ func NewCommunication(rendezvous string, bootstrapPeers []maddr.Multiaddr, port 
 		wg:             &sync.WaitGroup{},
 		stopchan:       make(chan struct{}),
 		streamCount:    0,
-		messages:       make(chan *Message,1024),
+		messages:       make(chan *Message),
 	}, nil
 }
 
-// GetLocalPeerID
+// GetLocalPeerID from p2p host
 func (c *Communication) GetLocalPeerID() string {
 	return c.host.ID().String()
 }
 
-const LengthHeader = 4
-const MaxPayload = 81920 // 80kb
-const TimeoutInSecs = 10
+const (
+	// LengthHeader represent how many bytes we used as header
+	LengthHeader = 4
+	// MaxPayload the maximum payload for a message
+	MaxPayload = 81920 // 80kb
+	// TimeoutInSecs maximum time to wait on read and write
+	TimeoutInSecs = 10
+)
 
 // Broadcast message to Peers
 func (c *Communication) Broadcast(peers []peer.ID, msg []byte) error {
@@ -330,7 +335,7 @@ func (c *Communication) Start(priKeyBytes []byte) error {
 	return c.startChannel(priKeyBytes)
 }
 
-// Stop
+// Stop communication
 func (c *Communication) Stop() error {
 	close(c.stopchan)
 	c.wg.Wait()
