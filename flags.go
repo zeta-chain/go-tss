@@ -4,7 +4,6 @@ import (
 	"flag"
 	"strings"
 
-	dht "github.com/libp2p/go-libp2p-kad-dht"
 	maddr "github.com/multiformats/go-multiaddr"
 )
 
@@ -41,10 +40,5 @@ func ParseFlags() (Config, error) {
 	flag.Var(&config.BootstrapPeers, "peer", "Adds a peer multiaddress to the bootstrap list")
 	flag.IntVar(&config.Port, "port", 6668, "listening port local")
 	flag.Parse()
-
-	if len(config.BootstrapPeers) == 0 {
-		config.BootstrapPeers = dht.DefaultBootstrapPeers
-	}
-
 	return config, nil
 }
