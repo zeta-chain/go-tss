@@ -29,6 +29,8 @@ lint_code:
 build-docker:
   stage: build
   image: docker:stable
+  only:
+    - master
   services:
     - docker:dind
   variables:

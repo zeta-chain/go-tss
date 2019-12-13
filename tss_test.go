@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
-	"github.com/binance-chain/tss-lib/tss"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"sync"
 	"testing"
+
+	"github.com/binance-chain/tss-lib/tss"
 
 	"github.com/hashicorp/go-retryablehttp"
 	// "bytes"
@@ -40,6 +41,30 @@ func setupTssForTest(c *C) *Tss {
 	c.Assert(err, IsNil)
 	c.Assert(tss, NotNil)
 	return tss
+}
+
+func (t *TssTestSuite) TestTssReusePort(c *C) {
+	tss1, err := NewTss(nil, 6660, 8080, []byte(testPriKey), "")
+	c.Assert(err, IsNil)
+	c.Assert(err, IsNil)
+	wg := sync.WaitGroup{}
+	ctx, cancel := context.WithCancel(context.Background())
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		err = tss1.Start(ctx)
+		c.Assert(err, IsNil)
+	}()
+	_, err = retryablehttp.Get("http://127.0.0.1:8080/ping")
+	c.Assert(err, IsNil)
+	tss2, err := NewTss(nil, 6661, 8080, []byte(testPriKey), "")
+	ctx2, cancel2 := context.WithCancel(context.Background())
+	err = tss2.Start(ctx2)
+	c.Assert(err.Error() == "listen tcp :8080: bind: address already in use", Equals, true)
+	cancel2()
+	cancel()
+	wg.Wait()
 }
 
 func (t *TssTestSuite) TestNewTss(c *C) {
