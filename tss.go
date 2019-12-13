@@ -26,7 +26,7 @@ import (
 	"github.com/rs/zerolog/log"
 	cryptokey "github.com/tendermint/tendermint/crypto"
 	"github.com/tendermint/tendermint/crypto/secp256k1"
-	"gitlab.com/thorchain/bepswap/thornode/cmd"
+	"gitlab.com/thorchain/thornode/cmd"
 )
 
 const (
