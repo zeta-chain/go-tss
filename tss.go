@@ -403,6 +403,7 @@ func (t *Tss) processKeyGen(errChan chan struct{}, outCh <-chan tss.Message, end
 			if nil != err {
 				return nil, fmt.Errorf("fail to convert tss msg to wire bytes: %w", err)
 			}
+
 			peerIDs, err := t.getPeerIDs(r.To)
 			if nil != err {
 				t.logger.Error().Err(err).Msg("fail to get peer ids")
@@ -429,21 +430,40 @@ func (t *Tss) processKeyGen(errChan chan struct{}, outCh <-chan tss.Message, end
 }
 func (t *Tss) getPeerIDs(parties []*tss.PartyID) ([]peer.ID, error) {
 	if nil == parties {
-		// broadcast to everyone
-		return nil, nil
+		return t.getAllPartyPeerIDs()
 	}
 	var result []peer.ID
 	for _, item := range parties {
-		pkBytes := item.KeyInt().Bytes()
-		var pk secp256k1.PubKeySecp256k1
-		copy(pk[:], pkBytes)
-		peerid, err := getPeerIDFromSecp256PubKey(pk)
+		peerID, err := getPeerIDFromPartyID(item)
 		if nil != err {
 			return nil, fmt.Errorf("fail to get peer id from pub key")
 		}
-		result = append(result, peerid)
+		result = append(result, peerID)
 	}
 	return result, nil
+}
+
+func (t *Tss) getAllPartyPeerIDs() ([]peer.ID, error) {
+	var result []peer.ID
+	keyGenInfo := t.getKeyGenInfo()
+	if nil == keyGenInfo {
+		return nil, fmt.Errorf("fail to get keygen info")
+	}
+	for _, item := range keyGenInfo.PartyIDMap {
+		peerID, err := getPeerIDFromPartyID(item)
+		if nil != err {
+			return nil, fmt.Errorf("fail to get peer id from pub key")
+		}
+		result = append(result, peerID)
+	}
+	return result, nil
+}
+
+func getPeerIDFromPartyID(partyID *tss.PartyID) (peer.ID, error) {
+	pkBytes := partyID.KeyInt().Bytes()
+	var pk secp256k1.PubKeySecp256k1
+	copy(pk[:], pkBytes)
+	return getPeerIDFromSecp256PubKey(pk)
 }
 
 func (t *Tss) addLocalPartySaveData(data keygen.LocalPartySaveData, keyGenLocalStateItem KeygenLocalStateItem) error {
