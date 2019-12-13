@@ -36,7 +36,7 @@ func (t *Tss) keygen(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if t.getKeyGenInfo() != nil {
+	if t.getPartyInfo() != nil {
 		t.logger.Debug().Msg("another keygen is already in progress")
 		resp := KeyGenResp{
 			PubKey: "",
@@ -90,6 +90,7 @@ func (t *Tss) keygen(w http.ResponseWriter, r *http.Request) {
 		t.logger.Error().Err(err).Msg("fail to write to response")
 	}
 }
+
 func (t *Tss) generateNewKey(keygenReq KeyGenReq) (*crypto.ECPoint, error) {
 	t.tssLock.Lock()
 	defer t.tssLock.Unlock()
@@ -117,16 +118,16 @@ func (t *Tss) generateNewKey(keygenReq KeyGenReq) (*crypto.ECPoint, error) {
 	errChan := make(chan struct{})
 	keyGenParty := keygen.NewLocalParty(params, outCh, endCh, *t.preParams)
 
-	// You should keep a local mapping of `id` strings to `*PartyID` instances so that an incoming message can have its origin party's `*PartyID` recovered for passing to `UpdateFromBytes` (see below)
-	partyIDMap := make(map[string]*btss.PartyID)
-	for _, id := range partiesID {
-		partyIDMap[id.Id] = id
-	}
-
+	partyIDMap := setupPartyIDMap(partiesID)
 	defer func() {
-		t.setKeyGenInfo(nil)
+		t.setPartyInfo(nil)
 	}()
 
+	err = t.setupIDMaps(partyIDMap)
+	if nil != err{
+		t.logger.Error().Msgf("error in creating mapping between partyID and P2P ID")
+		return nil, err
+	}
 	// start keygen
 	go func() {
 		defer t.logger.Info().Msg("keyGenParty finished")
@@ -135,14 +136,14 @@ func (t *Tss) generateNewKey(keygenReq KeyGenReq) (*crypto.ECPoint, error) {
 			close(errChan)
 			return
 		}
-		t.setKeyGenInfo(&TssKeyGenInfo{
+		t.setPartyInfo(&PartyInfo{
 			Party:      keyGenParty,
 			PartyIDMap: partyIDMap,
 		})
 
 	}()
 
-	defer t.emptyQueuedMessages(t.keygenQueuedMsgs)
+	defer t.emptyQueuedMessages(t.keyGenQueuedMsgs)
 	r, err := t.processKeyGen(errChan, outCh, endCh, keyGenLocalStateItem)
 	if nil != err {
 		t.logger.Error().Err(err).Msg("fail to complete keygen")
@@ -175,42 +176,12 @@ func (t *Tss) processKeyGen(errChan chan struct{}, outCh <-chan btss.Message, en
 			return nil, fmt.Errorf("fail to finish keygen with in %d seconds", KeyGenTimeoutSeconds)
 		case msg := <-outCh:
 			t.logger.Debug().Msgf(">>>>>>>>>>msg: %s", msg.String())
-			buf, r, err := msg.WireBytes()
-			// if we cannot get the wire share, the tss keygen will fail, we just quit.
-			if nil != err {
-				return nil, fmt.Errorf("fail to get wire bytes: %w", err)
+			err := t.processOutCh(msg, TSSKeyGenMsg)
+			if nil != err{
+				return nil, err
+			}else{
+				continue
 			}
-			wireMsg := WireMessage{
-				Routing:   r,
-				RoundInfo: msg.Type(),
-				Message:   buf,
-			}
-			wireMsgBytes, err := json.Marshal(wireMsg)
-			if nil != err {
-				return nil, fmt.Errorf("fail to convert tss msg to wire bytes: %w", err)
-			}
-			wrappedMsg := &WrappedMessage{
-				MessageType: TSSKeyGenMsg,
-				Payload:     wireMsgBytes,
-			}
-			wrappedMsgBytes, err := json.Marshal(wrappedMsg)
-			if nil != err {
-				return nil, fmt.Errorf("fail to marshal wrapped message to bytes: %w", err)
-			}
-			peerIDs, err := t.getPeerIDs(r.To)
-			if nil != err {
-				t.logger.Error().Err(err).Msg("fail to get peer ids")
-			}
-			if nil == peerIDs {
-				t.logger.Debug().Msgf("broad cast msg to everyone from :%s ", r.From.Id)
-			} else {
-				t.logger.Debug().Msgf("sending message to (%v) from :%s", peerIDs, r.From.Id)
-			}
-			if err := t.comm.Broadcast(peerIDs, wrappedMsgBytes); nil != err {
-				t.logger.Error().Err(err).Msg("fail to broadcast messages")
-			}
-			// drain the in memory queue
-			t.processQueuedMessages(t.keygenQueuedMsgs)
 		case msg := <-endCh:
 			t.logger.Debug().Msgf("we have done the keygen %s", msg.ECDSAPub.Y().String())
 
