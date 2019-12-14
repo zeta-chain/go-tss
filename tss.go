@@ -56,8 +56,9 @@ type Tss struct {
 	partyLock           *sync.Mutex
 	keyGenInfo          *TssKeyGenInfo
 	stopChan            chan struct{}        // channel to indicate whether we should stop
-	queuedMsgs          chan *WrappedMessage // messages we queued up before local party is even ready
-	broadcastChannel    chan *WrappedMessage // channel we used to broadcast message to other parties
+	keygenQueuedMsgs    chan *WrappedMessage // messages queued up before local party is even ready
+	keysignQueuedMsgs   chan *WrappedMessage // messages queued up for key sign
+	broadcastChannel    chan *WrappedMessage // channel used to broadcast message to other parties
 	stateLock           *sync.Mutex
 	tssLock             *sync.Mutex
 	priKey              cryptokey.PrivKey
@@ -97,7 +98,7 @@ func NewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, priKeyBytes 
 		port:                tssPort,
 		stopChan:            make(chan struct{}),
 		partyLock:           &sync.Mutex{},
-		queuedMsgs:          make(chan *WrappedMessage, 1024),
+		keygenQueuedMsgs:    make(chan *WrappedMessage, 1024),
 		broadcastChannel:    make(chan *WrappedMessage),
 		stateLock:           &sync.Mutex{},
 		tssLock:             &sync.Mutex{},
@@ -159,7 +160,7 @@ func (t *Tss) newHandler(verbose bool) http.Handler {
 	return router
 }
 
-func (t *Tss) getP2pID(w http.ResponseWriter, r *http.Request) {
+func (t *Tss) getP2pID(w http.ResponseWriter, _ *http.Request) {
 	localPeerID := t.comm.GetLocalPeerID()
 	_, err := w.Write([]byte(localPeerID))
 	if nil != err {
@@ -207,15 +208,18 @@ func (t *Tss) getParties(keys []string, localPartyKey string, keygen bool) ([]*t
 }
 
 // emptyQueuedMessages
-func (t *Tss) emptyQueuedMessages() {
+func (t *Tss) emptyQueuedMessages(input <-chan *WrappedMessage) {
 	t.logger.Debug().Msg("empty queue messages")
 	defer t.logger.Debug().Msg("finished empty queue messages")
 	t.unConfirmedMsgLock.Lock()
 	defer t.unConfirmedMsgLock.Unlock()
 	t.unConfirmedMessages = make(map[string]*LocalCacheItem)
+	if len(input) == 0 {
+		return
+	}
 	for {
 		select {
-		case m := <-t.queuedMsgs:
+		case m := <-input:
 			t.logger.Debug().Msgf("drop queued message from %s", m.MessageType)
 		default:
 			return
@@ -291,10 +295,10 @@ func (t *Tss) getKeyGenInfo() *TssKeyGenInfo {
 	return t.keyGenInfo
 }
 
-func (t *Tss) processQueuedMessages() {
+func (t *Tss) processQueuedMessages(input <-chan *WrappedMessage) {
 	t.logger.Debug().Msg("process queued messages")
 	defer t.logger.Debug().Msg("finished processing queued messages")
-	if len(t.queuedMsgs) == 0 {
+	if len(input) == 0 {
 		return
 	}
 	keyGenInfo := t.getKeyGenInfo()
@@ -303,7 +307,8 @@ func (t *Tss) processQueuedMessages() {
 	}
 	for {
 		select {
-		case m := <-t.queuedMsgs:
+		case m := <-input:
+			t.logger.Debug().Msgf("process queued %s message", m.MessageType)
 			if err := t.processOneMessage(m); nil != err {
 				t.logger.Error().Err(err).Msg("fail to process a message from local queue")
 			}
@@ -322,7 +327,7 @@ func bytesToHashString(msg []byte) (string, error) {
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
-func (t *Tss) ping(w http.ResponseWriter, r *http.Request) {
+func (t *Tss) ping(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	return
 }
@@ -393,9 +398,12 @@ func (t *Tss) processBroadcastChannel() {
 				t.logger.Error().Err(err).Msg("fail to marshal a wrapped message to json bytes")
 				continue
 			}
-
-			t.logger.Debug().Msgf("broadcast message %s to all", msg.MessageType)
-			if err := t.comm.Broadcast(nil, wireMsgBytes); nil != err {
+			peerIDs, err := t.getAllPartyPeerIDs()
+			if nil != err {
+				t.logger.Error().Err(err).Msg("fail to get all partys peer ids")
+			}
+			t.logger.Debug().Msgf("broadcast message %s to %+v", msg.MessageType, peerIDs)
+			if err := t.comm.Broadcast(peerIDs, wireMsgBytes); nil != err {
 				t.logger.Error().Err(err).Msg("fail to broadcast confirm message to all other parties")
 			}
 		}
@@ -460,17 +468,18 @@ func (t *Tss) processOneMessage(wrappedMsg *WrappedMessage) error {
 	if !t.isLocalPartyReady() {
 		// local part is not ready , the tss node might not receive keygen request yet, Let's queue the message
 		t.logger.Debug().Msg("local party is not ready,queue it")
-		t.queuedMsgs <- wrappedMsg
+
+		t.keygenQueuedMsgs <- wrappedMsg
 		return nil
 	}
 	switch wrappedMsg.MessageType {
-	case TSSMsg:
+	case TSSKeyGenMsg, TSSKeySignMsg:
 		var wireMsg WireMessage
 		if err := json.Unmarshal(wrappedMsg.Payload, &wireMsg); nil != err {
 			return fmt.Errorf("fail to unmarshal wire message: %w", err)
 		}
-		return t.processTSSMsg(&wireMsg)
-	case VerMsg:
+		return t.processTSSMsg(&wireMsg, wrappedMsg.MessageType)
+	case TSSKeyGenVerMsg, TSSKeySignVerMsg:
 		var bMsg BroadcastConfirmMessage
 		if err := json.Unmarshal(wrappedMsg.Payload, &bMsg); nil != err {
 			return fmt.Errorf("fail to unmarshal broadcast confirm message")
@@ -515,7 +524,7 @@ func (t *Tss) processVerMsg(broadcastConfirmMsg *BroadcastConfirmMessage) error 
 }
 
 // processTSSMsg
-func (t *Tss) processTSSMsg(wireMsg *WireMessage) error {
+func (t *Tss) processTSSMsg(wireMsg *WireMessage, msgType THORChainTSSMessageType) error {
 	t.logger.Debug().Msg("process wire message")
 	defer t.logger.Debug().Msg("finish process wire message")
 	// we only update it local party
@@ -566,9 +575,10 @@ func (t *Tss) processTSSMsg(wireMsg *WireMessage) error {
 		return fmt.Errorf("fail to marshal borad cast confirm message: %w", err)
 	}
 	t.logger.Debug().Msg("broadcast VerMsg to all other parties")
+
 	select {
 	case t.broadcastChannel <- &WrappedMessage{
-		MessageType: VerMsg,
+		MessageType: getBroadcastMessageType(msgType),
 		Payload:     buf,
 	}:
 		return nil
@@ -576,6 +586,17 @@ func (t *Tss) processTSSMsg(wireMsg *WireMessage) error {
 		// time to stop
 		return nil
 	}
+}
+func getBroadcastMessageType(msgType THORChainTSSMessageType) THORChainTSSMessageType {
+	switch msgType {
+	case TSSKeyGenMsg:
+		return TSSKeyGenVerMsg
+	case TSSKeySignMsg:
+		return TSSKeySignVerMsg
+	default:
+		return Unknown // this should not happen
+	}
+
 }
 
 func (t *Tss) tryGetLocalCacheItem(key string) *LocalCacheItem {

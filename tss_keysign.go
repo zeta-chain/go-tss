@@ -21,6 +21,9 @@ import (
 func (t *Tss) signMessage(req KeySignReq) (*signing.SignatureData, error) {
 	t.tssLock.Lock()
 	defer t.tssLock.Unlock()
+	if len(req.PoolPubKey) == 0 {
+		return nil, fmt.Errorf("empty pool pub key")
+	}
 	localFileName := fmt.Sprintf("localstate-%d-%s.json", t.port, req.PoolPubKey)
 	if len(t.homeBase) > 0 {
 		localFileName = filepath.Join(t.homeBase, localFileName)
@@ -83,7 +86,7 @@ func (t *Tss) signMessage(req KeySignReq) (*signing.SignatureData, error) {
 		})
 	}()
 
-	defer t.emptyQueuedMessages()
+	defer t.emptyQueuedMessages(t.keysignQueuedMsgs)
 	result, err := t.processKeySign(errCh, outCh, endCh)
 	if nil != err {
 		return nil, fmt.Errorf("fail to process key sign: %w", err)
@@ -121,7 +124,7 @@ func (t *Tss) processKeySign(errChan chan struct{}, outCh <-chan tss.Message, en
 				return nil, fmt.Errorf("fail to convert tss msg to wire bytes: %w", err)
 			}
 			thorMsg := WrappedMessage{
-				MessageType: TSSMsg,
+				MessageType: TSSKeySignMsg,
 				Payload:     wireBytes,
 			}
 			thorMsgBytes, err := json.Marshal(thorMsg)
@@ -141,7 +144,7 @@ func (t *Tss) processKeySign(errChan chan struct{}, outCh <-chan tss.Message, en
 				t.logger.Error().Err(err).Msg("fail to broadcast messages")
 			}
 			// drain the in memory queue
-			t.processQueuedMessages()
+			t.processQueuedMessages(t.keysignQueuedMsgs)
 		case msg := <-endCh:
 			t.logger.Debug().Msg("we have done the key sign")
 			return &msg, nil

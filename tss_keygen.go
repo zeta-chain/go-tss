@@ -142,7 +142,7 @@ func (t *Tss) generateNewKey(keygenReq KeyGenReq) (*crypto.ECPoint, error) {
 
 	}()
 
-	defer t.emptyQueuedMessages()
+	defer t.emptyQueuedMessages(t.keygenQueuedMsgs)
 	r, err := t.processKeyGen(errChan, outCh, endCh, keyGenLocalStateItem)
 	if nil != err {
 		t.logger.Error().Err(err).Msg("fail to complete keygen")
@@ -190,7 +190,7 @@ func (t *Tss) processKeyGen(errChan chan struct{}, outCh <-chan tss.Message, end
 				return nil, fmt.Errorf("fail to convert tss msg to wire bytes: %w", err)
 			}
 			wrappedMsg := &WrappedMessage{
-				MessageType: TSSMsg,
+				MessageType: TSSKeyGenMsg,
 				Payload:     wireMsgBytes,
 			}
 			wrappedMsgBytes, err := json.Marshal(wrappedMsg)
@@ -210,7 +210,7 @@ func (t *Tss) processKeyGen(errChan chan struct{}, outCh <-chan tss.Message, end
 				t.logger.Error().Err(err).Msg("fail to broadcast messages")
 			}
 			// drain the in memory queue
-			t.processQueuedMessages()
+			t.processQueuedMessages(t.keygenQueuedMsgs)
 		case msg := <-endCh:
 			t.logger.Debug().Msgf("we have done the keygen %s", msg.ECDSAPub.Y().String())
 
