@@ -1,4 +1,4 @@
-package go_tss
+package tss
 
 import (
 	"context"
@@ -17,7 +17,7 @@ import (
 	"time"
 
 	"github.com/binance-chain/tss-lib/ecdsa/keygen"
-	"github.com/binance-chain/tss-lib/tss"
+	btss "github.com/binance-chain/tss-lib/tss"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/gorilla/mux"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -42,8 +42,8 @@ var (
 
 // TssKeyGenInfo the information used by tss key gen
 type TssKeyGenInfo struct {
-	Party      tss.Party
-	PartyIDMap map[string]*tss.PartyID
+	Party      btss.Party
+	PartyIDMap map[string]*btss.PartyID
 }
 
 // Tss all the things for TSS
@@ -168,9 +168,9 @@ func (t *Tss) getP2pID(w http.ResponseWriter, _ *http.Request) {
 	}
 }
 
-func (t *Tss) getParties(keys []string, localPartyKey string, keygen bool) ([]*tss.PartyID, *tss.PartyID, error) {
-	var localPartyID *tss.PartyID
-	var unSortedPartiesID []*tss.PartyID
+func (t *Tss) getParties(keys []string, localPartyKey string, keygen bool) ([]*btss.PartyID, *btss.PartyID, error) {
+	var localPartyID *btss.PartyID
+	var unSortedPartiesID []*btss.PartyID
 	sort.Strings(keys)
 	for idx, item := range keys {
 		pk, err := sdk.GetAccPubKeyBech32(item)
@@ -183,7 +183,7 @@ func (t *Tss) getParties(keys []string, localPartyKey string, keygen bool) ([]*t
 		// Note: The `id` and `moniker` fields are for convenience to allow you to easily track participants.
 		// The `id` should be a unique string representing this party in the network and `moniker` can be anything (even left blank).
 		// The `uniqueKey` is a unique identifying key for this peer (such as its p2p public key) as a big.Int.
-		partyID := tss.NewPartyID(strconv.Itoa(idx), "", key)
+		partyID := btss.NewPartyID(strconv.Itoa(idx), "", key)
 		if item == localPartyKey {
 			localPartyID = partyID
 		}
@@ -192,7 +192,7 @@ func (t *Tss) getParties(keys []string, localPartyKey string, keygen bool) ([]*t
 	if localPartyID == nil {
 		return nil, nil, fmt.Errorf("local party is not in the list")
 	}
-	partiesID := tss.SortPartyIDs(unSortedPartiesID)
+	partiesID := btss.SortPartyIDs(unSortedPartiesID)
 
 	// select the node on the "partiesID" rather than on the "keys" as the secret shares are sorted on the "index",
 	// not on the node ID.
@@ -227,7 +227,7 @@ func (t *Tss) emptyQueuedMessages(input <-chan *WrappedMessage) {
 	}
 }
 
-func (t *Tss) getPeerIDs(parties []*tss.PartyID) ([]peer.ID, error) {
+func (t *Tss) getPeerIDs(parties []*btss.PartyID) ([]peer.ID, error) {
 	if nil == parties {
 		return t.getAllPartyPeerIDs()
 	}
@@ -258,7 +258,7 @@ func (t *Tss) getAllPartyPeerIDs() ([]peer.ID, error) {
 	return result, nil
 }
 
-func getPeerIDFromPartyID(partyID *tss.PartyID) (peer.ID, error) {
+func getPeerIDFromPartyID(partyID *btss.PartyID) (peer.ID, error) {
 	pkBytes := partyID.KeyInt().Bytes()
 	var pk secp256k1.PubKeySecp256k1
 	copy(pk[:], pkBytes)

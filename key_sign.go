@@ -1,4 +1,4 @@
-package go_tss
+package tss
 
 // KeySignReq request to sign a message
 type KeySignReq struct {

@@ -1,4 +1,4 @@
-package go_tss
+package tss
 
 import (
 	"encoding/json"
@@ -7,12 +7,10 @@ import (
 	"math/big"
 	"os"
 
-	"github.com/binance-chain/tss-lib/tss"
-
-	"github.com/binance-chain/tss-lib/ecdsa/keygen"
-
 	"github.com/binance-chain/tss-lib/crypto"
 	"github.com/binance-chain/tss-lib/crypto/paillier"
+	"github.com/binance-chain/tss-lib/ecdsa/keygen"
+	btss "github.com/binance-chain/tss-lib/tss"
 )
 
 // KeygenLocalStateItem
@@ -43,7 +41,7 @@ func LoadLocalState(filePathName string) (KeygenLocalStateItem, error) {
 	return localState, nil
 }
 
-func ProcessStateFile(sourceState KeygenLocalStateItem, parties []*tss.PartyID) (keygen.LocalPartySaveData, []*tss.PartyID) {
+func ProcessStateFile(sourceState KeygenLocalStateItem, parties []*btss.PartyID) (keygen.LocalPartySaveData, []*btss.PartyID) {
 	var localKeyData keygen.LocalPartySaveData
 	localKeyData = sourceState.LocalData
 	var tempKs, tempNTildej, tempH1j, tempH2j []*big.Int
@@ -78,7 +76,7 @@ func ProcessStateFile(sourceState KeygenLocalStateItem, parties []*tss.PartyID) 
 		PaillierPKs: temPaillierPKs,
 		ECDSAPub:    localKeyData.ECDSAPub,
 	}
-	parties = tss.SortPartyIDs(parties)
+	parties = btss.SortPartyIDs(parties)
 	return keyData, parties
 }
 

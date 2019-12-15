@@ -1,4 +1,4 @@
-package go_tss
+package tss
 
 import (
 	"bytes"
@@ -10,9 +10,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/binance-chain/tss-lib/tss"
-
+	btss "github.com/binance-chain/tss-lib/tss"
 	"github.com/hashicorp/go-retryablehttp"
+
 	// "bytes"
 	// "context"
 	// "io/ioutil"
@@ -164,19 +164,19 @@ func (t *TssTestSuite) TestGetThreshold(c *C) {
 }
 
 func (t *TssTestSuite) TestContains(c *C) {
-	t1 := tss.PartyID{
+	t1 := btss.PartyID{
 		Index: 1,
 	}
 	ret := contains(nil, &t1)
 	c.Assert(ret, Equals, false)
 
-	t2 := tss.PartyID{
+	t2 := btss.PartyID{
 		Index: 2,
 	}
-	t3 := tss.PartyID{
+	t3 := btss.PartyID{
 		Index: 3,
 	}
-	testParties := []*tss.PartyID{&t2, &t3}
+	testParties := []*btss.PartyID{&t2, &t3}
 	ret = contains(testParties, &t1)
 	c.Assert(ret, Equals, false)
 	testParties = append(testParties, &t1)

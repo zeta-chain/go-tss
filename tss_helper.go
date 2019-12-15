@@ -1,13 +1,13 @@
-package go_tss
+package tss
 
 import (
 	"errors"
 	"math"
 
-	"github.com/binance-chain/tss-lib/tss"
+	btss "github.com/binance-chain/tss-lib/tss"
 )
 
-func contains(s []*tss.PartyID, e *tss.PartyID) bool {
+func contains(s []*btss.PartyID, e *btss.PartyID) bool {
 	if e == nil {
 		return false
 	}

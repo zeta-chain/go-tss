@@ -1,10 +1,10 @@
-package go_tss
+package tss
 
 import (
 	"fmt"
 	"sync"
 
-	"github.com/binance-chain/tss-lib/tss"
+	btss "github.com/binance-chain/tss-lib/tss"
 	"github.com/libp2p/go-libp2p-core/peer"
 )
 
@@ -61,9 +61,9 @@ type BroadcastConfirmMessage struct {
 
 // WireMessage the message that produced by tss-lib package
 type WireMessage struct {
-	Routing   *tss.MessageRouting `json:"routing"`
-	RoundInfo string              `json:"round_info"`
-	Message   []byte              `json:"message"`
+	Routing   *btss.MessageRouting `json:"routing"`
+	RoundInfo string               `json:"round_info"`
+	Message   []byte               `json:"message"`
 }
 
 // GetCacheKey return the key we used to cache it locally
