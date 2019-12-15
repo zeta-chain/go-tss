@@ -1,4 +1,4 @@
-package go_tss
+package tss
 
 type Status byte
 

@@ -1,4 +1,4 @@
-package go_tss
+package tss
 
 import (
 	"crypto/elliptic"
@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/binance-chain/tss-lib/ecdsa/signing"
-	"github.com/binance-chain/tss-lib/tss"
+	btss "github.com/binance-chain/tss-lib/tss"
 	"github.com/tendermint/btcd/btcec"
 )
 
@@ -56,9 +56,9 @@ func (t *Tss) signMessage(req KeySignReq) (*signing.SignatureData, error) {
 	// The `id` should be a unique string representing this party in the network and `moniker` can be anything (even left blank).
 	// The `uniqueKey` is a unique identifying key for this peer (such as its p2p public key) as a big.Int.
 	t.logger.Debug().Msgf("local party: %s", localPartyID.Id)
-	ctx := tss.NewPeerContext(partiesID)
-	params := tss.NewParameters(ctx, localPartyID, len(partiesID), threshold)
-	outCh := make(chan tss.Message, len(partiesID))
+	ctx := btss.NewPeerContext(partiesID)
+	params := btss.NewParameters(ctx, localPartyID, len(partiesID), threshold)
+	outCh := make(chan btss.Message, len(partiesID))
 	endCh := make(chan signing.SignatureData, len(partiesID))
 	errCh := make(chan struct{})
 	m, err := msgToHashInt(msgToSign)
@@ -66,7 +66,7 @@ func (t *Tss) signMessage(req KeySignReq) (*signing.SignatureData, error) {
 		return nil, fmt.Errorf("fail to convert msg to hash int: %w", err)
 	}
 	keySignParty := signing.NewLocalParty(m, params, localKeyData, outCh, endCh)
-	partyIDMap := make(map[string]*tss.PartyID)
+	partyIDMap := make(map[string]*btss.PartyID)
 	for _, id := range partiesID {
 		partyIDMap[id.Id] = id
 	}
@@ -94,7 +94,7 @@ func (t *Tss) signMessage(req KeySignReq) (*signing.SignatureData, error) {
 	t.logger.Info().Msg("successfully sign the message")
 	return result, nil
 }
-func (t *Tss) processKeySign(errChan chan struct{}, outCh <-chan tss.Message, endCh <-chan signing.SignatureData) (*signing.SignatureData, error) {
+func (t *Tss) processKeySign(errChan chan struct{}, outCh <-chan btss.Message, endCh <-chan signing.SignatureData) (*signing.SignatureData, error) {
 	defer t.logger.Info().Msg("key sign finished")
 	t.logger.Info().Msg("start to read messages from local party")
 	for {

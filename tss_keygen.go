@@ -1,4 +1,4 @@
-package go_tss
+package tss
 
 import (
 	"encoding/json"
@@ -11,7 +11,7 @@ import (
 	"github.com/binance-chain/go-sdk/common/types"
 	"github.com/binance-chain/tss-lib/crypto"
 	"github.com/binance-chain/tss-lib/ecdsa/keygen"
-	"github.com/binance-chain/tss-lib/tss"
+	btss "github.com/binance-chain/tss-lib/tss"
 	"github.com/btcsuite/btcd/btcec"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/tendermint/tendermint/crypto/secp256k1"
@@ -110,15 +110,15 @@ func (t *Tss) generateNewKey(keygenReq KeyGenReq) (*crypto.ECPoint, error) {
 	if nil != err {
 		return nil, err
 	}
-	ctx := tss.NewPeerContext(partiesID)
-	params := tss.NewParameters(ctx, localPartyID, len(partiesID), threshold)
-	outCh := make(chan tss.Message, len(partiesID))
+	ctx := btss.NewPeerContext(partiesID)
+	params := btss.NewParameters(ctx, localPartyID, len(partiesID), threshold)
+	outCh := make(chan btss.Message, len(partiesID))
 	endCh := make(chan keygen.LocalPartySaveData, len(partiesID))
 	errChan := make(chan struct{})
 	keyGenParty := keygen.NewLocalParty(params, outCh, endCh, *t.preParams)
 
 	// You should keep a local mapping of `id` strings to `*PartyID` instances so that an incoming message can have its origin party's `*PartyID` recovered for passing to `UpdateFromBytes` (see below)
-	partyIDMap := make(map[string]*tss.PartyID)
+	partyIDMap := make(map[string]*btss.PartyID)
 	for _, id := range partiesID {
 		partyIDMap[id.Id] = id
 	}
@@ -146,7 +146,7 @@ func (t *Tss) generateNewKey(keygenReq KeyGenReq) (*crypto.ECPoint, error) {
 	r, err := t.processKeyGen(errChan, outCh, endCh, keyGenLocalStateItem)
 	if nil != err {
 		t.logger.Error().Err(err).Msg("fail to complete keygen")
-		tssErr, ok := err.(*tss.Error)
+		tssErr, ok := err.(*btss.Error)
 		if ok {
 			for _, item := range tssErr.Culprits() {
 				t.logger.Error().Err(err).Msgf("parties that caused this keygen failure: %s", item.Id)
@@ -160,7 +160,7 @@ func (t *Tss) generateNewKey(keygenReq KeyGenReq) (*crypto.ECPoint, error) {
 	return r, nil
 }
 
-func (t *Tss) processKeyGen(errChan chan struct{}, outCh <-chan tss.Message, endCh <-chan keygen.LocalPartySaveData, keyGenLocalStateItem KeygenLocalStateItem) (*crypto.ECPoint, error) {
+func (t *Tss) processKeyGen(errChan chan struct{}, outCh <-chan btss.Message, endCh <-chan keygen.LocalPartySaveData, keyGenLocalStateItem KeygenLocalStateItem) (*crypto.ECPoint, error) {
 	defer t.logger.Info().Msg("finished keygen process")
 	t.logger.Info().Msg("start to read messages from local party")
 	for {

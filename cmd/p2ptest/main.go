@@ -11,7 +11,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/whyrusleeping/go-logging"
 
-	go_tss "gitlab.com/thorchain/tss/go-tss"
+	"gitlab.com/thorchain/tss/go-tss"
 )
 
 func main() {
@@ -20,7 +20,7 @@ func main() {
 		panic(err)
 	}
 	help := flag.Bool("h", false, "Display Help")
-	config, err := go_tss.ParseFlags()
+	config, err := tss.ParseFlags()
 	if err != nil {
 		panic(err)
 	}
@@ -32,7 +32,7 @@ func main() {
 		flag.PrintDefaults()
 		return
 	}
-	c, err := go_tss.NewCommunication("tss", config.BootstrapPeers, config.Port)
+	c, err := tss.NewCommunication("tss", config.BootstrapPeers, config.Port)
 	if nil != err {
 		panic(err)
 	}
