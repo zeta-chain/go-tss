@@ -58,6 +58,25 @@ services:
     networks:
       localnet:
         ipv4_address: 192.168.10.3
+  tss3:
+    hostname: tss3
+    ports:
+      - 8083:8080
+      - 6666:6668
+    build:
+      context: ../
+      dockerfile: Dockerfile
+    #image: registry.gitlab.com/thorchain/tss/go-tss
+    restart: unless-stopped
+    environment:
+      - PRIVKEY=${TSS_3}
+      - NET=testnet
+    depends_on:
+      - tss0
+    command: /go/bin/start-tss.bash
+    networks:
+      localnet:
+        ipv4_address: 192.168.10.4
 
 networks:
   localnet:

@@ -1,2 +1,2 @@
 #!/bin/sh
-echo $PRIVKEY | /go/bin/tss -http 8080  -port 6668
+echo $PRIVKEY | /go/bin/tss -http 8080  -port 6668 -loglevel debug
