@@ -99,6 +99,7 @@ func NewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, priKeyBytes 
 		stopChan:            make(chan struct{}),
 		partyLock:           &sync.Mutex{},
 		keygenQueuedMsgs:    make(chan *WrappedMessage, 1024),
+		keysignQueuedMsgs:   make(chan *WrappedMessage, 1024),
 		broadcastChannel:    make(chan *WrappedMessage),
 		stateLock:           &sync.Mutex{},
 		tssLock:             &sync.Mutex{},
@@ -192,8 +193,8 @@ func (t *Tss) getParties(keys []string, localPartyKey string, keygen bool) ([]*b
 	if localPartyID == nil {
 		return nil, nil, fmt.Errorf("local party is not in the list")
 	}
-	partiesID := btss.SortPartyIDs(unSortedPartiesID)
 
+	partiesID := btss.SortPartyIDs(unSortedPartiesID)
 	// select the node on the "partiesID" rather than on the "keys" as the secret shares are sorted on the "index",
 	// not on the node ID.
 	if !keygen {
@@ -467,9 +468,13 @@ func (t *Tss) processOneMessage(wrappedMsg *WrappedMessage) error {
 	}
 	if !t.isLocalPartyReady() {
 		// local part is not ready , the tss node might not receive keygen request yet, Let's queue the message
-		t.logger.Debug().Msg("local party is not ready,queue it")
-
-		t.keygenQueuedMsgs <- wrappedMsg
+		t.logger.Debug().Msgf("local party is not ready,queue it,%s", wrappedMsg.MessageType)
+		switch wrappedMsg.MessageType {
+		case TSSKeySignMsg, TSSKeySignVerMsg:
+			t.keysignQueuedMsgs <- wrappedMsg
+		case TSSKeyGenMsg, TSSKeyGenVerMsg:
+			t.keygenQueuedMsgs <- wrappedMsg
+		}
 		return nil
 	}
 	switch wrappedMsg.MessageType {
@@ -518,6 +523,7 @@ func (t *Tss) processVerMsg(broadcastConfirmMsg *BroadcastConfirmMessage) error 
 			return fmt.Errorf("fail to update the message to local party: %w", err)
 		}
 		// the information had been confirmed by all party , we don't need it anymore
+		t.logger.Debug().Msgf("remove key: %s", key)
 		t.removeKey(key)
 	}
 	return nil

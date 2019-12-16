@@ -49,13 +49,13 @@ func (t *Tss) signMessage(req KeySignReq) (*signing.SignatureData, error) {
 		t.logger.Info().Msgf("we are not in this rounds key sign")
 		return nil, nil
 	}
-	t.logger.Debug().Msgf("parties:%+v", partiesID)
+
 	localKeyData, partiesID := ProcessStateFile(storedKeyGenLocalStateItem, partiesID)
 	// Set up the parameters
 	// Note: The `id` and `moniker` fields are for convenience to allow you to easily track participants.
 	// The `id` should be a unique string representing this party in the network and `moniker` can be anything (even left blank).
 	// The `uniqueKey` is a unique identifying key for this peer (such as its p2p public key) as a big.Int.
-	t.logger.Debug().Msgf("local party: %s", localPartyID.Id)
+	t.logger.Debug().Msgf("local party: %+v", localPartyID)
 	ctx := btss.NewPeerContext(partiesID)
 	params := btss.NewParameters(ctx, localPartyID, len(partiesID), threshold)
 	outCh := make(chan btss.Message, len(partiesID))
@@ -84,6 +84,7 @@ func (t *Tss) signMessage(req KeySignReq) (*signing.SignatureData, error) {
 			Party:      keySignParty,
 			PartyIDMap: partyIDMap,
 		})
+		t.logger.Debug().Msg("local party is ready")
 	}()
 
 	defer t.emptyQueuedMessages(t.keysignQueuedMsgs)
@@ -119,15 +120,16 @@ func (t *Tss) processKeySign(errChan chan struct{}, outCh <-chan btss.Message, e
 				RoundInfo: msg.Type(),
 				Message:   buf,
 			}
+			t.logger.Debug().Msgf("####routing:%+v", r)
 			wireBytes, err := json.Marshal(wireMsg)
 			if nil != err {
 				return nil, fmt.Errorf("fail to convert tss msg to wire bytes: %w", err)
 			}
-			thorMsg := WrappedMessage{
+			wrappedMsg := WrappedMessage{
 				MessageType: TSSKeySignMsg,
 				Payload:     wireBytes,
 			}
-			thorMsgBytes, err := json.Marshal(thorMsg)
+			wrappedMsgBytes, err := json.Marshal(wrappedMsg)
 			if nil != err {
 				return nil, fmt.Errorf("fail to convert tss msg to wire bytes: %w", err)
 			}
@@ -140,7 +142,7 @@ func (t *Tss) processKeySign(errChan chan struct{}, outCh <-chan btss.Message, e
 			} else {
 				t.logger.Debug().Msgf("sending message to (%v) from :%s", peers, r.From.Id)
 			}
-			if err := t.comm.Broadcast(peers, thorMsgBytes); nil != err {
+			if err := t.comm.Broadcast(peers, wrappedMsgBytes); nil != err {
 				t.logger.Error().Err(err).Msg("fail to broadcast messages")
 			}
 			// drain the in memory queue
