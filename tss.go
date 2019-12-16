@@ -69,7 +69,7 @@ type Tss struct {
 }
 
 // NewTss create a new instance of Tss
-func NewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, priKeyBytes []byte, baseFolder string) (*Tss, error) {
+func NewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, priKeyBytes []byte, baseFolder string, optionalPreParams ...keygen.LocalPreParams) (*Tss, error) {
 	if p2pPort == tssPort {
 		return nil, errors.New("tss and p2p can't use the same port")
 	}
@@ -86,9 +86,13 @@ func NewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, priKeyBytes 
 	// This code will generate those parameters using a concurrency limit equal to the number of available CPU cores.
 	var preParams *keygen.LocalPreParams
 	if !byPassGeneratePreParam {
-		preParams, err = keygen.GeneratePreParams(1 * time.Minute)
-		if nil != err {
-			return nil, fmt.Errorf("fail to generate pre parameters: %w", err)
+		if 0 < len(optionalPreParams) {
+			preParams = &optionalPreParams[0]
+		}else {
+			preParams, err = keygen.GeneratePreParams(1 * time.Minute)
+			if nil != err {
+				return nil, fmt.Errorf("fail to generate pre parameters: %w", err)
+			}
 		}
 	}
 
