@@ -72,11 +72,11 @@ func (t *Tss) signMessage(req KeySignReq) (*signing.SignatureData, error) {
 		t.setPartyInfo(nil)
 	}()
 
-	err = t.setupIDMaps(partyIDMap)
-	if nil != err{
+	err = setupIDMaps(partyIDMap, t.partyIDtoP2PID)
+	if nil != err {
 		t.logger.Error().Msgf("error in creating mapping between partyID and P2P ID")
 		return nil, err
-	}	//start key sign
+	} //start key sign
 	go func() {
 		if err := keySignParty.Start(); nil != err {
 			t.logger.Error().Err(err).Msg("fail to start key sign party")
@@ -102,22 +102,21 @@ func (t *Tss) processKeySign(errChan chan struct{}, outCh <-chan btss.Message, e
 	t.logger.Info().Msg("start to read messages from local party")
 	for {
 		select {
-		case <-errChan: // when keyGenParty return
+		case <-errChan: // when key sign return
 			t.logger.Error().Msg("key sign failed")
 			return nil, errors.New("error channel closed fail to start local party")
 		case <-t.stopChan: // when TSS processor receive signal to quit
 			return nil, errors.New("received exit signal")
 		case <-time.After(time.Second * KeySignTimeoutSeconds):
-			// we bail out after KeyGenTimeoutSeconds
+			// we bail out after KeySignTimeoutSeconds
 			return nil, fmt.Errorf("fail to sign message with in %d seconds", KeySignTimeoutSeconds)
 		case msg := <-outCh:
 			t.logger.Debug().Msgf(">>>>>>>>>>key sign msg: %s", msg.String())
 			err := t.processOutCh(msg, TSSKeySignMsg)
-			if nil != err{
+			if nil != err {
 				return nil, err
-			}else{
-				continue
 			}
+			continue
 		case msg := <-endCh:
 			t.logger.Debug().Msg("we have done the key sign")
 			return &msg, nil

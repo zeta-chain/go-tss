@@ -33,7 +33,7 @@ const partyNum = 4
 const testFileLocation = "./test_data"
 const preParamTestFile = "preParam_test.data"
 
-var testPubKeys = [...] string{"thorpub1addwnpepqtdklw8tf3anjz7nn5fly3uvq2e67w2apn560s4smmrt9e3x52nt2svmmu3", "thorpub1addwnpepqtspqyy6gk22u37ztra4hq3hdakc0w0k60sfy849mlml2vrpfr0wvm6uz09", "thorpub1addwnpepq2ryyje5zr09lq7gqptjwnxqsy2vcdngvwd6z7yt5yjcnyj8c8cn559xe69", "thorpub1addwnpepqfjcw5l4ay5t00c32mmlky7qrppepxzdlkcwfs2fd5u73qrwna0vzag3y4j"}
+var testPubKeys = [...]string{"thorpub1addwnpepqtdklw8tf3anjz7nn5fly3uvq2e67w2apn560s4smmrt9e3x52nt2svmmu3", "thorpub1addwnpepqtspqyy6gk22u37ztra4hq3hdakc0w0k60sfy849mlml2vrpfr0wvm6uz09", "thorpub1addwnpepq2ryyje5zr09lq7gqptjwnxqsy2vcdngvwd6z7yt5yjcnyj8c8cn559xe69", "thorpub1addwnpepqfjcw5l4ay5t00c32mmlky7qrppepxzdlkcwfs2fd5u73qrwna0vzag3y4j"}
 var testPriKeyArr = [...]string{testPriKey0, testPriKey1, testPriKey2, testPriKey3}
 
 func checkServeReady(c *C, port int) {
@@ -279,6 +279,7 @@ func (t *TssTestSuite) testVerMsgDuplication(c *C, tssNode *Tss, senderID *btss.
 	c.Assert(err, IsNil)
 	localItem := tssNode.tryGetLocalCacheItem(msgKey)
 	c.Assert(localItem.ConfirmedList, HasLen, 1)
+
 	//we send the verify message from the the same sender, Tss should only accept the first verify message
 	wrappedMsg = fabricateVerMsg(c, msgHash, msgKey)
 	for i := 0; i < 2; i++ {
@@ -300,10 +301,12 @@ func (t *TssTestSuite) testDropMsgOwner(c *C, tssNode *Tss, senderID *btss.Party
 	c.Assert(err, IsNil)
 	localItem := tssNode.tryGetLocalCacheItem(msgKey)
 	c.Assert(localItem.ConfirmedList, HasLen, 1)
+
 	wrappedVerMsg := fabricateVerMsg(c, msgHash, msgKey)
 	err = tssNode.processOneMessage(wrappedVerMsg, tssNode.partyIDtoP2PID[partiesID[1].Id].String())
 	c.Assert(err, IsNil)
 	c.Assert(localItem.ConfirmedList, HasLen, 2)
+
 	//the data owner's message should be dropped
 	err = tssNode.processOneMessage(wrappedVerMsg, tssNode.partyIDtoP2PID[senderID.Id].String())
 	c.Assert(err, IsNil)
@@ -322,6 +325,7 @@ func (t *TssTestSuite) testVerMsgAndUpdate(c *C, tssNode *Tss, senderID *btss.Pa
 	c.Assert(err, IsNil)
 	localItem := tssNode.tryGetLocalCacheItem(msgKey)
 	c.Assert(localItem.ConfirmedList, HasLen, 1)
+
 	//we send the verify message from the the same sender, Tss should only accept the first verify message
 	wrappedVerMsg := fabricateVerMsg(c, msgHash, msgKey)
 	err = tssNode.processOneMessage(wrappedVerMsg, tssNode.partyIDtoP2PID[partiesID[1].Id].String())
@@ -341,11 +345,13 @@ func (t *TssTestSuite) testVerMsgWrongHash(c *C, tssNode *Tss, senderID *btss.Pa
 	c.Assert(err, IsNil)
 	localItem := tssNode.tryGetLocalCacheItem(msgKey)
 	c.Assert(localItem.ConfirmedList, HasLen, 1)
+
 	//we send the verify message from the the same sender, Tss should only accept the first verify message
 	wrappedMsg = fabricateVerMsg(c, msgHash, msgKey)
 	err = tssNode.processOneMessage(wrappedMsg, tssNode.partyIDtoP2PID[partiesID[1].Id].String())
 	c.Assert(err, IsNil)
 	c.Assert(localItem.ConfirmedList, HasLen, 2)
+
 	msgHash2 := "a" + msgHash
 	wrappedMsg = fabricateVerMsg(c, msgHash2, msgKey)
 	err = tssNode.processOneMessage(wrappedMsg, tssNode.partyIDtoP2PID[partiesID[2].Id].String())
@@ -359,7 +365,7 @@ func (t *TssTestSuite) TestProcessVerMessage(c *C) {
 	tssNode := tssNodes[0]
 	partiesID, localPartyID, err := tssNode.getParties(testPubKeys[:], testPubKeys[0], true)
 	partyIDMap := setupPartyIDMap(partiesID)
-	tssNode.setupIDMaps(partyIDMap)
+	setupIDMaps(partyIDMap, tssNode.partyIDtoP2PID)
 	ctx := btss.NewPeerContext(partiesID)
 	params := btss.NewParameters(ctx, localPartyID, len(partiesID), 2)
 	outCh := make(chan btss.Message, len(partiesID))
@@ -369,9 +375,10 @@ func (t *TssTestSuite) TestProcessVerMessage(c *C) {
 		Party:      keyGenParty,
 		PartyIDMap: partyIDMap,
 	})
-	err = tssNode.setupIDMaps(partyIDMap)
+	err = setupIDMaps(partyIDMap, tssNode.partyIDtoP2PID)
 	c.Assert(err, IsNil)
 	partiesID = append(partiesID[:localPartyID.Index], partiesID[localPartyID.Index+1:]...)
+
 	t.testVerMsgDuplication(c, tssNode, partiesID[0], partiesID)
 	t.testVerMsgWrongHash(c, tssNode, partiesID[0], partiesID)
 	t.testVerMsgAndUpdate(c, tssNode, partiesID[0], partiesID)

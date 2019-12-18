@@ -123,8 +123,8 @@ func (t *Tss) generateNewKey(keygenReq KeyGenReq) (*crypto.ECPoint, error) {
 		t.setPartyInfo(nil)
 	}()
 
-	err = t.setupIDMaps(partyIDMap)
-	if nil != err{
+	err = setupIDMaps(partyIDMap, t.partyIDtoP2PID)
+	if nil != err {
 		t.logger.Error().Msgf("error in creating mapping between partyID and P2P ID")
 		return nil, err
 	}
@@ -177,11 +177,11 @@ func (t *Tss) processKeyGen(errChan chan struct{}, outCh <-chan btss.Message, en
 		case msg := <-outCh:
 			t.logger.Debug().Msgf(">>>>>>>>>>msg: %s", msg.String())
 			err := t.processOutCh(msg, TSSKeyGenMsg)
-			if nil != err{
+			if nil != err {
 				return nil, err
-			}else{
-				continue
 			}
+			continue
+
 		case msg := <-endCh:
 			t.logger.Debug().Msgf("we have done the keygen %s", msg.ECDSAPub.Y().String())
 
