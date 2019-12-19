@@ -564,18 +564,23 @@ func (t *Tss) processOutCh(msg btss.Message, msgType THORChainTSSMessageType) er
 		return fmt.Errorf("fail to marshal wrapped message to bytes: %w", err)
 	}
 	peerIDs := make([]peer.ID, 0)
-	for _, each := range r.To {
-		peerID, ok := t.partyIDtoP2PID[each.Id]
-		if !ok {
-			t.logger.Error().Msgf("error in find the P2P ID")
-			continue
+	if len(r.To) == 0 {
+		peerIDs, err = t.getAllPartyPeerIDs()
+		if err != nil {
+			t.logger.Error().Err(err).Msgf("%s", err.Error())
+			return err
 		}
-		peerIDs = append(peerIDs, peerID)
-	}
-	if nil == peerIDs {
-		t.logger.Debug().Msgf("broad cast msg to everyone from :%s ", r.From.Id)
+
 	} else {
-		t.logger.Debug().Msgf("sending message to (%v) from :%s", peerIDs, r.From.Id)
+		for _, each := range r.To {
+			peerID, ok := t.partyIDtoP2PID[each.Id]
+			if !ok {
+				t.logger.Error().Msgf("error in find the P2P ID")
+				continue
+			}
+			peerIDs = append(peerIDs, peerID)
+		}
+
 	}
 	if err := t.comm.Broadcast(peerIDs, wrappedMsgBytes); nil != err {
 		t.logger.Error().Err(err).Msg("fail to broadcast messages")
