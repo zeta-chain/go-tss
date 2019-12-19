@@ -199,18 +199,20 @@ func cleanUp(c *C, cancels []context.CancelFunc, wg *sync.WaitGroup, partyNum in
 }
 
 func (t *TssTestSuite) Test4NodesTss(c *C) {
-	_, _, cancels, wg := setupNodeForTest(c, partyNum)
+	_, tssNodes, cancels, wg := setupNodeForTest(c, partyNum)
 	defer cleanUp(c, cancels, wg, partyNum)
 	//test key gen.
-	testKeyGen(c, partyNum)
+	poolPubKey := testKeyGen(c, partyNum)
 	//test key sign.
-	//testKeySign(c, poolPubKey, partyNum)
+	testKeySign(c, poolPubKey, partyNum)
 	//test the message process channel
-	//t.testTssProcessOutCh(c, tssNodes[0])
+	t.testTssProcessOutCh(c, tssNodes[0])
 }
 
 func (t *TssTestSuite) testTssProcessOutCh(c *C, tssNode *Tss) {
-	_, localPartyID, err := tssNode.getParties(testPubKeys[:], testPubKeys[0], true)
+	localTestPubKeys := make([]string, len(testPubKeys))
+	copy(localTestPubKeys, testPubKeys[:])
+	_, localPartyID, err := tssNode.getParties(localTestPubKeys, testPubKeys[0], true)
 	c.Assert(err, IsNil)
 	messageRouting := btss.MessageRouting{
 		From:                    localPartyID,
@@ -226,7 +228,6 @@ func (t *TssTestSuite) testTssProcessOutCh(c *C, tssNode *Tss) {
 	msg := btss.NewMessageWrapper(messageRouting, testContent)
 	tssMsg := btss.NewMessage(messageRouting, testContent, msg)
 	err = tssNode.processOutCh(tssMsg, TSSKeyGenMsg)
-	fmt.Println(err)
 	c.Assert(err, IsNil)
 }
 
@@ -279,7 +280,6 @@ func (t *TssTestSuite) testVerMsgDuplication(c *C, tssNode *Tss, senderID *btss.
 	c.Assert(err, IsNil)
 	localItem := tssNode.tryGetLocalCacheItem(msgKey)
 	c.Assert(localItem.ConfirmedList, HasLen, 1)
-
 	//we send the verify message from the the same sender, Tss should only accept the first verify message
 	wrappedMsg = fabricateVerMsg(c, msgHash, msgKey)
 	for i := 0; i < 2; i++ {
@@ -363,7 +363,9 @@ func (t *TssTestSuite) TestProcessVerMessage(c *C) {
 	_, tssNodes, cancels, wg := setupNodeForTest(c, 1)
 	defer cleanUp(c, cancels, wg, 1)
 	tssNode := tssNodes[0]
-	partiesID, localPartyID, err := tssNode.getParties(testPubKeys[:], testPubKeys[0], true)
+	localTestPubKeys := make([]string, len(testPubKeys))
+	copy(localTestPubKeys, testPubKeys[:])
+	partiesID, localPartyID, err := tssNode.getParties(localTestPubKeys, testPubKeys[0], true)
 	partyIDMap := setupPartyIDMap(partiesID)
 	setupIDMaps(partyIDMap, tssNode.partyIDtoP2PID)
 	ctx := btss.NewPeerContext(partiesID)
@@ -377,10 +379,9 @@ func (t *TssTestSuite) TestProcessVerMessage(c *C) {
 	})
 	err = setupIDMaps(partyIDMap, tssNode.partyIDtoP2PID)
 	c.Assert(err, IsNil)
-	partiesID = append(partiesID[:localPartyID.Index], partiesID[localPartyID.Index+1:]...)
-
-	t.testVerMsgDuplication(c, tssNode, partiesID[0], partiesID)
-	t.testVerMsgWrongHash(c, tssNode, partiesID[0], partiesID)
-	t.testVerMsgAndUpdate(c, tssNode, partiesID[0], partiesID)
-	t.testDropMsgOwner(c, tssNode, partiesID[0], partiesID)
+	peerPartiesID := append(partiesID[:localPartyID.Index], partiesID[localPartyID.Index+1:]...)
+	t.testVerMsgDuplication(c, tssNode, partiesID[0], peerPartiesID)
+	t.testVerMsgWrongHash(c, tssNode, peerPartiesID[0], peerPartiesID)
+	t.testVerMsgAndUpdate(c, tssNode, peerPartiesID[0], partiesID)
+	t.testDropMsgOwner(c, tssNode, peerPartiesID[0], partiesID)
 }

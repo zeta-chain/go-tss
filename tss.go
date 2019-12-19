@@ -93,7 +93,7 @@ func NewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, priKeyBytes 
 	// This code will generate those parameters using a concurrency limit equal to the number of available CPU cores.
 	var preParams *keygen.LocalPreParams
 	if !byPassGeneratePreParam {
-		if 0 < len(optionalPreParams) {
+		if len(optionalPreParams) > 0 {
 			preParams = &optionalPreParams[0]
 		} else {
 			preParams, err = keygen.GeneratePreParams(1 * time.Minute)
