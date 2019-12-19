@@ -212,11 +212,11 @@ func (t *TssTestSuite) Test4NodesTss(c *C) {
 func (t *TssTestSuite) testTssProcessOutCh(c *C, tssNode *Tss) {
 	localTestPubKeys := make([]string, len(testPubKeys))
 	copy(localTestPubKeys, testPubKeys[:])
-	_, localPartyID, err := tssNode.getParties(localTestPubKeys, testPubKeys[0], true)
+	partiesID, localPartyID, err := tssNode.getParties(localTestPubKeys, testPubKeys[0], true)
 	c.Assert(err, IsNil)
 	messageRouting := btss.MessageRouting{
 		From:                    localPartyID,
-		To:                      nil,
+		To:                      partiesID[3:],
 		IsBroadcast:             true,
 		IsToOldCommittee:        false,
 		IsToOldAndNewCommittees: false,

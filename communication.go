@@ -87,12 +87,12 @@ func (c *Communication) Broadcast(peers []peer.ID, msg []byte) error {
 func (c *Communication) broadcastToPeers(peers []peer.ID, msg []byte) {
 	defer c.wg.Done()
 	defer func() {
-		if peers == nil {
-			c.logger.Debug().Msg("finished broadcast to all peers")
-		} else {
-			c.logger.Debug().Msgf("finished sending message to peer(%v)", peers)
-		}
+		c.logger.Debug().Msgf("finished sending message to peer(%v)", peers)
 	}()
+	if len(peers) == 0 {
+		c.logger.Debug().Msgf("the peer list is empty")
+		return
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*5)
 	defer cancel()
 	peerChan, err := c.routingDiscovery.FindPeers(ctx, c.Rendezvous)
