@@ -54,9 +54,9 @@ type WrappedMessage struct {
 
 // BroadcastConfirmMessage is used to broadcast to all parties what message they receive
 type BroadcastConfirmMessage struct {
-	PartyID string `json:"party_id"`
-	Key     string `json:"key"`
-	Hash    string `json:"hash"`
+	P2PID string `json:"P2PID"`
+	Key   string `json:"key"`
+	Hash  string `json:"hash"`
 }
 
 // WireMessage the message that produced by tss-lib package
@@ -80,10 +80,10 @@ type LocalCacheItem struct {
 }
 
 // UpdateConfirmList add the given party's hash into the confirm list
-func (l *LocalCacheItem) UpdateConfirmList(partyID, hash string) {
+func (l *LocalCacheItem) UpdateConfirmList(P2PID, hash string) {
 	l.lock.Lock()
 	defer l.lock.Unlock()
-	l.ConfirmedList[partyID] = hash
+	l.ConfirmedList[P2PID] = hash
 }
 
 // TotalConfirmParty number of parties that already confirmed their hash

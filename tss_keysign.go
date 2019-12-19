@@ -66,28 +66,30 @@ func (t *Tss) signMessage(req KeySignReq) (*signing.SignatureData, error) {
 		return nil, fmt.Errorf("fail to convert msg to hash int: %w", err)
 	}
 	keySignParty := signing.NewLocalParty(m, params, localKeyData, outCh, endCh)
-	partyIDMap := make(map[string]*btss.PartyID)
-	for _, id := range partiesID {
-		partyIDMap[id.Id] = id
-	}
+	partyIDMap := setupPartyIDMap(partiesID)
 
 	defer func() {
-		t.setKeyGenInfo(nil)
+		t.setPartyInfo(nil)
 	}()
 
+	err = setupIDMaps(partyIDMap, t.partyIDtoP2PID)
+	if nil != err {
+		t.logger.Error().Msgf("error in creating mapping between partyID and P2P ID")
+		return nil, err
+	} //start key sign
 	go func() {
 		if err := keySignParty.Start(); nil != err {
 			t.logger.Error().Err(err).Msg("fail to start key sign party")
 			close(errCh)
 		}
-		t.setKeyGenInfo(&TssKeyGenInfo{
+		t.setPartyInfo(&PartyInfo{
 			Party:      keySignParty,
 			PartyIDMap: partyIDMap,
 		})
 		t.logger.Debug().Msg("local party is ready")
 	}()
 
-	defer t.emptyQueuedMessages(t.keysignQueuedMsgs)
+	defer t.emptyQueuedMessages(t.keySignQueuedMsgs)
 	result, err := t.processKeySign(errCh, outCh, endCh)
 	if nil != err {
 		return nil, fmt.Errorf("fail to process key sign: %w", err)
@@ -100,53 +102,21 @@ func (t *Tss) processKeySign(errChan chan struct{}, outCh <-chan btss.Message, e
 	t.logger.Info().Msg("start to read messages from local party")
 	for {
 		select {
-		case <-errChan: // when keyGenParty return
+		case <-errChan: // when key sign return
 			t.logger.Error().Msg("key sign failed")
 			return nil, errors.New("error channel closed fail to start local party")
 		case <-t.stopChan: // when TSS processor receive signal to quit
 			return nil, errors.New("received exit signal")
 		case <-time.After(time.Second * KeySignTimeoutSeconds):
-			// we bail out after KeyGenTimeoutSeconds
+			// we bail out after KeySignTimeoutSeconds
 			return nil, fmt.Errorf("fail to sign message with in %d seconds", KeySignTimeoutSeconds)
 		case msg := <-outCh:
 			t.logger.Debug().Msgf(">>>>>>>>>>key sign msg: %s", msg.String())
-			buf, r, err := msg.WireBytes()
+			err := t.processOutCh(msg, TSSKeySignMsg)
 			if nil != err {
-				t.logger.Error().Err(err).Msg("fail to get wire bytes")
-				continue
+				return nil, err
 			}
-			wireMsg := WireMessage{
-				Routing:   r,
-				RoundInfo: msg.Type(),
-				Message:   buf,
-			}
-			t.logger.Debug().Msgf("####routing:%+v", r)
-			wireBytes, err := json.Marshal(wireMsg)
-			if nil != err {
-				return nil, fmt.Errorf("fail to convert tss msg to wire bytes: %w", err)
-			}
-			wrappedMsg := WrappedMessage{
-				MessageType: TSSKeySignMsg,
-				Payload:     wireBytes,
-			}
-			wrappedMsgBytes, err := json.Marshal(wrappedMsg)
-			if nil != err {
-				return nil, fmt.Errorf("fail to convert tss msg to wire bytes: %w", err)
-			}
-			peers, err := t.getPeerIDs(r.To)
-			if nil != err {
-				t.logger.Error().Err(err).Msg("fail to get peer ids")
-			}
-			if nil == peers {
-				t.logger.Debug().Msgf("broad cast msg to everyone from :%s ", r.From.Id)
-			} else {
-				t.logger.Debug().Msgf("sending message to (%v) from :%s", peers, r.From.Id)
-			}
-			if err := t.comm.Broadcast(peers, wrappedMsgBytes); nil != err {
-				t.logger.Error().Err(err).Msg("fail to broadcast messages")
-			}
-			// drain the in memory queue
-			t.processQueuedMessages(t.keysignQueuedMsgs)
+			continue
 		case msg := <-endCh:
 			t.logger.Debug().Msg("we have done the key sign")
 			return &msg, nil
@@ -173,7 +143,7 @@ func (t *Tss) keysign(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	if t.getKeyGenInfo() != nil {
+	if t.getPartyInfo() != nil {
 		t.logger.Error().Msg("another tss key sign is in progress")
 		t.writeKeySignResult(w, "", "", Fail)
 		return

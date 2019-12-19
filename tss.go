@@ -38,12 +38,18 @@ const (
 
 var (
 	byPassGeneratePreParam = false
+	HashFromOwnerErr       = fmt.Errorf("msg from data owner")
 )
 
-// TssKeyGenInfo the information used by tss key gen
-type TssKeyGenInfo struct {
+// PartyInfo the information used by tss key gen and key sign
+type PartyInfo struct {
 	Party      btss.Party
 	PartyIDMap map[string]*btss.PartyID
+}
+
+type QueuedMsg struct {
+	wrappedMsg *WrappedMessage
+	peerID     string
 }
 
 // Tss all the things for TSS
@@ -54,11 +60,11 @@ type Tss struct {
 	server              *http.Server
 	wg                  sync.WaitGroup
 	partyLock           *sync.Mutex
-	keyGenInfo          *TssKeyGenInfo
+	partyInfo           *PartyInfo
 	stopChan            chan struct{}        // channel to indicate whether we should stop
-	keygenQueuedMsgs    chan *WrappedMessage // messages queued up before local party is even ready
-	keysignQueuedMsgs   chan *WrappedMessage // messages queued up for key sign
-	broadcastChannel    chan *WrappedMessage // channel used to broadcast message to other parties
+	keyGenQueuedMsgs    chan QueuedMsg       // messages queued up before local party is even ready
+	keySignQueuedMsgs   chan QueuedMsg       // messages queued up for key sign
+	broadcastChannel    chan *WrappedMessage // channel we used to broadcast message to other parties
 	stateLock           *sync.Mutex
 	tssLock             *sync.Mutex
 	priKey              cryptokey.PrivKey
@@ -66,6 +72,7 @@ type Tss struct {
 	homeBase            string
 	unConfirmedMsgLock  *sync.Mutex
 	unConfirmedMessages map[string]*LocalCacheItem
+	partyIDtoP2PID      map[string]peer.ID
 }
 
 // NewTss create a new instance of Tss
@@ -86,9 +93,9 @@ func NewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, priKeyBytes 
 	// This code will generate those parameters using a concurrency limit equal to the number of available CPU cores.
 	var preParams *keygen.LocalPreParams
 	if !byPassGeneratePreParam {
-		if 0 < len(optionalPreParams) {
+		if len(optionalPreParams) > 0 {
 			preParams = &optionalPreParams[0]
-		}else {
+		} else {
 			preParams, err = keygen.GeneratePreParams(1 * time.Minute)
 			if nil != err {
 				return nil, fmt.Errorf("fail to generate pre parameters: %w", err)
@@ -102,8 +109,8 @@ func NewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, priKeyBytes 
 		port:                tssPort,
 		stopChan:            make(chan struct{}),
 		partyLock:           &sync.Mutex{},
-		keygenQueuedMsgs:    make(chan *WrappedMessage, 1024),
-		keysignQueuedMsgs:   make(chan *WrappedMessage, 1024),
+		keyGenQueuedMsgs:    make(chan QueuedMsg, 1024),
+		keySignQueuedMsgs:   make(chan QueuedMsg, 1024),
 		broadcastChannel:    make(chan *WrappedMessage),
 		stateLock:           &sync.Mutex{},
 		tssLock:             &sync.Mutex{},
@@ -112,6 +119,7 @@ func NewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, priKeyBytes 
 		homeBase:            baseFolder,
 		unConfirmedMsgLock:  &sync.Mutex{},
 		unConfirmedMessages: make(map[string]*LocalCacheItem),
+		partyIDtoP2PID:      make(map[string]peer.ID),
 	}
 
 	server := &http.Server{
@@ -213,7 +221,7 @@ func (t *Tss) getParties(keys []string, localPartyKey string, keygen bool) ([]*b
 }
 
 // emptyQueuedMessages
-func (t *Tss) emptyQueuedMessages(input <-chan *WrappedMessage) {
+func (t *Tss) emptyQueuedMessages(input <-chan QueuedMsg) {
 	t.logger.Debug().Msg("empty queue messages")
 	defer t.logger.Debug().Msg("finished empty queue messages")
 	t.unConfirmedMsgLock.Lock()
@@ -225,35 +233,20 @@ func (t *Tss) emptyQueuedMessages(input <-chan *WrappedMessage) {
 	for {
 		select {
 		case m := <-input:
-			t.logger.Debug().Msgf("drop queued message from %s", m.MessageType)
+			t.logger.Debug().Msgf("drop queued message from %s", m.wrappedMsg.MessageType)
 		default:
 			return
 		}
 	}
 }
 
-func (t *Tss) getPeerIDs(parties []*btss.PartyID) ([]peer.ID, error) {
-	if nil == parties {
-		return t.getAllPartyPeerIDs()
-	}
-	var result []peer.ID
-	for _, item := range parties {
-		peerID, err := getPeerIDFromPartyID(item)
-		if nil != err {
-			return nil, fmt.Errorf("fail to get peer id from pub key")
-		}
-		result = append(result, peerID)
-	}
-	return result, nil
-}
-
 func (t *Tss) getAllPartyPeerIDs() ([]peer.ID, error) {
 	var result []peer.ID
-	keyGenInfo := t.getKeyGenInfo()
-	if nil == keyGenInfo {
+	PartyInfo := t.getPartyInfo()
+	if nil == PartyInfo {
 		return nil, fmt.Errorf("fail to get keygen info")
 	}
-	for _, item := range keyGenInfo.PartyIDMap {
+	for _, item := range PartyInfo.PartyIDMap {
 		peerID, err := getPeerIDFromPartyID(item)
 		if nil != err {
 			return nil, fmt.Errorf("fail to get peer id from pub key")
@@ -288,33 +281,33 @@ func (t *Tss) addLocalPartySaveData(data keygen.LocalPartySaveData, keyGenLocalS
 
 }
 
-func (t *Tss) setKeyGenInfo(keyGenInfo *TssKeyGenInfo) {
+func (t *Tss) setPartyInfo(partyInfo *PartyInfo) {
 	t.partyLock.Lock()
 	defer t.partyLock.Unlock()
-	t.keyGenInfo = keyGenInfo
+	t.partyInfo = partyInfo
 }
 
-func (t *Tss) getKeyGenInfo() *TssKeyGenInfo {
+func (t *Tss) getPartyInfo() *PartyInfo {
 	t.partyLock.Lock()
 	defer t.partyLock.Unlock()
-	return t.keyGenInfo
+	return t.partyInfo
 }
 
-func (t *Tss) processQueuedMessages(input <-chan *WrappedMessage) {
+func (t *Tss) processQueuedMessages(input <-chan QueuedMsg) {
 	t.logger.Debug().Msg("process queued messages")
 	defer t.logger.Debug().Msg("finished processing queued messages")
 	if len(input) == 0 {
 		return
 	}
-	keyGenInfo := t.getKeyGenInfo()
-	if nil == keyGenInfo {
+	partyInfo := t.getPartyInfo()
+	if nil == partyInfo {
 		return
 	}
 	for {
 		select {
 		case m := <-input:
-			t.logger.Debug().Msgf("process queued %s message", m.MessageType)
-			if err := t.processOneMessage(m); nil != err {
+			t.logger.Debug().Msgf("process queued %s message", m.wrappedMsg.MessageType)
+			if err := t.processOneMessage(m.wrappedMsg, m.peerID); nil != err {
 				t.logger.Error().Err(err).Msg("fail to process a message from local queue")
 			}
 		default:
@@ -430,7 +423,7 @@ func (t *Tss) processComm() {
 				t.logger.Error().Err(err).Msg("fail to unmarshal wrapped message bytes")
 				continue
 			}
-			if err := t.processOneMessage(&wrappedMsg); nil != err {
+			if err := t.processOneMessage(&wrappedMsg, m.PeerID.String()); nil != err {
 				t.logger.Error().Err(err).Msg("fail to process message")
 			}
 		}
@@ -442,29 +435,46 @@ func (t *Tss) updateLocal(wireMsg *WireMessage) error {
 	if nil == wireMsg {
 		t.logger.Warn().Msg("wire msg is nil")
 	}
-	keyGenInfo := t.getKeyGenInfo()
-	if keyGenInfo == nil {
+	partyInfo := t.getPartyInfo()
+	if partyInfo == nil {
 		return nil
 	}
-	partyID, ok := keyGenInfo.PartyIDMap[wireMsg.Routing.From.Id]
+	partyID, ok := partyInfo.PartyIDMap[wireMsg.Routing.From.Id]
 	if !ok {
 		return fmt.Errorf("get message from unknown party %s", partyID.Id)
 	}
-	if _, err := keyGenInfo.Party.UpdateFromBytes(wireMsg.Message, partyID, wireMsg.Routing.IsBroadcast); nil != err {
+	if _, err := partyInfo.Party.UpdateFromBytes(wireMsg.Message, partyID, wireMsg.Routing.IsBroadcast); nil != err {
 		return fmt.Errorf("fail to set bytes to local party: %w", err)
 	}
 	return nil
 }
 
 func (t *Tss) isLocalPartyReady() bool {
-	keyGenInfo := t.getKeyGenInfo()
-	if nil == keyGenInfo {
+	partyInfo := t.getPartyInfo()
+	if nil == partyInfo {
 		return false
 	}
 	return true
 }
 
-func (t *Tss) processOneMessage(wrappedMsg *WrappedMessage) error {
+func (t *Tss) checkDupAndUpdateVerMsg(bMsg *BroadcastConfirmMessage, peerID string) bool {
+	localCacheItem := t.tryGetLocalCacheItem(bMsg.Key)
+	//we check whether this node has already sent the VerMsg message to avoid eclipse of others VerMsg
+	if localCacheItem == nil {
+		bMsg.P2PID = peerID
+		return true
+	}
+
+	defer localCacheItem.lock.Unlock()
+	localCacheItem.lock.Lock()
+	if _, ok := localCacheItem.ConfirmedList[peerID]; ok {
+		return false
+	}
+	bMsg.P2PID = peerID
+	return true
+}
+
+func (t *Tss) processOneMessage(wrappedMsg *WrappedMessage, peerID string) error {
 	t.logger.Debug().Msg("start process one message")
 	defer t.logger.Debug().Msg("finish processing one message")
 	if nil == wrappedMsg {
@@ -475,9 +485,9 @@ func (t *Tss) processOneMessage(wrappedMsg *WrappedMessage) error {
 		t.logger.Debug().Msgf("local party is not ready,queue it,%s", wrappedMsg.MessageType)
 		switch wrappedMsg.MessageType {
 		case TSSKeySignMsg, TSSKeySignVerMsg:
-			t.keysignQueuedMsgs <- wrappedMsg
+			t.keySignQueuedMsgs <- newQueuedMsg(wrappedMsg, peerID)
 		case TSSKeyGenMsg, TSSKeyGenVerMsg:
-			t.keygenQueuedMsgs <- wrappedMsg
+			t.keyGenQueuedMsgs <- newQueuedMsg(wrappedMsg, peerID)
 		}
 		return nil
 	}
@@ -493,7 +503,91 @@ func (t *Tss) processOneMessage(wrappedMsg *WrappedMessage) error {
 		if err := json.Unmarshal(wrappedMsg.Payload, &bMsg); nil != err {
 			return fmt.Errorf("fail to unmarshal broadcast confirm message")
 		}
-		return t.processVerMsg(&bMsg)
+		//we check whether this peer has already send us the VerMsg before update
+		ret := t.checkDupAndUpdateVerMsg(&bMsg, peerID)
+		if ret {
+			return t.processVerMsg(&bMsg)
+		}
+		return nil
+
+	}
+	return nil
+}
+
+func (t *Tss) hashCheck(localCacheItem *LocalCacheItem) (string, error) {
+	dataOwner := localCacheItem.Msg.Routing.From
+	dataOwnerP2PID, ok := t.partyIDtoP2PID[dataOwner.Id]
+	if !ok {
+		t.logger.Warn().Msgf("error in find the data Owner P2PID\n")
+		return dataOwnerP2PID.String(), errors.New("error in find the data Owner P2PID")
+	}
+	localCacheItem.lock.Lock()
+	defer localCacheItem.lock.Unlock()
+
+	targetHashValue := localCacheItem.Hash
+	for P2PID, hashValue := range localCacheItem.ConfirmedList {
+		if P2PID == dataOwnerP2PID.String() {
+			t.logger.Warn().Msgf("we detect that the data owner try to send the hash for his own message\n")
+			delete(localCacheItem.ConfirmedList, P2PID)
+			return "", HashFromOwnerErr
+		}
+		if targetHashValue == hashValue {
+			continue
+		}
+		t.logger.Error().Msgf("hash is not in consistency!!")
+		return P2PID, errors.New("hash is not in consistency")
+	}
+	return "", nil
+}
+
+func (t *Tss) processOutCh(msg btss.Message, msgType THORChainTSSMessageType) error {
+	buf, r, err := msg.WireBytes()
+	// if we cannot get the wire share, the tss keygen will fail, we just quit.
+	if nil != err {
+		return fmt.Errorf("fail to get wire bytes: %w", err)
+	}
+	wireMsg := WireMessage{
+		Routing:   r,
+		RoundInfo: msg.Type(),
+		Message:   buf,
+	}
+	wireMsgBytes, err := json.Marshal(wireMsg)
+	if nil != err {
+		return fmt.Errorf("fail to convert tss msg to wire bytes: %w", err)
+	}
+	wrappedMsg := &WrappedMessage{
+		MessageType: msgType,
+		Payload:     wireMsgBytes,
+	}
+	wrappedMsgBytes, err := json.Marshal(wrappedMsg)
+	if nil != err {
+		return fmt.Errorf("fail to marshal wrapped message to bytes: %w", err)
+	}
+	peerIDs := make([]peer.ID, 0)
+	for _, each := range r.To {
+		peerID, ok := t.partyIDtoP2PID[each.Id]
+		if !ok {
+			t.logger.Error().Msgf("error in find the P2P ID")
+			continue
+		}
+		peerIDs = append(peerIDs, peerID)
+	}
+	if nil == peerIDs {
+		t.logger.Debug().Msgf("broad cast msg to everyone from :%s ", r.From.Id)
+	} else {
+		t.logger.Debug().Msgf("sending message to (%v) from :%s", peerIDs, r.From.Id)
+	}
+	if err := t.comm.Broadcast(peerIDs, wrappedMsgBytes); nil != err {
+		t.logger.Error().Err(err).Msg("fail to broadcast messages")
+	}
+	switch msgType {
+	case TSSKeyGenMsg:
+		t.processQueuedMessages(t.keyGenQueuedMsgs)
+	case TSSKeySignMsg:
+		t.processQueuedMessages(t.keySignQueuedMsgs)
+	default:
+		return fmt.Errorf("unknow message type")
+
 	}
 	return nil
 }
@@ -504,8 +598,8 @@ func (t *Tss) processVerMsg(broadcastConfirmMsg *BroadcastConfirmMessage) error 
 	if nil == broadcastConfirmMsg {
 		return nil
 	}
-	keyGenInfo := t.getKeyGenInfo()
-	if nil == keyGenInfo {
+	partyInfo := t.getPartyInfo()
+	if nil == partyInfo {
 		return errors.New("can't process ver msg , local party is not ready")
 	}
 	key := broadcastConfirmMsg.Key
@@ -520,9 +614,19 @@ func (t *Tss) processVerMsg(broadcastConfirmMsg *BroadcastConfirmMessage) error 
 		}
 		t.updateLocalUnconfirmedMessages(key, localCacheItem)
 	}
-	localCacheItem.UpdateConfirmList(broadcastConfirmMsg.PartyID, broadcastConfirmMsg.Hash)
+
+	localCacheItem.UpdateConfirmList(broadcastConfirmMsg.P2PID, broadcastConfirmMsg.Hash)
 	t.logger.Info().Msgf("total confirmed parties:%+v", localCacheItem.ConfirmedList)
-	if localCacheItem.TotalConfirmParty() == (len(keyGenInfo.PartyIDMap)-1) && localCacheItem.Msg != nil {
+	if localCacheItem.TotalConfirmParty() == (len(partyInfo.PartyIDMap)-1) && localCacheItem.Msg != nil {
+		msg, err := t.hashCheck(localCacheItem)
+		if nil != err {
+			if err == HashFromOwnerErr {
+				return nil
+			}
+			t.logger.Error().Msgf("The consistency check fail of node %s\n", msg)
+			return err
+		}
+
 		if err := t.updateLocal(localCacheItem.Msg); nil != err {
 			return fmt.Errorf("fail to update the message to local party: %w", err)
 		}
@@ -547,13 +651,13 @@ func (t *Tss) processTSSMsg(wireMsg *WireMessage, msgType THORChainTSSMessageTyp
 	if nil != err {
 		return fmt.Errorf("fail to calculate hash of the wire message: %w", err)
 	}
-	keyGenInfo := t.getKeyGenInfo()
+	partyInfo := t.getPartyInfo()
 	key := wireMsg.GetCacheKey()
-	localPartyID := keyGenInfo.Party.PartyID().Id
+	//P2PID will be filled up by the receiver.
 	broadcastConfirmMsg := &BroadcastConfirmMessage{
-		PartyID: localPartyID,
-		Key:     key,
-		Hash:    msgHash,
+		P2PID: "",
+		Key:   key,
+		Hash:  msgHash,
 	}
 	localCacheItem := t.tryGetLocalCacheItem(key)
 	if nil == localCacheItem {
@@ -574,8 +678,9 @@ func (t *Tss) processTSSMsg(wireMsg *WireMessage, msgType THORChainTSSMessageTyp
 			localCacheItem.Hash = msgHash
 		}
 	}
-	localCacheItem.UpdateConfirmList(localPartyID, msgHash)
-	if localCacheItem.TotalConfirmParty() == (len(keyGenInfo.PartyIDMap) - 1) {
+	localP2PID := t.comm.GetLocalPeerID()
+	localCacheItem.UpdateConfirmList(localP2PID, msgHash)
+	if localCacheItem.TotalConfirmParty() == (len(partyInfo.PartyIDMap) - 1) {
 		if err := t.updateLocal(localCacheItem.Msg); nil != err {
 			return fmt.Errorf("fail to update the message to local party: %w", err)
 		}
