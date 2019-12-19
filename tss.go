@@ -567,7 +567,7 @@ func (t *Tss) processOutCh(msg btss.Message, msgType THORChainTSSMessageType) er
 	if len(r.To) == 0 {
 		peerIDs, err = t.getAllPartyPeerIDs()
 		if err != nil {
-			t.logger.Error().Err(err).Msgf("%s", err.Error())
+			t.logger.Error().Err(err).Msg("fail to get all parties peer ids")
 			return err
 		}
 
