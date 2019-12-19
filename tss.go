@@ -575,7 +575,7 @@ func (t *Tss) processOutCh(msg btss.Message, msgType THORChainTSSMessageType) er
 		for _, each := range r.To {
 			peerID, ok := t.partyIDtoP2PID[each.Id]
 			if !ok {
-				t.logger.Error().Msgf("error in find the P2P ID")
+				t.logger.Error().Msg("error in find the P2P ID")
 				continue
 			}
 			peerIDs = append(peerIDs, peerID)
