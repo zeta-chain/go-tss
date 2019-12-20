@@ -1,4 +1,8 @@
-package tss
+package keysign
+
+import (
+	"gitlab.com/thorchain/tss/go-tss/tss/common"
+)
 
 // KeySignReq request to sign a message
 type KeySignReq struct {
@@ -8,7 +12,7 @@ type KeySignReq struct {
 
 // KeySignResp key sign response
 type KeySignResp struct {
-	R      string `json:"r"`
-	S      string `json:"s"`
-	Status Status `json:"status"`
+	R      string        `json:"r"`
+	S      string        `json:"s"`
+	Status common.Status `json:"status"`
 }

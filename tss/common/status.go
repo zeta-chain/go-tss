@@ -1,16 +1,23 @@
-package tss
+package common
 
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"math/big"
-	"os"
-
 	"github.com/binance-chain/tss-lib/crypto"
 	"github.com/binance-chain/tss-lib/crypto/paillier"
 	"github.com/binance-chain/tss-lib/ecdsa/keygen"
 	btss "github.com/binance-chain/tss-lib/tss"
+	"io/ioutil"
+	"math/big"
+	"os"
+)
+
+type Status byte
+
+const (
+	NA Status = iota
+	Success
+	Fail
 )
 
 // KeygenLocalStateItem
@@ -78,12 +85,4 @@ func ProcessStateFile(sourceState KeygenLocalStateItem, parties []*btss.PartyID)
 	}
 	parties = btss.SortPartyIDs(parties)
 	return keyData, parties
-}
-
-func SaveLocalStateToFile(filePathName string, state KeygenLocalStateItem) error {
-	buf, err := json.Marshal(state)
-	if nil != err {
-		return fmt.Errorf("fail to marshal KeygenLocalState to json: %w", err)
-	}
-	return ioutil.WriteFile(filePathName, buf, 0655)
 }

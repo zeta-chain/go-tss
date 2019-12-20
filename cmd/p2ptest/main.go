@@ -11,6 +11,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/whyrusleeping/go-logging"
 
+	"gitlab.com/thorchain/tss/go-tss/tss/common"
 	"gitlab.com/thorchain/tss/go-tss"
 	"gitlab.com/thorchain/tss/go-tss/p2p"
 )
@@ -21,7 +22,7 @@ func main() {
 		panic(err)
 	}
 	help := flag.Bool("h", false, "Display Help")
-	config, err := tss.ParseFlags()
+	config, err := common.ParseFlags()
 	if err != nil {
 		panic(err)
 	}

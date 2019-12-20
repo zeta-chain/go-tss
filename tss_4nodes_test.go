@@ -7,6 +7,15 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	btsskeygen "github.com/binance-chain/tss-lib/ecdsa/keygen"
+	btss "github.com/binance-chain/tss-lib/tss"
+	"github.com/hashicorp/go-retryablehttp"
+	maddr "github.com/multiformats/go-multiaddr"
+	"gitlab.com/thorchain/tss/go-tss/p2p"
+	"gitlab.com/thorchain/tss/go-tss/tss/common"
+	"gitlab.com/thorchain/tss/go-tss/tss/keygen"
+	"gitlab.com/thorchain/tss/go-tss/tss/keysign"
+	. "gopkg.in/check.v1"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -44,9 +53,9 @@ func checkServeReady(c *C, port int) {
 	c.Assert(resp.StatusCode == http.StatusOK, Equals, true)
 }
 
-func startServerAndCheck(c *C, wg sync.WaitGroup, server *Tss, ctx context.Context, port int) {
+func startServerAndCheck(c *C, wg sync.WaitGroup, server *TssServer, ctx context.Context, port int) {
 	wg.Add(1)
-	go func(server *Tss, ctx context.Context) {
+	go func(server *TssServer, ctx context.Context) {
 		defer wg.Done()
 		err := server.Start(ctx)
 		c.Assert(err, IsNil)
@@ -54,7 +63,7 @@ func startServerAndCheck(c *C, wg sync.WaitGroup, server *Tss, ctx context.Conte
 	checkServeReady(c, port)
 }
 
-func spinUpServers(c *C, localTss []*Tss, ctxs []context.Context, wg sync.WaitGroup, partyNum int) {
+func spinUpServers(c *C, localTss []*TssServer, ctxs []context.Context, wg sync.WaitGroup, partyNum int) {
 	//we spin up the first signer as the "bootstrap node", and the rest 3 nodes connect to it
 	startServerAndCheck(c, wg, localTss[0], ctxs[0], baseTssPort)
 	for i := 1; i < partyNum; i++ {
@@ -62,19 +71,19 @@ func spinUpServers(c *C, localTss []*Tss, ctxs []context.Context, wg sync.WaitGr
 	}
 }
 
-func setupContextAndNodes(c *C, partyNum int) ([]context.Context, []context.CancelFunc, []*Tss) {
-	var localTss []*Tss
+func setupContextAndNodes(c *C, partyNum int) ([]context.Context, []context.CancelFunc, []*TssServer) {
+	var localTss []*TssServer
 	var ctxs []context.Context
 	var cancels []context.CancelFunc
 	multiAddr, err := maddr.NewMultiaddr(peerID)
 	c.Assert(err, IsNil)
 	peerIDs := []maddr.Multiaddr{multiAddr}
-	var preParamArray []*keygen.LocalPreParams
+	var preParamArray []*btsskeygen.LocalPreParams
 	buf, err := ioutil.ReadFile(path.Join(testFileLocation, preParamTestFile))
 	c.Assert(err, IsNil)
 	preParamsStr := strings.Split(string(buf), "\n")
 	for _, item := range preParamsStr {
-		var preParam keygen.LocalPreParams
+		var preParam btsskeygen.LocalPreParams
 		val, err := hex.DecodeString(string(item))
 		c.Assert(err, IsNil)
 		json.Unmarshal(val, &preParam)
@@ -105,7 +114,7 @@ func setupContextAndNodes(c *C, partyNum int) ([]context.Context, []context.Canc
 	return ctxs, cancels, localTss
 }
 
-func setupNodeForTest(c *C, partyNum int) ([]context.Context, []*Tss, []context.CancelFunc, *sync.WaitGroup) {
+func setupNodeForTest(c *C, partyNum int) ([]context.Context, []*TssServer, []context.CancelFunc, *sync.WaitGroup) {
 
 	ctxs, cancels, localTss := setupContextAndNodes(c, partyNum)
 	wg := sync.WaitGroup{}
@@ -124,10 +133,10 @@ func sendTestRequest(c *C, url string, request []byte) []byte {
 }
 
 func testKeySign(c *C, poolPubKey string, partyNum int) {
-	var keySignRespArr []*KeySignResp
+	var keySignRespArr []*keysign.KeySignResp
 	var locker sync.Mutex
 	msg := base64.StdEncoding.EncodeToString([]byte("hello"))
-	keySignReq := KeySignReq{
+	keySignReq := keysign.KeySignReq{
 		PoolPubKey: poolPubKey,
 		Message:    msg,
 	}
@@ -140,7 +149,7 @@ func testKeySign(c *C, poolPubKey string, partyNum int) {
 			defer requestGroup.Done()
 			url := fmt.Sprintf("http://127.0.0.1:%d/keysign", baseTssPort+i)
 			respByte := sendTestRequest(c, url, request)
-			var tempResp KeySignResp
+			var tempResp keysign.KeySignResp
 			err = json.Unmarshal(respByte, &tempResp)
 			c.Assert(err, IsNil)
 			locker.Lock()
@@ -160,9 +169,9 @@ func testKeySign(c *C, poolPubKey string, partyNum int) {
 }
 
 func testKeyGen(c *C, partyNum int) string {
-	var keyGenRespArr []*KeyGenResp
+	var keyGenRespArr []*keygen.KeyGenResp
 	var locker sync.Mutex
-	keyGenReq := KeyGenReq{
+	keyGenReq := keygen.KeyGenReq{
 		Keys: testPubKeys[:],
 	}
 	request, err := json.Marshal(keyGenReq)
@@ -174,7 +183,7 @@ func testKeyGen(c *C, partyNum int) string {
 			defer requestGroup.Done()
 			url := fmt.Sprintf("http://127.0.0.1:%d/keygen", baseTssPort+i)
 			respByte := sendTestRequest(c, url, request)
-			var tempResp KeyGenResp
+			var tempResp keygen.KeyGenResp
 			err = json.Unmarshal(respByte, &tempResp)
 			c.Assert(err, IsNil)
 			locker.Lock()
@@ -200,20 +209,35 @@ func cleanUp(c *C, cancels []context.CancelFunc, wg *sync.WaitGroup, partyNum in
 }
 
 func (t *TssTestSuite) Test4NodesTss(c *C) {
-	_, tssNodes, cancels, wg := setupNodeForTest(c, partyNum)
+	_, _, cancels, wg := setupNodeForTest(c, partyNum)
 	defer cleanUp(c, cancels, wg, partyNum)
 	//test key gen.
 	poolPubKey := testKeyGen(c, partyNum)
-	//test key sign.
-	testKeySign(c, poolPubKey, partyNum)
-	//test the message process channel
-	t.testTssProcessOutCh(c, tssNodes[0])
+	// we test keygen and key sign running in parallel
+	var wgGenSign sync.WaitGroup
+	wgGenSign.Add(1)
+	go func() {
+		defer wgGenSign.Done()
+		//test key sign.
+		testKeySign(c, poolPubKey, partyNum)
+	}()
+	wgGenSign.Add(1)
+	go func() {
+		defer wgGenSign.Done()
+		//test key gen.
+		testKeyGen(c, partyNum)
+	}()
+	wgGenSign.Wait()
 }
 
-func (t *TssTestSuite) testTssProcessOutCh(c *C, tssNode *Tss) {
+func (t *TssTestSuite) testTssProcessOutCh(c *C, tssNode *TssServer) {
+	sk, err := common.GetPriKey(testPriKey)
+	c.Assert(err, IsNil)
+	c.Assert(sk, NotNil)
+	keySignInstance := keysign.NewTssKeySign("", "", sk, nil, nil, nil)
 	localTestPubKeys := make([]string, len(testPubKeys))
 	copy(localTestPubKeys, testPubKeys[:])
-	partiesID, localPartyID, err := tssNode.getParties(localTestPubKeys, testPubKeys[0], true)
+	partiesID, localPartyID, err := common.GetParties(localTestPubKeys, testPubKeys[0], true)
 	c.Assert(err, IsNil)
 	messageRouting := btss.MessageRouting{
 		From:                    localPartyID,
@@ -228,11 +252,12 @@ func (t *TssTestSuite) testTssProcessOutCh(c *C, tssNode *Tss) {
 	}
 	msg := btss.NewMessageWrapper(messageRouting, testContent)
 	tssMsg := btss.NewMessage(messageRouting, testContent, msg)
-	err = tssNode.processOutCh(tssMsg, TSSKeyGenMsg)
+	TsscommStruct := keySignInstance.GetTssCommonStruct()
+	err = TsscommStruct.ProcessOutCh(tssMsg, p2p.TSSKeyGenMsg)
 	c.Assert(err, IsNil)
 }
 
-func fabricateTssMsg(c *C, partyID *btss.PartyID, roundInfo, msg string) *WrappedMessage {
+func fabricateTssMsg(c *C, partyID *btss.PartyID, roundInfo, msg string) *p2p.WrappedMessage {
 	routingInfo := btss.MessageRouting{
 		From:                    partyID,
 		To:                      nil,
@@ -240,149 +265,154 @@ func fabricateTssMsg(c *C, partyID *btss.PartyID, roundInfo, msg string) *Wrappe
 		IsToOldCommittee:        false,
 		IsToOldAndNewCommittees: false,
 	}
-	wiredMessage := WireMessage{
+	wiredMessage := p2p.WireMessage{
 		Routing:   &routingInfo,
 		RoundInfo: roundInfo,
 		Message:   []byte(msg),
 	}
 	marshaledMsg, err := json.Marshal(wiredMessage)
 	c.Assert(err, IsNil)
-	wrappedMsg := WrappedMessage{
-		MessageType: TSSKeyGenMsg,
+	wrappedMsg := p2p.WrappedMessage{
+		MessageType: p2p.TSSKeyGenMsg,
 		Payload:     marshaledMsg,
 	}
 	return &wrappedMsg
 }
 
-func fabricateVerMsg(c *C, hash, hashKey string) *WrappedMessage {
-	broadcastConfirmMsg := &BroadcastConfirmMessage{
+func fabricateVerMsg(c *C, hash, hashKey string) *p2p.WrappedMessage {
+	broadcastConfirmMsg := &p2p.BroadcastConfirmMessage{
 		P2PID: "",
 		Key:   hashKey,
 		Hash:  hash,
 	}
 	marshaledMsg, err := json.Marshal(broadcastConfirmMsg)
 	c.Assert(err, IsNil)
-	wrappedMsg := WrappedMessage{
-		MessageType: TSSKeyGenVerMsg,
+	wrappedMsg := p2p.WrappedMessage{
+		MessageType: p2p.TSSKeyGenVerMsg,
 		Payload:     marshaledMsg,
 	}
 	return &wrappedMsg
 }
 
-func (t *TssTestSuite) testVerMsgDuplication(c *C, tssNode *Tss, senderID *btss.PartyID, partiesID []*btss.PartyID) {
+func (t *TssTestSuite) testVerMsgDuplication(c *C, tssCommonStruct *common.TssCommon, senderID *btss.PartyID, partiesID []*btss.PartyID) {
 	testMsg := "testVerMsgDuplication"
 	roundInfo := "round testVerMsgDuplication"
-	msgHash, err := bytesToHashString([]byte(testMsg))
+	msgHash, err := common.BytesToHashString([]byte(testMsg))
 	c.Assert(err, IsNil)
 	msgKey := fmt.Sprintf("%s-%s", senderID.Id, roundInfo)
 	wrappedMsg := fabricateTssMsg(c, senderID, roundInfo, testMsg)
 	// you can pass any p2pID in Tss message
-	err = tssNode.processOneMessage(wrappedMsg, senderID.Id)
+	err = tssCommonStruct.ProcessOneMessage(wrappedMsg, senderID.Id)
 	c.Assert(err, IsNil)
-	localItem := tssNode.tryGetLocalCacheItem(msgKey)
+	localItem := tssCommonStruct.TryGetLocalCacheItem(msgKey)
 	c.Assert(localItem.ConfirmedList, HasLen, 1)
 	//we send the verify message from the the same sender, Tss should only accept the first verify message
 	wrappedMsg = fabricateVerMsg(c, msgHash, msgKey)
 	for i := 0; i < 2; i++ {
-		err := tssNode.processOneMessage(wrappedMsg, tssNode.partyIDtoP2PID[partiesID[1].Id].String())
+		err := tssCommonStruct.ProcessOneMessage(wrappedMsg, tssCommonStruct.PartyIDtoP2PID[partiesID[1].Id].String())
 		c.Assert(err, IsNil)
 		c.Assert(localItem.ConfirmedList, HasLen, 2)
 	}
 }
 
-func (t *TssTestSuite) testDropMsgOwner(c *C, tssNode *Tss, senderID *btss.PartyID, partiesID []*btss.PartyID) {
+func (t *TssTestSuite) testDropMsgOwner(c *C, tssCommonStruct *common.TssCommon, senderID *btss.PartyID, partiesID []*btss.PartyID) {
 	testMsg := "testDropMsgOwner"
 	roundInfo := "round testDropMsgOwner"
-	msgHash, err := bytesToHashString([]byte(testMsg))
+	msgHash, err := common.BytesToHashString([]byte(testMsg))
 	c.Assert(err, IsNil)
 	msgKey := fmt.Sprintf("%s-%s", senderID.Id, roundInfo)
 	wrappedMsg := fabricateTssMsg(c, senderID, roundInfo, testMsg)
 	// you can pass any p2pID in Tss message
-	err = tssNode.processOneMessage(wrappedMsg, tssNode.partyIDtoP2PID[senderID.Id].String())
+	err = tssCommonStruct.ProcessOneMessage(wrappedMsg, tssCommonStruct.PartyIDtoP2PID[senderID.Id].String())
 	c.Assert(err, IsNil)
-	localItem := tssNode.tryGetLocalCacheItem(msgKey)
+	localItem := tssCommonStruct.TryGetLocalCacheItem(msgKey)
 	c.Assert(localItem.ConfirmedList, HasLen, 1)
 
 	wrappedVerMsg := fabricateVerMsg(c, msgHash, msgKey)
-	err = tssNode.processOneMessage(wrappedVerMsg, tssNode.partyIDtoP2PID[partiesID[1].Id].String())
+	err = tssCommonStruct.ProcessOneMessage(wrappedVerMsg, tssCommonStruct.PartyIDtoP2PID[partiesID[1].Id].String())
 	c.Assert(err, IsNil)
 	c.Assert(localItem.ConfirmedList, HasLen, 2)
 
 	//the data owner's message should be dropped
-	err = tssNode.processOneMessage(wrappedVerMsg, tssNode.partyIDtoP2PID[senderID.Id].String())
+	err = tssCommonStruct.ProcessOneMessage(wrappedVerMsg, tssCommonStruct.PartyIDtoP2PID[senderID.Id].String())
 	c.Assert(err, IsNil)
 	c.Assert(localItem.ConfirmedList, HasLen, 2)
 }
 
-func (t *TssTestSuite) testVerMsgAndUpdate(c *C, tssNode *Tss, senderID *btss.PartyID, partiesID []*btss.PartyID) {
+func (t *TssTestSuite) testVerMsgAndUpdate(c *C, tssCommonStruct *common.TssCommon, senderID *btss.PartyID, partiesID []*btss.PartyID) {
 	testMsg := "testVerMsgAndUpdate"
 	roundInfo := "round testVerMsgAndUpdate"
-	msgHash, err := bytesToHashString([]byte(testMsg))
+	msgHash, err := common.BytesToHashString([]byte(testMsg))
 	c.Assert(err, IsNil)
 	msgKey := fmt.Sprintf("%s-%s", senderID.Id, roundInfo)
 	wrappedMsg := fabricateTssMsg(c, senderID, roundInfo, testMsg)
 	// you can pass any p2pID in Tss message
-	err = tssNode.processOneMessage(wrappedMsg, tssNode.partyIDtoP2PID[senderID.Id].String())
+	err = tssCommonStruct.ProcessOneMessage(wrappedMsg, tssCommonStruct.PartyIDtoP2PID[senderID.Id].String())
 	c.Assert(err, IsNil)
-	localItem := tssNode.tryGetLocalCacheItem(msgKey)
+	localItem := tssCommonStruct.TryGetLocalCacheItem(msgKey)
 	c.Assert(localItem.ConfirmedList, HasLen, 1)
 
 	//we send the verify message from the the same sender, Tss should only accept the first verify message
 	wrappedVerMsg := fabricateVerMsg(c, msgHash, msgKey)
-	err = tssNode.processOneMessage(wrappedVerMsg, tssNode.partyIDtoP2PID[partiesID[1].Id].String())
+	err = tssCommonStruct.ProcessOneMessage(wrappedVerMsg, tssCommonStruct.PartyIDtoP2PID[partiesID[1].Id].String())
 	c.Assert(err, IsNil)
 	c.Assert(localItem.ConfirmedList, HasLen, 2)
 	//this panic indicates the message share is accepted by the this system.
 	c.Assert(tssNode.processOneMessage(wrappedVerMsg, tssNode.partyIDtoP2PID[partiesID[2].Id].String()), ErrorMatches, "fail to update the message to local party: fail to set bytes to local party: task , party <nil>, round -1: proto: can't skip unknown wire type 4")
 }
 
-func (t *TssTestSuite) testVerMsgWrongHash(c *C, tssNode *Tss, senderID *btss.PartyID, partiesID []*btss.PartyID) {
+func (t *TssTestSuite) testVerMsgWrongHash(c *C, tssCommonStruct *common.TssCommon, senderID *btss.PartyID, partiesID []*btss.PartyID) {
 	testMsg := "testVerMsgWrongHash"
 	roundInfo := "round testVerMsgWrongHash"
-	msgHash, err := bytesToHashString([]byte(testMsg))
+	msgHash, err := common.BytesToHashString([]byte(testMsg))
 	msgKey := fmt.Sprintf("%s-%s", senderID.Id, roundInfo)
 	wrappedMsg := fabricateTssMsg(c, senderID, roundInfo, testMsg)
-	err = tssNode.processOneMessage(wrappedMsg, senderID.Id)
+	err = tssCommonStruct.ProcessOneMessage(wrappedMsg, senderID.Id)
 	c.Assert(err, IsNil)
-	localItem := tssNode.tryGetLocalCacheItem(msgKey)
+	localItem := tssCommonStruct.TryGetLocalCacheItem(msgKey)
 	c.Assert(localItem.ConfirmedList, HasLen, 1)
 
 	//we send the verify message from the the same sender, Tss should only accept the first verify message
 	wrappedMsg = fabricateVerMsg(c, msgHash, msgKey)
-	err = tssNode.processOneMessage(wrappedMsg, tssNode.partyIDtoP2PID[partiesID[1].Id].String())
+	err = tssCommonStruct.ProcessOneMessage(wrappedMsg, tssCommonStruct.PartyIDtoP2PID[partiesID[1].Id].String())
 	c.Assert(err, IsNil)
 	c.Assert(localItem.ConfirmedList, HasLen, 2)
 
 	msgHash2 := "a" + msgHash
 	wrappedMsg = fabricateVerMsg(c, msgHash2, msgKey)
-	err = tssNode.processOneMessage(wrappedMsg, tssNode.partyIDtoP2PID[partiesID[2].Id].String())
+	err = tssCommonStruct.ProcessOneMessage(wrappedMsg, tssCommonStruct.PartyIDtoP2PID[partiesID[2].Id].String())
 	c.Assert(localItem.ConfirmedList, HasLen, 3)
 	c.Assert(err, ErrorMatches, "hash is not in consistency")
 }
 
 func (t *TssTestSuite) TestProcessVerMessage(c *C) {
-	_, tssNodes, cancels, wg := setupNodeForTest(c, 1)
-	defer cleanUp(c, cancels, wg, 1)
-	tssNode := tssNodes[0]
+	sk, err := common.GetPriKey(testPriKey)
+	c.Assert(err, IsNil)
+	c.Assert(sk, NotNil)
+	keySignInstance := keysign.NewTssKeySign("", "", sk, nil, nil, nil)
+	tssCommonStruct := keySignInstance.GetTssCommonStruct()
 	localTestPubKeys := make([]string, len(testPubKeys))
 	copy(localTestPubKeys, testPubKeys[:])
-	partiesID, localPartyID, err := tssNode.getParties(localTestPubKeys, testPubKeys[0], true)
-	partyIDMap := setupPartyIDMap(partiesID)
-	setupIDMaps(partyIDMap, tssNode.partyIDtoP2PID)
+
+	partiesID, localPartyID, err := common.GetParties(localTestPubKeys, testPubKeys[0], true)
+	partyIDMap := common.SetupPartyIDMap(partiesID)
+	common.SetupIDMaps(partyIDMap, tssCommonStruct.PartyIDtoP2PID)
 	ctx := btss.NewPeerContext(partiesID)
 	params := btss.NewParameters(ctx, localPartyID, len(partiesID), 2)
 	outCh := make(chan btss.Message, len(partiesID))
-	endCh := make(chan keygen.LocalPartySaveData, len(partiesID))
-	keyGenParty := keygen.NewLocalParty(params, outCh, endCh)
-	tssNode.setPartyInfo(&PartyInfo{
+	endCh := make(chan btsskeygen.LocalPartySaveData, len(partiesID))
+	keyGenParty := btsskeygen.NewLocalParty(params, outCh, endCh)
+	tssCommonStruct.SetPartyInfo(&common.PartyInfo{
 		Party:      keyGenParty,
 		PartyIDMap: partyIDMap,
 	})
-	err = setupIDMaps(partyIDMap, tssNode.partyIDtoP2PID)
+	err = common.SetupIDMaps(partyIDMap, tssCommonStruct.PartyIDtoP2PID)
 	c.Assert(err, IsNil)
 	peerPartiesID := append(partiesID[:localPartyID.Index], partiesID[localPartyID.Index+1:]...)
-	t.testVerMsgDuplication(c, tssNode, partiesID[0], peerPartiesID)
-	t.testVerMsgWrongHash(c, tssNode, peerPartiesID[0], peerPartiesID)
-	t.testVerMsgAndUpdate(c, tssNode, peerPartiesID[0], partiesID)
-	t.testDropMsgOwner(c, tssNode, peerPartiesID[0], partiesID)
+	tssCommonStruct.P2PPeers = common.GetPeersID(tssCommonStruct.PartyIDtoP2PID, tssCommonStruct.GetLocalPeerID())
+
+	t.testVerMsgDuplication(c, tssCommonStruct, partiesID[0], peerPartiesID)
+	t.testVerMsgWrongHash(c, tssCommonStruct, peerPartiesID[0], peerPartiesID)
+	t.testVerMsgAndUpdate(c, tssCommonStruct, peerPartiesID[0], partiesID)
+	t.testDropMsgOwner(c, tssCommonStruct, peerPartiesID[0], partiesID)
 }

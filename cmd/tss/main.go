@@ -15,17 +15,19 @@ import (
 	"github.com/whyrusleeping/go-logging"
 
 	"gitlab.com/thorchain/tss/go-tss"
+	"gitlab.com/thorchain/tss/go-tss/tss/common"
+	"gitlab.com/thorchain/tss/go-tss"
 )
 
 func main() {
 	golog.SetAllLoggers(logging.INFO)
-	_ = golog.SetLogLevel("tss-lib", "INFO")
+	_ = golog.SetLogLevel("tss-lib", "DEBUG")
 	http := flag.Int("http", 8080, "http port")
 	help := flag.Bool("h", false, "Display Help")
 	logLevel := flag.String("loglevel", "info", "Log Level")
 	pretty := flag.Bool("pretty-log", false, "Enables unstructured prettified logging. This is useful for local debugging")
 	baseFolder := flag.String("home", "", "home folder to store the keygen state file")
-	config, err := tss.ParseFlags()
+	config, err := common.ParseFlags()
 	if err != nil {
 		panic(err)
 	}
@@ -51,6 +53,7 @@ func main() {
 		panic(err)
 	}
 }
+
 func initLog(level string, pretty bool) {
 	l, err := zerolog.ParseLevel(level)
 	if err != nil {
