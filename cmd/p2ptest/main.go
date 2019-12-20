@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"gitlab.com/thorchain/tss/go-tss/p2p"
 	"os"
 	"os/signal"
 	"syscall"
@@ -32,7 +33,7 @@ func main() {
 		flag.PrintDefaults()
 		return
 	}
-	c, err := tss.NewCommunication("tss", config.BootstrapPeers, config.Port)
+	c, err := p2p.NewCommunication("tss", config.BootstrapPeers, config.Port)
 	if nil != err {
 		panic(err)
 	}

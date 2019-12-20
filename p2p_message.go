@@ -5,7 +5,6 @@ import (
 	"sync"
 
 	btss "github.com/binance-chain/tss-lib/tss"
-	"github.com/libp2p/go-libp2p-core/peer"
 )
 
 // THORChainTSSMessageType  represent the messgae type used in THORChain TSS
@@ -38,12 +37,6 @@ func (msgType THORChainTSSMessageType) String() string {
 	default:
 		return "Unknown"
 	}
-}
-
-// Message that get transfer across the wire
-type Message struct {
-	PeerID  peer.ID
-	Payload []byte
 }
 
 // WrappedMessage is a message with type in it

@@ -1,4 +1,4 @@
-package tss
+package p2p
 
 import (
 	"context"
@@ -26,6 +26,12 @@ const (
 	DefaultProtocolID = `tss`
 	DefaultRendezvous = `Asgard`
 )
+
+// Message that get transfer across the wire
+type Message struct {
+	PeerID  peer.ID
+	Payload []byte
+}
 
 // Communication use p2p to broadcast messages among all the TSS nodes
 type Communication struct {
@@ -328,6 +334,10 @@ func (c *Communication) connectToBootstrapPeers() error {
 	}
 	wg.Wait()
 	return nil
+}
+
+func (c *Communication) GetMsg() chan *Message {
+	return c.messages
 }
 
 // Start will start the communication
