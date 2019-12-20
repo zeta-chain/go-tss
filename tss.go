@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"gitlab.com/thorchain/tss/go-tss/p2p"
 	"math/big"
 	"net/http"
 	"path/filepath"
@@ -54,7 +55,7 @@ type QueuedMsg struct {
 
 // Tss all the things for TSS
 type Tss struct {
-	comm                *Communication
+	comm                *p2p.Communication
 	logger              zerolog.Logger
 	port                int
 	server              *http.Server
@@ -84,7 +85,7 @@ func NewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, priKeyBytes 
 	if err != nil {
 		return nil, errors.New("cannot parse the private key")
 	}
-	c, err := NewCommunication(DefaultRendezvous, bootstrapPeers, p2pPort)
+	c, err := p2p.NewCommunication(p2p.DefaultRendezvous, bootstrapPeers, p2pPort)
 	if nil != err {
 		return nil, fmt.Errorf("fail to create communication layer: %w", err)
 	}
@@ -417,7 +418,7 @@ func (t *Tss) processComm() {
 		select {
 		case <-t.stopChan:
 			return // time to stop
-		case m := <-t.comm.messages:
+		case m := <-t.comm.GetMsg():
 			var wrappedMsg WrappedMessage
 			if err := json.Unmarshal(m.Payload, &wrappedMsg); nil != err {
 				t.logger.Error().Err(err).Msg("fail to unmarshal wrapped message bytes")
