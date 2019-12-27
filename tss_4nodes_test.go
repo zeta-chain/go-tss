@@ -7,12 +7,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/binance-chain/tss-lib/ecdsa/keygen"
-	btsskeygen "github.com/binance-chain/tss-lib/ecdsa/keygen"
-	btss "github.com/binance-chain/tss-lib/tss"
-	"github.com/hashicorp/go-retryablehttp"
-	maddr "github.com/multiformats/go-multiaddr"
-	. "gopkg.in/check.v1"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -20,6 +14,13 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/binance-chain/tss-lib/ecdsa/keygen"
+	btsskeygen "github.com/binance-chain/tss-lib/ecdsa/keygen"
+	btss "github.com/binance-chain/tss-lib/tss"
+	"github.com/hashicorp/go-retryablehttp"
+	maddr "github.com/multiformats/go-multiaddr"
+	. "gopkg.in/check.v1"
 )
 
 const testPriKey0 = "MjQ1MDc2MmM4MjU5YjRhZjhhNmFjMmI0ZDBkNzBkOGE1ZTBmNDQ5NGI4NzM4OTYyM2E3MmI0OWMzNmE1ODZhNw=="
@@ -92,11 +93,11 @@ func setupContextAndNodes(c *C, partyNum int) ([]context.Context, []context.Canc
 			c.Assert(err, IsNil)
 		}
 		if i == 0 {
-			instance, err := NewTss(nil, p2pPort, tssPort, []byte(testPriKeyArr[i]), baseHome, *preParamArray[i])
+			instance, err := internalNewTss(nil, p2pPort, tssPort, []byte(testPriKeyArr[i]), baseHome, *preParamArray[i])
 			c.Assert(err, IsNil)
 			localTss = append(localTss, instance)
 		} else {
-			instance, err := NewTss(peerIDs, p2pPort, tssPort, []byte(testPriKeyArr[i]), baseHome, *preParamArray[i])
+			instance, err := internalNewTss(peerIDs, p2pPort, tssPort, []byte(testPriKeyArr[i]), baseHome, *preParamArray[i])
 			c.Assert(err, IsNil)
 			localTss = append(localTss, instance)
 		}
