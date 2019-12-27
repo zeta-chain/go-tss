@@ -1,6 +1,16 @@
+.PHONY: install build test test-watch lint 
+
+all: lint build
+
 clear:
 	clear
-all: lint build
+
+install: go.sum
+	go install ./cmd/tss
+
+go.sum: go.mod
+	@echo "--> Ensure dependencies have not been modified"
+	go mod verify
 
 test:
 	@go test ./...
