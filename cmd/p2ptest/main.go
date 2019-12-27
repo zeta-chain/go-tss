@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"gitlab.com/thorchain/tss/go-tss/p2p"
 	"os"
 	"os/signal"
 	"syscall"
@@ -13,6 +12,7 @@ import (
 	"github.com/whyrusleeping/go-logging"
 
 	"gitlab.com/thorchain/tss/go-tss"
+	"gitlab.com/thorchain/tss/go-tss/p2p"
 )
 
 func main() {

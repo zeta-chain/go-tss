@@ -12,17 +12,6 @@ import (
 
 	btss "github.com/binance-chain/tss-lib/tss"
 	"github.com/hashicorp/go-retryablehttp"
-
-	// "bytes"
-	// "context"
-	// "io/ioutil"
-	// "net/http"
-	// "net/http/httptest"
-	// "sync"
-	// "testing"
-	//
-	// "github.com/binance-chain/tss-lib/ecdsa/keygen"
-	// "github.com/hashicorp/go-retryablehttp"
 	. "gopkg.in/check.v1"
 )
 

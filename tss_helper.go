@@ -2,9 +2,10 @@ package tss
 
 import (
 	"errors"
+	"math"
+
 	btss "github.com/binance-chain/tss-lib/tss"
 	"github.com/libp2p/go-libp2p-core/peer"
-	"math"
 )
 
 func contains(s []*btss.PartyID, e *btss.PartyID) bool {

@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"gitlab.com/thorchain/tss/go-tss/p2p"
 	"math/big"
 	"net/http"
 	"path/filepath"
@@ -16,6 +15,8 @@ import (
 	"strconv"
 	"sync"
 	"time"
+
+	"gitlab.com/thorchain/tss/go-tss/p2p"
 
 	"github.com/binance-chain/tss-lib/ecdsa/keygen"
 	btss "github.com/binance-chain/tss-lib/tss"
@@ -77,7 +78,11 @@ type Tss struct {
 }
 
 // NewTss create a new instance of Tss
-func NewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, priKeyBytes []byte, baseFolder string, optionalPreParams ...keygen.LocalPreParams) (*Tss, error) {
+func NewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, priKeyBytes []byte, baseFolder string) (*Tss, error) {
+	return internalNewTss(bootstrapPeers, p2pPort, tssPort, priKeyBytes, baseFolder)
+}
+
+func internalNewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, priKeyBytes []byte, baseFolder string, optionalPreParams ...keygen.LocalPreParams) (*Tss, error) {
 	if p2pPort == tssPort {
 		return nil, errors.New("tss and p2p can't use the same port")
 	}
@@ -103,7 +108,6 @@ func NewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, priKeyBytes 
 			}
 		}
 	}
-
 	t := &Tss{
 		comm:                c,
 		logger:              log.With().Str("module", "tss").Logger(),
@@ -130,7 +134,6 @@ func NewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, priKeyBytes 
 	t.server = server
 	return t, nil
 }
-
 func setupBech32Prefix() {
 	config := sdk.GetConfig()
 	config.SetBech32PrefixForAccount(cmd.Bech32PrefixAccAddr, cmd.Bech32PrefixAccPub)

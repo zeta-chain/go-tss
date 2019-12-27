@@ -14,7 +14,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/whyrusleeping/go-logging"
 
-	go_tss "gitlab.com/thorchain/tss/go-tss"
+	"gitlab.com/thorchain/tss/go-tss"
 )
 
 func main() {
@@ -25,7 +25,7 @@ func main() {
 	logLevel := flag.String("loglevel", "info", "Log Level")
 	pretty := flag.Bool("pretty-log", false, "Enables unstructured prettified logging. This is useful for local debugging")
 	baseFolder := flag.String("home", "", "home folder to store the keygen state file")
-	config, err := go_tss.ParseFlags()
+	config, err := tss.ParseFlags()
 	if err != nil {
 		panic(err)
 	}
@@ -41,7 +41,7 @@ func main() {
 		fmt.Printf("error in get the secret key: %s\n", err.Error())
 		return
 	}
-	tss, err := go_tss.NewTss(config.BootstrapPeers, config.Port, *http, []byte(priKeyBytes), *baseFolder)
+	tss, err := tss.NewTss(config.BootstrapPeers, config.Port, *http, []byte(priKeyBytes), *baseFolder)
 	if nil != err {
 		panic(err)
 	}
