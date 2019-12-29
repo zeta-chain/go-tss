@@ -28,8 +28,8 @@ github.com/binance-chain/go-sdk v1.1.3/go.mod h1:ahR+bb8rCbVRuK9ukmNTr/ghj7n4awi
 github.com/binance-chain/go-sdk v1.2.1 h1:kSFyHdwCHt0OUxxQEV+Kc8tHlCTfSfHYEjvxbRMjNsk=
 github.com/binance-chain/go-sdk v1.2.1/go.mod h1:M41XCy5ZnKuJwYpUdoz22b4ltULq8aXl7J75wEebLIw=
 github.com/binance-chain/ledger-cosmos-go v0.9.9-binance.1/go.mod h1:FI6WAujuiBpoSavYreux2zTKyrUkngXDlRJczxsDK5M=
-github.com/binance-chain/tss-lib v1.1.0 h1:ZvY2n1JaxjyJRE7Q/Obz8CkjfXuUkwgJ9/ffSWqAFYU=
-github.com/binance-chain/tss-lib v1.1.0/go.mod h1:5mmPQOOkBIjHxyGVesSUB2AemcZj5YkMJ+HPZY4Jd38=
+github.com/binance-chain/tss-lib v1.1.1 h1:WWVVb7GlWuOy2usumPDWuzR0pTPl+t+faGEjk910o1A=
+github.com/binance-chain/tss-lib v1.1.1/go.mod h1:5mmPQOOkBIjHxyGVesSUB2AemcZj5YkMJ+HPZY4Jd38=
 github.com/blang/semver v3.5.1+incompatible h1:cQNTCjp13qL8KC3Nbxr/y2Bqb63oX6wdnnjpJbkM4JQ=
 github.com/blang/semver v3.5.1+incompatible/go.mod h1:kRBLl5iJ+tD4TcOOxsy/0fnwebNt5EWlYSAyrTnjyyk=
 github.com/btcsuite/btcd v0.0.0-20181013004428-67e573d211ac/go.mod h1:Dmm/EzmjnCiweXmzRIAiUWCInVmPgjkzgv5k4tVyXiQ=
