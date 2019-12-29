@@ -333,7 +333,7 @@ func (t *TssTestSuite) testVerMsgAndUpdate(c *C, tssNode *Tss, senderID *btss.Pa
 	c.Assert(err, IsNil)
 	c.Assert(localItem.ConfirmedList, HasLen, 2)
 	//this panic indicates the message share is accepted by the this system.
-	c.Assert(func() { tssNode.processOneMessage(wrappedVerMsg, tssNode.partyIDtoP2PID[partiesID[2].Id].String()) }, PanicMatches, `runtime error: invalid memory address or nil pointer dereference`)
+	c.Assert(tssNode.processOneMessage(wrappedVerMsg, tssNode.partyIDtoP2PID[partiesID[2].Id].String()), ErrorMatches, "fail to update the message to local party: fail to set bytes to local party: task , party <nil>, round -1: proto: can't skip unknown wire type 4")
 }
 
 func (t *TssTestSuite) testVerMsgWrongHash(c *C, tssNode *Tss, senderID *btss.PartyID, partiesID []*btss.PartyID) {
