@@ -16,7 +16,6 @@ import (
 
 	"gitlab.com/thorchain/tss/go-tss"
 	"gitlab.com/thorchain/tss/go-tss/tss/common"
-	"gitlab.com/thorchain/tss/go-tss"
 )
 
 func main() {

@@ -5,11 +5,6 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"github.com/hashicorp/go-retryablehttp"
-	"github.com/libp2p/go-libp2p-core/peer"
-	"gitlab.com/thorchain/tss/go-tss/p2p"
-	"gitlab.com/thorchain/tss/go-tss/tss/common"
-	"gitlab.com/thorchain/tss/go-tss/tss/keysign"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -19,6 +14,10 @@ import (
 
 	btss "github.com/binance-chain/tss-lib/tss"
 	"github.com/hashicorp/go-retryablehttp"
+	"github.com/libp2p/go-libp2p-core/peer"
+	"gitlab.com/thorchain/tss/go-tss/p2p"
+	"gitlab.com/thorchain/tss/go-tss/tss/common"
+	"gitlab.com/thorchain/tss/go-tss/tss/keysign"
 	. "gopkg.in/check.v1"
 )
 
@@ -204,12 +203,16 @@ func (t *TssTestSuite) TestGetThreshold(c *C) {
 	_, err := common.GetThreshold(-2)
 	c.Assert(err, NotNil)
 	output, err := common.GetThreshold(4)
+	c.Assert(err, IsNil)
 	c.Assert(output, Equals, 2)
 	output, err = common.GetThreshold(9)
+	c.Assert(err, IsNil)
 	c.Assert(output, Equals, 5)
 	output, err = common.GetThreshold(10)
+	c.Assert(err, IsNil)
 	c.Assert(output, Equals, 6)
 	output, err = common.GetThreshold(99)
+	c.Assert(err, IsNil)
 	c.Assert(output, Equals, 65)
 }
 

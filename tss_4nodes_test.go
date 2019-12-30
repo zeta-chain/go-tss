@@ -7,15 +7,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	btsskeygen "github.com/binance-chain/tss-lib/ecdsa/keygen"
-	btss "github.com/binance-chain/tss-lib/tss"
-	"github.com/hashicorp/go-retryablehttp"
-	maddr "github.com/multiformats/go-multiaddr"
-	"gitlab.com/thorchain/tss/go-tss/p2p"
-	"gitlab.com/thorchain/tss/go-tss/tss/common"
-	"gitlab.com/thorchain/tss/go-tss/tss/keygen"
-	"gitlab.com/thorchain/tss/go-tss/tss/keysign"
-	. "gopkg.in/check.v1"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -24,11 +15,14 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/binance-chain/tss-lib/ecdsa/keygen"
 	btsskeygen "github.com/binance-chain/tss-lib/ecdsa/keygen"
 	btss "github.com/binance-chain/tss-lib/tss"
 	"github.com/hashicorp/go-retryablehttp"
 	maddr "github.com/multiformats/go-multiaddr"
+	"gitlab.com/thorchain/tss/go-tss/p2p"
+	"gitlab.com/thorchain/tss/go-tss/tss/common"
+	"gitlab.com/thorchain/tss/go-tss/tss/keygen"
+	"gitlab.com/thorchain/tss/go-tss/tss/keysign"
 	. "gopkg.in/check.v1"
 )
 
@@ -230,7 +224,7 @@ func (t *TssTestSuite) Test4NodesTss(c *C) {
 	wgGenSign.Wait()
 }
 
-func (t *TssTestSuite) testTssProcessOutCh(c *C, tssNode *TssServer) {
+func (t *TssTestSuite) TestTssProcessOutCh(c *C) {
 	sk, err := common.GetPriKey(testPriKey)
 	c.Assert(err, IsNil)
 	c.Assert(sk, NotNil)
@@ -358,13 +352,14 @@ func (t *TssTestSuite) testVerMsgAndUpdate(c *C, tssCommonStruct *common.TssComm
 	c.Assert(err, IsNil)
 	c.Assert(localItem.ConfirmedList, HasLen, 2)
 	//this panic indicates the message share is accepted by the this system.
-	c.Assert(tssNode.processOneMessage(wrappedVerMsg, tssNode.partyIDtoP2PID[partiesID[2].Id].String()), ErrorMatches, "fail to update the message to local party: fail to set bytes to local party: task , party <nil>, round -1: proto: can't skip unknown wire type 4")
+	c.Assert(tssCommonStruct.ProcessOneMessage(wrappedVerMsg, tssCommonStruct.PartyIDtoP2PID[partiesID[2].Id].String()), ErrorMatches, "fail to update the message to local party: fail to set bytes to local party: task , party <nil>, round -1: proto: can't skip unknown wire type 4")
 }
 
 func (t *TssTestSuite) testVerMsgWrongHash(c *C, tssCommonStruct *common.TssCommon, senderID *btss.PartyID, partiesID []*btss.PartyID) {
 	testMsg := "testVerMsgWrongHash"
 	roundInfo := "round testVerMsgWrongHash"
 	msgHash, err := common.BytesToHashString([]byte(testMsg))
+	c.Assert(err, IsNil)
 	msgKey := fmt.Sprintf("%s-%s", senderID.Id, roundInfo)
 	wrappedMsg := fabricateTssMsg(c, senderID, roundInfo, testMsg)
 	err = tssCommonStruct.ProcessOneMessage(wrappedMsg, senderID.Id)
@@ -395,6 +390,7 @@ func (t *TssTestSuite) TestProcessVerMessage(c *C) {
 	copy(localTestPubKeys, testPubKeys[:])
 
 	partiesID, localPartyID, err := common.GetParties(localTestPubKeys, testPubKeys[0], true)
+	c.Assert(err, IsNil)
 	partyIDMap := common.SetupPartyIDMap(partiesID)
 	common.SetupIDMaps(partyIDMap, tssCommonStruct.PartyIDtoP2PID)
 	ctx := btss.NewPeerContext(partiesID)

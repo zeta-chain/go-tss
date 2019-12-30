@@ -30,18 +30,12 @@ import (
 
 var (
 	ByPassGeneratePreParam = false
-	HashFromOwnerErr       = fmt.Errorf("msg from data owner")
 )
 
 // PartyInfo the information used by tss key gen and key sign
 type PartyInfo struct {
 	Party      btss.Party
 	PartyIDMap map[string]*btss.PartyID
-}
-
-type QueuedMsg struct {
-	wrappedMsg *p2p.WrappedMessage
-	peerID     string
 }
 
 type TssServer struct {
@@ -79,7 +73,12 @@ func NewTssHttpServer(tssPort int, t *TssServer) *http.Server {
 }
 
 // NewTss create a new instance of Tss
-func NewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, priKeyBytes []byte, baseFolder string, optionalPreParams ...bkeygen.LocalPreParams) (*TssServer, error) {
+func NewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, priKeyBytes []byte, baseFolder string) (*TssServer, error) {
+	return internalNewTss(bootstrapPeers, p2pPort, tssPort, priKeyBytes, baseFolder)
+}
+
+// NewTss create a new instance of Tss
+func internalNewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, priKeyBytes []byte, baseFolder string, optionalPreParams ...bkeygen.LocalPreParams) (*TssServer, error) {
 	if p2pPort == tssPort {
 		return nil, errors.New("tss and p2p can't use the same port")
 	}
@@ -215,7 +214,6 @@ func getPriKeyRawBytes(priKey cryptokey.PrivKey) ([]byte, error) {
 
 func (t *TssServer) ping(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(http.StatusOK)
-	return
 }
 
 func (t *TssServer) keygen(w http.ResponseWriter, r *http.Request) {

@@ -5,11 +5,12 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"math"
+	"math/big"
+
 	btss "github.com/binance-chain/tss-lib/tss"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/tendermint/btcd/btcec"
-	"math"
-	"math/big"
 )
 
 func Contains(s []*btss.PartyID, e *btss.PartyID) bool {

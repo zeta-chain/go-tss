@@ -7,6 +7,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/big"
+	"sort"
+	"strconv"
+	"sync"
+	"time"
+
 	"github.com/binance-chain/go-sdk/common/types"
 	"github.com/binance-chain/tss-lib/crypto"
 	btss "github.com/binance-chain/tss-lib/tss"
@@ -18,11 +24,6 @@ import (
 	cryptokey "github.com/tendermint/tendermint/crypto"
 	"github.com/tendermint/tendermint/crypto/secp256k1"
 	"gitlab.com/thorchain/tss/go-tss/p2p"
-	"math/big"
-	"sort"
-	"strconv"
-	"sync"
-	"time"
 )
 
 const (
@@ -38,18 +39,13 @@ const (
 
 var (
 	ByPassGeneratePreParam = false
-	HashFromOwnerErr       = fmt.Errorf("msg from data owner")
+	ErrHashFromOwner       = fmt.Errorf("msg from data owner")
 )
 
 // PartyInfo the information used by tss key gen and key sign
 type PartyInfo struct {
 	Party      btss.Party
 	PartyIDMap map[string]*btss.PartyID
-}
-
-type QueuedMsg struct {
-	wrappedMsg *p2p.WrappedMessage
-	peerID     string
 }
 
 type TssCommon struct {
@@ -246,29 +242,6 @@ func (t *TssCommon) GetLocalPeerID() string {
 	return t.localPeerID
 }
 
-func (t *TssCommon) processQueuedMessages(input <-chan QueuedMsg) {
-	t.logger.Debug().Msg("process queued messages")
-	defer t.logger.Debug().Msg("finished processing queued messages")
-	if len(input) == 0 {
-		return
-	}
-	partyInfo := t.getPartyInfo()
-	if nil == partyInfo {
-		return
-	}
-	for {
-		select {
-		case m := <-input:
-			t.logger.Debug().Msgf("process queued %s message", m.wrappedMsg.MessageType)
-			if err := t.ProcessOneMessage(m.wrappedMsg, m.peerID); nil != err {
-				t.logger.Error().Err(err).Msg("fail to process a message from local queue")
-			}
-		default:
-			return
-		}
-	}
-}
-
 func BytesToHashString(msg []byte) (string, error) {
 	h := sha256.New()
 	_, err := h.Write(msg)
@@ -367,7 +340,7 @@ func (t *TssCommon) hashCheck(localCacheItem *p2p.LocalCacheItem) (string, error
 		if P2PID == dataOwnerP2PID.String() {
 			t.logger.Warn().Msgf("we detect that the data owner try to send the hash for his own message\n")
 			delete(localCacheItem.ConfirmedList, P2PID)
-			return "", HashFromOwnerErr
+			return "", ErrHashFromOwner
 		}
 		if targetHashValue == hashValue {
 			continue
@@ -452,7 +425,7 @@ func (t *TssCommon) processVerMsg(broadcastConfirmMsg *p2p.BroadcastConfirmMessa
 	if localCacheItem.TotalConfirmParty() == (len(partyInfo.PartyIDMap)-1) && localCacheItem.Msg != nil {
 		msg, err := t.hashCheck(localCacheItem)
 		if nil != err {
-			if err == HashFromOwnerErr {
+			if err == ErrHashFromOwner {
 				return nil
 			}
 			t.logger.Error().Msgf("The consistency check fail of node %s\n", msg)
