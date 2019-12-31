@@ -1,7 +1,7 @@
 package keysign
 
 import (
-	"gitlab.com/thorchain/tss/go-tss/tss/common"
+	"gitlab.com/thorchain/tss/go-tss/common"
 )
 
 // KeySignReq request to sign a message

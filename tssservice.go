@@ -7,6 +7,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+	"os"
+	"sync"
+	"time"
+
 	"github.com/binance-chain/go-sdk/common/types"
 	bkeygen "github.com/binance-chain/tss-lib/ecdsa/keygen"
 	btss "github.com/binance-chain/tss-lib/tss"
@@ -17,15 +22,12 @@ import (
 	"github.com/rs/zerolog/log"
 	cryptokey "github.com/tendermint/tendermint/crypto"
 	"github.com/tendermint/tendermint/crypto/secp256k1"
+
 	"gitlab.com/thorchain/thornode/cmd"
+	"gitlab.com/thorchain/tss/go-tss/common"
+	"gitlab.com/thorchain/tss/go-tss/keygen"
+	"gitlab.com/thorchain/tss/go-tss/keysign"
 	"gitlab.com/thorchain/tss/go-tss/p2p"
-	"gitlab.com/thorchain/tss/go-tss/tss/common"
-	"gitlab.com/thorchain/tss/go-tss/tss/keygen"
-	"gitlab.com/thorchain/tss/go-tss/tss/keysign"
-	"net/http"
-	"os"
-	"sync"
-	"time"
 )
 
 var (
@@ -157,7 +159,6 @@ func (t *TssServer) Start(ctx context.Context) error {
 		if err != nil {
 			t.logger.Error().Msgf("error in shutdown the p2p server")
 		}
-		t.wg.Done()
 	}()
 
 	prikeyBytes, err := getPriKeyRawBytes(t.priKey)
@@ -165,7 +166,6 @@ func (t *TssServer) Start(ctx context.Context) error {
 		return err
 	}
 
-	t.wg.Add(1)
 	go t.p2pCommunication.ProcessBroadcast()
 	if err := t.p2pCommunication.Start(prikeyBytes); nil != err {
 		return fmt.Errorf("fail to start p2p communication layer: %w", err)
@@ -236,8 +236,8 @@ func (t *TssServer) keygen(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	keygenInstance := keygen.NewTssKeyGen(t.homeBase, t.p2pCommunication.GetLocalPeerID(), t.priKey, &t.p2pCommunication.BroadcastMsgChan, &t.stopChan, t.preParams)
-	keygenMsgChannel, keygenSyncChannel := keygenInstance.GetMyTssMsgChannels()
+	keygenInstance := keygen.NewTssKeyGen(t.homeBase, t.p2pCommunication.GetLocalPeerID(), t.priKey, t.p2pCommunication.BroadcastMsgChan, &t.stopChan, t.preParams)
+	keygenMsgChannel, keygenSyncChannel := keygenInstance.GetTssKeyGenChannels()
 	t.p2pCommunication.SetSubscribe(p2p.TSSKeyGenMsg, keygenMsgChannel)
 	t.p2pCommunication.SetSubscribe(p2p.TSSKeyGenVerMsg, keygenMsgChannel)
 	t.p2pCommunication.SetSubscribe(p2p.TSSKeyGenSync, keygenSyncChannel)
@@ -261,9 +261,9 @@ func (t *TssServer) keygen(w http.ResponseWriter, r *http.Request) {
 		types.Network = types.TestNetwork
 	}
 	resp := keygen.KeyGenResp{
-		PubKey:     newPubKey,
-		BNBAddress: addr.String(),
-		Status:     common.Success,
+		PubKey:      newPubKey,
+		PoolAddress: addr.String(),
+		Status:      common.Success,
 	}
 	buf, err := json.Marshal(resp)
 	if nil != err {
@@ -299,9 +299,9 @@ func (t *TssServer) keySign(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	keysignInstance := keysign.NewTssKeySign(t.homeBase, t.p2pCommunication.GetLocalPeerID(), t.priKey, &t.p2pCommunication.BroadcastMsgChan, &t.stopChan, t.preParams)
+	keysignInstance := keysign.NewTssKeySign(t.homeBase, t.p2pCommunication.GetLocalPeerID(), t.priKey, t.p2pCommunication.BroadcastMsgChan, &t.stopChan, t.preParams)
 
-	keygenMsgChannel, keygenSyncChannel := keysignInstance.GetMyTssMsgChannels()
+	keygenMsgChannel, keygenSyncChannel := keysignInstance.GetTssKeySignChannels()
 	t.p2pCommunication.SetSubscribe(p2p.TSSKeySignMsg, keygenMsgChannel)
 	t.p2pCommunication.SetSubscribe(p2p.TSSKeySignVerMsg, keygenMsgChannel)
 	t.p2pCommunication.SetSubscribe(p2p.TSSKeySignSync, keygenSyncChannel)

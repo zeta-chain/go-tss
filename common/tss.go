@@ -23,6 +23,7 @@ import (
 	"github.com/rs/zerolog/log"
 	cryptokey "github.com/tendermint/tendermint/crypto"
 	"github.com/tendermint/tendermint/crypto/secp256k1"
+
 	"gitlab.com/thorchain/tss/go-tss/p2p"
 )
 
@@ -32,9 +33,9 @@ const (
 	// KeySignTimeoutSeconds how long do we wait keysign
 	KeySignTimeoutSeconds = 30
 	// SyncTimeout how long do we wait for sync message
-	SyncTimeout = 2
+	SyncTimeout = 5
 	// SyncRetry how many time we try to sync the peers
-	SYncRetry = 2
+	SyncRetry = 20
 )
 
 var (
@@ -54,21 +55,21 @@ type TssCommon struct {
 	partyInfo           *PartyInfo
 	PartyIDtoP2PID      map[string]peer.ID
 	unConfirmedMsgLock  *sync.Mutex
-	unConfirmedMessages map[string]*p2p.LocalCacheItem
+	unConfirmedMessages map[string]*LocalCacheItem
 	localPeerID         string
-	broadcastChannel    *chan *p2p.BroadcastMsgChan
+	broadcastChannel    chan *p2p.BroadcastMsgChan
 	TssMsg              chan *p2p.Message
 	P2PPeers            []peer.ID //most of tss message are broadcast, we store the peers ID to avoid iterating
 }
 
-func NewTssCommon(peerID string, broadcastChannel *chan *p2p.BroadcastMsgChan) TssCommon {
-	return TssCommon{
+func NewTssCommon(peerID string, broadcastChannel chan *p2p.BroadcastMsgChan) *TssCommon {
+	return &TssCommon{
 		logger:              log.With().Str("module", "tsscommon").Logger(),
 		partyLock:           &sync.Mutex{},
 		partyInfo:           nil,
 		PartyIDtoP2PID:      make(map[string]peer.ID),
 		unConfirmedMsgLock:  &sync.Mutex{},
-		unConfirmedMessages: make(map[string]*p2p.LocalCacheItem),
+		unConfirmedMessages: make(map[string]*LocalCacheItem),
 		localPeerID:         peerID,
 		broadcastChannel:    broadcastChannel,
 		TssMsg:              make(chan *p2p.Message),
@@ -141,14 +142,14 @@ func GetParties(keys []string, localPartyKey string, keygen bool) ([]*btss.Party
 }
 
 func (t *TssCommon) renderToP2P(broadcastMsg *p2p.BroadcastMsgChan) {
-	if t.broadcastChannel != nil {
-		*t.broadcastChannel <- broadcastMsg
-	} else {
+	if t.broadcastChannel == nil {
 		t.logger.Warn().Msg("broadcast channel is not set")
+		return
 	}
+	t.broadcastChannel <- broadcastMsg
 }
 
-func (t *TssCommon) sendmsg(message p2p.WrappedMessage, peerIDs []peer.ID) {
+func (t *TssCommon) sendMsg(message p2p.WrappedMessage, peerIDs []peer.ID) {
 
 	t.renderToP2P(&p2p.BroadcastMsgChan{
 		WrappedMessage: message,
@@ -168,24 +169,25 @@ func (t *TssCommon) NodeSync(msgChan chan *p2p.Message, messageType p2p.THORChai
 	}
 	wrappedMsg := p2p.WrappedMessage{
 		MessageType: messageType,
-		Payload:     []byte("Hello"),
+		Payload:     []byte{0},
 	}
 	stopChan := make(chan bool, len(peerIDs))
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		t.sendMsg(wrappedMsg, t.P2PPeers)
 		i := 0
 		for {
 			select {
 			case <-stopChan:
 				return
 			case <-time.After(time.Millisecond * 500):
-				t.sendmsg(wrappedMsg, t.P2PPeers)
+				t.sendMsg(wrappedMsg, t.P2PPeers)
 				i += 1
 			}
-			if i > SYncRetry {
-				err = fmt.Errorf("to many errors in retry")
+			if i > SyncRetry {
+				err = fmt.Errorf("too many errors in retry")
 				return
 			}
 		}
@@ -198,15 +200,15 @@ func (t *TssCommon) NodeSync(msgChan chan *p2p.Message, messageType p2p.THORChai
 			select {
 			case m := <-msgChan:
 				peersMap[m.PeerID.String()] = true
-				if len(peersMap) == len(peerIDs)-1 {
+				if len(peersMap) == len(peerIDs) {
 					stopChan <- true
 					// we send the last sync msg before we quit
-					t.sendmsg(wrappedMsg, peerIDs)
+					t.sendMsg(wrappedMsg, peerIDs)
 					return
 				}
 			case <-time.After(time.Second * SyncTimeout):
 				stopChan <- true
-				err = fmt.Errorf("error in sync ")
+				err = errors.New("error in sync ")
 				return
 			}
 		}
@@ -219,7 +221,7 @@ func (t *TssCommon) NodeSync(msgChan chan *p2p.Message, messageType p2p.THORChai
 	return peersList, err
 }
 
-func GetPeerIDFromPartyID(partyID *btss.PartyID) (peer.ID, error) {
+func getPeerIDFromPartyID(partyID *btss.PartyID) (peer.ID, error) {
 	pkBytes := partyID.KeyInt().Bytes()
 	var pk secp256k1.PubKeySecp256k1
 	copy(pk[:], pkBytes)
@@ -286,8 +288,8 @@ func (t *TssCommon) checkDupAndUpdateVerMsg(bMsg *p2p.BroadcastConfirmMessage, p
 		return true
 	}
 
-	defer localCacheItem.Lock.Unlock()
-	localCacheItem.Lock.Lock()
+	localCacheItem.lock.Lock()
+	defer localCacheItem.lock.Unlock()
 	if _, ok := localCacheItem.ConfirmedList[peerID]; ok {
 		return false
 	}
@@ -325,15 +327,15 @@ func (t *TssCommon) ProcessOneMessage(wrappedMsg *p2p.WrappedMessage, peerID str
 	return nil
 }
 
-func (t *TssCommon) hashCheck(localCacheItem *p2p.LocalCacheItem) (string, error) {
+func (t *TssCommon) hashCheck(localCacheItem *LocalCacheItem) (string, error) {
 	dataOwner := localCacheItem.Msg.Routing.From
 	dataOwnerP2PID, ok := t.PartyIDtoP2PID[dataOwner.Id]
 	if !ok {
 		t.logger.Warn().Msgf("error in find the data Owner P2PID\n")
 		return dataOwnerP2PID.String(), errors.New("error in find the data Owner P2PID")
 	}
-	localCacheItem.Lock.Lock()
-	defer localCacheItem.Lock.Unlock()
+	localCacheItem.lock.Lock()
+	defer localCacheItem.lock.Unlock()
 
 	targetHashValue := localCacheItem.Hash
 	for P2PID, hashValue := range localCacheItem.ConfirmedList {
@@ -411,12 +413,7 @@ func (t *TssCommon) processVerMsg(broadcastConfirmMsg *p2p.BroadcastConfirmMessa
 	localCacheItem := t.TryGetLocalCacheItem(key)
 	if nil == localCacheItem {
 		// we didn't receive the TSS Message yet
-		localCacheItem = &p2p.LocalCacheItem{
-			Msg:           nil,
-			Hash:          broadcastConfirmMsg.Hash,
-			Lock:          &sync.Mutex{},
-			ConfirmedList: make(map[string]string),
-		}
+		localCacheItem = NewLocalCacheItem(nil, broadcastConfirmMsg.Hash)
 		t.updateLocalUnconfirmedMessages(key, localCacheItem)
 	}
 
@@ -467,12 +464,7 @@ func (t *TssCommon) processTSSMsg(wireMsg *p2p.WireMessage, msgType p2p.THORChai
 	localCacheItem := t.TryGetLocalCacheItem(key)
 	if nil == localCacheItem {
 		t.logger.Debug().Msgf("++%s doesn't exist yet,add a new one", key)
-		localCacheItem = &p2p.LocalCacheItem{
-			Msg:           wireMsg,
-			Hash:          msgHash,
-			Lock:          &sync.Mutex{},
-			ConfirmedList: make(map[string]string),
-		}
+		localCacheItem = NewLocalCacheItem(wireMsg, msgHash)
 		t.updateLocalUnconfirmedMessages(key, localCacheItem)
 	} else {
 		// this means we received the broadcast confirm message from other party first
@@ -509,13 +501,7 @@ func (t *TssCommon) processTSSMsg(wireMsg *p2p.WireMessage, msgType p2p.THORChai
 		WrappedMessage: p2prappedMSg,
 		PeersID:        peerIDs,
 	})
-
 	return nil
-	//todo do we really need the stopChan here
-	//case <-t.stopChan:
-	//	// time to stop
-	//	return nil
-
 }
 func getBroadcastMessageType(msgType p2p.THORChainTSSMessageType) p2p.THORChainTSSMessageType {
 	switch msgType {
@@ -529,24 +515,7 @@ func getBroadcastMessageType(msgType p2p.THORChainTSSMessageType) p2p.THORChainT
 
 }
 
-//todo need to remove this function
-//func (t *TssCommon) getAllPartyPeerIDs() ([]peer.ID, error) {
-//	var result []peer.ID
-//	PartyInfo := t.getPartyInfo()
-//	if nil == PartyInfo {
-//		return nil, fmt.Errorf("fail to get keygen info")
-//	}
-//	for _, item := range PartyInfo.PartyIDMap {
-//		peerID, err := GetPeerIDFromPartyID(item)
-//		if nil != err {
-//			return nil, fmt.Errorf("fail to get peer id from pub key")
-//		}
-//		if peerID ==
-//		result = append(result, peerID)
-//	}
-//	return result, nil
-//}
-func (t *TssCommon) TryGetLocalCacheItem(key string) *p2p.LocalCacheItem {
+func (t *TssCommon) TryGetLocalCacheItem(key string) *LocalCacheItem {
 	t.unConfirmedMsgLock.Lock()
 	defer t.unConfirmedMsgLock.Unlock()
 	localCacheItem, ok := t.unConfirmedMessages[key]
@@ -556,7 +525,7 @@ func (t *TssCommon) TryGetLocalCacheItem(key string) *p2p.LocalCacheItem {
 	return localCacheItem
 }
 
-func (t *TssCommon) updateLocalUnconfirmedMessages(key string, cacheItem *p2p.LocalCacheItem) {
+func (t *TssCommon) updateLocalUnconfirmedMessages(key string, cacheItem *LocalCacheItem) {
 	t.unConfirmedMsgLock.Lock()
 	defer t.unConfirmedMsgLock.Unlock()
 	t.unConfirmedMessages[key] = cacheItem

@@ -15,12 +15,12 @@ import (
 	"github.com/whyrusleeping/go-logging"
 
 	"gitlab.com/thorchain/tss/go-tss"
-	"gitlab.com/thorchain/tss/go-tss/tss/common"
+	"gitlab.com/thorchain/tss/go-tss/common"
 )
 
 func main() {
 	golog.SetAllLoggers(logging.INFO)
-	_ = golog.SetLogLevel("tss-lib", "DEBUG")
+	_ = golog.SetLogLevel("tss-lib", "INFO")
 	http := flag.Int("http", 8080, "http port")
 	help := flag.Bool("h", false, "Display Help")
 	logLevel := flag.String("loglevel", "info", "Log Level")

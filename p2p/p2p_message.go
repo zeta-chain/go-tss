@@ -2,10 +2,9 @@ package p2p
 
 import (
 	"fmt"
-	"github.com/libp2p/go-libp2p-core/peer"
-	"sync"
 
 	btss "github.com/binance-chain/tss-lib/tss"
+	"github.com/libp2p/go-libp2p-core/peer"
 )
 
 // THORChainTSSMessageType  represent the messgae type used in THORChain TSS
@@ -24,7 +23,7 @@ const (
 	TSSKeyGenSync
 	// TSSKEYSIGNSYNC is the message we create to sync the signers before keysign
 	TSSKeySignSync
-	// Unknown message
+	// Unknown is the message indicates the undefined message type
 	Unknown
 )
 
@@ -54,6 +53,7 @@ type WrappedMessage struct {
 	Payload     []byte                  `json:"payload"`
 }
 
+// BroadcastMsgChan is the channel structure for keygen/keysign submit message to p2p network
 type BroadcastMsgChan struct {
 	WrappedMessage WrappedMessage
 	PeersID        []peer.ID
@@ -76,26 +76,4 @@ type WireMessage struct {
 // GetCacheKey return the key we used to cache it locally
 func (m *WireMessage) GetCacheKey() string {
 	return fmt.Sprintf("%s-%s", m.Routing.From.Id, m.RoundInfo)
-}
-
-// LocalCacheItem used to cache the unconfirmed broadcast message
-type LocalCacheItem struct {
-	Msg           *WireMessage
-	Hash          string
-	Lock          *sync.Mutex
-	ConfirmedList map[string]string
-}
-
-// UpdateConfirmList add the given party's hash into the confirm list
-func (l *LocalCacheItem) UpdateConfirmList(P2PID, hash string) {
-	l.Lock.Lock()
-	defer l.Lock.Unlock()
-	l.ConfirmedList[P2PID] = hash
-}
-
-// TotalConfirmParty number of parties that already confirmed their hash
-func (l *LocalCacheItem) TotalConfirmParty() int {
-	l.Lock.Lock()
-	defer l.Lock.Unlock()
-	return len(l.ConfirmedList)
 }

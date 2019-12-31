@@ -54,7 +54,7 @@ func GetPeersID(partyIDtoP2PID map[string]peer.ID, localPeerID string) []peer.ID
 
 func SetupIDMaps(parties map[string]*btss.PartyID, partyIDtoP2PID map[string]peer.ID) error {
 	for id, party := range parties {
-		peerID, err := GetPeerIDFromPartyID(party)
+		peerID, err := getPeerIDFromPartyID(party)
 		if nil != err {
 			return err
 		}

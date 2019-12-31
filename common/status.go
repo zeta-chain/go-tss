@@ -3,13 +3,17 @@ package common
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"math/big"
+	"os"
+	"sync"
+
 	"github.com/binance-chain/tss-lib/crypto"
 	"github.com/binance-chain/tss-lib/crypto/paillier"
 	"github.com/binance-chain/tss-lib/ecdsa/keygen"
 	btss "github.com/binance-chain/tss-lib/tss"
-	"io/ioutil"
-	"math/big"
-	"os"
+
+	"gitlab.com/thorchain/tss/go-tss/p2p"
 )
 
 type Status byte
@@ -19,14 +23,6 @@ const (
 	Success
 	Fail
 )
-
-// KeygenLocalStateItem
-type KeygenLocalStateItem struct {
-	PubKey          string                    `json:"pub_key"`
-	LocalData       keygen.LocalPartySaveData `json:"local_data"`
-	ParticipantKeys []string                  `json:"participant_keys"` // the paticipant of last key gen
-	LocalPartyKey   string                    `json:"local_party_key"`
-}
 
 // LoadLocalState from file
 func LoadLocalState(filePathName string) (KeygenLocalStateItem, error) {
@@ -85,4 +81,27 @@ func ProcessStateFile(sourceState KeygenLocalStateItem, parties []*btss.PartyID)
 	}
 	parties = btss.SortPartyIDs(parties)
 	return keyData, parties
+}
+
+func NewLocalCacheItem(msg *p2p.WireMessage, hash string) *LocalCacheItem {
+	return &LocalCacheItem{
+		Msg:           msg,
+		Hash:          hash,
+		lock:          &sync.Mutex{},
+		ConfirmedList: make(map[string]string),
+	}
+}
+
+// UpdateConfirmList add the given party's hash into the confirm list
+func (l *LocalCacheItem) UpdateConfirmList(P2PID, hash string) {
+	l.lock.Lock()
+	defer l.lock.Unlock()
+	l.ConfirmedList[P2PID] = hash
+}
+
+// TotalConfirmParty number of parties that already confirmed their hash
+func (l *LocalCacheItem) TotalConfirmParty() int {
+	l.lock.Lock()
+	defer l.lock.Unlock()
+	return len(l.ConfirmedList)
 }

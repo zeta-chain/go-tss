@@ -19,11 +19,12 @@ import (
 	btss "github.com/binance-chain/tss-lib/tss"
 	"github.com/hashicorp/go-retryablehttp"
 	maddr "github.com/multiformats/go-multiaddr"
-	"gitlab.com/thorchain/tss/go-tss/p2p"
-	"gitlab.com/thorchain/tss/go-tss/tss/common"
-	"gitlab.com/thorchain/tss/go-tss/tss/keygen"
-	"gitlab.com/thorchain/tss/go-tss/tss/keysign"
 	. "gopkg.in/check.v1"
+
+	"gitlab.com/thorchain/tss/go-tss/common"
+	"gitlab.com/thorchain/tss/go-tss/keygen"
+	"gitlab.com/thorchain/tss/go-tss/keysign"
+	"gitlab.com/thorchain/tss/go-tss/p2p"
 )
 
 const testPriKey0 = "MjQ1MDc2MmM4MjU5YjRhZjhhNmFjMmI0ZDBkNzBkOGE1ZTBmNDQ5NGI4NzM4OTYyM2E3MmI0OWMzNmE1ODZhNw=="
@@ -109,11 +110,9 @@ func setupContextAndNodes(c *C, partyNum int) ([]context.Context, []context.Canc
 }
 
 func setupNodeForTest(c *C, partyNum int) ([]context.Context, []*TssServer, []context.CancelFunc, *sync.WaitGroup) {
-
 	ctxs, cancels, localTss := setupContextAndNodes(c, partyNum)
 	wg := sync.WaitGroup{}
 	spinUpServers(c, localTss, ctxs, wg, partyNum)
-
 	return ctxs, localTss, cancels, &wg
 }
 
@@ -123,7 +122,6 @@ func sendTestRequest(c *C, url string, request []byte) []byte {
 	body, err := ioutil.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
 	return body
-
 }
 
 func testKeySign(c *C, poolPubKey string, partyNum int) {

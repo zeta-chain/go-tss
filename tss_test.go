@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -15,10 +14,11 @@ import (
 	btss "github.com/binance-chain/tss-lib/tss"
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/libp2p/go-libp2p-core/peer"
-	"gitlab.com/thorchain/tss/go-tss/p2p"
-	"gitlab.com/thorchain/tss/go-tss/tss/common"
-	"gitlab.com/thorchain/tss/go-tss/tss/keysign"
 	. "gopkg.in/check.v1"
+
+	"gitlab.com/thorchain/tss/go-tss/common"
+	"gitlab.com/thorchain/tss/go-tss/keysign"
+	"gitlab.com/thorchain/tss/go-tss/p2p"
 )
 
 const testPriKey = "OTI4OTdkYzFjMWFhMjU3MDNiMTE4MDM1OTQyY2Y3MDVkOWFhOGIzN2JlOGIwOWIwMTZjYTkxZjNjOTBhYjhlYQ=="
@@ -143,7 +143,6 @@ func (t *TssTestSuite) TestGetPriKey(c *C) {
 }
 
 func doNodeSyncTest(c *C, peers []peer.ID, targets []peer.ID) {
-
 	tssCommonStruct := common.TssCommon{
 		PartyIDtoP2PID: nil,
 		TssMsg:         nil,
@@ -163,17 +162,15 @@ func doNodeSyncTest(c *C, peers []peer.ID, targets []peer.ID) {
 	sort.Strings(returnedPeers)
 	sort.Strings(expected)
 	c.Assert(returnedPeers, DeepEquals, expected)
-	if len(peers)-1 == len(targets) {
-		fmt.Println(err)
+	if len(peers) == len(targets) {
 		c.Assert(err, IsNil)
 	} else {
 		c.Assert(err, NotNil)
 	}
 }
 
-func (t *TssTestSuite) TestNodesync(c *C) {
-	node1, err := peer.IDB58Decode("16Uiu2HAmACG5DtqmQsHtXg4G2sLS65ttv84e7MrL4kapkjfmhxAp")
-	c.Assert(err, IsNil)
+func (t *TssTestSuite) TestNodeSync(c *C) {
+	//in test, we pretend to be node1
 	node2, err := peer.IDB58Decode("16Uiu2HAmAWKWf5vnpiAhfdSQebTbbB3Bg35qtyG7Hr4ce23VFA8V")
 	c.Assert(err, IsNil)
 	node3, err := peer.IDB58Decode("16Uiu2HAm4TmEzUqy3q3Dv7HvdoSboHk5sFj2FH3npiN5vDbJC6gh")
@@ -181,10 +178,10 @@ func (t *TssTestSuite) TestNodesync(c *C) {
 	node4, err := peer.IDB58Decode("16Uiu2HAm2FzqoUdS6Y9Esg2EaGcAG5rVe1r6BFNnmmQr2H3bqafa")
 	c.Assert(err, IsNil)
 
-	peers := []peer.ID{node1, node2, node3, node4}
-	target := []peer.ID{node1}
+	peers := []peer.ID{node2, node3, node4}
+	target := []peer.ID{node4}
 	doNodeSyncTest(c, peers, target)
-	target = []peer.ID{node1, node4}
+	target = []peer.ID{node2, node4}
 	doNodeSyncTest(c, peers, target)
 	// in the 4 nodes scenario, we need to have the response of 3 nodes(loopback msg is not broadcast in the p2p)
 	target = []peer.ID{node2, node3, node4}
