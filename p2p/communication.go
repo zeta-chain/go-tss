@@ -16,6 +16,7 @@ import (
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p-core/protocol"
 	discovery "github.com/libp2p/go-libp2p-discovery"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
 	maddr "github.com/multiformats/go-multiaddr"
@@ -24,8 +25,16 @@ import (
 )
 
 const (
-	DefaultProtocolID = `tss`
-	DefaultRendezvous = `Asgard`
+	// LengthHeader represent how many bytes we used as header
+	LengthHeader = 4
+	// MaxPayload the maximum payload for a message
+	MaxPayload = 81920 // 80kb
+	// TimeoutInSecs maximum time to wait on read and write
+	TimeoutInSecs = 10
+	// TimeoutBroadcast maximum time to wait for message broadcast
+	TimeoutBroadcast = 5
+	// TimeoutConnecting maximum time for wait for peers to connect
+	TimeoutConnecting = 1
 )
 
 // Message that get transfer across the wire
@@ -36,7 +45,8 @@ type Message struct {
 
 // Communication use p2p to broadcast messages among all the TSS nodes
 type Communication struct {
-	Rendezvous       string // based on group
+	rendezvous       string // based on group
+	protocolID       protocol.ID
 	bootstrapPeers   []maddr.Multiaddr
 	logger           zerolog.Logger
 	listenAddr       maddr.Multiaddr
@@ -51,16 +61,14 @@ type Communication struct {
 }
 
 // NewCommunication create a new instance of Communication
-func NewCommunication(rendezvous string, bootstrapPeers []maddr.Multiaddr, port int) (*Communication, error) {
-	if len(rendezvous) == 0 {
-		rendezvous = DefaultRendezvous
-	}
+func NewCommunication(rendezvous string, bootstrapPeers []maddr.Multiaddr, port int, protocolID protocol.ID) (*Communication, error) {
 	addr, err := maddr.NewMultiaddr(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", port))
 	if nil != err {
 		return nil, fmt.Errorf("fail to create listen addr: %w", err)
 	}
 	return &Communication{
-		Rendezvous:       rendezvous,
+		rendezvous:       rendezvous,
+		protocolID:       protocolID,
 		bootstrapPeers:   bootstrapPeers,
 		logger:           log.With().Str("module", "communication").Logger(),
 		listenAddr:       addr,
@@ -78,15 +86,6 @@ func (c *Communication) GetLocalPeerID() string {
 	return c.host.ID().String()
 }
 
-const (
-	// LengthHeader represent how many bytes we used as header
-	LengthHeader = 4
-	// MaxPayload the maximum payload for a message
-	MaxPayload = 81920 // 80kb
-	// TimeoutInSecs maximum time to wait on read and write
-	TimeoutInSecs = 10
-)
-
 // Broadcast message to Peers
 func (c *Communication) Broadcast(peers []peer.ID, msg []byte) {
 	// try to discover all peers and then broadcast the messages
@@ -103,9 +102,9 @@ func (c *Communication) broadcastToPeers(peers []peer.ID, msg []byte) {
 		c.logger.Debug().Msgf("the peer list is empty")
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*5)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*TimeoutBroadcast)
 	defer cancel()
-	peerChan, err := c.routingDiscovery.FindPeers(ctx, c.Rendezvous)
+	peerChan, err := c.routingDiscovery.FindPeers(ctx, c.rendezvous)
 	if nil != err {
 		c.logger.Error().Err(err).Msg("fail to find any peers")
 		return
@@ -280,8 +279,7 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 	}
 	c.host = h
 	c.logger.Info().Msgf("Host created, we are: %s, at: %s", h.ID(), h.Addrs())
-
-	h.SetStreamHandler(DefaultProtocolID, c.handleStream)
+	h.SetStreamHandler(c.protocolID, c.handleStream)
 	// Start a DHT, for use in peer discovery. We can't just make a new DHT
 	// client because we want each peer to maintain its own local copy of the
 	// DHT, so that the bootstrapping node of the DHT can go down without
@@ -301,7 +299,7 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 	// This is like telling your friends to meet you at the Eiffel Tower.
 
 	routingDiscovery := discovery.NewRoutingDiscovery(kademliaDHT)
-	discovery.Advertise(ctx, routingDiscovery, c.Rendezvous)
+	discovery.Advertise(ctx, routingDiscovery, c.rendezvous)
 	c.routingDiscovery = routingDiscovery
 	c.logger.Info().Msg("Successfully announced!")
 
@@ -315,9 +313,9 @@ func (c *Communication) connectToOnePeer(ai peer.AddrInfo) (network.Stream, erro
 		return nil, nil
 	}
 	c.logger.Debug().Msgf("connect to peer : %s", ai.ID.String())
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*1)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*TimeoutConnecting)
 	defer cancel()
-	stream, err := c.host.NewStream(ctx, ai.ID, DefaultProtocolID)
+	stream, err := c.host.NewStream(ctx, ai.ID, c.protocolID)
 	if nil != err {
 		return nil, fmt.Errorf("fail to create new stream to peer: %s, %w", ai.ID, err)
 	}
@@ -335,7 +333,7 @@ func (c *Communication) connectToBootstrapPeers() error {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+			ctx, cancel := context.WithTimeout(context.Background(), time.Minute*TimeoutConnecting)
 			defer cancel()
 			if err := c.host.Connect(ctx, *pi); err != nil {
 				c.logger.Error().Err(err)

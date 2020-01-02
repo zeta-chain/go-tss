@@ -18,6 +18,7 @@ import (
 	btsskeygen "github.com/binance-chain/tss-lib/ecdsa/keygen"
 	btss "github.com/binance-chain/tss-lib/tss"
 	"github.com/hashicorp/go-retryablehttp"
+	"github.com/libp2p/go-libp2p-core/protocol"
 	maddr "github.com/multiformats/go-multiaddr"
 	. "gopkg.in/check.v1"
 
@@ -71,6 +72,7 @@ func setupContextAndNodes(c *C, partyNum int) ([]context.Context, []context.Canc
 	var ctxs []context.Context
 	var cancels []context.CancelFunc
 	multiAddr, err := maddr.NewMultiaddr(peerID)
+	protocolID := protocol.ConvertFromStrings([]string{"tss"})[0]
 	c.Assert(err, IsNil)
 	peerIDs := []maddr.Multiaddr{multiAddr}
 	var preParamArray []*btsskeygen.LocalPreParams
@@ -91,17 +93,16 @@ func setupContextAndNodes(c *C, partyNum int) ([]context.Context, []context.Canc
 		p2pPort := baseP2PPort + i
 		tssPort := baseTssPort + i
 		baseHome := path.Join(testFileLocation, strconv.Itoa(i))
-
 		if _, err := os.Stat(baseHome); os.IsNotExist(err) {
 			err := os.Mkdir(baseHome, os.ModePerm)
 			c.Assert(err, IsNil)
 		}
 		if i == 0 {
-			instance, err := internalNewTss(nil, p2pPort, tssPort, []byte(testPriKeyArr[i]), baseHome, *preParamArray[i])
+			instance, err := internalNewTss(nil, p2pPort, tssPort, protocolID, []byte(testPriKeyArr[i]), "Asgard", baseHome, *preParamArray[i])
 			c.Assert(err, IsNil)
 			localTss = append(localTss, instance)
 		} else {
-			instance, err := internalNewTss(peerIDs, p2pPort, tssPort, []byte(testPriKeyArr[i]), baseHome, *preParamArray[i])
+			instance, err := internalNewTss(peerIDs, p2pPort, tssPort, protocolID, []byte(testPriKeyArr[i]), "Asgard", baseHome, *preParamArray[i])
 			c.Assert(err, IsNil)
 			localTss = append(localTss, instance)
 		}
@@ -110,6 +111,10 @@ func setupContextAndNodes(c *C, partyNum int) ([]context.Context, []context.Canc
 }
 
 func setupNodeForTest(c *C, partyNum int) ([]context.Context, []*TssServer, []context.CancelFunc, *sync.WaitGroup) {
+	common.KeyGenTimeout = 30
+	common.KeySignTimeout = 30
+	common.SyncTimeout = 5
+	common.SyncRetry = 20
 	ctxs, cancels, localTss := setupContextAndNodes(c, partyNum)
 	wg := sync.WaitGroup{}
 	spinUpServers(c, localTss, ctxs, wg, partyNum)

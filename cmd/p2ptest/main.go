@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	golog "github.com/ipfs/go-log"
+	"github.com/libp2p/go-libp2p-core/protocol"
 	"github.com/rs/zerolog/log"
 	"github.com/whyrusleeping/go-logging"
 
@@ -16,16 +17,19 @@ import (
 )
 
 func main() {
+	var config common.P2PConfig
 	golog.SetAllLoggers(logging.INFO)
 	if err := golog.SetLogLevel("tss_p2p", "DEBUG"); nil != err {
 		panic(err)
 	}
 	help := flag.Bool("h", false, "Display Help")
-	config, err := common.ParseFlags()
-	if err != nil {
-		panic(err)
-	}
 
+	flag.StringVar(&config.RendezvousString, "rendezvous", "Asgard",
+		"Unique string to identify group of nodes. Share this with your friends to let them connect with you")
+	flag.StringVar(&config.ProtocolID, "protocolID", "tss", "protocol ID for p2p communication")
+	flag.Var(&config.BootstrapPeers, "peer", "Adds a peer multiaddress to the bootstrap list")
+	flag.IntVar(&config.Port, "port", 6668, "listening port local")
+	flag.Parse()
 	if *help {
 		fmt.Println("This program demonstrates a simple p2p chat application using libp2p")
 		fmt.Println()
@@ -33,7 +37,11 @@ func main() {
 		flag.PrintDefaults()
 		return
 	}
-	c, err := p2p.NewCommunication("tss", config.BootstrapPeers, config.Port)
+	if config.ProtocolID == "" {
+		panic("error in process protocol ID")
+	}
+	protocolID := protocol.ConvertFromStrings([]string{config.ProtocolID})[0]
+	c, err := p2p.NewCommunication("tss", config.BootstrapPeers, config.Port, protocolID)
 	if nil != err {
 		panic(err)
 	}

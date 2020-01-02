@@ -1,7 +1,6 @@
 package common
 
 import (
-	"flag"
 	"strings"
 
 	maddr "github.com/multiformats/go-multiaddr"
@@ -9,6 +8,13 @@ import (
 
 // A new type we need for writing a custom flag parser
 type addrList []maddr.Multiaddr
+
+type P2PConfig struct {
+	RendezvousString string
+	BootstrapPeers   addrList
+	Port             int
+	ProtocolID       string
+}
 
 func (al *addrList) String() string {
 	strs := make([]string, len(*al))
@@ -25,20 +31,4 @@ func (al *addrList) Set(value string) error {
 	}
 	*al = append(*al, addr)
 	return nil
-}
-
-type Config struct {
-	RendezvousString string
-	BootstrapPeers   addrList
-	Port             int
-}
-
-func ParseFlags() (Config, error) {
-	config := Config{}
-	flag.StringVar(&config.RendezvousString, "rendezvous", "meet me here",
-		"Unique string to identify group of nodes. Share this with your friends to let them connect with you")
-	flag.Var(&config.BootstrapPeers, "peer", "Adds a peer multiaddress to the bootstrap list")
-	flag.IntVar(&config.Port, "port", 6668, "listening port local")
-	flag.Parse()
-	return config, nil
 }

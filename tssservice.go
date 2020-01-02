@@ -17,6 +17,7 @@ import (
 	btss "github.com/binance-chain/tss-lib/tss"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/gorilla/mux"
+	"github.com/libp2p/go-libp2p-core/protocol"
 	maddr "github.com/multiformats/go-multiaddr"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -75,12 +76,12 @@ func NewTssHttpServer(tssPort int, t *TssServer) *http.Server {
 }
 
 // NewTss create a new instance of Tss
-func NewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, priKeyBytes []byte, baseFolder string) (*TssServer, error) {
-	return internalNewTss(bootstrapPeers, p2pPort, tssPort, priKeyBytes, baseFolder)
+func NewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, protocolID protocol.ID, priKeyBytes []byte, rendezvous, baseFolder string) (*TssServer, error) {
+	return internalNewTss(bootstrapPeers, p2pPort, tssPort, protocolID, priKeyBytes, rendezvous, baseFolder)
 }
 
 // NewTss create a new instance of Tss
-func internalNewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, priKeyBytes []byte, baseFolder string, optionalPreParams ...bkeygen.LocalPreParams) (*TssServer, error) {
+func internalNewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, protocolID protocol.ID, priKeyBytes []byte, rendezvous, baseFolder string, optionalPreParams ...bkeygen.LocalPreParams) (*TssServer, error) {
 	if p2pPort == tssPort {
 		return nil, errors.New("tss and p2p can't use the same port")
 	}
@@ -88,7 +89,7 @@ func internalNewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, priK
 	if err != nil {
 		return nil, errors.New("cannot parse the private key")
 	}
-	P2PServer, err := p2p.NewCommunication(p2p.DefaultRendezvous, bootstrapPeers, p2pPort)
+	P2PServer, err := p2p.NewCommunication(rendezvous, bootstrapPeers, p2pPort, protocolID)
 	if nil != err {
 		return nil, fmt.Errorf("fail to create communication layer: %w", err)
 	}
@@ -100,7 +101,7 @@ func internalNewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, priK
 		if len(optionalPreParams) > 0 {
 			preParams = &optionalPreParams[0]
 		} else {
-			preParams, err = bkeygen.GeneratePreParams(5 * time.Minute)
+			preParams, err = bkeygen.GeneratePreParams(time.Minute * common.PreParamTimeout)
 			if nil != err {
 				return nil, fmt.Errorf("fail to generate pre parameters: %w", err)
 			}

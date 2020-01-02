@@ -27,15 +27,17 @@ import (
 	"gitlab.com/thorchain/tss/go-tss/p2p"
 )
 
-const (
-	// KeyGenTimeoutSeconds how long do we wait the keygen parties to pass messages along
-	KeyGenTimeoutSeconds = 120
-	// KeySignTimeoutSeconds how long do we wait keysign
-	KeySignTimeoutSeconds = 30
-	// SyncTimeout how long do we wait for sync message
-	SyncTimeout = 5
-	// SyncRetry how many time we try to sync the peers
-	SyncRetry = 20
+var (
+	// KeyGenTimeoutSeconds defines how long do we wait the keygen parties to pass messages along
+	KeyGenTimeout time.Duration
+	// KeySignTimeoutSeconds defines how long do we wait keysign
+	KeySignTimeout time.Duration
+	// SyncTimeout defines how long do we wait for sync message
+	SyncTimeout time.Duration
+	// Pre-parameter define the pre-parameter generations timeout
+	PreParamTimeout time.Duration
+	// SyncRetry defines how many times we try to sync the peers
+	SyncRetry int
 )
 
 var (

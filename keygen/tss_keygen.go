@@ -73,7 +73,7 @@ func (tKeyGen *TssKeyGen) GenerateNewKey(keygenReq KeyGenReq) (*crypto.ECPoint, 
 	outCh := make(chan btss.Message, len(partiesID))
 	endCh := make(chan bkeygen.LocalPartySaveData, len(partiesID))
 	errChan := make(chan struct{})
-	if tKeyGen.preParams == nil{
+	if tKeyGen.preParams == nil {
 		tKeyGen.logger.Error().Err(err).Msg("error, empty pre-parameters")
 		return nil, errors.New("error, empty pre-parameters")
 	}
@@ -139,9 +139,9 @@ func (tKeyGen *TssKeyGen) processKeyGen(errChan chan struct{}, outCh <-chan btss
 			close(tKeyGen.tssCommonStruct.TssMsg)
 			return nil, errors.New("received exit signal")
 
-		case <-time.After(time.Second * common.KeyGenTimeoutSeconds):
+		case <-time.After(time.Second * common.KeyGenTimeout):
 			// we bail out after KeyGenTimeoutSeconds
-			return nil, fmt.Errorf("fail to finish keyGen with in %d seconds", common.KeyGenTimeoutSeconds)
+			return nil, fmt.Errorf("fail to finish keyGen with in %d seconds", common.KeyGenTimeout)
 
 		case msg := <-outCh:
 			tKeyGen.logger.Debug().Msgf(">>>>>>>>>>msg: %s", msg.String())
