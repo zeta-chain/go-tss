@@ -127,7 +127,13 @@ func setupNodeForTest(c *C, partyNum int) ([]context.Context, []*TssServer, []co
 }
 
 func sendTestRequest(c *C, url string, request []byte) []byte {
-	resp, err := http.Post(url, "application/json", bytes.NewBuffer(request))
+	var resp *http.Response
+	var err error
+	if len(request) == 0 {
+		resp, err = http.Get(url)
+	} else {
+		resp, err = http.Post(url, "application/json", bytes.NewBuffer(request))
+	}
 	c.Assert(err, IsNil)
 	body, err := ioutil.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
@@ -242,4 +248,32 @@ func (t *TssTestSuite) TestHttpRedoKeyGen(c *C) {
 	defer cleanUp(c, cancels, wg, partyNum)
 	//test key gen.
 	testKeyGen(c, partyNum)
+}
+
+func (t *TssTestSuite) TestTssProcessOutCh(c *C) {
+	sk, err := common.GetPriKey(testPriKey)
+	c.Assert(err, IsNil)
+	c.Assert(sk, NotNil)
+	conf := common.TssConfig{}
+	keySignInstance := keysign.NewTssKeySign("", "", conf, sk, nil, nil, nil)
+	localTestPubKeys := make([]string, len(testPubKeys))
+	copy(localTestPubKeys, testPubKeys[:])
+	partiesID, localPartyID, err := common.GetParties(localTestPubKeys, testPubKeys[0], true)
+	c.Assert(err, IsNil)
+	messageRouting := btss.MessageRouting{
+		From:                    localPartyID,
+		To:                      partiesID[3:],
+		IsBroadcast:             true,
+		IsToOldCommittee:        false,
+		IsToOldAndNewCommittees: false,
+	}
+	testFill := []byte("TEST")
+	testContent := &btsskeygen.KGRound1Message{
+		Commitment: testFill,
+	}
+	msg := btss.NewMessageWrapper(messageRouting, testContent)
+	tssMsg := btss.NewMessage(messageRouting, testContent, msg)
+	TssCommStruct := keySignInstance.GetTssCommonStruct()
+	err = TssCommStruct.ProcessOutCh(tssMsg, p2p.TSSKeyGenMsg)
+	c.Assert(err, IsNil)
 }
