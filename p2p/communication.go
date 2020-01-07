@@ -353,6 +353,9 @@ func (c *Communication) Start(priKeyBytes []byte) error {
 
 // Stop communication
 func (c *Communication) Stop() error {
+	//we need to stop the handler and the p2p services firstly, then terminate the our communication threads
+	c.host.RemoveStreamHandler(c.protocolID)
+	c.host.Close()
 	close(c.stopChan)
 	c.wg.Wait()
 	return nil
