@@ -67,7 +67,7 @@ func spinUpServers(c *C, localTss []*TssServer, ctxs []context.Context, wg sync.
 	}
 }
 
-func setupContextAndNodes(c *C, partyNum int) ([]context.Context, []context.CancelFunc, []*TssServer) {
+func setupContextAndNodes(c *C, partyNum int, conf common.TssConfig) ([]context.Context, []context.CancelFunc, []*TssServer) {
 	var localTss []*TssServer
 	var ctxs []context.Context
 	var cancels []context.CancelFunc
@@ -98,11 +98,11 @@ func setupContextAndNodes(c *C, partyNum int) ([]context.Context, []context.Canc
 			c.Assert(err, IsNil)
 		}
 		if i == 0 {
-			instance, err := internalNewTss(nil, p2pPort, tssPort, protocolID, []byte(testPriKeyArr[i]), "Asgard", baseHome, *preParamArray[i])
+			instance, err := internalNewTss(nil, p2pPort, tssPort, protocolID, []byte(testPriKeyArr[i]), "Asgard", baseHome, conf, *preParamArray[i])
 			c.Assert(err, IsNil)
 			localTss = append(localTss, instance)
 		} else {
-			instance, err := internalNewTss(peerIDs, p2pPort, tssPort, protocolID, []byte(testPriKeyArr[i]), "Asgard", baseHome, *preParamArray[i])
+			instance, err := internalNewTss(peerIDs, p2pPort, tssPort, protocolID, []byte(testPriKeyArr[i]), "Asgard", baseHome, conf, *preParamArray[i])
 			c.Assert(err, IsNil)
 			localTss = append(localTss, instance)
 		}
@@ -111,11 +111,14 @@ func setupContextAndNodes(c *C, partyNum int) ([]context.Context, []context.Canc
 }
 
 func setupNodeForTest(c *C, partyNum int) ([]context.Context, []*TssServer, []context.CancelFunc, *sync.WaitGroup) {
-	common.KeyGenTimeout = 30
-	common.KeySignTimeout = 30
-	common.SyncTimeout = 5
-	common.SyncRetry = 20
-	ctxs, cancels, localTss := setupContextAndNodes(c, partyNum)
+	conf := common.TssConfig{
+		KeyGenTimeout:   30,
+		KeySignTimeout:  30,
+		SyncTimeout:     5,
+		PreParamTimeout: 5,
+		SyncRetry:       20,
+	}
+	ctxs, cancels, localTss := setupContextAndNodes(c, partyNum, conf)
 	wg := sync.WaitGroup{}
 	spinUpServers(c, localTss, ctxs, wg, partyNum)
 	return ctxs, localTss, cancels, &wg
@@ -231,7 +234,8 @@ func (t *TssTestSuite) TestTssProcessOutCh(c *C) {
 	sk, err := common.GetPriKey(testPriKey)
 	c.Assert(err, IsNil)
 	c.Assert(sk, NotNil)
-	keySignInstance := keysign.NewTssKeySign("", "", sk, nil, nil)
+	conf := common.TssConfig{}
+	keySignInstance := keysign.NewTssKeySign("", "", conf, sk, nil, nil)
 	localTestPubKeys := make([]string, len(testPubKeys))
 	copy(localTestPubKeys, testPubKeys[:])
 	partiesID, localPartyID, err := common.GetParties(localTestPubKeys, testPubKeys[0], true)
@@ -387,7 +391,8 @@ func (t *TssTestSuite) TestProcessVerMessage(c *C) {
 	sk, err := common.GetPriKey(testPriKey)
 	c.Assert(err, IsNil)
 	c.Assert(sk, NotNil)
-	keySignInstance := keysign.NewTssKeySign("", "", sk, nil, nil)
+	conf := common.TssConfig{}
+	keySignInstance := keysign.NewTssKeySign("", "", conf, sk, nil, nil)
 	tssCommonStruct := keySignInstance.GetTssCommonStruct()
 	localTestPubKeys := make([]string, len(testPubKeys))
 	copy(localTestPubKeys, testPubKeys[:])

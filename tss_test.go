@@ -33,8 +33,8 @@ var _ = Suite(&TssTestSuite{})
 func setupTssForTest(c *C) *TssServer {
 	protocolID := protocol.ConvertFromStrings([]string{"tss"})[0]
 	ByPassGeneratePreParam = true
-	homeBase := ""
-	tss, err := NewTss(nil, 6668, 8080, protocolID, []byte(testPriKey), "Asgard", homeBase)
+	conf := common.TssConfig{}
+	tss, err := NewTss(nil, 6668, 8080, protocolID, []byte(testPriKey), "Asgard", "", conf)
 	c.Assert(err, IsNil)
 	c.Assert(tss, NotNil)
 	return tss
@@ -43,7 +43,8 @@ func setupTssForTest(c *C) *TssServer {
 func (t *TssTestSuite) TestTssReusePort(c *C) {
 	protocolID := protocol.ConvertFromStrings([]string{"tss"})[0]
 	ByPassGeneratePreParam = true
-	tss1, err := NewTss(nil, 6660, 8080, protocolID, []byte(testPriKey), "Asgard", "")
+	conf := common.TssConfig{}
+	tss1, err := NewTss(nil, 6660, 8080, protocolID, []byte(testPriKey), "Asgard", "", conf)
 	c.Assert(err, IsNil)
 	wg := sync.WaitGroup{}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -57,7 +58,7 @@ func (t *TssTestSuite) TestTssReusePort(c *C) {
 	_, err = retryablehttp.Get("http://127.0.0.1:8080/ping")
 	c.Assert(err, IsNil)
 
-	tss2, err := NewTss(nil, 6661, 8080, protocolID, []byte(testPriKey), "Asgard", "")
+	tss2, err := NewTss(nil, 6661, 8080, protocolID, []byte(testPriKey), "Asgard", "", conf)
 	ctx2, cancel2 := context.WithCancel(context.Background())
 	err = tss2.Start(ctx2)
 	c.Assert(err, ErrorMatches, "listen tcp :8080: bind: address already in use")
@@ -68,7 +69,8 @@ func (t *TssTestSuite) TestTssReusePort(c *C) {
 
 func (t *TssTestSuite) TestNewTss(c *C) {
 	protocolID := protocol.ConvertFromStrings([]string{"tss"})[0]
-	tss, err := NewTss(nil, 6668, 12345, protocolID, []byte(testPriKey), "Asgard", "")
+	conf := common.TssConfig{}
+	tss, err := NewTss(nil, 6668, 12345, protocolID, []byte(testPriKey), "Asgard", "", conf)
 	c.Assert(err, IsNil)
 	c.Assert(tss, NotNil)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -93,7 +95,7 @@ func (t *TssTestSuite) TestNewTss(c *C) {
 	wg.Wait()
 
 	// P2p port and http port can't be the same
-	tss1, err := NewTss(nil, 8080, 8080, protocolID, []byte(testPriKey), "Asgard", "")
+	tss1, err := NewTss(nil, 8080, 8080, protocolID, []byte(testPriKey), "Asgard", "", conf)
 	c.Assert(err, NotNil)
 	c.Assert(tss1, IsNil)
 }
@@ -117,11 +119,11 @@ func (t *TssTestSuite) TestSignMessage(c *C) {
 		PoolPubKey: "helloworld",
 		Message:    "whatever",
 	}
-
+	conf := common.TssConfig{}
 	sk, err := common.GetPriKey(testPriKey)
 	c.Assert(err, IsNil)
 	c.Assert(sk, NotNil)
-	keySignInstance := keysign.NewTssKeySign("", "", sk, nil, nil)
+	keySignInstance := keysign.NewTssKeySign("", "", conf, sk, nil, nil)
 	signatureData, err := keySignInstance.SignMessage(req)
 	c.Assert(err, NotNil)
 	c.Assert(signatureData, IsNil)

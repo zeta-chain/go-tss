@@ -1,4 +1,4 @@
-package common
+package p2p
 
 import (
 	"strings"
@@ -11,9 +11,9 @@ type addrList []maddr.Multiaddr
 
 type P2PConfig struct {
 	RendezvousString string
-	BootstrapPeers   addrList
-	Port             int
 	ProtocolID       string
+	Port             int
+	BootstrapPeers   addrList
 }
 
 func (al *addrList) String() string {

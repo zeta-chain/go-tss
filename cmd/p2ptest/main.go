@@ -17,31 +17,26 @@ import (
 )
 
 func main() {
-	var config common.P2PConfig
+	p2pConf := p2p.P2PConfig{}
+	generalConf := common.GeneralConfig{}
 	golog.SetAllLoggers(logging.INFO)
 	if err := golog.SetLogLevel("tss_p2p", "DEBUG"); nil != err {
 		panic(err)
 	}
-	help := flag.Bool("h", false, "Display Help")
 
-	flag.StringVar(&config.RendezvousString, "rendezvous", "Asgard",
-		"Unique string to identify group of nodes. Share this with your friends to let them connect with you")
-	flag.StringVar(&config.ProtocolID, "protocolID", "tss", "protocol ID for p2p communication")
-	flag.Var(&config.BootstrapPeers, "peer", "Adds a peer multiaddress to the bootstrap list")
-	flag.IntVar(&config.Port, "port", 6668, "listening port local")
-	flag.Parse()
-	if *help {
+	parseFlags(&generalConf, &p2pConf)
+	if generalConf.Help {
 		fmt.Println("This program demonstrates a simple p2p chat application using libp2p")
 		fmt.Println()
 		fmt.Println("Usage: Run './chat in two different terminals. Let them connect to the bootstrap nodes, announce themselves and connect to the peers")
 		flag.PrintDefaults()
 		return
 	}
-	if config.ProtocolID == "" {
+	if p2pConf.ProtocolID == "" {
 		panic("error in process protocol ID")
 	}
-	protocolID := protocol.ConvertFromStrings([]string{config.ProtocolID})[0]
-	c, err := p2p.NewCommunication("tss", config.BootstrapPeers, config.Port, protocolID)
+	protocolID := protocol.ConvertFromStrings([]string{p2pConf.ProtocolID})[0]
+	c, err := p2p.NewCommunication("tss", p2pConf.BootstrapPeers, p2pConf.Port, protocolID)
 	if nil != err {
 		panic(err)
 	}
@@ -56,4 +51,15 @@ func main() {
 	if err := c.Stop(); nil != err {
 		log.Fatal().Err(err).Msg("fail to stop tss")
 	}
+}
+
+func parseFlags(generalConf *common.GeneralConfig, p2pConf *p2p.P2PConfig) {
+
+	flag.BoolVar(&generalConf.Help, "h", false, "Display Help")
+	flag.StringVar(&p2pConf.RendezvousString, "rendezvous", "Asgard",
+		"Unique string to identify group of nodes. Share this with your friends to let them connect with you")
+	flag.StringVar(&p2pConf.ProtocolID, "protocolID", "tss", "protocol ID for p2p communication")
+	flag.Var(&p2pConf.BootstrapPeers, "peer", "Adds a peer multiaddress to the bootstrap list")
+	flag.IntVar(&p2pConf.Port, "port", 6668, "listening port local")
+	flag.Parse()
 }
