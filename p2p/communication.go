@@ -3,6 +3,7 @@ package p2p
 import (
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -42,9 +43,11 @@ type Communication struct {
 	host             host.Host
 	routingDiscovery *discovery.RoutingDiscovery
 	wg               *sync.WaitGroup
-	stopchan         chan struct{}
+	stopChan         chan struct{} // channel to indicate whether we should stop
+	subscribers      map[THORChainTSSMessageType]chan *Message
+	subscriberLocker *sync.Mutex
 	streamCount      int64
-	messages         chan *Message
+	BroadcastMsgChan chan *BroadcastMsgChan
 }
 
 // NewCommunication create a new instance of Communication
@@ -57,14 +60,16 @@ func NewCommunication(rendezvous string, bootstrapPeers []maddr.Multiaddr, port 
 		return nil, fmt.Errorf("fail to create listen addr: %w", err)
 	}
 	return &Communication{
-		Rendezvous:     rendezvous,
-		bootstrapPeers: bootstrapPeers,
-		logger:         log.With().Str("module", "communication").Logger(),
-		listenAddr:     addr,
-		wg:             &sync.WaitGroup{},
-		stopchan:       make(chan struct{}),
-		streamCount:    0,
-		messages:       make(chan *Message),
+		Rendezvous:       rendezvous,
+		bootstrapPeers:   bootstrapPeers,
+		logger:           log.With().Str("module", "communication").Logger(),
+		listenAddr:       addr,
+		wg:               &sync.WaitGroup{},
+		stopChan:         make(chan struct{}),
+		subscribers:      make(map[THORChainTSSMessageType]chan *Message, 0),
+		subscriberLocker: &sync.Mutex{},
+		streamCount:      0,
+		BroadcastMsgChan: make(chan *BroadcastMsgChan, 1024),
 	}, nil
 }
 
@@ -83,11 +88,10 @@ const (
 )
 
 // Broadcast message to Peers
-func (c *Communication) Broadcast(peers []peer.ID, msg []byte) error {
+func (c *Communication) Broadcast(peers []peer.ID, msg []byte) {
 	// try to discover all peers and then broadcast the messages
 	c.wg.Add(1)
 	go c.broadcastToPeers(peers, msg)
-	return nil
 }
 
 func (c *Communication) broadcastToPeers(peers []peer.ID, msg []byte) {
@@ -108,7 +112,7 @@ func (c *Communication) broadcastToPeers(peers []peer.ID, msg []byte) {
 	}
 	for {
 		select {
-		case <-c.stopchan:
+		case <-c.stopChan:
 			return // we need to stop the server
 		case ai, more := <-peerChan:
 			if !more {
@@ -193,11 +197,11 @@ func (c *Communication) readFromStream(stream network.Stream) {
 	}()
 	for {
 		select {
-		case <-c.stopchan:
+		case <-c.stopChan:
 			return
 		default:
 			length := make([]byte, LengthHeader)
-			// set read haader timeout
+			// set read header timeout
 			if err := stream.SetReadDeadline(time.Now().Add(time.Second * TimeoutInSecs)); nil != err {
 				c.logger.Error().Err(err).Msgf("fail to set read header timeout,peerID:%s", peerID)
 				return
@@ -233,14 +237,22 @@ func (c *Communication) readFromStream(stream network.Stream) {
 				// short reading
 				c.logger.Error().Err(err).Msgf("we are expecting %d bytes , but we only got %d", l, n)
 			}
-			select {
-			case <-c.stopchan:
-				return
-			case c.messages <- &Message{
-				PeerID:  stream.Conn().RemotePeer(),
-				Payload: buf,
-			}:
+			var wrappedMsg WrappedMessage
+			if err := json.Unmarshal(buf, &wrappedMsg); nil != err {
+				c.logger.Error().Err(err).Msg("fail to unmarshal wrapped message bytes")
+				continue
 			}
+			channel, ok := c.subscribers[wrappedMsg.MessageType]
+			if !ok {
+				c.logger.Info().Msgf("no subscriber %s found for this message", wrappedMsg.MessageType.String())
+				continue
+			} else {
+				channel <- &Message{
+					PeerID:  stream.Conn().RemotePeer(),
+					Payload: buf,
+				}
+			}
+
 		}
 	}
 }
@@ -336,10 +348,6 @@ func (c *Communication) connectToBootstrapPeers() error {
 	return nil
 }
 
-func (c *Communication) GetMsg() chan *Message {
-	return c.messages
-}
-
 // Start will start the communication
 func (c *Communication) Start(priKeyBytes []byte) error {
 	return c.startChannel(priKeyBytes)
@@ -347,7 +355,41 @@ func (c *Communication) Start(priKeyBytes []byte) error {
 
 // Stop communication
 func (c *Communication) Stop() error {
-	close(c.stopchan)
+	close(c.stopChan)
 	c.wg.Wait()
 	return nil
+}
+
+func (c *Communication) SetSubscribe(topic THORChainTSSMessageType, channel chan *Message) {
+	c.subscriberLocker.Lock()
+	defer c.subscriberLocker.Unlock()
+	c.subscribers[topic] = channel
+}
+
+func (c *Communication) CancelSubscribe(topic THORChainTSSMessageType) {
+	c.subscriberLocker.Lock()
+	defer c.subscriberLocker.Unlock()
+	delete(c.subscribers, topic)
+}
+
+func (c *Communication) ProcessBroadcast() {
+	c.logger.Info().Msg("start to process broadcast message channel")
+	c.wg.Add(1)
+	defer c.logger.Info().Msg("stop process broadcast message channel")
+	defer c.wg.Done()
+	for {
+		select {
+		case msg := <-c.BroadcastMsgChan:
+			wrappedMsgBytes, err := json.Marshal(msg.WrappedMessage)
+			if nil != err {
+				c.logger.Error().Err(err).Msg("fail to marshal a wrapped message to json bytes")
+				continue
+			}
+			c.logger.Debug().Msgf("broadcast message %s to %+v", msg.WrappedMessage, msg.PeersID)
+			c.Broadcast(msg.PeersID, wrappedMsgBytes)
+
+		case <-c.stopChan:
+			return
+		}
+	}
 }
