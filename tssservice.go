@@ -100,7 +100,7 @@ func internalNewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, priK
 		if len(optionalPreParams) > 0 {
 			preParams = &optionalPreParams[0]
 		} else {
-			preParams, err = bkeygen.GeneratePreParams(1 * time.Minute)
+			preParams, err = bkeygen.GeneratePreParams(5 * time.Minute)
 			if nil != err {
 				return nil, fmt.Errorf("fail to generate pre parameters: %w", err)
 			}
