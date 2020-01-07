@@ -257,7 +257,7 @@ func (t *TssServer) keygen(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	if os.Getenv("NET") == "testnet" {
+	if os.Getenv("NET") == "testnet" || os.Getenv("NET") == "mocknet" {
 		types.Network = types.TestNetwork
 	}
 	resp := keygen.KeyGenResp{
