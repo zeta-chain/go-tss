@@ -116,7 +116,7 @@ func (t *TssTestSuite) TestSignMessage(c *C) {
 	sk, err := common.GetPriKey(testPriKey)
 	c.Assert(err, IsNil)
 	c.Assert(sk, NotNil)
-	keySignInstance := keysign.NewTssKeySign("", "", sk, nil, nil, nil)
+	keySignInstance := keysign.NewTssKeySign("", "", sk, nil, nil)
 	signatureData, err := keySignInstance.SignMessage(req)
 	c.Assert(err, NotNil)
 	c.Assert(signatureData, IsNil)

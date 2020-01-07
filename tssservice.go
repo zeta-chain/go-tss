@@ -299,7 +299,7 @@ func (t *TssServer) keySign(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	keysignInstance := keysign.NewTssKeySign(t.homeBase, t.p2pCommunication.GetLocalPeerID(), t.priKey, t.p2pCommunication.BroadcastMsgChan, &t.stopChan, t.preParams)
+	keysignInstance := keysign.NewTssKeySign(t.homeBase, t.p2pCommunication.GetLocalPeerID(), t.priKey, t.p2pCommunication.BroadcastMsgChan, &t.stopChan)
 
 	keygenMsgChannel, keygenSyncChannel := keysignInstance.GetTssKeySignChannels()
 	t.p2pCommunication.SetSubscribe(p2p.TSSKeySignMsg, keygenMsgChannel)
