@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"time"
 
-	bkeygen "github.com/binance-chain/tss-lib/ecdsa/keygen"
 	"github.com/binance-chain/tss-lib/ecdsa/signing"
 	btss "github.com/binance-chain/tss-lib/tss"
 	"github.com/rs/zerolog"
@@ -23,7 +22,6 @@ import (
 type TssKeySign struct {
 	logger          zerolog.Logger
 	priKey          cryptokey.PrivKey
-	preParams       *bkeygen.LocalPreParams
 	tssCommonStruct *common.TssCommon
 	stopChan        *chan struct{} // channel to indicate whether we should stop
 	homeBase        string
@@ -31,11 +29,10 @@ type TssKeySign struct {
 	localParty      *btss.PartyID
 }
 
-func NewTssKeySign(homeBase, localP2PID string, privKey cryptokey.PrivKey, broadcastChan chan *p2p.BroadcastMsgChan, stopChan *chan struct{}, preParam *bkeygen.LocalPreParams) TssKeySign {
+func NewTssKeySign(homeBase, localP2PID string, privKey cryptokey.PrivKey, broadcastChan chan *p2p.BroadcastMsgChan, stopChan *chan struct{}) TssKeySign {
 	return TssKeySign{
 		logger:          log.With().Str("module", "keySign").Logger(),
 		priKey:          privKey,
-		preParams:       preParam,
 		tssCommonStruct: common.NewTssCommon(localP2PID, broadcastChan),
 		stopChan:        stopChan,
 		homeBase:        homeBase,
@@ -160,8 +157,6 @@ func (tKeySign *TssKeySign) processKeySign(errChan chan struct{}, outCh <-chan b
 			if nil != err {
 				return nil, err
 			}
-			continue
-
 		case m, ok := <-tKeySign.tssCommonStruct.TssMsg:
 			if !ok {
 				return nil, nil
@@ -173,9 +168,8 @@ func (tKeySign *TssKeySign) processKeySign(errChan chan struct{}, outCh <-chan b
 			}
 			err := tKeySign.tssCommonStruct.ProcessOneMessage(&wrappedMsg, m.PeerID.String())
 			if err != nil {
-				fmt.Println(err)
+				tKeySign.logger.Error().Err(err).Msg("failed to process the received message")
 			}
-			continue
 		case msg := <-endCh:
 			tKeySign.logger.Debug().Msg("we have done the key sign")
 			return &msg, nil

@@ -73,6 +73,10 @@ func (tKeyGen *TssKeyGen) GenerateNewKey(keygenReq KeyGenReq) (*crypto.ECPoint, 
 	outCh := make(chan btss.Message, len(partiesID))
 	endCh := make(chan bkeygen.LocalPartySaveData, len(partiesID))
 	errChan := make(chan struct{})
+	if tKeyGen.preParams == nil{
+		tKeyGen.logger.Error().Err(err).Msg("error, empty pre-parameters")
+		return nil, errors.New("error, empty pre-parameters")
+	}
 	keyGenParty := bkeygen.NewLocalParty(params, outCh, endCh, *tKeyGen.preParams)
 	partyIDMap := common.SetupPartyIDMap(partiesID)
 	err = common.SetupIDMaps(partyIDMap, tKeyGen.tssCommonStruct.PartyIDtoP2PID)
