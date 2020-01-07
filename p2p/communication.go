@@ -360,6 +360,8 @@ func (c *Communication) Stop() error {
 	c.host.RemoveStreamHandler(c.protocolID)
 	c.host.Close()
 	close(c.stopChan)
+	c.host.RemoveStreamHandler(c.protocolID)
+	c.host.Close()
 	c.wg.Wait()
 	return nil
 }
