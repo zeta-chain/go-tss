@@ -111,6 +111,7 @@ func setupContextAndNodes(c *C, partyNum int, conf common.TssConfig) ([]context.
 }
 
 func setupNodeForTest(c *C, partyNum int) ([]context.Context, []*TssServer, []context.CancelFunc, *sync.WaitGroup) {
+	ByPassGeneratePreParam = false
 	conf := common.TssConfig{
 		KeyGenTimeout:   30,
 		KeySignTimeout:  30,
@@ -228,6 +229,18 @@ func (t *TssTestSuite) Test4NodesTss(c *C) {
 		testKeyGen(c, partyNum)
 	}()
 	wgGenSign.Wait()
+}
+
+// This test is to test whether p2p has unregister all the resources when Tss instance is terminated.
+// We need to close the p2p host and unregister the handler before we terminate the Tss
+// otherwise, we you start the Tss instance again, the new Tss will not receive all the p2p messages.
+// Following the previous test, we run 4 nodes keygen to check whether the previous tss instance polluted
+// the environment for running the new Tss instances.
+func (t *TssTestSuite) TestRedoKeyGen(c *C) {
+	_, _, cancels, wg := setupNodeForTest(c, partyNum)
+	defer cleanUp(c, cancels, wg, partyNum)
+	//test key gen.
+	testKeyGen(c, partyNum)
 }
 
 func (t *TssTestSuite) TestTssProcessOutCh(c *C) {
