@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"sort"
 	"sync"
 	"testing"
@@ -15,6 +17,8 @@ import (
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/protocol"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	. "gopkg.in/check.v1"
 
 	"gitlab.com/thorchain/tss/go-tss/common"
@@ -29,6 +33,23 @@ func TestPackage(t *testing.T) { TestingT(t) }
 type TssTestSuite struct{}
 
 var _ = Suite(&TssTestSuite{})
+
+func (t *TssTestSuite) SetUpSuite(c *C) {
+	initLog("info", true)
+}
+
+func initLog(level string, pretty bool) {
+	l, err := zerolog.ParseLevel(level)
+	if err != nil {
+		log.Warn().Msgf("%s is not a valid log-level, falling back to 'info'", level)
+	}
+	var out io.Writer = os.Stdout
+	if pretty {
+		out = zerolog.ConsoleWriter{Out: os.Stdout}
+	}
+	zerolog.SetGlobalLevel(l)
+	log.Logger = log.Output(out).With().Str("service", "go-tss-test").Logger()
+}
 
 func setupTssForTest(c *C) *TssServer {
 	protocolID := protocol.ConvertFromStrings([]string{"tss"})[0]
