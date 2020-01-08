@@ -27,17 +27,6 @@ import (
 	"gitlab.com/thorchain/tss/go-tss/p2p"
 )
 
-const (
-	// KeyGenTimeoutSeconds how long do we wait the keygen parties to pass messages along
-	KeyGenTimeoutSeconds = 120
-	// KeySignTimeoutSeconds how long do we wait keysign
-	KeySignTimeoutSeconds = 30
-	// SyncTimeout how long do we wait for sync message
-	SyncTimeout = 5
-	// SyncRetry how many time we try to sync the peers
-	SyncRetry = 20
-)
-
 var (
 	ByPassGeneratePreParam = false
 	ErrHashFromOwner       = fmt.Errorf("msg from data owner")
@@ -50,6 +39,7 @@ type PartyInfo struct {
 }
 
 type TssCommon struct {
+	conf                TssConfig
 	logger              zerolog.Logger
 	partyLock           *sync.Mutex
 	partyInfo           *PartyInfo
@@ -62,8 +52,9 @@ type TssCommon struct {
 	P2PPeers            []peer.ID //most of tss message are broadcast, we store the peers ID to avoid iterating
 }
 
-func NewTssCommon(peerID string, broadcastChannel chan *p2p.BroadcastMsgChan) *TssCommon {
+func NewTssCommon(peerID string, broadcastChannel chan *p2p.BroadcastMsgChan, conf TssConfig) *TssCommon {
 	return &TssCommon{
+		conf:                conf,
 		logger:              log.With().Str("module", "tsscommon").Logger(),
 		partyLock:           &sync.Mutex{},
 		partyInfo:           nil,
@@ -161,6 +152,7 @@ func (t *TssCommon) sendMsg(message p2p.WrappedMessage, peerIDs []peer.ID) {
 func (t *TssCommon) NodeSync(msgChan chan *p2p.Message, messageType p2p.THORChainTSSMessageType) ([]string, error) {
 	var err error
 	peersMap := make(map[string]bool)
+	conf := t.GetConf()
 
 	peerIDs := t.P2PPeers
 	if len(peerIDs) == 0 {
@@ -186,7 +178,7 @@ func (t *TssCommon) NodeSync(msgChan chan *p2p.Message, messageType p2p.THORChai
 				t.sendMsg(wrappedMsg, t.P2PPeers)
 				i += 1
 			}
-			if i > SyncRetry {
+			if i > conf.SyncRetry {
 				err = fmt.Errorf("too many errors in retry")
 				return
 			}
@@ -206,7 +198,7 @@ func (t *TssCommon) NodeSync(msgChan chan *p2p.Message, messageType p2p.THORChai
 					t.sendMsg(wrappedMsg, peerIDs)
 					return
 				}
-			case <-time.After(time.Second * SyncTimeout):
+			case <-time.After(time.Second * conf.SyncTimeout):
 				stopChan <- true
 				err = errors.New("error in sync ")
 				return
@@ -226,6 +218,11 @@ func getPeerIDFromPartyID(partyID *btss.PartyID) (peer.ID, error) {
 	var pk secp256k1.PubKeySecp256k1
 	copy(pk[:], pkBytes)
 	return GetPeerIDFromSecp256PubKey(pk)
+}
+
+// GetConf get current configuration for Tss
+func (t *TssCommon) GetConf() TssConfig {
+	return t.conf
 }
 
 func (t *TssCommon) SetPartyInfo(partyInfo *PartyInfo) {

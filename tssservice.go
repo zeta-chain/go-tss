@@ -17,6 +17,7 @@ import (
 	btss "github.com/binance-chain/tss-lib/tss"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/gorilla/mux"
+	"github.com/libp2p/go-libp2p-core/protocol"
 	maddr "github.com/multiformats/go-multiaddr"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -41,6 +42,7 @@ type PartyInfo struct {
 }
 
 type TssServer struct {
+	conf             common.TssConfig
 	logger           zerolog.Logger
 	httpsServer      *http.Server
 	p2pCommunication *p2p.Communication
@@ -75,12 +77,12 @@ func NewTssHttpServer(tssPort int, t *TssServer) *http.Server {
 }
 
 // NewTss create a new instance of Tss
-func NewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, priKeyBytes []byte, baseFolder string) (*TssServer, error) {
-	return internalNewTss(bootstrapPeers, p2pPort, tssPort, priKeyBytes, baseFolder)
+func NewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, protocolID protocol.ID, priKeyBytes []byte, rendezvous, baseFolder string, conf common.TssConfig) (*TssServer, error) {
+	return internalNewTss(bootstrapPeers, p2pPort, tssPort, protocolID, priKeyBytes, rendezvous, baseFolder, conf)
 }
 
 // NewTss create a new instance of Tss
-func internalNewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, priKeyBytes []byte, baseFolder string, optionalPreParams ...bkeygen.LocalPreParams) (*TssServer, error) {
+func internalNewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, protocolID protocol.ID, priKeyBytes []byte, rendezvous, baseFolder string, conf common.TssConfig, optionalPreParams ...bkeygen.LocalPreParams) (*TssServer, error) {
 	if p2pPort == tssPort {
 		return nil, errors.New("tss and p2p can't use the same port")
 	}
@@ -88,7 +90,7 @@ func internalNewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, priK
 	if err != nil {
 		return nil, errors.New("cannot parse the private key")
 	}
-	P2PServer, err := p2p.NewCommunication(p2p.DefaultRendezvous, bootstrapPeers, p2pPort)
+	P2PServer, err := p2p.NewCommunication(rendezvous, bootstrapPeers, p2pPort, protocolID)
 	if nil != err {
 		return nil, fmt.Errorf("fail to create communication layer: %w", err)
 	}
@@ -100,13 +102,14 @@ func internalNewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, priK
 		if len(optionalPreParams) > 0 {
 			preParams = &optionalPreParams[0]
 		} else {
-			preParams, err = bkeygen.GeneratePreParams(5 * time.Minute)
+			preParams, err = bkeygen.GeneratePreParams(time.Minute * conf.PreParamTimeout)
 			if nil != err {
 				return nil, fmt.Errorf("fail to generate pre parameters: %w", err)
 			}
 		}
 	}
 	tssServer := TssServer{
+		conf:             conf,
 		logger:           log.With().Str("module", "tss").Logger(),
 		p2pCommunication: P2PServer,
 		priKey:           priKey,
@@ -236,7 +239,7 @@ func (t *TssServer) keygen(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	keygenInstance := keygen.NewTssKeyGen(t.homeBase, t.p2pCommunication.GetLocalPeerID(), t.priKey, t.p2pCommunication.BroadcastMsgChan, &t.stopChan, t.preParams)
+	keygenInstance := keygen.NewTssKeyGen(t.homeBase, t.p2pCommunication.GetLocalPeerID(), t.conf, t.priKey, t.p2pCommunication.BroadcastMsgChan, &t.stopChan, t.preParams)
 	keygenMsgChannel, keygenSyncChannel := keygenInstance.GetTssKeyGenChannels()
 	t.p2pCommunication.SetSubscribe(p2p.TSSKeyGenMsg, keygenMsgChannel)
 	t.p2pCommunication.SetSubscribe(p2p.TSSKeyGenVerMsg, keygenMsgChannel)
@@ -299,7 +302,7 @@ func (t *TssServer) keySign(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	keysignInstance := keysign.NewTssKeySign(t.homeBase, t.p2pCommunication.GetLocalPeerID(), t.priKey, t.p2pCommunication.BroadcastMsgChan, &t.stopChan)
+	keysignInstance := keysign.NewTssKeySign(t.homeBase, t.p2pCommunication.GetLocalPeerID(), t.conf, t.priKey, t.p2pCommunication.BroadcastMsgChan, &t.stopChan)
 
 	keygenMsgChannel, keygenSyncChannel := keysignInstance.GetTssKeySignChannels()
 	t.p2pCommunication.SetSubscribe(p2p.TSSKeySignMsg, keygenMsgChannel)

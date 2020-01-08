@@ -29,11 +29,11 @@ type TssKeySign struct {
 	localParty      *btss.PartyID
 }
 
-func NewTssKeySign(homeBase, localP2PID string, privKey cryptokey.PrivKey, broadcastChan chan *p2p.BroadcastMsgChan, stopChan *chan struct{}) TssKeySign {
+func NewTssKeySign(homeBase, localP2PID string, conf common.TssConfig, privKey cryptokey.PrivKey, broadcastChan chan *p2p.BroadcastMsgChan, stopChan *chan struct{}) TssKeySign {
 	return TssKeySign{
 		logger:          log.With().Str("module", "keySign").Logger(),
 		priKey:          privKey,
-		tssCommonStruct: common.NewTssCommon(localP2PID, broadcastChan),
+		tssCommonStruct: common.NewTssCommon(localP2PID, broadcastChan, conf),
 		stopChan:        stopChan,
 		homeBase:        homeBase,
 		syncMsg:         make(chan *p2p.Message),
@@ -141,6 +141,7 @@ func (tKeySign *TssKeySign) SignMessage(req KeySignReq) (*signing.SignatureData,
 func (tKeySign *TssKeySign) processKeySign(errChan chan struct{}, outCh <-chan btss.Message, endCh <-chan signing.SignatureData) (*signing.SignatureData, error) {
 	defer tKeySign.logger.Info().Msg("key sign finished")
 	tKeySign.logger.Info().Msg("start to read messages from local party")
+	tssConf := tKeySign.tssCommonStruct.GetConf()
 	for {
 		select {
 		case <-errChan: // when key sign return
@@ -148,9 +149,9 @@ func (tKeySign *TssKeySign) processKeySign(errChan chan struct{}, outCh <-chan b
 			return nil, errors.New("error channel closed fail to start local party")
 		case <-*tKeySign.stopChan: // when TSS processor receive signal to quit
 			return nil, errors.New("received exit signal")
-		case <-time.After(time.Second * common.KeySignTimeoutSeconds):
+		case <-time.After(time.Second * tssConf.KeySignTimeout):
 			// we bail out after KeySignTimeoutSeconds
-			return nil, fmt.Errorf("fail to sign message with in %d seconds", common.KeySignTimeoutSeconds)
+			return nil, fmt.Errorf("fail to sign message with in %d seconds", tssConf.KeySignTimeout)
 		case msg := <-outCh:
 			tKeySign.logger.Debug().Msgf(">>>>>>>>>>key sign msg: %s", msg.String())
 			err := tKeySign.tssCommonStruct.ProcessOutCh(msg, p2p.TSSKeySignMsg)

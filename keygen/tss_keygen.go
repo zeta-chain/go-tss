@@ -29,12 +29,12 @@ type TssKeyGen struct {
 	localParty      *btss.PartyID
 }
 
-func NewTssKeyGen(homeBase, localP2PID string, privKey cryptokey.PrivKey, broadcastchan chan *p2p.BroadcastMsgChan, stopChan *chan struct{}, preParam *bkeygen.LocalPreParams) TssKeyGen {
+func NewTssKeyGen(homeBase, localP2PID string, conf common.TssConfig, privKey cryptokey.PrivKey, broadcastChan chan *p2p.BroadcastMsgChan, stopChan *chan struct{}, preParam *bkeygen.LocalPreParams) TssKeyGen {
 	return TssKeyGen{
 		logger:          log.With().Str("module", "keyGen").Logger(),
 		priKey:          privKey,
 		preParams:       preParam,
-		tssCommonStruct: common.NewTssCommon(localP2PID, broadcastchan),
+		tssCommonStruct: common.NewTssCommon(localP2PID, broadcastChan, conf),
 		stopChan:        stopChan,
 		homeBase:        homeBase,
 		syncMsg:         make(chan *p2p.Message),
@@ -73,7 +73,7 @@ func (tKeyGen *TssKeyGen) GenerateNewKey(keygenReq KeyGenReq) (*crypto.ECPoint, 
 	outCh := make(chan btss.Message, len(partiesID))
 	endCh := make(chan bkeygen.LocalPartySaveData, len(partiesID))
 	errChan := make(chan struct{})
-	if tKeyGen.preParams == nil{
+	if tKeyGen.preParams == nil {
 		tKeyGen.logger.Error().Err(err).Msg("error, empty pre-parameters")
 		return nil, errors.New("error, empty pre-parameters")
 	}
@@ -128,6 +128,7 @@ func (tKeyGen *TssKeyGen) GenerateNewKey(keygenReq KeyGenReq) (*crypto.ECPoint, 
 func (tKeyGen *TssKeyGen) processKeyGen(errChan chan struct{}, outCh <-chan btss.Message, endCh <-chan bkeygen.LocalPartySaveData, keyGenLocalStateItem common.KeygenLocalStateItem) (*crypto.ECPoint, error) {
 	defer tKeyGen.logger.Info().Msg("finished keygen process")
 	tKeyGen.logger.Info().Msg("start to read messages from local party")
+	tssConf := tKeyGen.tssCommonStruct.GetConf()
 	for {
 		select {
 		case <-errChan: // when keyGenParty return
@@ -139,9 +140,9 @@ func (tKeyGen *TssKeyGen) processKeyGen(errChan chan struct{}, outCh <-chan btss
 			close(tKeyGen.tssCommonStruct.TssMsg)
 			return nil, errors.New("received exit signal")
 
-		case <-time.After(time.Second * common.KeyGenTimeoutSeconds):
+		case <-time.After(time.Second * tssConf.KeyGenTimeout):
 			// we bail out after KeyGenTimeoutSeconds
-			return nil, fmt.Errorf("fail to finish keyGen with in %d seconds", common.KeyGenTimeoutSeconds)
+			return nil, fmt.Errorf("fail to finish keyGen with in %d seconds", tssConf.KeyGenTimeout)
 
 		case msg := <-outCh:
 			tKeyGen.logger.Debug().Msgf(">>>>>>>>>>msg: %s", msg.String())
