@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/libp2p/go-libp2p"
+	circuit "github.com/libp2p/go-libp2p-circuit"
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
@@ -271,8 +272,9 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 		c.logger.Error().Msgf("error is %f", err)
 		return err
 	}
+
 	h, err := libp2p.New(ctx,
-		libp2p.ListenAddrs([]maddr.Multiaddr{c.listenAddr}...), libp2p.Identity(p2pPriKey),
+		libp2p.ListenAddrs([]maddr.Multiaddr{c.listenAddr}...), libp2p.Identity(p2pPriKey),libp2p.EnableRelay(circuit.OptHop),
 	)
 	if nil != err {
 		return fmt.Errorf("fail to create p2p host: %w", err)
