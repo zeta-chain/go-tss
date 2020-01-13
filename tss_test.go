@@ -82,7 +82,7 @@ func (t *TssTestSuite) TestTssReusePort(c *C) {
 	tss2, err := NewTss(nil, 6661, 8080, 8081, protocolID, []byte(testPriKey), "Asgard", "", conf)
 	ctx2, cancel2 := context.WithCancel(context.Background())
 	err = tss2.Start(ctx2)
-	c.Assert(err, ErrorMatches, "error in start the http server")
+	c.Assert(err, ErrorMatches, "listen tcp 127.0.0.1:8080: bind: address already in use")
 	cancel2()
 	cancel()
 	wg.Wait()

@@ -28,6 +28,7 @@ require (
 	gitlab.com/thorchain/thornode v0.0.0-20191211232842-a3c254579d07
 	golang.org/x/crypto v0.0.0-20191206172530-e9b2fee46413 // indirect
 	golang.org/x/net v0.0.0-20191209160850-c0dbc17a3553 // indirect
+	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
 	golang.org/x/sys v0.0.0-20191210023423-ac6580df4449 // indirect
 	google.golang.org/genproto v0.0.0-20191206224255-0243a4be9c8f // indirect
 	gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127
