@@ -95,11 +95,11 @@ func NewExternalHttpServer(externalPort int, t *TssServer) *http.Server {
 
 // NewTss create a new instance of Tss
 func NewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort, externalPort int, protocolID protocol.ID, priKeyBytes []byte, rendezvous, baseFolder string, conf common.TssConfig) (*TssServer, error) {
-	return internalNewTss(bootstrapPeers, p2pPort, tssPort, externalPort, protocolID, priKeyBytes, rendezvous, baseFolder, conf)
+	return newTss(bootstrapPeers, p2pPort, tssPort, externalPort, protocolID, priKeyBytes, rendezvous, baseFolder, conf)
 }
 
 // NewTss create a new instance of Tss
-func internalNewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort, externalPort int, protocolID protocol.ID, priKeyBytes []byte, rendezvous, baseFolder string, conf common.TssConfig, optionalPreParams ...bkeygen.LocalPreParams) (*TssServer, error) {
+func newTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort, externalPort int, protocolID protocol.ID, priKeyBytes []byte, rendezvous, baseFolder string, conf common.TssConfig, optionalPreParams ...bkeygen.LocalPreParams) (*TssServer, error) {
 	if externalPort == tssPort || externalPort == p2pPort || p2pPort == tssPort {
 		return nil, errors.New("tss, external or p2p can't use the same port")
 	}
