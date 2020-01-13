@@ -100,11 +100,11 @@ func setupContextAndNodes(c *C, partyNum int, conf common.TssConfig) ([]context.
 			c.Assert(err, IsNil)
 		}
 		if i == 0 {
-			instance, err := internalNewTss(nil, p2pPort, tssPort, externalPort, protocolID, []byte(testPriKeyArr[i]), "Asgard", baseHome, conf, *preParamArray[i])
+			instance, err := newTss(nil, p2pPort, tssPort, externalPort, protocolID, []byte(testPriKeyArr[i]), "Asgard", baseHome, conf, *preParamArray[i])
 			c.Assert(err, IsNil)
 			localTss = append(localTss, instance)
 		} else {
-			instance, err := internalNewTss(peerIDs, p2pPort, tssPort, externalPort, protocolID, []byte(testPriKeyArr[i]), "Asgard", baseHome, conf, *preParamArray[i])
+			instance, err := newTss(peerIDs, p2pPort, tssPort, externalPort, protocolID, []byte(testPriKeyArr[i]), "Asgard", baseHome, conf, *preParamArray[i])
 			c.Assert(err, IsNil)
 			localTss = append(localTss, instance)
 		}

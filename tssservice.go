@@ -79,27 +79,31 @@ func (t *TssServer) externalHandler(verbose bool) http.Handler {
 // Tssport should only listen to the loopback
 func NewTssHttpServer(tssPort int, t *TssServer) *http.Server {
 	server := &http.Server{
-		Addr:    fmt.Sprintf("127.0.0.1:%d", tssPort),
-		Handler: t.tssNewHandler(true),
+		Addr:         fmt.Sprintf("127.0.0.1:%d", tssPort),
+		Handler:      t.tssNewHandler(true),
+		ReadTimeout:  time.Second * 10,
+		WriteTimeout: time.Second * 10,
 	}
 	return server
 }
 
 func NewExternalHttpServer(externalPort int, t *TssServer) *http.Server {
 	server := &http.Server{
-		Addr:    fmt.Sprintf(":%d", externalPort),
-		Handler: t.externalHandler(true),
+		Addr:         fmt.Sprintf(":%d", externalPort),
+		Handler:      t.externalHandler(true),
+		ReadTimeout:  time.Second * 10,
+		WriteTimeout: time.Second * 10,
 	}
 	return server
 }
 
 // NewTss create a new instance of Tss
 func NewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort, externalPort int, protocolID protocol.ID, priKeyBytes []byte, rendezvous, baseFolder string, conf common.TssConfig) (*TssServer, error) {
-	return internalNewTss(bootstrapPeers, p2pPort, tssPort, externalPort, protocolID, priKeyBytes, rendezvous, baseFolder, conf)
+	return newTss(bootstrapPeers, p2pPort, tssPort, externalPort, protocolID, priKeyBytes, rendezvous, baseFolder, conf)
 }
 
 // NewTss create a new instance of Tss
-func internalNewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort, externalPort int, protocolID protocol.ID, priKeyBytes []byte, rendezvous, baseFolder string, conf common.TssConfig, optionalPreParams ...bkeygen.LocalPreParams) (*TssServer, error) {
+func newTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort, externalPort int, protocolID protocol.ID, priKeyBytes []byte, rendezvous, baseFolder string, conf common.TssConfig, optionalPreParams ...bkeygen.LocalPreParams) (*TssServer, error) {
 	if externalPort == tssPort || externalPort == p2pPort || p2pPort == tssPort {
 		return nil, errors.New("tss, external or p2p can't use the same port")
 	}

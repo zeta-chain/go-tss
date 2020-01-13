@@ -44,7 +44,7 @@ func main() {
 		return
 	}
 	protocolID := protocol.ConvertFromStrings([]string{p2pConf.ProtocolID})[0]
-	tss, err := tss.NewTss(p2pConf.BootstrapPeers, p2pConf.Port, generalConf.TssPort, generalConf.ExternalPort, protocolID, []byte(priKeyBytes), p2pConf.RendezvousString, generalConf.BaseFolder, tssConf)
+	tss, err := tss.NewTss(p2pConf.BootstrapPeers, p2pConf.Port, generalConf.TssPort, generalConf.InfoPort, protocolID, []byte(priKeyBytes), p2pConf.RendezvousString, generalConf.BaseFolder, tssConf)
 	if nil != err {
 		panic(err)
 	}
@@ -58,7 +58,7 @@ func main() {
 func parseFlags(generalConf *common.GeneralConfig, tssConf *common.TssConfig, p2pConf *p2p.P2PConfig) {
 	//we setup the configure for the general configuration
 	flag.IntVar(&generalConf.TssPort, "tss-port", 8080, "http port")
-	flag.IntVar(&generalConf.ExternalPort, "external-port", 8081, "http port")
+	flag.IntVar(&generalConf.InfoPort, "info-port", 8081, "http port")
 	flag.BoolVar(&generalConf.Help, "h", false, "Display Help")
 	flag.StringVar(&generalConf.LogLevel, "loglevel", "info", "Log Level")
 	flag.BoolVar(&generalConf.Pretty, "pretty-log", false, "Enables unstructured prettified logging. This is useful for local debugging")
