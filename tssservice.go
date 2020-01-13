@@ -25,6 +25,7 @@ import (
 	"github.com/tendermint/tendermint/crypto/secp256k1"
 
 	"gitlab.com/thorchain/thornode/cmd"
+
 	"gitlab.com/thorchain/tss/go-tss/common"
 	"gitlab.com/thorchain/tss/go-tss/keygen"
 	"gitlab.com/thorchain/tss/go-tss/keysign"
@@ -42,49 +43,64 @@ type PartyInfo struct {
 }
 
 type TssServer struct {
-	conf             common.TssConfig
-	logger           zerolog.Logger
-	httpsServer      *http.Server
-	p2pCommunication *p2p.Communication
-	priKey           cryptokey.PrivKey
-	preParams        *bkeygen.LocalPreParams
-	port             int
-	wg               sync.WaitGroup
-	tssKeyGenLocker  *sync.Mutex
-	tssKeySignLocker *sync.Mutex
-	stopChan         chan struct{}
-	subscribers      map[string]chan *p2p.Message
-	homeBase         string
+	conf               common.TssConfig
+	logger             zerolog.Logger
+	tssHttpServer      *http.Server
+	externalHttpServer *http.Server
+	p2pCommunication   *p2p.Communication
+	priKey             cryptokey.PrivKey
+	preParams          *bkeygen.LocalPreParams
+	wg                 sync.WaitGroup
+	tssKeyGenLocker    *sync.Mutex
+	tssKeySignLocker   *sync.Mutex
+	stopChan           chan struct{}
+	subscribers        map[string]chan *p2p.Message
+	homeBase           string
 }
 
 // NewHandler registers the API routes and returns a new HTTP handler
-func (t *TssServer) newHandler(verbose bool) http.Handler {
+func (t *TssServer) tssNewHandler(verbose bool) http.Handler {
 	router := mux.NewRouter()
-	router.Handle("/ping", http.HandlerFunc(t.ping)).Methods(http.MethodGet)
 	router.Handle("/keygen", http.HandlerFunc(t.keygen)).Methods(http.MethodPost)
 	router.Handle("/keysign", http.HandlerFunc(t.keySign)).Methods(http.MethodPost)
+	router.Use(logMiddleware(verbose))
+	return router
+}
+
+func (t *TssServer) externalHandler(verbose bool) http.Handler {
+	router := mux.NewRouter()
+	router.Handle("/ping", http.HandlerFunc(t.ping)).Methods(http.MethodGet)
 	router.Handle("/p2pid", http.HandlerFunc(t.getP2pID)).Methods(http.MethodGet)
 	router.Use(logMiddleware(verbose))
 	return router
 }
 
+// Tssport should only listen to the loopback
 func NewTssHttpServer(tssPort int, t *TssServer) *http.Server {
 	server := &http.Server{
-		Addr:    fmt.Sprintf(":%d", tssPort),
-		Handler: t.newHandler(true),
+		Addr:    fmt.Sprintf("127.0.0.1:%d", tssPort),
+		Handler: t.tssNewHandler(true),
+	}
+	return server
+}
+
+func NewExternalHttpServer(externalPort int, t *TssServer) *http.Server {
+	server := &http.Server{
+		Addr:    fmt.Sprintf(":%d", externalPort),
+		Handler: t.externalHandler(true),
 	}
 	return server
 }
 
 // NewTss create a new instance of Tss
-func NewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, protocolID protocol.ID, priKeyBytes []byte, rendezvous, baseFolder string, conf common.TssConfig) (*TssServer, error) {
-	return internalNewTss(bootstrapPeers, p2pPort, tssPort, protocolID, priKeyBytes, rendezvous, baseFolder, conf)
+func NewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort, externalPort int, protocolID protocol.ID, priKeyBytes []byte, rendezvous, baseFolder string, conf common.TssConfig) (*TssServer, error) {
+	return internalNewTss(bootstrapPeers, p2pPort, tssPort, externalPort, protocolID, priKeyBytes, rendezvous, baseFolder, conf)
 }
 
 // NewTss create a new instance of Tss
-func internalNewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, protocolID protocol.ID, priKeyBytes []byte, rendezvous, baseFolder string, conf common.TssConfig, optionalPreParams ...bkeygen.LocalPreParams) (*TssServer, error) {
-	if p2pPort == tssPort {
-		return nil, errors.New("tss and p2p can't use the same port")
+func internalNewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort, externalPort int, protocolID protocol.ID, priKeyBytes []byte, rendezvous, baseFolder string, conf common.TssConfig, optionalPreParams ...bkeygen.LocalPreParams) (*TssServer, error) {
+	if externalPort == tssPort || externalPort == p2pPort || p2pPort == tssPort {
+		return nil, errors.New("tss, external or p2p can't use the same port")
 	}
 	priKey, err := getPriKey(string(priKeyBytes))
 	if err != nil {
@@ -114,17 +130,16 @@ func internalNewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort int, prot
 		p2pCommunication: P2PServer,
 		priKey:           priKey,
 		preParams:        preParams,
-		port:             tssPort,
 		tssKeyGenLocker:  &sync.Mutex{},
 		tssKeySignLocker: &sync.Mutex{},
 		stopChan:         make(chan struct{}),
 		subscribers:      make(map[string]chan *p2p.Message),
 		homeBase:         baseFolder,
 	}
-	httpServer := NewTssHttpServer(tssPort, &tssServer)
-	tssServer.httpsServer = httpServer
-	return &tssServer, nil
+	tssServer.tssHttpServer = NewTssHttpServer(tssPort, &tssServer)
+	tssServer.externalHttpServer = NewExternalHttpServer(externalPort, &tssServer)
 
+	return &tssServer, nil
 }
 
 func logMiddleware(verbose bool) mux.MiddlewareFunc {
@@ -142,23 +157,68 @@ func logMiddleware(verbose bool) mux.MiddlewareFunc {
 	}
 }
 
+func StopServer(server *http.Server) error {
+	c, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	err := server.Shutdown(c)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to shutdown the Tss server gracefully")
+	}
+	return err
+}
+
+func (t *TssServer) StartHttpServers() error {
+	defer t.wg.Done()
+	errorChan := make(chan error, 2)
+	go func() {
+		err := t.tssHttpServer.ListenAndServe()
+		if err != nil && err != http.ErrServerClosed {
+			log.Error().Err(err).Msg("Failed to start Tss HTTP server")
+			errorChan <- err
+		}
+	}()
+	go func() {
+		err := t.externalHttpServer.ListenAndServe()
+		if err != nil && err != http.ErrServerClosed {
+			log.Error().Err(err).Msg("Failed to start external HTTP server")
+			errorChan <- err
+		}
+	}()
+
+	for {
+		select {
+		case <-errorChan:
+			// it is safe to call stopServer even if the server is not started and serve.
+			err := StopServer(t.externalHttpServer)
+			if err != nil {
+				log.Error().Err(err).Msg("fail to shutdown the external server gracefully")
+			}
+			err = StopServer(t.tssHttpServer)
+			if err != nil {
+				log.Error().Err(err).Msg("fail to shutdown the http server gracefully")
+			}
+			return errors.New("error in start the http server")
+		case <-t.stopChan:
+			err := StopServer(t.tssHttpServer)
+			err2 := StopServer(t.externalHttpServer)
+			if err != nil || err2 != nil {
+				log.Error().Err(err).Msg("Failed to shutdown the Tss or external server gracefully")
+				return errors.New("error in shutdown gracefully")
+			}
+			return nil
+		}
+	}
+}
+
 // Start Tss server
 func (t *TssServer) Start(ctx context.Context) error {
-	log.Info().Int("port", t.port).Msg("Starting the HTTP server")
+	log.Info().Msg("Starting the HTTP servers")
 	t.wg.Add(1)
 	go func() {
 		<-ctx.Done()
 		close(t.stopChan)
-		c, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		err := t.httpsServer.Shutdown(c)
-		if err != nil {
-			log.Error().Err(err).Int("port", t.port).Msg("Failed to shutdown the HTTP server gracefully")
-		}
-		// finish the http wait group
-		t.wg.Done()
 		//stop the p2p and finish the p2p wait group
-		err = t.p2pCommunication.Stop()
+		err := t.p2pCommunication.Stop()
 		if err != nil {
 			t.logger.Error().Msgf("error in shutdown the p2p server")
 		}
@@ -173,13 +233,12 @@ func (t *TssServer) Start(ctx context.Context) error {
 	if err := t.p2pCommunication.Start(prikeyBytes); nil != err {
 		return fmt.Errorf("fail to start p2p communication layer: %w", err)
 	}
-	err = t.httpsServer.ListenAndServe()
-	if err != nil && err != http.ErrServerClosed {
-		log.Error().Err(err).Int("port", t.port).Msg("Failed to start the HTTP server")
+	err = t.StartHttpServers()
+	if err != nil {
 		return err
 	}
 	t.wg.Wait()
-	log.Info().Int("port", t.port).Msg("The HTTP  and p2p server has been stopped successfully")
+	log.Info().Msg("The Tss and p2p server has been stopped successfully")
 	return nil
 }
 

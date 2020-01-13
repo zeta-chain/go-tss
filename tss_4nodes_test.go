@@ -35,6 +35,7 @@ const testPriKey3 = "ZTc2ZjI5OTIwOGVlMDk2N2M3Yzc1MjYyODQ0OGUyMjE3NGJiOGRmNGQyZmV
 const peerID = "/ip4/127.0.0.1/tcp/6666/ipfs/16Uiu2HAmACG5DtqmQsHtXg4G2sLS65ttv84e7MrL4kapkjfmhxAp"
 const baseP2PPort = 6666
 const baseTssPort = 1200
+const baseExternalPort = 8000
 const partyNum = 4
 const testFileLocation = "./test_data"
 const preParamTestFile = "preParam_test.data"
@@ -61,9 +62,9 @@ func startServerAndCheck(c *C, wg sync.WaitGroup, server *TssServer, ctx context
 
 func spinUpServers(c *C, localTss []*TssServer, ctxs []context.Context, wg sync.WaitGroup, partyNum int) {
 	//we spin up the first signer as the "bootstrap node", and the rest 3 nodes connect to it
-	startServerAndCheck(c, wg, localTss[0], ctxs[0], baseTssPort)
+	startServerAndCheck(c, wg, localTss[0], ctxs[0], baseExternalPort)
 	for i := 1; i < partyNum; i++ {
-		startServerAndCheck(c, wg, localTss[i], ctxs[i], baseTssPort+i)
+		startServerAndCheck(c, wg, localTss[i], ctxs[i], baseExternalPort+i)
 	}
 }
 
@@ -92,17 +93,18 @@ func setupContextAndNodes(c *C, partyNum int, conf common.TssConfig) ([]context.
 		cancels = append(cancels, cancel)
 		p2pPort := baseP2PPort + i
 		tssPort := baseTssPort + i
+		externalPort := baseExternalPort + i
 		baseHome := path.Join(testFileLocation, strconv.Itoa(i))
 		if _, err := os.Stat(baseHome); os.IsNotExist(err) {
 			err := os.Mkdir(baseHome, os.ModePerm)
 			c.Assert(err, IsNil)
 		}
 		if i == 0 {
-			instance, err := internalNewTss(nil, p2pPort, tssPort, protocolID, []byte(testPriKeyArr[i]), "Asgard", baseHome, conf, *preParamArray[i])
+			instance, err := internalNewTss(nil, p2pPort, tssPort, externalPort, protocolID, []byte(testPriKeyArr[i]), "Asgard", baseHome, conf, *preParamArray[i])
 			c.Assert(err, IsNil)
 			localTss = append(localTss, instance)
 		} else {
-			instance, err := internalNewTss(peerIDs, p2pPort, tssPort, protocolID, []byte(testPriKeyArr[i]), "Asgard", baseHome, conf, *preParamArray[i])
+			instance, err := internalNewTss(peerIDs, p2pPort, tssPort, externalPort, protocolID, []byte(testPriKeyArr[i]), "Asgard", baseHome, conf, *preParamArray[i])
 			c.Assert(err, IsNil)
 			localTss = append(localTss, instance)
 		}
