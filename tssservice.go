@@ -23,6 +23,7 @@ import (
 	"github.com/rs/zerolog/log"
 	cryptokey "github.com/tendermint/tendermint/crypto"
 	"github.com/tendermint/tendermint/crypto/secp256k1"
+	"golang.org/x/sync/errgroup"
 
 	"gitlab.com/thorchain/thornode/cmd"
 
@@ -169,45 +170,38 @@ func StopServer(server *http.Server) error {
 
 func (t *TssServer) StartHttpServers() error {
 	defer t.wg.Done()
-	errorChan := make(chan error, 2)
-	go func() {
+	ctx := context.Background()
+	g, newCtx := errgroup.WithContext(ctx)
+	g.Go(func() error {
 		err := t.tssHttpServer.ListenAndServe()
 		if err != nil && err != http.ErrServerClosed {
-			log.Error().Err(err).Msg("Failed to start Tss HTTP server")
-			errorChan <- err
+			return err
 		}
-	}()
-	go func() {
+		return nil
+	})
+	g.Go(func() error {
 		err := t.externalHttpServer.ListenAndServe()
 		if err != nil && err != http.ErrServerClosed {
 			log.Error().Err(err).Msg("Failed to start external HTTP server")
-			errorChan <- err
+			return err
 		}
-	}()
-
-	for {
+		return nil
+	})
+	g.Go(func() error {
 		select {
-		case <-errorChan:
-			// it is safe to call stopServer even if the server is not started and serve.
-			err := StopServer(t.externalHttpServer)
-			if err != nil {
-				log.Error().Err(err).Msg("fail to shutdown the external server gracefully")
-			}
-			err = StopServer(t.tssHttpServer)
-			if err != nil {
-				log.Error().Err(err).Msg("fail to shutdown the http server gracefully")
-			}
-			return errors.New("error in start the http server")
 		case <-t.stopChan:
-			err := StopServer(t.tssHttpServer)
-			err2 := StopServer(t.externalHttpServer)
-			if err != nil || err2 != nil {
-				log.Error().Err(err).Msg("Failed to shutdown the Tss or external server gracefully")
-				return errors.New("error in shutdown gracefully")
-			}
-			return nil
+		case <-newCtx.Done():
 		}
-	}
+		err := StopServer(t.tssHttpServer)
+		err2 := StopServer(t.externalHttpServer)
+		if err != nil || err2 != nil {
+			log.Error().Err(err).Msg("Failed to shutdown the Tss or external server gracefully")
+			return errors.New("error in shutdown gracefully")
+		}
+		return nil
+	})
+	return g.Wait()
+
 }
 
 // Start Tss server
