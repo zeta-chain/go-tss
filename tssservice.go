@@ -44,19 +44,19 @@ type PartyInfo struct {
 }
 
 type TssServer struct {
-	conf               common.TssConfig
-	logger             zerolog.Logger
-	tssHttpServer      *http.Server
-	externalHttpServer *http.Server
-	p2pCommunication   *p2p.Communication
-	priKey             cryptokey.PrivKey
-	preParams          *bkeygen.LocalPreParams
-	wg                 sync.WaitGroup
-	tssKeyGenLocker    *sync.Mutex
-	tssKeySignLocker   *sync.Mutex
-	stopChan           chan struct{}
-	subscribers        map[string]chan *p2p.Message
-	homeBase           string
+	conf             common.TssConfig
+	logger           zerolog.Logger
+	tssHttpServer    *http.Server
+	infoHttpServer   *http.Server
+	p2pCommunication *p2p.Communication
+	priKey           cryptokey.PrivKey
+	preParams        *bkeygen.LocalPreParams
+	wg               sync.WaitGroup
+	tssKeyGenLocker  *sync.Mutex
+	tssKeySignLocker *sync.Mutex
+	stopChan         chan struct{}
+	subscribers      map[string]chan *p2p.Message
+	homeBase         string
 }
 
 // NewHandler registers the API routes and returns a new HTTP handler
@@ -68,7 +68,7 @@ func (t *TssServer) tssNewHandler(verbose bool) http.Handler {
 	return router
 }
 
-func (t *TssServer) externalHandler(verbose bool) http.Handler {
+func (t *TssServer) infoHandler(verbose bool) http.Handler {
 	router := mux.NewRouter()
 	router.Handle("/ping", http.HandlerFunc(t.ping)).Methods(http.MethodGet)
 	router.Handle("/p2pid", http.HandlerFunc(t.getP2pID)).Methods(http.MethodGet)
@@ -79,29 +79,33 @@ func (t *TssServer) externalHandler(verbose bool) http.Handler {
 // Tssport should only listen to the loopback
 func NewTssHttpServer(tssPort int, t *TssServer) *http.Server {
 	server := &http.Server{
-		Addr:    fmt.Sprintf("127.0.0.1:%d", tssPort),
-		Handler: t.tssNewHandler(true),
+		Addr:         fmt.Sprintf("127.0.0.1:%d", tssPort),
+		Handler:      t.tssNewHandler(true),
+		ReadTimeout:  time.Second * 10,
+		WriteTimeout: time.Second * 10,
 	}
 	return server
 }
 
-func NewExternalHttpServer(externalPort int, t *TssServer) *http.Server {
+func NewInfoHttpServer(infoPort int, t *TssServer) *http.Server {
 	server := &http.Server{
-		Addr:    fmt.Sprintf(":%d", externalPort),
-		Handler: t.externalHandler(true),
+		Addr:         fmt.Sprintf(":%d", infoPort),
+		Handler:      t.infoHandler(true),
+		ReadTimeout:  time.Second * 10,
+		WriteTimeout: time.Second * 10,
 	}
 	return server
 }
 
 // NewTss create a new instance of Tss
-func NewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort, externalPort int, protocolID protocol.ID, priKeyBytes []byte, rendezvous, baseFolder string, conf common.TssConfig) (*TssServer, error) {
-	return newTss(bootstrapPeers, p2pPort, tssPort, externalPort, protocolID, priKeyBytes, rendezvous, baseFolder, conf)
+func NewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort, infoPort int, protocolID protocol.ID, priKeyBytes []byte, rendezvous, baseFolder string, conf common.TssConfig) (*TssServer, error) {
+	return newTss(bootstrapPeers, p2pPort, tssPort, infoPort, protocolID, priKeyBytes, rendezvous, baseFolder, conf)
 }
 
 // NewTss create a new instance of Tss
-func newTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort, externalPort int, protocolID protocol.ID, priKeyBytes []byte, rendezvous, baseFolder string, conf common.TssConfig, optionalPreParams ...bkeygen.LocalPreParams) (*TssServer, error) {
-	if externalPort == tssPort || externalPort == p2pPort || p2pPort == tssPort {
-		return nil, errors.New("tss, external or p2p can't use the same port")
+func newTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort, infoPort int, protocolID protocol.ID, priKeyBytes []byte, rendezvous, baseFolder string, conf common.TssConfig, optionalPreParams ...bkeygen.LocalPreParams) (*TssServer, error) {
+	if infoPort == tssPort || infoPort == p2pPort || p2pPort == tssPort {
+		return nil, errors.New("tss, info or p2p can't use the same port")
 	}
 	priKey, err := getPriKey(string(priKeyBytes))
 	if err != nil {
@@ -138,7 +142,7 @@ func newTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort, externalPort int
 		homeBase:         baseFolder,
 	}
 	tssServer.tssHttpServer = NewTssHttpServer(tssPort, &tssServer)
-	tssServer.externalHttpServer = NewExternalHttpServer(externalPort, &tssServer)
+	tssServer.infoHttpServer = NewInfoHttpServer(infoPort, &tssServer)
 
 	return &tssServer, nil
 }
@@ -180,9 +184,9 @@ func (t *TssServer) StartHttpServers() error {
 		return nil
 	})
 	g.Go(func() error {
-		err := t.externalHttpServer.ListenAndServe()
+		err := t.infoHttpServer.ListenAndServe()
 		if err != nil && err != http.ErrServerClosed {
-			log.Error().Err(err).Msg("Failed to start external HTTP server")
+			log.Error().Err(err).Msg("Failed to start info HTTP server")
 			return err
 		}
 		return nil
@@ -193,9 +197,9 @@ func (t *TssServer) StartHttpServers() error {
 		case <-newCtx.Done():
 		}
 		err := StopServer(t.tssHttpServer)
-		err2 := StopServer(t.externalHttpServer)
+		err2 := StopServer(t.infoHttpServer)
 		if err != nil || err2 != nil {
-			log.Error().Err(err).Msg("Failed to shutdown the Tss or external server gracefully")
+			log.Error().Err(err).Msg("Failed to shutdown the Tss or info server gracefully")
 			return errors.New("error in shutdown gracefully")
 		}
 		return nil
