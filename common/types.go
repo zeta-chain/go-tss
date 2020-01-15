@@ -26,7 +26,8 @@ type KeygenLocalStateItem struct {
 }
 
 type GeneralConfig struct {
-	Http       int
+	TssPort    int
+	InfoPort   int
 	Help       bool
 	LogLevel   string
 	Pretty     bool

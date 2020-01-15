@@ -44,7 +44,7 @@ func main() {
 		return
 	}
 	protocolID := protocol.ConvertFromStrings([]string{p2pConf.ProtocolID})[0]
-	tss, err := tss.NewTss(p2pConf.BootstrapPeers, p2pConf.Port, generalConf.Http, protocolID, []byte(priKeyBytes), p2pConf.RendezvousString, generalConf.BaseFolder, tssConf)
+	tss, err := tss.NewTss(p2pConf.BootstrapPeers, p2pConf.Port, generalConf.TssPort, generalConf.InfoPort, protocolID, []byte(priKeyBytes), p2pConf.RendezvousString, generalConf.BaseFolder, tssConf)
 	if nil != err {
 		panic(err)
 	}
@@ -57,7 +57,8 @@ func main() {
 
 func parseFlags(generalConf *common.GeneralConfig, tssConf *common.TssConfig, p2pConf *p2p.P2PConfig) {
 	//we setup the configure for the general configuration
-	flag.IntVar(&generalConf.Http, "http", 8080, "http port")
+	flag.IntVar(&generalConf.TssPort, "tss-port", 8080, "http port")
+	flag.IntVar(&generalConf.InfoPort, "info-port", 8081, "http port")
 	flag.BoolVar(&generalConf.Help, "h", false, "Display Help")
 	flag.StringVar(&generalConf.LogLevel, "loglevel", "info", "Log Level")
 	flag.BoolVar(&generalConf.Pretty, "pretty-log", false, "Enables unstructured prettified logging. This is useful for local debugging")
@@ -74,7 +75,7 @@ func parseFlags(generalConf *common.GeneralConfig, tssConf *common.TssConfig, p2
 	flag.StringVar(&p2pConf.RendezvousString, "rendezvous", "Asgard",
 		"Unique string to identify group of nodes. Share this with your friends to let them connect with you")
 	flag.StringVar(&p2pConf.ProtocolID, "protocolID", "tss", "protocol ID for p2p communication")
-	flag.IntVar(&p2pConf.Port, "port", 6668, "listening port local")
+	flag.IntVar(&p2pConf.Port, "p2p-port", 6668, "listening port local")
 	flag.Var(&p2pConf.BootstrapPeers, "peer", "Adds a peer multiaddress to the bootstrap list")
 	flag.Parse()
 }

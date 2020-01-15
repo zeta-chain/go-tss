@@ -60,6 +60,6 @@ func parseFlags(generalConf *common.GeneralConfig, p2pConf *p2p.P2PConfig) {
 		"Unique string to identify group of nodes. Share this with your friends to let them connect with you")
 	flag.StringVar(&p2pConf.ProtocolID, "protocolID", "tss", "protocol ID for p2p communication")
 	flag.Var(&p2pConf.BootstrapPeers, "peer", "Adds a peer multiaddress to the bootstrap list")
-	flag.IntVar(&p2pConf.Port, "port", 6668, "listening port local")
+	flag.IntVar(&p2pConf.Port, "p2p-port", 6668, "listening port local")
 	flag.Parse()
 }
