@@ -92,19 +92,19 @@ func setupContextAndNodes(c *C, partyNum int, conf common.TssConfig) ([]context.
 		ctxs = append(ctxs, ctx)
 		cancels = append(cancels, cancel)
 		p2pPort := baseP2PPort + i
-		tssPort := baseTssPort + i
-		infoPort := baseInfoPort + i
+		tssAddr := fmt.Sprintf(":%d", baseTssPort+i)
+		infoAddr := fmt.Sprintf(":%d", baseInfoPort+i)
 		baseHome := path.Join(testFileLocation, strconv.Itoa(i))
 		if _, err := os.Stat(baseHome); os.IsNotExist(err) {
 			err := os.Mkdir(baseHome, os.ModePerm)
 			c.Assert(err, IsNil)
 		}
 		if i == 0 {
-			instance, err := newTss(nil, p2pPort, tssPort, infoPort, protocolID, []byte(testPriKeyArr[i]), "Asgard", baseHome, conf, *preParamArray[i])
+			instance, err := newTss(nil, p2pPort, tssAddr, infoAddr, protocolID, []byte(testPriKeyArr[i]), "Asgard", baseHome, conf, *preParamArray[i])
 			c.Assert(err, IsNil)
 			localTss = append(localTss, instance)
 		} else {
-			instance, err := newTss(peerIDs, p2pPort, tssPort, infoPort, protocolID, []byte(testPriKeyArr[i]), "Asgard", baseHome, conf, *preParamArray[i])
+			instance, err := newTss(peerIDs, p2pPort, tssAddr, infoAddr, protocolID, []byte(testPriKeyArr[i]), "Asgard", baseHome, conf, *preParamArray[i])
 			c.Assert(err, IsNil)
 			localTss = append(localTss, instance)
 		}

@@ -26,8 +26,8 @@ type KeygenLocalStateItem struct {
 }
 
 type GeneralConfig struct {
-	TssPort    int
-	InfoPort   int
+	TssAddr    string
+	InfoAddr   string
 	Help       bool
 	LogLevel   string
 	Pretty     bool
