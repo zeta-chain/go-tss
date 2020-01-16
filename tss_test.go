@@ -55,7 +55,7 @@ func setupTssForTest(c *C) *TssServer {
 	protocolID := protocol.ConvertFromStrings([]string{"tss"})[0]
 	ByPassGeneratePreParam = true
 	conf := common.TssConfig{}
-	tss, err := NewTss(nil, 6668, 8080, 8081, protocolID, []byte(testPriKey), "Asgard", "", conf)
+	tss, err := NewTss(nil, 6668, ":8080", ":8081", protocolID, []byte(testPriKey), "Asgard", "", conf)
 	c.Assert(err, IsNil)
 	c.Assert(tss, NotNil)
 	return tss
@@ -65,7 +65,7 @@ func (t *TssTestSuite) TestTssReusePort(c *C) {
 	protocolID := protocol.ConvertFromStrings([]string{"tss"})[0]
 	ByPassGeneratePreParam = true
 	conf := common.TssConfig{}
-	tss1, err := NewTss(nil, 6660, 8080, 8081, protocolID, []byte(testPriKey), "Asgard", "", conf)
+	tss1, err := NewTss(nil, 6660, "127.0.0.1:8080", ":8081", protocolID, []byte(testPriKey), "Asgard", "", conf)
 	c.Assert(err, IsNil)
 	wg := sync.WaitGroup{}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -79,7 +79,7 @@ func (t *TssTestSuite) TestTssReusePort(c *C) {
 	_, err = retryablehttp.Get("http://127.0.0.1:8081/ping")
 	c.Assert(err, IsNil)
 
-	tss2, err := NewTss(nil, 6661, 8080, 8081, protocolID, []byte(testPriKey), "Asgard", "", conf)
+	tss2, err := NewTss(nil, 6661, "127.0.0.1:8080", ":8081", protocolID, []byte(testPriKey), "Asgard", "", conf)
 	ctx2, cancel2 := context.WithCancel(context.Background())
 	err = tss2.Start(ctx2)
 	c.Assert(err, ErrorMatches, "listen tcp 127.0.0.1:8080: bind: address already in use")
@@ -91,7 +91,7 @@ func (t *TssTestSuite) TestTssReusePort(c *C) {
 func (t *TssTestSuite) TestNewTss(c *C) {
 	protocolID := protocol.ConvertFromStrings([]string{"tss"})[0]
 	conf := common.TssConfig{}
-	tss, err := NewTss(nil, 6668, 12345, 8081, protocolID, []byte(testPriKey), "Asgard", "", conf)
+	tss, err := NewTss(nil, 6668, ":12345", ":8081", protocolID, []byte(testPriKey), "Asgard", "", conf)
 	c.Assert(err, IsNil)
 	c.Assert(tss, NotNil)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -114,17 +114,6 @@ func (t *TssTestSuite) TestNewTss(c *C) {
 	c.Logf("p2p peer id: %s", result)
 	cancel()
 	wg.Wait()
-
-	// P2p port and http port can't be the same
-	tss1, err := NewTss(nil, 8080, 8080, 8081, protocolID, []byte(testPriKey), "Asgard", "", conf)
-	c.Assert(err, NotNil)
-	c.Assert(tss1, IsNil)
-	tss1, err = NewTss(nil, 8080, 8081, 8081, protocolID, []byte(testPriKey), "Asgard", "", conf)
-	c.Assert(err, NotNil)
-	c.Assert(tss1, IsNil)
-	tss1, err = NewTss(nil, 8080, 8081, 8080, protocolID, []byte(testPriKey), "Asgard", "", conf)
-	c.Assert(err, NotNil)
-	c.Assert(tss1, IsNil)
 }
 
 func (t *TssTestSuite) TestKeySign(c *C) {

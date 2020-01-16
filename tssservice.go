@@ -77,9 +77,9 @@ func (t *TssServer) infoHandler(verbose bool) http.Handler {
 }
 
 // Tssport should only listen to the loopback
-func NewTssHttpServer(tssPort int, t *TssServer) *http.Server {
+func NewTssHttpServer(tssAddr string, t *TssServer) *http.Server {
 	server := &http.Server{
-		Addr:         fmt.Sprintf("127.0.0.1:%d", tssPort),
+		Addr:         tssAddr,
 		Handler:      t.tssNewHandler(true),
 		ReadTimeout:  time.Second * 10,
 		WriteTimeout: time.Second * 10,
@@ -87,9 +87,9 @@ func NewTssHttpServer(tssPort int, t *TssServer) *http.Server {
 	return server
 }
 
-func NewInfoHttpServer(infoPort int, t *TssServer) *http.Server {
+func NewInfoHttpServer(infoAddr string, t *TssServer) *http.Server {
 	server := &http.Server{
-		Addr:         fmt.Sprintf(":%d", infoPort),
+		Addr:         infoAddr,
 		Handler:      t.infoHandler(true),
 		ReadTimeout:  time.Second * 10,
 		WriteTimeout: time.Second * 10,
@@ -98,15 +98,12 @@ func NewInfoHttpServer(infoPort int, t *TssServer) *http.Server {
 }
 
 // NewTss create a new instance of Tss
-func NewTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort, infoPort int, protocolID protocol.ID, priKeyBytes []byte, rendezvous, baseFolder string, conf common.TssConfig) (*TssServer, error) {
-	return newTss(bootstrapPeers, p2pPort, tssPort, infoPort, protocolID, priKeyBytes, rendezvous, baseFolder, conf)
+func NewTss(bootstrapPeers []maddr.Multiaddr, p2pPort int, tssAddr, infoAddr string, protocolID protocol.ID, priKeyBytes []byte, rendezvous, baseFolder string, conf common.TssConfig) (*TssServer, error) {
+	return newTss(bootstrapPeers, p2pPort, tssAddr, infoAddr, protocolID, priKeyBytes, rendezvous, baseFolder, conf)
 }
 
 // NewTss create a new instance of Tss
-func newTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort, infoPort int, protocolID protocol.ID, priKeyBytes []byte, rendezvous, baseFolder string, conf common.TssConfig, optionalPreParams ...bkeygen.LocalPreParams) (*TssServer, error) {
-	if infoPort == tssPort || infoPort == p2pPort || p2pPort == tssPort {
-		return nil, errors.New("tss, info or p2p can't use the same port")
-	}
+func newTss(bootstrapPeers []maddr.Multiaddr, p2pPort int, tssAddr, infoAddr string, protocolID protocol.ID, priKeyBytes []byte, rendezvous, baseFolder string, conf common.TssConfig, optionalPreParams ...bkeygen.LocalPreParams) (*TssServer, error) {
 	priKey, err := getPriKey(string(priKeyBytes))
 	if err != nil {
 		return nil, errors.New("cannot parse the private key")
@@ -141,8 +138,8 @@ func newTss(bootstrapPeers []maddr.Multiaddr, p2pPort, tssPort, infoPort int, pr
 		subscribers:      make(map[string]chan *p2p.Message),
 		homeBase:         baseFolder,
 	}
-	tssServer.tssHttpServer = NewTssHttpServer(tssPort, &tssServer)
-	tssServer.infoHttpServer = NewInfoHttpServer(infoPort, &tssServer)
+	tssServer.tssHttpServer = NewTssHttpServer(tssAddr, &tssServer)
+	tssServer.infoHttpServer = NewInfoHttpServer(infoAddr, &tssServer)
 
 	return &tssServer, nil
 }
