@@ -131,7 +131,7 @@ func newTss(bootstrapPeers []maddr.Multiaddr, p2pPort int, tssAddr, infoAddr str
 		}
 	}
 	if preParams == nil && !ByPassGeneratePreParam {
-		return nil, fmt.Errorf("invalid ppreparams")
+		return nil, errors.New("invalid ppreparams")
 	}
 	tssServer := TssServer{
 		conf:   conf,

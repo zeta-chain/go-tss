@@ -107,7 +107,7 @@ func (l *LocalCacheItem) TotalConfirmParty() int {
 }
 
 func (l *LocalCacheItem) GetPeers() []string {
-	var peers []string
+	peers := make([]string, 0, len(l.ConfirmedList))
 	l.lock.Lock()
 	defer l.lock.Unlock()
 	for peer, _ := range l.ConfirmedList {

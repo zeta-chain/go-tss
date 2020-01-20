@@ -54,7 +54,7 @@ func (tKeySign *TssKeySign) GetTssCommonStruct() *common.TssCommon {
 // signMessage
 func (tKeySign *TssKeySign) SignMessage(req KeySignReq) (*signing.SignatureData, error) {
 	if len(req.PoolPubKey) == 0 {
-		return nil, fmt.Errorf("empty pool pub key")
+		return nil, errors.New("empty pool pub key")
 	}
 	localFileName := fmt.Sprintf("localstate-%s.json", req.PoolPubKey)
 	if len(tKeySign.homeBase) > 0 {
@@ -116,12 +116,12 @@ func (tKeySign *TssKeySign) SignMessage(req KeySignReq) (*signing.SignatureData,
 		tKeySign.logger.Error().Err(err).Msg("node sync error")
 		if err == common.ErrNodeSync {
 			tKeySign.logger.Error().Err(err).Msgf("the nodes online are +%v", standbyPeers)
-			blamePeers, err := tKeySign.tssCommonStruct.GetBlameNodesPublicKeys(standbyPeers, false)
+			blamePubKeys, err := tKeySign.tssCommonStruct.GetBlamePubKeysNotInList(standbyPeers)
 			if err != nil {
 				tKeySign.logger.Error().Err(err).Msg("error in get blame node pubkey")
 				return nil, err
 			}
-			tKeySign.tssCommonStruct.BlamePeers = append(tKeySign.tssCommonStruct.BlamePeers, blamePeers[:]...)
+			tKeySign.tssCommonStruct.BlamePeers = append(tKeySign.tssCommonStruct.BlamePeers, blamePubKeys[:]...)
 			tKeySign.tssCommonStruct.FailReason = common.BlameNodeSyncCheck
 		}
 		return nil, err
@@ -161,7 +161,7 @@ func (tKeySign *TssKeySign) processKeySign(errChan chan struct{}, outCh <-chan b
 			// we bail out after KeySignTimeoutSeconds
 			tKeySign.logger.Error().Msgf("fail to sign message with %d seconds", tssConf.KeySignTimeout)
 			tssCommonStruct := tKeySign.GetTssCommonStruct()
-			_, localCachedItems := tssCommonStruct.TryGetAllLocalCached()
+			localCachedItems := tssCommonStruct.TryGetAllLocalCached()
 			blamePeers, err := tssCommonStruct.TssTimeoutBlame(localCachedItems)
 			tssCommonStruct.BlamePeers = append(tssCommonStruct.BlamePeers, blamePeers[:]...)
 			if err != nil {

@@ -97,12 +97,12 @@ func (tKeyGen *TssKeyGen) GenerateNewKey(keygenReq KeyGenReq) (*crypto.ECPoint, 
 		tKeyGen.logger.Error().Err(err).Msg("node sync error")
 		if err == common.ErrNodeSync {
 			tKeyGen.logger.Error().Err(err).Msgf("the nodes online are +%v", standbyPeers)
-			blamePeers, err := tKeyGen.tssCommonStruct.GetBlameNodesPublicKeys(standbyPeers, false)
+			blamePubKeys, err := tKeyGen.tssCommonStruct.GetBlamePubKeysNotInList(standbyPeers)
 			if err != nil {
 				tKeyGen.logger.Error().Err(err).Msg("error in get blame node pubkey")
 				return nil, err
 			}
-			tKeyGen.tssCommonStruct.BlamePeers = append(tKeyGen.tssCommonStruct.BlamePeers, blamePeers[:]...)
+			tKeyGen.tssCommonStruct.BlamePeers = append(tKeyGen.tssCommonStruct.BlamePeers, blamePubKeys[:]...)
 			tKeyGen.tssCommonStruct.FailReason = common.BlameNodeSyncCheck
 		}
 		return nil, err
@@ -140,7 +140,7 @@ func (tKeyGen *TssKeyGen) processKeyGen(errChan chan struct{}, outCh <-chan btss
 
 			tKeyGen.logger.Error().Msgf("fail to sign message with %d seconds", tssConf.KeyGenTimeout)
 			tssCommonStruct := tKeyGen.GetTssCommonStruct()
-			_, localCachedItems := tssCommonStruct.TryGetAllLocalCached()
+			localCachedItems := tssCommonStruct.TryGetAllLocalCached()
 			blamePeers, err := tssCommonStruct.TssTimeoutBlame(localCachedItems)
 			tssCommonStruct.BlamePeers = append(tssCommonStruct.BlamePeers, blamePeers[:]...)
 			if err != nil {
