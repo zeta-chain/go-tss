@@ -97,7 +97,7 @@ func (tKeyGen *TssKeyGen) GenerateNewKey(keygenReq KeyGenReq) (*crypto.ECPoint, 
 		tKeyGen.logger.Error().Err(err).Msg("node sync error")
 		if err == common.ErrNodeSync {
 			tKeyGen.logger.Error().Err(err).Msgf("the nodes online are +%v", standbyPeers)
-			blamePubKeys, err := tKeyGen.tssCommonStruct.GetBlamePubKeysNotInList(standbyPeers)
+			_, blamePubKeys, err := tKeyGen.tssCommonStruct.GetBlamePubKeysLists(standbyPeers)
 			if err != nil {
 				tKeyGen.logger.Error().Err(err).Msg("error in get blame node pubkey")
 				return nil, err
@@ -142,10 +142,12 @@ func (tKeyGen *TssKeyGen) processKeyGen(errChan chan struct{}, outCh <-chan btss
 			tssCommonStruct := tKeyGen.GetTssCommonStruct()
 			localCachedItems := tssCommonStruct.TryGetAllLocalCached()
 			blamePeers, err := tssCommonStruct.TssTimeoutBlame(localCachedItems)
-			tssCommonStruct.BlamePeers = append(tssCommonStruct.BlamePeers, blamePeers[:]...)
 			if err != nil {
 				tKeyGen.logger.Error().Err(err).Msg("fail to get the blamed peers")
+				tssCommonStruct.FailReason = common.BlameTssTimeout
+				return nil, fmt.Errorf("fail to get the blamed peers %w", common.ErrTssTimeOut)
 			}
+			tssCommonStruct.BlamePeers = append(tssCommonStruct.BlamePeers, blamePeers[:]...)
 			tssCommonStruct.FailReason = common.BlameTssTimeout
 			return nil, common.ErrTssTimeOut
 
@@ -166,10 +168,12 @@ func (tKeyGen *TssKeyGen) processKeyGen(errChan chan struct{}, outCh <-chan btss
 			var wrappedMsg p2p.WrappedMessage
 			if err := json.Unmarshal(m.Payload, &wrappedMsg); nil != err {
 				tKeyGen.logger.Error().Err(err).Msg("fail to unmarshal wrapped message bytes")
+				return nil, err
 			}
 			err := tKeyGen.tssCommonStruct.ProcessOneMessage(&wrappedMsg, m.PeerID.String())
 			if err != nil {
 				tKeyGen.logger.Error().Err(err).Msg("fail to process the received message")
+				return nil, err
 			}
 
 		case msg := <-endCh:

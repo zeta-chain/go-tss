@@ -423,11 +423,15 @@ func (t *TssCommon) processVerMsg(broadcastConfirmMsg *p2p.BroadcastConfirmMessa
 		if errHashCheck != nil {
 			blamePeers, err := t.getHashCheckBlamePeers(localCacheItem, errHashCheck)
 			if err != nil {
-				t.logger.Error().Err(err).Msg("error in get the blame nodes")
+				t.logger.Error().Err(err).Msgf("error in get the blame nodes")
+				t.FailReason = BlameHashCheck
+				return fmt.Errorf("error in getting the blame nodes %w", errHashCheck)
 			}
-			blamePubKeys, err := t.GetBlamePubKeysInList(blamePeers)
+			blamePubKeys, _, err := t.GetBlamePubKeysLists(blamePeers)
 			if err != nil {
-				t.logger.Error().Err(err).Msg("fail to get the blame node public key")
+				t.logger.Error().Err(err).Msg("fail to get the blame nodes public key")
+				t.FailReason = BlameHashCheck
+				return fmt.Errorf("fail to get the blame nodes public key %w", errHashCheck)
 			}
 			t.BlamePeers = append(t.BlamePeers, blamePubKeys...)
 			t.FailReason = BlameHashCheck

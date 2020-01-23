@@ -126,7 +126,7 @@ func AccPubKeysFromPartyIDs(partyIDs []string, partyIDMap map[string]*btss.Party
 }
 
 //GetBlamePubKeysInList returns the nodes public key who are in the peer list
-func (t *TssCommon) GetBlamePubKeysInList(peers []string) ([]string, error) {
+func (t *TssCommon) getBlamePubKeysInList(peers []string) ([]string, error) {
 	var partiesInList []string
 	// we convert nodes (in the peers list) P2PID to public key
 	for partyID, p2pID := range t.PartyIDtoP2PID {
@@ -147,8 +147,7 @@ func (t *TssCommon) GetBlamePubKeysInList(peers []string) ([]string, error) {
 	return blamePubKeys, nil
 }
 
-//GetBlamePubKeysNotInList returns the nodes public key who are not in the peer list
-func (t *TssCommon) GetBlamePubKeysNotInList(peers []string) ([]string, error) {
+func (t *TssCommon) getBlamePubKeysNotInList(peers []string) ([]string, error) {
 	var partiesNotInList []string
 	// we convert nodes (NOT in the peers list) P2PID to public key
 	for partyID, p2pID := range t.PartyIDtoP2PID {
@@ -173,6 +172,22 @@ func (t *TssCommon) GetBlamePubKeysNotInList(peers []string) ([]string, error) {
 	return blamePubKeys, nil
 }
 
+//GetBlamePubKeysNotInList returns the nodes public key who are not in the peer list
+func (t *TssCommon) GetBlamePubKeysLists(peer []string) ([]string, []string, error) {
+
+	inList, err := t.getBlamePubKeysInList(peer)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	notInlist, err := t.getBlamePubKeysNotInList(peer)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return inList, notInlist, err
+}
+
 // TssTimeoutBlame handles the blame caused by the nodesync error
 // We believe the node itself will not cheat himself, so we go through
 // the confirmed list to find out the absent node(s) that fail to send the
@@ -187,7 +202,7 @@ func (t *TssCommon) TssTimeoutBlame(localCachedItems []*LocalCacheItem) ([]strin
 		sumStandbyPeers = append(sumStandbyPeers, el.GetPeers()...)
 	}
 
-	blamePubKeys, err := t.GetBlamePubKeysNotInList(sumStandbyPeers)
+	_, blamePubKeys, err := t.GetBlamePubKeysLists(sumStandbyPeers)
 	if err != nil {
 		t.logger.Error().Err(err).Msg("error in get blame parties pubkey")
 	}
@@ -245,7 +260,7 @@ func (t *TssCommon) findBlamePeers(localCacheItem *LocalCacheItem, dataOwnerP2PI
 	return blamePeers, nil
 }
 
-func (t *TssCommon) getHashCheckBlamePeers(localCacheItem *LocalCacheItem, err error) ([]string, error) {
+func (t *TssCommon) getHashCheckBlamePeers(localCacheItem *LocalCacheItem, hashCheckErr error) ([]string, error) {
 	// here we do the blame on the error on hash inconsistency
 	// if we find the msg owner try to send the hash to us, we blame him and ignore the blame of the rest
 	// of the other nodes, cause others may also be the victims.
@@ -257,12 +272,12 @@ func (t *TssCommon) getHashCheckBlamePeers(localCacheItem *LocalCacheItem, err e
 		t.logger.Warn().Msgf("error in find the data Owner P2PID\n")
 		return nil, errors.New("error in find the data Owner P2PID")
 	}
-	switch err {
+	switch hashCheckErr {
 	case ErrHashFromOwner:
 		blameP2PIDs = append(blameP2PIDs, dataOwnerP2PID.String())
-		return blameP2PIDs, err
+		return blameP2PIDs, nil
 	case ErrHashFromPeer:
-		blameP2PIDs, err = t.findBlamePeers(localCacheItem, dataOwnerP2PID.String())
+		blameP2PIDs, err := t.findBlamePeers(localCacheItem, dataOwnerP2PID.String())
 		return blameP2PIDs, err
 	default:
 		return nil, errors.New("unknown case")
