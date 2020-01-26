@@ -208,6 +208,7 @@ func (c *Communication) readFromStream(stream network.Stream) {
 			n, err := stream.Read(length)
 			if err != nil {
 				if errors.Is(err, io.EOF) {
+					c.logger.Error().Err(err).Msg("the stream cannot be read")
 					return
 				}
 				c.logger.Error().Err(err).Msgf("fail to read from header from stream,peerID: %s", peerID)
@@ -241,6 +242,7 @@ func (c *Communication) readFromStream(stream network.Stream) {
 				c.logger.Error().Err(err).Msg("fail to unmarshal wrapped message bytes")
 				continue
 			}
+			c.logger.Debug().Msgf(">>>>>>>%v", wrappedMsg)
 			channel, ok := c.subscribers[wrappedMsg.MessageType]
 			if !ok {
 				c.logger.Info().Msgf("no subscriber %s found for this message", wrappedMsg.MessageType.String())
@@ -251,7 +253,6 @@ func (c *Communication) readFromStream(stream network.Stream) {
 					Payload: buf,
 				}
 			}
-
 		}
 	}
 }
