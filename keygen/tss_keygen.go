@@ -141,7 +141,7 @@ func (tKeyGen *TssKeyGen) processKeyGen(errChan chan struct{}, outCh <-chan btss
 			close(tKeyGen.tssCommonStruct.TssMsg)
 			return nil, errors.New("received exit signal")
 
-		case <-time.After(time.Second * tssConf.KeyGenTimeout):
+		case <-time.After(tssConf.KeyGenTimeout):
 			// we bail out after KeyGenTimeoutSeconds
 			return nil, fmt.Errorf("fail to finish keyGen with in %d seconds", tssConf.KeyGenTimeout)
 

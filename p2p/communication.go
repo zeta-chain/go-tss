@@ -30,11 +30,11 @@ const (
 	// MaxPayload the maximum payload for a message
 	MaxPayload = 81920 // 80kb
 	// TimeoutInSecs maximum time to wait on read and write
-	TimeoutInSecs = 10
+	TimeoutInSecs = time.Second * 10
 	// TimeoutBroadcast maximum time to wait for message broadcast
-	TimeoutBroadcast = 5
+	TimeoutBroadcast = time.Minute * 5
 	// TimeoutConnecting maximum time for wait for peers to connect
-	TimeoutConnecting = 1
+	TimeoutConnecting = time.Minute * 1
 )
 
 // Message that get transfer across the wire
@@ -102,7 +102,7 @@ func (c *Communication) broadcastToPeers(peers []peer.ID, msg []byte) {
 		c.logger.Debug().Msgf("the peer list is empty")
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*TimeoutBroadcast)
+	ctx, cancel := context.WithTimeout(context.Background(), TimeoutBroadcast)
 	defer cancel()
 	peerChan, err := c.routingDiscovery.FindPeers(ctx, c.rendezvous)
 	if nil != err {
@@ -160,7 +160,7 @@ func (c *Communication) writeToStream(ai peer.AddrInfo, msg []byte) error {
 	length := len(msg)
 	buf := make([]byte, LengthHeader)
 	binary.LittleEndian.PutUint32(buf, uint32(length))
-	if err := stream.SetWriteDeadline(time.Now().Add(time.Second * TimeoutInSecs)); nil != err {
+	if err := stream.SetWriteDeadline(time.Now().Add(TimeoutInSecs)); nil != err {
 		return fmt.Errorf("fail to set write deadline")
 	}
 	n, err := stream.Write(buf)
@@ -171,7 +171,7 @@ func (c *Communication) writeToStream(ai peer.AddrInfo, msg []byte) error {
 	if n < LengthHeader {
 		return fmt.Errorf("short write, we would like to write: %d, however we only write: %d", LengthHeader, n)
 	}
-	if err := stream.SetWriteDeadline(time.Now().Add(time.Second * TimeoutInSecs)); nil != err {
+	if err := stream.SetWriteDeadline(time.Now().Add(TimeoutInSecs)); nil != err {
 		return fmt.Errorf("fail to set write deadline")
 	}
 	n, err = stream.Write(msg)
@@ -201,7 +201,7 @@ func (c *Communication) readFromStream(stream network.Stream) {
 		default:
 			length := make([]byte, LengthHeader)
 			// set read header timeout
-			if err := stream.SetReadDeadline(time.Now().Add(time.Second * TimeoutInSecs)); nil != err {
+			if err := stream.SetReadDeadline(time.Now().Add(TimeoutInSecs)); nil != err {
 				c.logger.Error().Err(err).Msgf("fail to set read header timeout,peerID:%s", peerID)
 				return
 			}
@@ -225,7 +225,7 @@ func (c *Communication) readFromStream(stream network.Stream) {
 				return
 			}
 			buf := make([]byte, l)
-			if err := stream.SetReadDeadline(time.Now().Add(time.Second * TimeoutInSecs)); nil != err {
+			if err := stream.SetReadDeadline(time.Now().Add(TimeoutInSecs)); nil != err {
 				c.logger.Error().Err(err).Msg("fail to set read deadline")
 			}
 			n, err = stream.Read(buf)
@@ -316,7 +316,7 @@ func (c *Communication) connectToOnePeer(ai peer.AddrInfo) (network.Stream, erro
 		return nil, nil
 	}
 	c.logger.Debug().Msgf("connect to peer : %s", ai.ID.String())
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*TimeoutConnecting)
+	ctx, cancel := context.WithTimeout(context.Background(), TimeoutConnecting)
 	defer cancel()
 	stream, err := c.host.NewStream(ctx, ai.ID, c.protocolID)
 	if nil != err {
@@ -336,7 +336,7 @@ func (c *Communication) connectToBootstrapPeers() error {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			ctx, cancel := context.WithTimeout(context.Background(), time.Minute*TimeoutConnecting)
+			ctx, cancel := context.WithTimeout(context.Background(), TimeoutConnecting)
 			defer cancel()
 			if err := c.host.Connect(ctx, *pi); err != nil {
 				c.logger.Error().Err(err)

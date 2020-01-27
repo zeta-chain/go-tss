@@ -198,7 +198,7 @@ func (t *TssCommon) NodeSync(msgChan chan *p2p.Message, messageType p2p.THORChai
 					t.sendMsg(wrappedMsg, peerIDs)
 					return
 				}
-			case <-time.After(time.Second * conf.SyncTimeout):
+			case <-time.After(conf.SyncTimeout):
 				stopChan <- true
 				err = errors.New("error in sync timeout")
 				return
