@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	btsskeygen "github.com/binance-chain/tss-lib/ecdsa/keygen"
 	"github.com/hashicorp/go-retryablehttp"
@@ -113,10 +114,10 @@ func setupContextAndNodes(c *C, partyNum int, conf common.TssConfig) ([]context.
 func setupNodeForTest(c *C, partyNum int) ([]context.Context, []*TssServer, []context.CancelFunc, *sync.WaitGroup) {
 	ByPassGeneratePreParam = false
 	conf := common.TssConfig{
-		KeyGenTimeout:   30,
-		KeySignTimeout:  30,
-		SyncTimeout:     5,
-		PreParamTimeout: 5,
+		KeyGenTimeout:   30 * time.Second,
+		KeySignTimeout:  30 * time.Second,
+		SyncTimeout:     5 * time.Second,
+		PreParamTimeout: 5 * time.Second,
 		SyncRetry:       20,
 	}
 	ctxs, cancels, localTss := setupContextAndNodes(c, partyNum, conf)
