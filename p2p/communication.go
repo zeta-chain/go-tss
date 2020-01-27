@@ -29,8 +29,8 @@ const (
 	LengthHeader = 4
 	// MaxPayload the maximum payload for a message
 	MaxPayload = 81920 // 80kb
-	// TimeoutInSecs maximum time to wait on read and write
-	TimeoutInSecs = time.Second * 10
+	// TimeoutReadWrite maximum time to wait on read and write
+	TimeoutReadWrite = time.Second * 10
 	// TimeoutBroadcast maximum time to wait for message broadcast
 	TimeoutBroadcast = time.Minute * 5
 	// TimeoutConnecting maximum time for wait for peers to connect
@@ -160,7 +160,7 @@ func (c *Communication) writeToStream(ai peer.AddrInfo, msg []byte) error {
 	length := len(msg)
 	buf := make([]byte, LengthHeader)
 	binary.LittleEndian.PutUint32(buf, uint32(length))
-	if err := stream.SetWriteDeadline(time.Now().Add(TimeoutInSecs)); nil != err {
+	if err := stream.SetWriteDeadline(time.Now().Add(TimeoutReadWrite)); nil != err {
 		return fmt.Errorf("fail to set write deadline")
 	}
 	n, err := stream.Write(buf)
@@ -171,7 +171,7 @@ func (c *Communication) writeToStream(ai peer.AddrInfo, msg []byte) error {
 	if n < LengthHeader {
 		return fmt.Errorf("short write, we would like to write: %d, however we only write: %d", LengthHeader, n)
 	}
-	if err := stream.SetWriteDeadline(time.Now().Add(TimeoutInSecs)); nil != err {
+	if err := stream.SetWriteDeadline(time.Now().Add(TimeoutReadWrite)); nil != err {
 		return fmt.Errorf("fail to set write deadline")
 	}
 	n, err = stream.Write(msg)
@@ -201,7 +201,7 @@ func (c *Communication) readFromStream(stream network.Stream) {
 		default:
 			length := make([]byte, LengthHeader)
 			// set read header timeout
-			if err := stream.SetReadDeadline(time.Now().Add(TimeoutInSecs)); nil != err {
+			if err := stream.SetReadDeadline(time.Now().Add(TimeoutReadWrite)); nil != err {
 				c.logger.Error().Err(err).Msgf("fail to set read header timeout,peerID:%s", peerID)
 				return
 			}
@@ -225,7 +225,7 @@ func (c *Communication) readFromStream(stream network.Stream) {
 				return
 			}
 			buf := make([]byte, l)
-			if err := stream.SetReadDeadline(time.Now().Add(TimeoutInSecs)); nil != err {
+			if err := stream.SetReadDeadline(time.Now().Add(TimeoutReadWrite)); nil != err {
 				c.logger.Error().Err(err).Msg("fail to set read deadline")
 			}
 			n, err = stream.Read(buf)
