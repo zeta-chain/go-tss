@@ -5,14 +5,11 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"io"
 	"os"
 
 	"github.com/cosmos/cosmos-sdk/client/input"
 	golog "github.com/ipfs/go-log"
 	"github.com/libp2p/go-libp2p-core/protocol"
-	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 	"github.com/whyrusleeping/go-logging"
 
 	"gitlab.com/thorchain/tss/go-tss"
@@ -32,7 +29,7 @@ func main() {
 		flag.PrintDefaults()
 		return
 	}
-	initLog(generalConf.LogLevel, generalConf.Pretty)
+	common.InitLog(generalConf.LogLevel, generalConf.Pretty)
 	inBuf := bufio.NewReader(os.Stdin)
 	priKeyBytes, err := input.GetPassword("input node secret key:", inBuf)
 	if err != nil {
@@ -78,17 +75,4 @@ func parseFlags(generalConf *common.GeneralConfig, tssConf *common.TssConfig, p2
 	flag.IntVar(&p2pConf.Port, "p2p-port", 6668, "listening port local")
 	flag.Var(&p2pConf.BootstrapPeers, "peer", "Adds a peer multiaddress to the bootstrap list")
 	flag.Parse()
-}
-
-func initLog(level string, pretty bool) {
-	l, err := zerolog.ParseLevel(level)
-	if err != nil {
-		log.Warn().Msgf("%s is not a valid log-level, falling back to 'info'", level)
-	}
-	var out io.Writer = os.Stdout
-	if pretty {
-		out = zerolog.ConsoleWriter{Out: os.Stdout}
-	}
-	zerolog.SetGlobalLevel(l)
-	log.Logger = log.Output(out).With().Str("service", "go-tss").Logger()
 }

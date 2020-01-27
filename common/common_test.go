@@ -33,7 +33,7 @@ type TssTestSuite struct{}
 var _ = Suite(&TssTestSuite{})
 
 func (t *TssTestSuite) SetUpSuite(c *C) {
-	initLog("info", true)
+	InitLog("info", true)
 	config := sdk.GetConfig()
 	config.SetBech32PrefixForAccount(cmd.Bech32PrefixAccAddr, cmd.Bech32PrefixAccPub)
 	config.SetBech32PrefixForValidator(cmd.Bech32PrefixValAddr, cmd.Bech32PrefixValPub)
@@ -300,7 +300,7 @@ func (t *TssTestSuite) TestProcessVerMessage(c *C) {
 	c.Assert(sk, NotNil)
 	conf := TssConfig{}
 
-	tssCommonStruct := NewTssCommon("",nil, conf)
+	tssCommonStruct := NewTssCommon("", nil, conf)
 	localTestPubKeys := make([]string, len(testPubKeys))
 	copy(localTestPubKeys, testPubKeys[:])
 
@@ -350,8 +350,7 @@ func (t *TssTestSuite) TestTssProcessOutCh(c *C) {
 	}
 	msg := btss.NewMessageWrapper(messageRouting, testContent)
 	tssMsg := btss.NewMessage(messageRouting, testContent, msg)
-	tssCommonStruct := NewTssCommon("",nil, conf)
+	tssCommonStruct := NewTssCommon("", nil, conf)
 	err = tssCommonStruct.ProcessOutCh(tssMsg, p2p.TSSKeyGenMsg)
 	c.Assert(err, IsNil)
 }
-
