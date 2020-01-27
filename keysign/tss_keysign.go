@@ -121,8 +121,7 @@ func (tKeySign *TssKeySign) SignMessage(req KeySignReq) (*signing.SignatureData,
 				tKeySign.logger.Error().Err(err).Msg("error in get blame node pubkey")
 				return nil, err
 			}
-			tKeySign.tssCommonStruct.BlamePeers = append(tKeySign.tssCommonStruct.BlamePeers, blamePubKeys[:]...)
-			tKeySign.tssCommonStruct.FailReason = common.BlameNodeSyncCheck
+			tKeySign.tssCommonStruct.BlamePeers.SetBlame(common.BlameNodeSyncCheck, blamePubKeys)
 		}
 		return nil, err
 	}
@@ -165,11 +164,10 @@ func (tKeySign *TssKeySign) processKeySign(errChan chan struct{}, outCh <-chan b
 			blamePeers, err := tssCommonStruct.TssTimeoutBlame(localCachedItems)
 			if err != nil {
 				tKeySign.logger.Error().Err(err).Msg("fail to get the blamed peers")
-				tssCommonStruct.FailReason = common.BlameTssTimeout
+				tssCommonStruct.BlamePeers.SetBlame(common.BlameTssTimeout, nil)
 				return nil, fmt.Errorf("fail to get the blamed peers %w", common.ErrTssTimeOut)
 			}
-			tssCommonStruct.BlamePeers = append(tssCommonStruct.BlamePeers, blamePeers[:]...)
-			tssCommonStruct.FailReason = common.BlameTssTimeout
+			tssCommonStruct.BlamePeers.SetBlame(common.BlameTssTimeout, blamePeers)
 			return nil, common.ErrTssTimeOut
 		case msg := <-outCh:
 			tKeySign.logger.Debug().Msgf(">>>>>>>>>>key sign msg: %s", msg.String())
@@ -202,12 +200,14 @@ func (tKeySign *TssKeySign) processKeySign(errChan chan struct{}, outCh <-chan b
 }
 
 func (tKeySign *TssKeySign) WriteKeySignResult(w http.ResponseWriter, R, S string, status common.Status) {
+
+	//blame := common.NewBlame()
+	//blame.SetBlame(tKeySign.tssCommonStruct.Blame.FailReason, tKeySign.tssCommonStruct.Blame.BlameNodes)
 	signResp := KeySignResp{
-		R:          R,
-		S:          S,
-		Status:     status,
-		FailReason: tKeySign.GetTssCommonStruct().FailReason,
-		Blame:      tKeySign.tssCommonStruct.BlamePeers,
+		R:      R,
+		S:      S,
+		Status: status,
+		Blame:  tKeySign.tssCommonStruct.BlamePeers,
 	}
 	jsonResult, err := json.MarshalIndent(signResp, "", "	")
 	if nil != err {

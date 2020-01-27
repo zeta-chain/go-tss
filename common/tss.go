@@ -45,8 +45,7 @@ type TssCommon struct {
 	broadcastChannel    chan *p2p.BroadcastMsgChan
 	TssMsg              chan *p2p.Message
 	P2PPeers            []peer.ID //most of tss message are broadcast, we store the peers ID to avoid iterating
-	FailReason          string
-	BlamePeers          []string //we use this variable in node sync blame and also in future we need it in keysign to sort the parties in keysign
+	BlamePeers               Blame
 }
 
 func NewTssCommon(peerID string, broadcastChannel chan *p2p.BroadcastMsgChan, conf TssConfig) *TssCommon {
@@ -62,8 +61,7 @@ func NewTssCommon(peerID string, broadcastChannel chan *p2p.BroadcastMsgChan, co
 		broadcastChannel:    broadcastChannel,
 		TssMsg:              make(chan *p2p.Message),
 		P2PPeers:            nil,
-		FailReason:          "",
-		BlamePeers:          make([]string, 0),
+		BlamePeers:               NewBlame(),
 	}
 }
 
@@ -424,17 +422,17 @@ func (t *TssCommon) processVerMsg(broadcastConfirmMsg *p2p.BroadcastConfirmMessa
 			blamePeers, err := t.getHashCheckBlamePeers(localCacheItem, errHashCheck)
 			if err != nil {
 				t.logger.Error().Err(err).Msgf("error in get the blame nodes")
-				t.FailReason = BlameHashCheck
+				t.BlamePeers.SetBlame(BlameHashCheck, nil)
 				return fmt.Errorf("error in getting the blame nodes %w", errHashCheck)
 			}
 			blamePubKeys, _, err := t.GetBlamePubKeysLists(blamePeers)
 			if err != nil {
 				t.logger.Error().Err(err).Msg("fail to get the blame nodes public key")
-				t.FailReason = BlameHashCheck
+
+				t.BlamePeers.SetBlame(BlameHashCheck, nil)
 				return fmt.Errorf("fail to get the blame nodes public key %w", errHashCheck)
 			}
-			t.BlamePeers = append(t.BlamePeers, blamePubKeys...)
-			t.FailReason = BlameHashCheck
+			t.BlamePeers.SetBlame(BlameHashCheck, blamePubKeys)
 			t.logger.Error().Msg("The consistency check failed")
 			return errHashCheck
 		}

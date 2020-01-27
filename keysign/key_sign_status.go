@@ -12,9 +12,8 @@ type KeySignReq struct {
 
 // KeySignResp key sign response
 type KeySignResp struct {
-	R          string        `json:"r"`
-	S          string        `json:"s"`
-	Status     common.Status `json:"status"`
-	FailReason string        `json:"fail_reason"`
-	Blame      []string      `json:"blame_peers"`
+	R      string        `json:"r"`
+	S      string        `json:"s"`
+	Status common.Status `json:"status"`
+	Blame  common.Blame  `json:"Blame"`
 }

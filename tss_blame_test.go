@@ -110,8 +110,8 @@ func testBlameNodeSync(c *C, testParties TestParties, reason string) {
 	requestGroup.Wait()
 
 	for i := 0; i < len(testParties.honest); i++ {
-		blameCheck(c, keyGenRespArr[i].Blame, testParties.malicious)
-		c.Assert(keyGenRespArr[i].FailReason, Equals, reason)
+		blameCheck(c, keyGenRespArr[i].Blame.BlameNodes, testParties.malicious)
+		c.Assert(keyGenRespArr[i].Blame.FailReason, Equals, reason)
 	}
 }
 
@@ -210,9 +210,9 @@ func doBlameTimeoutTest(c *C, poolPubKey string, testParties TestParties, cancel
 	requestGroup.Wait()
 	for i := 0; i < len(testParties.honest)+len(testParties.malicious); i++ {
 		// honest nodes should have the blame nodes
-		if len(keySignRespArr[i].Blame) > 0 {
-			blameCheck(c, keySignRespArr[i].Blame, testParties.malicious)
-			c.Assert(keySignRespArr[i].FailReason, Equals, common.BlameTssTimeout)
+		if len(keySignRespArr[i].Blame.BlameNodes) > 0 {
+			blameCheck(c, keySignRespArr[i].Blame.BlameNodes, testParties.malicious)
+			c.Assert(keySignRespArr[i].Blame.FailReason, Equals, common.BlameTssTimeout)
 		}
 	}
 }
@@ -342,7 +342,7 @@ func (t *TssTestSuite) testDropMsgOwner(c *C, tssCommonStruct *common.TssCommon,
 
 	//clean up the blamepeer list for each test
 	defer func() {
-		tssCommonStruct.BlamePeers = nil
+		tssCommonStruct.BlamePeers = common.NewBlame()
 	}()
 	testMsg := "testDropMsgOwner"
 	roundInfo := "round testDropMsgOwner"
@@ -368,10 +368,10 @@ func (t *TssTestSuite) testDropMsgOwner(c *C, tssCommonStruct *common.TssCommon,
 	//the data owner's message should be raise an error
 	err = tssCommonStruct.ProcessOneMessage(wrappedVerMsg, tssCommonStruct.PartyIDtoP2PID[senderID.Id].String())
 	c.Assert(err, Equals, common.ErrHashFromOwner)
-	c.Assert(tssCommonStruct.FailReason, Equals, common.BlameHashCheck)
+	c.Assert(tssCommonStruct.BlamePeers.FailReason, Equals, common.BlameHashCheck)
 	blamedPubKey, err := senderIDtoPubKey(senderID)
 	c.Assert(err, IsNil)
-	c.Assert(tssCommonStruct.BlamePeers, DeepEquals, []string{blamedPubKey})
+	c.Assert(tssCommonStruct.BlamePeers.BlameNodes, DeepEquals, []string{blamedPubKey})
 }
 
 func (t *TssTestSuite) testVerMsgAndUpdate(c *C, tssCommonStruct *common.TssCommon, senderID *btss.PartyID, partiesID []*btss.PartyID) {
@@ -401,7 +401,7 @@ func (t *TssTestSuite) testVerMsgWrongHash(c *C, tssCommonStruct *common.TssComm
 
 	//clean up the blamepeer list for each test
 	defer func() {
-		tssCommonStruct.BlamePeers = nil
+		tssCommonStruct.BlamePeers = common.NewBlame()
 	}()
 
 	err := tssCommonStruct.ProcessOneMessage(senderMsg, senderID.Id)
@@ -439,9 +439,9 @@ func (t *TssTestSuite) testVerMsgWrongHash(c *C, tssCommonStruct *common.TssComm
 				expected = append(expected, pubKey)
 			}
 		}
-		sort.Strings(tssCommonStruct.BlamePeers)
+		sort.Strings(tssCommonStruct.BlamePeers.BlameNodes)
 		sort.Strings(expected)
-		c.Assert(tssCommonStruct.BlamePeers, DeepEquals, expected)
+		c.Assert(tssCommonStruct.BlamePeers.BlameNodes, DeepEquals, expected)
 	}
 }
 

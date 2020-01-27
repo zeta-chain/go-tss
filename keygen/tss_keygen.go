@@ -102,8 +102,7 @@ func (tKeyGen *TssKeyGen) GenerateNewKey(keygenReq KeyGenReq) (*crypto.ECPoint, 
 				tKeyGen.logger.Error().Err(err).Msg("error in get blame node pubkey")
 				return nil, err
 			}
-			tKeyGen.tssCommonStruct.BlamePeers = append(tKeyGen.tssCommonStruct.BlamePeers, blamePubKeys[:]...)
-			tKeyGen.tssCommonStruct.FailReason = common.BlameNodeSyncCheck
+			tKeyGen.tssCommonStruct.BlamePeers.SetBlame(common.BlameNodeSyncCheck, blamePubKeys)
 		}
 		return nil, err
 	}
@@ -144,11 +143,10 @@ func (tKeyGen *TssKeyGen) processKeyGen(errChan chan struct{}, outCh <-chan btss
 			blamePeers, err := tssCommonStruct.TssTimeoutBlame(localCachedItems)
 			if err != nil {
 				tKeyGen.logger.Error().Err(err).Msg("fail to get the blamed peers")
-				tssCommonStruct.FailReason = common.BlameTssTimeout
+				tssCommonStruct.BlamePeers.SetBlame(common.BlameTssTimeout, nil)
 				return nil, fmt.Errorf("fail to get the blamed peers %w", common.ErrTssTimeOut)
 			}
-			tssCommonStruct.BlamePeers = append(tssCommonStruct.BlamePeers, blamePeers[:]...)
-			tssCommonStruct.FailReason = common.BlameTssTimeout
+			tssCommonStruct.BlamePeers.SetBlame(common.BlameTssTimeout, blamePeers)
 			return nil, common.ErrTssTimeOut
 
 		case msg := <-outCh:

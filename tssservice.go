@@ -336,7 +336,6 @@ func (t *TssServer) keygen(w http.ResponseWriter, r *http.Request) {
 		PubKey:      newPubKey,
 		PoolAddress: addr.String(),
 		Status:      status,
-		FailReason:  keygenInstance.GetTssCommonStruct().FailReason,
 		Blame:       keygenInstance.GetTssCommonStruct().BlamePeers,
 	}
 	buf, err := json.Marshal(resp)

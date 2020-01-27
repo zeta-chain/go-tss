@@ -32,6 +32,12 @@ type LocalCacheItem struct {
 	ConfirmedList map[string]string
 }
 
+// Blame is used to store the blame nodes and the fail reason
+type Blame struct {
+	FailReason string   `json:"fail_reason"`
+	BlameNodes []string `json:"blame_peers"`
+}
+
 // KeygenLocalStateItem
 type KeygenLocalStateItem struct {
 	PubKey          string                    `json:"pub_key"`
