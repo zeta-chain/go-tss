@@ -5,11 +5,15 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"math/big"
+	"os"
 
 	btss "github.com/binance-chain/tss-lib/tss"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"github.com/tendermint/btcd/btcec"
 )
 
@@ -85,4 +89,17 @@ func hashToInt(hash []byte, c elliptic.Curve) *big.Int {
 		ret.Rsh(ret, uint(excess))
 	}
 	return ret
+}
+
+func InitLog(level string, pretty bool) {
+	l, err := zerolog.ParseLevel(level)
+	if err != nil {
+		log.Warn().Msgf("%s is not a valid log-level, falling back to 'info'", level)
+	}
+	var out io.Writer = os.Stdout
+	if pretty {
+		out = zerolog.ConsoleWriter{Out: os.Stdout}
+	}
+	zerolog.SetGlobalLevel(l)
+	log.Logger = log.Output(out).With().Str("service", "go-tss-test").Logger()
 }
