@@ -92,6 +92,7 @@ func (tKeyGen *TssKeyGen) GenerateNewKey(keygenReq KeyGenReq) (*crypto.ECPoint, 
 	tKeyGen.tssCommonStruct.P2PPeers = common.GetPeersID(tKeyGen.tssCommonStruct.PartyIDtoP2PID, tKeyGen.tssCommonStruct.GetLocalPeerID())
 	standbyNodes, err := tKeyGen.tssCommonStruct.NodeSync(tKeyGen.syncMsg, p2p.TSSKeyGenSync)
 	if err != nil {
+		tKeyGen.logger.Error().Err(err).Msg("node sync error")
 		if len(standbyNodes) != len(tKeyGen.tssCommonStruct.P2PPeers) {
 			tKeyGen.logger.Debug().Msgf("the nodes online are +%v", standbyNodes)
 			return nil, err

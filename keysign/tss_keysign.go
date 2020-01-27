@@ -110,6 +110,7 @@ func (tKeySign *TssKeySign) SignMessage(req KeySignReq) (*signing.SignatureData,
 	tKeySign.tssCommonStruct.P2PPeers = common.GetPeersID(tKeySign.tssCommonStruct.PartyIDtoP2PID, tKeySign.tssCommonStruct.GetLocalPeerID())
 	standbyNodes, err := tKeySign.tssCommonStruct.NodeSync(tKeySign.syncMsg, p2p.TSSKeySignSync)
 	if err != nil {
+		tKeySign.logger.Error().Err(err).Msg("node sync error")
 		if len(standbyNodes) != len(tKeySign.tssCommonStruct.P2PPeers) {
 			tKeySign.logger.Debug().Msgf("the nodes online are +%v", standbyNodes)
 			return nil, err
