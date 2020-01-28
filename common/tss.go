@@ -45,7 +45,7 @@ type TssCommon struct {
 	broadcastChannel    chan *p2p.BroadcastMsgChan
 	TssMsg              chan *p2p.Message
 	P2PPeers            []peer.ID //most of tss message are broadcast, we store the peers ID to avoid iterating
-	BlamePeers               Blame
+	BlamePeers          Blame
 }
 
 func NewTssCommon(peerID string, broadcastChannel chan *p2p.BroadcastMsgChan, conf TssConfig) *TssCommon {
@@ -61,7 +61,7 @@ func NewTssCommon(peerID string, broadcastChannel chan *p2p.BroadcastMsgChan, co
 		broadcastChannel:    broadcastChannel,
 		TssMsg:              make(chan *p2p.Message),
 		P2PPeers:            nil,
-		BlamePeers:               NewBlame(),
+		BlamePeers:          NewBlame(),
 	}
 }
 

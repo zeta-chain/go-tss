@@ -56,7 +56,7 @@ func (t *TssTestSuite) TestHttpTssReusePort(c *C) {
 	_, err = retryablehttp.Get("http://127.0.0.1:8081/ping")
 	c.Assert(err, IsNil)
 
-	tss2, err := NewTss(nil, 6661, "127.0.0.1:8080", ":8081", protocolID, []byte(testPriKey), "Asgard", "", conf)
+	tss2, err := NewTss(nil, 6661, "127.0.0.1:8080", ":8082", protocolID, []byte(testPriKey), "Asgard", "", conf)
 	ctx2, cancel2 := context.WithCancel(context.Background())
 	err = tss2.Start(ctx2)
 	c.Assert(err, ErrorMatches, "listen tcp 127.0.0.1:8080: bind: address already in use")

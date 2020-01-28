@@ -151,10 +151,14 @@ func (t *TssCommon) getBlamePubKeysNotInList(peers []string) ([]string, error) {
 	var partiesNotInList []string
 	// we convert nodes (NOT in the peers list) P2PID to public key
 	for partyID, p2pID := range t.PartyIDtoP2PID {
+		if t.partyInfo.Party.PartyID().Id == partyID {
+			continue
+		}
 		found := false
 		for _, each := range peers {
 			if p2pID.String() == each {
 				found = true
+				break
 			}
 		}
 		if found == false {
@@ -293,7 +297,5 @@ func NewBlame() Blame {
 
 func (b *Blame) SetBlame(reason string, nodes []string) {
 	b.FailReason = reason
-	if len(nodes) != 0 {
-		b.BlameNodes = append(b.BlameNodes, nodes...)
-	}
+	b.BlameNodes = append(b.BlameNodes, nodes...)
 }

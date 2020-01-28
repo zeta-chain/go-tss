@@ -30,7 +30,7 @@ func (t *TssTestSuite) TestSignMessage(c *C) {
 	sk, err := common.GetPriKey(testPriKey)
 	c.Assert(err, IsNil)
 	c.Assert(sk, NotNil)
-	keyGenInstance := NewTssKeyGen("", "", conf, sk, nil, nil, nil)
+	keyGenInstance := NewTssKeyGen("", "", conf, sk, nil, nil, nil, nil)
 	signatureData, err := keyGenInstance.GenerateNewKey(req)
 	c.Assert(err, NotNil)
 	c.Assert(signatureData, IsNil)

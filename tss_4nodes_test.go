@@ -249,31 +249,3 @@ func (t *TssTestSuite) TestHttpRedoKeyGen(c *C) {
 	//test key gen.
 	testKeyGen(c, partyNum)
 }
-
-func (t *TssTestSuite) TestTssProcessOutCh(c *C) {
-	sk, err := common.GetPriKey(testPriKey)
-	c.Assert(err, IsNil)
-	c.Assert(sk, NotNil)
-	conf := common.TssConfig{}
-	keySignInstance := keysign.NewTssKeySign("", "", conf, sk, nil, nil, nil)
-	localTestPubKeys := make([]string, len(testPubKeys))
-	copy(localTestPubKeys, testPubKeys[:])
-	partiesID, localPartyID, err := common.GetParties(localTestPubKeys, testPubKeys[0], true)
-	c.Assert(err, IsNil)
-	messageRouting := btss.MessageRouting{
-		From:                    localPartyID,
-		To:                      partiesID[3:],
-		IsBroadcast:             true,
-		IsToOldCommittee:        false,
-		IsToOldAndNewCommittees: false,
-	}
-	testFill := []byte("TEST")
-	testContent := &btsskeygen.KGRound1Message{
-		Commitment: testFill,
-	}
-	msg := btss.NewMessageWrapper(messageRouting, testContent)
-	tssMsg := btss.NewMessage(messageRouting, testContent, msg)
-	TssCommStruct := keySignInstance.GetTssCommonStruct()
-	err = TssCommStruct.ProcessOutCh(tssMsg, p2p.TSSKeyGenMsg)
-	c.Assert(err, IsNil)
-}
