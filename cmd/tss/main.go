@@ -66,7 +66,7 @@ func parseFlags(generalConf *common.GeneralConfig, tssConf *common.TssConfig, p2
 	flag.DurationVar(&tssConf.KeyGenTimeout, "gentimeout", 30*time.Second, "keygen timeout")
 	flag.DurationVar(&tssConf.KeySignTimeout, "signtimeout", 30*time.Second, "keysign timeout")
 	flag.DurationVar(&tssConf.SyncTimeout, "synctimeout", 5*time.Second, "node sync wait time")
-	flag.DurationVar(&tssConf.PreParamTimeout, "preparamtimeout", 5*time.Second, "pre-parameter generation timeout")
+	flag.DurationVar(&tssConf.PreParamTimeout, "preparamtimeout", 5*time.Minute, "pre-parameter generation timeout")
 	flag.IntVar(&tssConf.SyncRetry, "syncretry", 20, "retry of node sync")
 
 	//we setup the p2p network configuration
