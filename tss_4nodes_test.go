@@ -127,7 +127,13 @@ func setupNodeForTest(c *C, partyNum int) ([]context.Context, []*TssServer, []co
 }
 
 func sendTestRequest(c *C, url string, request []byte) []byte {
-	resp, err := http.Post(url, "application/json", bytes.NewBuffer(request))
+	var resp *http.Response
+	var err error
+	if len(request) == 0 {
+		resp, err = http.Get(url)
+	} else {
+		resp, err = http.Post(url, "application/json", bytes.NewBuffer(request))
+	}
 	c.Assert(err, IsNil)
 	body, err := ioutil.ReadAll(resp.Body)
 	c.Assert(err, IsNil)

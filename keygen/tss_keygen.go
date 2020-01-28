@@ -27,9 +27,10 @@ type TssKeyGen struct {
 	homeBase        string
 	syncMsg         chan *p2p.Message
 	localParty      *btss.PartyID
+	keygenCurrent   *string
 }
 
-func NewTssKeyGen(homeBase, localP2PID string, conf common.TssConfig, privKey cryptokey.PrivKey, broadcastChan chan *p2p.BroadcastMsgChan, stopChan *chan struct{}, preParam *bkeygen.LocalPreParams) TssKeyGen {
+func NewTssKeyGen(homeBase, localP2PID string, conf common.TssConfig, privKey cryptokey.PrivKey, broadcastChan chan *p2p.BroadcastMsgChan, stopChan *chan struct{}, preParam *bkeygen.LocalPreParams, keygenCurrent *string) TssKeyGen {
 	return TssKeyGen{
 		logger:          log.With().Str("module", "keyGen").Logger(),
 		priKey:          privKey,
@@ -39,6 +40,7 @@ func NewTssKeyGen(homeBase, localP2PID string, conf common.TssConfig, privKey cr
 		homeBase:        homeBase,
 		syncMsg:         make(chan *p2p.Message),
 		localParty:      nil,
+		keygenCurrent:   keygenCurrent,
 	}
 }
 
@@ -90,13 +92,17 @@ func (tKeyGen *TssKeyGen) GenerateNewKey(keygenReq KeyGenReq) (*crypto.ECPoint, 
 		PartyIDMap: partyIDMap,
 	})
 	tKeyGen.tssCommonStruct.P2PPeers = common.GetPeersID(tKeyGen.tssCommonStruct.PartyIDtoP2PID, tKeyGen.tssCommonStruct.GetLocalPeerID())
-	standbyNodes, err := tKeyGen.tssCommonStruct.NodeSync(tKeyGen.syncMsg, p2p.TSSKeyGenSync)
+	standbyPeers, err := tKeyGen.tssCommonStruct.NodeSync(tKeyGen.syncMsg, p2p.TSSKeyGenSync)
 	if err != nil {
 		tKeyGen.logger.Error().Err(err).Msg("node sync error")
-		if len(standbyNodes) != len(tKeyGen.tssCommonStruct.P2PPeers) {
-			tKeyGen.logger.Debug().Msgf("the nodes online are +%v", standbyNodes)
-			return nil, err
-			//todo find the nodes to be blamed in node sync
+		if err == common.ErrNodeSync {
+			tKeyGen.logger.Error().Err(err).Msgf("the nodes online are +%v", standbyPeers)
+			_, blamePubKeys, err := tKeyGen.tssCommonStruct.GetBlamePubKeysLists(standbyPeers)
+			if err != nil {
+				tKeyGen.logger.Error().Err(err).Msg("error in get blame node pubkey")
+				return nil, err
+			}
+			tKeyGen.tssCommonStruct.BlamePeers.SetBlame(common.BlameNodeSyncCheck, blamePubKeys)
 		}
 		return nil, err
 	}
@@ -110,20 +116,7 @@ func (tKeyGen *TssKeyGen) GenerateNewKey(keygenReq KeyGenReq) (*crypto.ECPoint, 
 	}()
 
 	r, err := tKeyGen.processKeyGen(errChan, outCh, endCh, keyGenLocalStateItem)
-	if nil != err {
-		tKeyGen.logger.Error().Err(err).Msg("fail to complete keygen")
-		tssErr, ok := err.(*btss.Error)
-		if ok {
-			for _, item := range tssErr.Culprits() {
-				tKeyGen.logger.Error().Err(err).Msgf("parties that caused this keygen failure: %s", item.Id)
-			}
-		}
-		for _, item := range keyGenParty.WaitingFor() {
-			tKeyGen.logger.Error().Err(err).Msgf("we are still waiting for %s", item.Id)
-		}
-		return nil, err
-	}
-	return r, nil
+	return r, err
 }
 
 func (tKeyGen *TssKeyGen) processKeyGen(errChan chan struct{}, outCh <-chan btss.Message, endCh <-chan bkeygen.LocalPartySaveData, keyGenLocalStateItem common.KeygenLocalStateItem) (*crypto.ECPoint, error) {
@@ -143,10 +136,24 @@ func (tKeyGen *TssKeyGen) processKeyGen(errChan chan struct{}, outCh <-chan btss
 
 		case <-time.After(tssConf.KeyGenTimeout):
 			// we bail out after KeyGenTimeoutSeconds
-			return nil, fmt.Errorf("fail to finish keyGen with in %d seconds", tssConf.KeyGenTimeout)
+
+			tKeyGen.logger.Error().Msgf("fail to sign message with %d seconds", tssConf.KeyGenTimeout)
+			tssCommonStruct := tKeyGen.GetTssCommonStruct()
+			localCachedItems := tssCommonStruct.TryGetAllLocalCached()
+			blamePeers, err := tssCommonStruct.TssTimeoutBlame(localCachedItems)
+			if err != nil {
+				tKeyGen.logger.Error().Err(err).Msg("fail to get the blamed peers")
+				tssCommonStruct.BlamePeers.SetBlame(common.BlameTssTimeout, nil)
+				return nil, fmt.Errorf("fail to get the blamed peers %w", common.ErrTssTimeOut)
+			}
+			tssCommonStruct.BlamePeers.SetBlame(common.BlameTssTimeout, blamePeers)
+			return nil, common.ErrTssTimeOut
 
 		case msg := <-outCh:
 			tKeyGen.logger.Debug().Msgf(">>>>>>>>>>msg: %s", msg.String())
+			// for the sake of performance, we do not lock the status update
+			// we report a rough status of current round
+			*tKeyGen.keygenCurrent = msg.Type()
 			err := tKeyGen.tssCommonStruct.ProcessOutCh(msg, p2p.TSSKeyGenMsg)
 			if nil != err {
 				return nil, err
@@ -159,10 +166,12 @@ func (tKeyGen *TssKeyGen) processKeyGen(errChan chan struct{}, outCh <-chan btss
 			var wrappedMsg p2p.WrappedMessage
 			if err := json.Unmarshal(m.Payload, &wrappedMsg); nil != err {
 				tKeyGen.logger.Error().Err(err).Msg("fail to unmarshal wrapped message bytes")
+				return nil, err
 			}
 			err := tKeyGen.tssCommonStruct.ProcessOneMessage(&wrappedMsg, m.PeerID.String())
 			if err != nil {
 				tKeyGen.logger.Error().Err(err).Msg("fail to process the received message")
+				return nil, err
 			}
 
 		case msg := <-endCh:

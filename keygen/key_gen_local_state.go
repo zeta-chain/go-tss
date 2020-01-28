@@ -23,6 +23,7 @@ type KeyGenResp struct {
 	PubKey      string        `json:"pub_key"`
 	PoolAddress string        `json:"pool_address"`
 	Status      common.Status `json:"status"`
+	Blame       common.Blame  `json:"Blame"`
 }
 
 func SaveLocalStateToFile(filePathName string, state common.KeygenLocalStateItem) error {

@@ -161,7 +161,7 @@ func (c *Communication) writeToStream(ai peer.AddrInfo, msg []byte) error {
 	buf := make([]byte, LengthHeader)
 	binary.LittleEndian.PutUint32(buf, uint32(length))
 	if err := stream.SetWriteDeadline(time.Now().Add(TimeoutReadWrite)); nil != err {
-		return fmt.Errorf("fail to set write deadline")
+		return errors.New("fail to set write deadline")
 	}
 	n, err := stream.Write(buf)
 	if nil != err {
@@ -172,7 +172,7 @@ func (c *Communication) writeToStream(ai peer.AddrInfo, msg []byte) error {
 		return fmt.Errorf("short write, we would like to write: %d, however we only write: %d", LengthHeader, n)
 	}
 	if err := stream.SetWriteDeadline(time.Now().Add(TimeoutReadWrite)); nil != err {
-		return fmt.Errorf("fail to set write deadline")
+		return errors.New("fail to set write deadline")
 	}
 	n, err = stream.Write(msg)
 	if nil != err {
@@ -360,6 +360,8 @@ func (c *Communication) Stop() error {
 	c.host.RemoveStreamHandler(c.protocolID)
 	c.host.Close()
 	close(c.stopChan)
+	c.host.RemoveStreamHandler(c.protocolID)
+	c.host.Close()
 	c.wg.Wait()
 	return nil
 }

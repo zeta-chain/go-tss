@@ -10,10 +10,12 @@ import (
 	"net/http"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/binance-chain/go-sdk/common/types"
 	bkeygen "github.com/binance-chain/tss-lib/ecdsa/keygen"
+	"github.com/binance-chain/tss-lib/ecdsa/signing"
 	btss "github.com/binance-chain/tss-lib/tss"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/gorilla/mux"
@@ -46,6 +48,7 @@ type PartyInfo struct {
 type TssServer struct {
 	conf             common.TssConfig
 	logger           zerolog.Logger
+	Status           common.TssStatus
 	tssHttpServer    *http.Server
 	infoHttpServer   *http.Server
 	p2pCommunication *p2p.Communication
@@ -64,6 +67,7 @@ func (t *TssServer) tssNewHandler(verbose bool) http.Handler {
 	router := mux.NewRouter()
 	router.Handle("/keygen", http.HandlerFunc(t.keygen)).Methods(http.MethodPost)
 	router.Handle("/keysign", http.HandlerFunc(t.keySign)).Methods(http.MethodPost)
+	router.Handle("/nodestatus", http.HandlerFunc(t.getNodeStatus)).Methods(http.MethodGet)
 	router.Use(logMiddleware(verbose))
 	return router
 }
@@ -120,15 +124,21 @@ func newTss(bootstrapPeers []maddr.Multiaddr, p2pPort int, tssAddr, infoAddr str
 		if len(optionalPreParams) > 0 {
 			preParams = &optionalPreParams[0]
 		} else {
-			preParams, err = bkeygen.GeneratePreParams(time.Minute * conf.PreParamTimeout)
+			preParams, err = bkeygen.GeneratePreParams(conf.PreParamTimeout)
 			if nil != err {
 				return nil, fmt.Errorf("fail to generate pre parameters: %w", err)
 			}
 		}
 	}
+	if preParams == nil && !ByPassGeneratePreParam {
+		return nil, errors.New("invalid ppreparams")
+	}
 	tssServer := TssServer{
-		conf:             conf,
-		logger:           log.With().Str("module", "tss").Logger(),
+		conf:   conf,
+		logger: log.With().Str("module", "tss").Logger(),
+		Status: common.TssStatus{
+			Starttime: time.Now(),
+		},
 		p2pCommunication: P2PServer,
 		priKey:           priKey,
 		preParams:        preParams,
@@ -208,6 +218,7 @@ func (t *TssServer) StartHttpServers() error {
 // Start Tss server
 func (t *TssServer) Start(ctx context.Context) error {
 	log.Info().Msg("Starting the HTTP servers")
+	t.Status.Starttime = time.Now()
 	t.wg.Add(1)
 	go func() {
 		<-ctx.Done()
@@ -276,6 +287,7 @@ func (t *TssServer) ping(w http.ResponseWriter, _ *http.Request) {
 func (t *TssServer) keygen(w http.ResponseWriter, r *http.Request) {
 	t.tssKeyGenLocker.Lock()
 	defer t.tssKeyGenLocker.Unlock()
+	status := common.Success
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
@@ -293,7 +305,7 @@ func (t *TssServer) keygen(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	keygenInstance := keygen.NewTssKeyGen(t.homeBase, t.p2pCommunication.GetLocalPeerID(), t.conf, t.priKey, t.p2pCommunication.BroadcastMsgChan, &t.stopChan, t.preParams)
+	keygenInstance := keygen.NewTssKeyGen(t.homeBase, t.p2pCommunication.GetLocalPeerID(), t.conf, t.priKey, t.p2pCommunication.BroadcastMsgChan, &t.stopChan, t.preParams, &t.Status.CurrKeyGen)
 	keygenMsgChannel, keygenSyncChannel := keygenInstance.GetTssKeyGenChannels()
 	t.p2pCommunication.SetSubscribe(p2p.TSSKeyGenMsg, keygenMsgChannel)
 	t.p2pCommunication.SetSubscribe(p2p.TSSKeyGenVerMsg, keygenMsgChannel)
@@ -302,17 +314,20 @@ func (t *TssServer) keygen(w http.ResponseWriter, r *http.Request) {
 	defer t.p2pCommunication.CancelSubscribe(p2p.TSSKeyGenVerMsg)
 	defer t.p2pCommunication.CancelSubscribe(p2p.TSSKeyGenSync)
 
+	// the statistic of keygen only care about Tss it self, even if the following http response aborts,
+	// it still counted as a successful keygen as the Tss model runs successfully.
 	k, err := keygenInstance.GenerateNewKey(keygenReq)
-	if nil != err {
-		t.logger.Error().Err(err).Msg("fail to generate new key")
-		w.WriteHeader(http.StatusInternalServerError)
-		return
+	if err != nil {
+		t.logger.Error().Err(err).Msg("err in keygen")
+		atomic.AddUint64(&t.Status.FailedKeyGen, 1)
+	} else {
+		atomic.AddUint64(&t.Status.SucKeyGen, 1)
 	}
+
 	newPubKey, addr, err := common.GetTssPubKey(k)
 	if nil != err {
-		t.logger.Error().Err(err).Msg("fail to bech32 acc pub key")
-		w.WriteHeader(http.StatusInternalServerError)
-		return
+		t.logger.Error().Err(err).Msg("fail to generate the new Tss key")
+		status = common.Fail
 	}
 	if os.Getenv("NET") == "testnet" || os.Getenv("NET") == "mocknet" {
 		types.Network = types.TestNetwork
@@ -320,7 +335,8 @@ func (t *TssServer) keygen(w http.ResponseWriter, r *http.Request) {
 	resp := keygen.KeyGenResp{
 		PubKey:      newPubKey,
 		PoolAddress: addr.String(),
-		Status:      common.Success,
+		Status:      status,
+		Blame:       keygenInstance.GetTssCommonStruct().BlamePeers,
 	}
 	buf, err := json.Marshal(resp)
 	if nil != err {
@@ -338,6 +354,8 @@ func (t *TssServer) keygen(w http.ResponseWriter, r *http.Request) {
 func (t *TssServer) keySign(w http.ResponseWriter, r *http.Request) {
 	t.tssKeySignLocker.Lock()
 	defer t.tssKeySignLocker.Unlock()
+	var keySignReq keysign.KeySignReq
+	keySignFlag := common.Success
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
@@ -349,14 +367,13 @@ func (t *TssServer) keySign(w http.ResponseWriter, r *http.Request) {
 	}()
 	t.logger.Info().Msg("receive key sign request")
 	decoder := json.NewDecoder(r.Body)
-	var keySignReq keysign.KeySignReq
 	if err := decoder.Decode(&keySignReq); nil != err {
 		t.logger.Error().Err(err).Msg("fail to decode key sign request")
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	keysignInstance := keysign.NewTssKeySign(t.homeBase, t.p2pCommunication.GetLocalPeerID(), t.conf, t.priKey, t.p2pCommunication.BroadcastMsgChan, &t.stopChan)
+	keysignInstance := keysign.NewTssKeySign(t.homeBase, t.p2pCommunication.GetLocalPeerID(), t.conf, t.priKey, t.p2pCommunication.BroadcastMsgChan, &t.stopChan, &t.Status.CurrKeySign)
 
 	keygenMsgChannel, keygenSyncChannel := keysignInstance.GetTssKeySignChannels()
 	t.p2pCommunication.SetSubscribe(p2p.TSSKeySignMsg, keygenMsgChannel)
@@ -367,21 +384,39 @@ func (t *TssServer) keySign(w http.ResponseWriter, r *http.Request) {
 	defer t.p2pCommunication.CancelSubscribe(p2p.TSSKeySignSync)
 
 	signatureData, err := keysignInstance.SignMessage(keySignReq)
-	if nil != err {
-		t.logger.Error().Err(err).Msg("fail to sign message")
-		w.WriteHeader(http.StatusInternalServerError)
+	// the statistic of keygen only care about Tss it self, even if the following http response aborts,
+	// it still counted as a successful keygen as the Tss model runs successfully.
+	if err != nil {
+		t.logger.Error().Err(err).Msg("err in keysign")
+		atomic.AddUint64(&t.Status.FailedKeySign, 1)
+		keySignFlag = common.Fail
+		signatureData = &signing.SignatureData{}
+	} else {
+		atomic.AddUint64(&t.Status.SucKeySign, 1)
+	}
+	// this indicates we are not in this round keysign
+	if signatureData == nil && err == nil {
+		keysignInstance.WriteKeySignResult(w, "", "", common.NA)
 		return
 	}
-	if nil == signatureData {
-		keysignInstance.WriteKeySignResult(w, "", "", common.NA)
-	} else {
-		keysignInstance.WriteKeySignResult(w, base64.StdEncoding.EncodeToString(signatureData.R), base64.StdEncoding.EncodeToString(signatureData.S), common.Success)
-	}
+	keysignInstance.WriteKeySignResult(w, base64.StdEncoding.EncodeToString(signatureData.R), base64.StdEncoding.EncodeToString(signatureData.S), keySignFlag)
 }
 
 func (t *TssServer) getP2pID(w http.ResponseWriter, _ *http.Request) {
 	localPeerID := t.p2pCommunication.GetLocalPeerID()
 	_, err := w.Write([]byte(localPeerID))
+	if nil != err {
+		t.logger.Error().Err(err).Msg("fail to write to response")
+	}
+}
+func (t *TssServer) getNodeStatus(w http.ResponseWriter, _ *http.Request) {
+	buf, err := json.Marshal(t.Status)
+	if nil != err {
+		t.logger.Error().Err(err).Msg("fail to marshal response to json")
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	_, err = w.Write(buf)
 	if nil != err {
 		t.logger.Error().Err(err).Msg("fail to write to response")
 	}

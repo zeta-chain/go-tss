@@ -27,11 +27,6 @@ import (
 	"gitlab.com/thorchain/tss/go-tss/p2p"
 )
 
-var (
-	ByPassGeneratePreParam = false
-	ErrHashFromOwner       = fmt.Errorf("msg from data owner")
-)
-
 // PartyInfo the information used by tss key gen and key sign
 type PartyInfo struct {
 	Party      btss.Party
@@ -50,6 +45,7 @@ type TssCommon struct {
 	broadcastChannel    chan *p2p.BroadcastMsgChan
 	TssMsg              chan *p2p.Message
 	P2PPeers            []peer.ID //most of tss message are broadcast, we store the peers ID to avoid iterating
+	BlamePeers          Blame
 }
 
 func NewTssCommon(peerID string, broadcastChannel chan *p2p.BroadcastMsgChan, conf TssConfig) *TssCommon {
@@ -65,6 +61,7 @@ func NewTssCommon(peerID string, broadcastChannel chan *p2p.BroadcastMsgChan, co
 		broadcastChannel:    broadcastChannel,
 		TssMsg:              make(chan *p2p.Message),
 		P2PPeers:            nil,
+		BlamePeers:          NewBlame(),
 	}
 }
 
@@ -115,7 +112,7 @@ func GetParties(keys []string, localPartyKey string, keygen bool) ([]*btss.Party
 		unSortedPartiesID = append(unSortedPartiesID, partyID)
 	}
 	if localPartyID == nil {
-		return nil, nil, fmt.Errorf("local party is not in the list")
+		return nil, nil, errors.New("local party is not in the list")
 	}
 
 	partiesID := btss.SortPartyIDs(unSortedPartiesID)
@@ -151,12 +148,13 @@ func (t *TssCommon) sendMsg(message p2p.WrappedMessage, peerIDs []peer.ID) {
 //signers sync function
 func (t *TssCommon) NodeSync(msgChan chan *p2p.Message, messageType p2p.THORChainTSSMessageType) ([]string, error) {
 	var err error
+	var standbyPeers []string
 	peersMap := make(map[string]bool)
 
 	peerIDs := t.P2PPeers
 	if len(peerIDs) == 0 {
 		t.logger.Error().Msg("fail to get any peer")
-		return nil, errors.New("fail to get any peer")
+		return standbyPeers, errors.New("fail to get any peer")
 	}
 	wrappedMsg := p2p.WrappedMessage{
 		MessageType: messageType,
@@ -199,17 +197,16 @@ func (t *TssCommon) NodeSync(msgChan chan *p2p.Message, messageType p2p.THORChai
 				}
 			case <-time.After(t.conf.SyncTimeout):
 				stopChan <- true
-				err = errors.New("error in sync timeout")
+				err = ErrNodeSync
 				return
 			}
 		}
 	}()
 	wg.Wait()
-	var peersList []string
 	for k := range peersMap {
-		peersList = append(peersList, k)
+		standbyPeers = append(standbyPeers, k)
 	}
-	return peersList, err
+	return standbyPeers, err
 }
 
 func getPeerIDFromPartyID(partyID *btss.PartyID) (peer.ID, error) {
@@ -238,6 +235,10 @@ func (t *TssCommon) getPartyInfo() *PartyInfo {
 
 func (t *TssCommon) GetLocalPeerID() string {
 	return t.localPeerID
+}
+
+func (t *TssCommon) SetLocalPeerID(peerID string) {
+	t.localPeerID = peerID
 }
 
 func BytesToHashString(msg []byte) (string, error) {
@@ -310,7 +311,7 @@ func (t *TssCommon) ProcessOneMessage(wrappedMsg *p2p.WrappedMessage, peerID str
 	case p2p.TSSKeyGenVerMsg, p2p.TSSKeySignVerMsg:
 		var bMsg p2p.BroadcastConfirmMessage
 		if err := json.Unmarshal(wrappedMsg.Payload, &bMsg); nil != err {
-			return fmt.Errorf("fail to unmarshal broadcast confirm message")
+			return errors.New("fail to unmarshal broadcast confirm message")
 		}
 		//we check whether this peer has already send us the VerMsg before update
 		ret := t.checkDupAndUpdateVerMsg(&bMsg, peerID)
@@ -318,17 +319,16 @@ func (t *TssCommon) ProcessOneMessage(wrappedMsg *p2p.WrappedMessage, peerID str
 			return t.processVerMsg(&bMsg)
 		}
 		return nil
-
 	}
 	return nil
 }
 
-func (t *TssCommon) hashCheck(localCacheItem *LocalCacheItem) (string, error) {
+func (t *TssCommon) hashCheck(localCacheItem *LocalCacheItem) error {
 	dataOwner := localCacheItem.Msg.Routing.From
 	dataOwnerP2PID, ok := t.PartyIDtoP2PID[dataOwner.Id]
 	if !ok {
 		t.logger.Warn().Msgf("error in find the data Owner P2PID\n")
-		return dataOwnerP2PID.String(), errors.New("error in find the data Owner P2PID")
+		return errors.New("error in find the data Owner P2PID")
 	}
 	localCacheItem.lock.Lock()
 	defer localCacheItem.lock.Unlock()
@@ -338,15 +338,15 @@ func (t *TssCommon) hashCheck(localCacheItem *LocalCacheItem) (string, error) {
 		if P2PID == dataOwnerP2PID.String() {
 			t.logger.Warn().Msgf("we detect that the data owner try to send the hash for his own message\n")
 			delete(localCacheItem.ConfirmedList, P2PID)
-			return "", ErrHashFromOwner
+			return ErrHashFromOwner
 		}
 		if targetHashValue == hashValue {
 			continue
 		}
 		t.logger.Error().Msgf("hash is not in consistency!!")
-		return P2PID, errors.New("hash is not in consistency")
+		return ErrHashFromPeer
 	}
-	return "", nil
+	return nil
 }
 
 func (t *TssCommon) ProcessOutCh(msg btss.Message, msgType p2p.THORChainTSSMessageType) error {
@@ -373,7 +373,7 @@ func (t *TssCommon) ProcessOutCh(msg btss.Message, msgType p2p.THORChainTSSMessa
 		peerIDs = t.P2PPeers
 		if len(peerIDs) == 0 {
 			t.logger.Error().Msg("fail to get any peer ids")
-			return fmt.Errorf("fail to get any peer id")
+			return errors.New("fail to get any peer id")
 		}
 
 	} else {
@@ -416,13 +416,25 @@ func (t *TssCommon) processVerMsg(broadcastConfirmMsg *p2p.BroadcastConfirmMessa
 	localCacheItem.UpdateConfirmList(broadcastConfirmMsg.P2PID, broadcastConfirmMsg.Hash)
 	t.logger.Debug().Msgf("total confirmed parties:%+v", localCacheItem.ConfirmedList)
 	if localCacheItem.TotalConfirmParty() == (len(partyInfo.PartyIDMap)-1) && localCacheItem.Msg != nil {
-		msg, err := t.hashCheck(localCacheItem)
-		if nil != err {
-			if err == ErrHashFromOwner {
-				return nil
+		errHashCheck := t.hashCheck(localCacheItem)
+
+		if errHashCheck != nil {
+			blamePeers, err := t.getHashCheckBlamePeers(localCacheItem, errHashCheck)
+			if err != nil {
+				t.logger.Error().Err(err).Msgf("error in get the blame nodes")
+				t.BlamePeers.SetBlame(BlameHashCheck, nil)
+				return fmt.Errorf("error in getting the blame nodes %w", errHashCheck)
 			}
-			t.logger.Error().Msgf("The consistency check fail of node %s\n", msg)
-			return err
+			blamePubKeys, _, err := t.GetBlamePubKeysLists(blamePeers)
+			if err != nil {
+				t.logger.Error().Err(err).Msg("fail to get the blame nodes public key")
+
+				t.BlamePeers.SetBlame(BlameHashCheck, nil)
+				return fmt.Errorf("fail to get the blame nodes public key %w", errHashCheck)
+			}
+			t.BlamePeers.SetBlame(BlameHashCheck, blamePubKeys)
+			t.logger.Error().Msg("The consistency check failed")
+			return errHashCheck
 		}
 
 		if err := t.updateLocal(localCacheItem.Msg); nil != err {
@@ -485,7 +497,7 @@ func (t *TssCommon) processTSSMsg(wireMsg *p2p.WireMessage, msgType p2p.THORChai
 	peerIDs := t.P2PPeers
 	if len(peerIDs) == 0 {
 		t.logger.Error().Err(err).Msg("fail to get any peer ID")
-		return fmt.Errorf("fail to get any peer ID")
+		return errors.New("fail to get any peer ID")
 	}
 
 	p2prappedMSg := p2p.WrappedMessage{
@@ -521,6 +533,16 @@ func (t *TssCommon) TryGetLocalCacheItem(key string) *LocalCacheItem {
 	return localCacheItem
 }
 
+func (t *TssCommon) TryGetAllLocalCached() []*LocalCacheItem {
+	var localCachedItems []*LocalCacheItem
+	t.unConfirmedMsgLock.Lock()
+	defer t.unConfirmedMsgLock.Unlock()
+	for _, value := range t.unConfirmedMessages {
+		localCachedItems = append(localCachedItems, value)
+	}
+	return localCachedItems
+}
+
 func (t *TssCommon) updateLocalUnconfirmedMessages(key string, cacheItem *LocalCacheItem) {
 	t.unConfirmedMsgLock.Lock()
 	defer t.unConfirmedMsgLock.Unlock()
@@ -534,6 +556,9 @@ func (t *TssCommon) removeKey(key string) {
 }
 
 func GetTssPubKey(pubKeyPoint *crypto.ECPoint) (string, types.AccAddress, error) {
+	if pubKeyPoint == nil {
+		return "", types.AccAddress{}, errors.New("invalid points")
+	}
 	tssPubKey := btcec.PublicKey{
 		Curve: btcec.S256(),
 		X:     pubKeyPoint.X(),

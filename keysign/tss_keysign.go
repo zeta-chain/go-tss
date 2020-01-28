@@ -27,9 +27,10 @@ type TssKeySign struct {
 	homeBase        string
 	syncMsg         chan *p2p.Message
 	localParty      *btss.PartyID
+	keySignCurrent  *string
 }
 
-func NewTssKeySign(homeBase, localP2PID string, conf common.TssConfig, privKey cryptokey.PrivKey, broadcastChan chan *p2p.BroadcastMsgChan, stopChan *chan struct{}) TssKeySign {
+func NewTssKeySign(homeBase, localP2PID string, conf common.TssConfig, privKey cryptokey.PrivKey, broadcastChan chan *p2p.BroadcastMsgChan, stopChan *chan struct{}, keySignCurrent *string) TssKeySign {
 	return TssKeySign{
 		logger:          log.With().Str("module", "keySign").Logger(),
 		priKey:          privKey,
@@ -38,6 +39,7 @@ func NewTssKeySign(homeBase, localP2PID string, conf common.TssConfig, privKey c
 		homeBase:        homeBase,
 		syncMsg:         make(chan *p2p.Message),
 		localParty:      nil,
+		keySignCurrent:  keySignCurrent,
 	}
 }
 
@@ -52,7 +54,7 @@ func (tKeySign *TssKeySign) GetTssCommonStruct() *common.TssCommon {
 // signMessage
 func (tKeySign *TssKeySign) SignMessage(req KeySignReq) (*signing.SignatureData, error) {
 	if len(req.PoolPubKey) == 0 {
-		return nil, fmt.Errorf("empty pool pub key")
+		return nil, errors.New("empty pool pub key")
 	}
 	localFileName := fmt.Sprintf("localstate-%s.json", req.PoolPubKey)
 	if len(tKeySign.homeBase) > 0 {
@@ -72,6 +74,7 @@ func (tKeySign *TssKeySign) SignMessage(req KeySignReq) (*signing.SignatureData,
 	}
 	tKeySign.logger.Debug().Msgf("keysign threshold: %d", threshold)
 	partiesID, localPartyID, err := common.GetParties(storedKeyGenLocalStateItem.ParticipantKeys, storedKeyGenLocalStateItem.LocalPartyKey, false)
+	tKeySign.localParty = localPartyID
 	if nil != err {
 		return nil, fmt.Errorf("fail to form key sign party: %w", err)
 	}
@@ -108,17 +111,20 @@ func (tKeySign *TssKeySign) SignMessage(req KeySignReq) (*signing.SignatureData,
 	})
 
 	tKeySign.tssCommonStruct.P2PPeers = common.GetPeersID(tKeySign.tssCommonStruct.PartyIDtoP2PID, tKeySign.tssCommonStruct.GetLocalPeerID())
-	standbyNodes, err := tKeySign.tssCommonStruct.NodeSync(tKeySign.syncMsg, p2p.TSSKeySignSync)
+	standbyPeers, err := tKeySign.tssCommonStruct.NodeSync(tKeySign.syncMsg, p2p.TSSKeySignSync)
 	if err != nil {
 		tKeySign.logger.Error().Err(err).Msg("node sync error")
-		if len(standbyNodes) != len(tKeySign.tssCommonStruct.P2PPeers) {
-			tKeySign.logger.Debug().Msgf("the nodes online are +%v", standbyNodes)
-			return nil, err
-			//todo find the nodes to be blamed in node sync
+		if err == common.ErrNodeSync {
+			tKeySign.logger.Error().Err(err).Msgf("the nodes online are +%v", standbyPeers)
+			_, blamePubKeys, err := tKeySign.tssCommonStruct.GetBlamePubKeysLists(standbyPeers)
+			if err != nil {
+				tKeySign.logger.Error().Err(err).Msg("error in get blame node pubkey")
+				return nil, err
+			}
+			tKeySign.tssCommonStruct.BlamePeers.SetBlame(common.BlameNodeSyncCheck, blamePubKeys)
 		}
 		return nil, err
 	}
-
 	//start the key sign
 	go func() {
 		if err := keySignParty.Start(); nil != err {
@@ -152,9 +158,22 @@ func (tKeySign *TssKeySign) processKeySign(errChan chan struct{}, outCh <-chan b
 			return nil, errors.New("received exit signal")
 		case <-time.After(tssConf.KeySignTimeout):
 			// we bail out after KeySignTimeoutSeconds
-			return nil, fmt.Errorf("fail to sign message with in %d seconds", tssConf.KeySignTimeout)
+			tKeySign.logger.Error().Msgf("fail to sign message with %d seconds", tssConf.KeySignTimeout)
+			tssCommonStruct := tKeySign.GetTssCommonStruct()
+			localCachedItems := tssCommonStruct.TryGetAllLocalCached()
+			blamePeers, err := tssCommonStruct.TssTimeoutBlame(localCachedItems)
+			if err != nil {
+				tKeySign.logger.Error().Err(err).Msg("fail to get the blamed peers")
+				tssCommonStruct.BlamePeers.SetBlame(common.BlameTssTimeout, nil)
+				return nil, fmt.Errorf("fail to get the blamed peers %w", common.ErrTssTimeOut)
+			}
+			tssCommonStruct.BlamePeers.SetBlame(common.BlameTssTimeout, blamePeers)
+			return nil, common.ErrTssTimeOut
 		case msg := <-outCh:
 			tKeySign.logger.Debug().Msgf(">>>>>>>>>>key sign msg: %s", msg.String())
+			// for the sake of performance, we do not lock the status update
+			// we report a rough status of current round
+			*tKeySign.keySignCurrent = msg.Type()
 			err := tKeySign.tssCommonStruct.ProcessOutCh(msg, p2p.TSSKeySignMsg)
 			if nil != err {
 				return nil, err
@@ -166,11 +185,12 @@ func (tKeySign *TssKeySign) processKeySign(errChan chan struct{}, outCh <-chan b
 			var wrappedMsg p2p.WrappedMessage
 			if err := json.Unmarshal(m.Payload, &wrappedMsg); nil != err {
 				tKeySign.logger.Error().Err(err).Msg("fail to unmarshal wrapped message bytes")
-				continue
+				return nil, err
 			}
 			err := tKeySign.tssCommonStruct.ProcessOneMessage(&wrappedMsg, m.PeerID.String())
 			if err != nil {
 				tKeySign.logger.Error().Err(err).Msg("failed to process the received message")
+				return nil, err
 			}
 		case msg := <-endCh:
 			tKeySign.logger.Debug().Msg("we have done the key sign")
@@ -180,10 +200,14 @@ func (tKeySign *TssKeySign) processKeySign(errChan chan struct{}, outCh <-chan b
 }
 
 func (tKeySign *TssKeySign) WriteKeySignResult(w http.ResponseWriter, R, S string, status common.Status) {
+
+	//blame := common.NewBlame()
+	//blame.SetBlame(tKeySign.tssCommonStruct.Blame.FailReason, tKeySign.tssCommonStruct.Blame.BlameNodes)
 	signResp := KeySignResp{
 		R:      R,
 		S:      S,
 		Status: status,
+		Blame:  tKeySign.tssCommonStruct.BlamePeers,
 	}
 	jsonResult, err := json.MarshalIndent(signResp, "", "	")
 	if nil != err {
