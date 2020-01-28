@@ -150,7 +150,7 @@ func (tKeySign *TssKeySign) processKeySign(errChan chan struct{}, outCh <-chan b
 			return nil, errors.New("error channel closed fail to start local party")
 		case <-*tKeySign.stopChan: // when TSS processor receive signal to quit
 			return nil, errors.New("received exit signal")
-		case <-time.After(time.Second * tssConf.KeySignTimeout):
+		case <-time.After(tssConf.KeySignTimeout):
 			// we bail out after KeySignTimeoutSeconds
 			return nil, fmt.Errorf("fail to sign message with in %d seconds", tssConf.KeySignTimeout)
 		case msg := <-outCh:

@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/cosmos/cosmos-sdk/client/input"
 	golog "github.com/ipfs/go-log"
@@ -62,10 +63,10 @@ func parseFlags(generalConf *common.GeneralConfig, tssConf *common.TssConfig, p2
 	flag.StringVar(&generalConf.BaseFolder, "home", "", "home folder to store the keygen state file")
 
 	//we setup the Tss parameter configuration
-	flag.DurationVar(&tssConf.KeyGenTimeout, "gentimeout", 30, "keygen timeout (second)")
-	flag.DurationVar(&tssConf.KeySignTimeout, "signtimeout", 30, "keysign timeout (second)")
-	flag.DurationVar(&tssConf.SyncTimeout, "synctimeout", 5, "node sync wait time (second)")
-	flag.DurationVar(&tssConf.PreParamTimeout, "preparamtimeout", 5, "pre-parameter generation timeout")
+	flag.DurationVar(&tssConf.KeyGenTimeout, "gentimeout", 30*time.Second, "keygen timeout")
+	flag.DurationVar(&tssConf.KeySignTimeout, "signtimeout", 30*time.Second, "keysign timeout")
+	flag.DurationVar(&tssConf.SyncTimeout, "synctimeout", 5*time.Second, "node sync wait time")
+	flag.DurationVar(&tssConf.PreParamTimeout, "preparamtimeout", 5*time.Second, "pre-parameter generation timeout")
 	flag.IntVar(&tssConf.SyncRetry, "syncretry", 20, "retry of node sync")
 
 	//we setup the p2p network configuration

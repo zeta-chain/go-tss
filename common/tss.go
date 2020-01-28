@@ -152,7 +152,6 @@ func (t *TssCommon) sendMsg(message p2p.WrappedMessage, peerIDs []peer.ID) {
 func (t *TssCommon) NodeSync(msgChan chan *p2p.Message, messageType p2p.THORChainTSSMessageType) ([]string, error) {
 	var err error
 	peersMap := make(map[string]bool)
-	conf := t.GetConf()
 
 	peerIDs := t.P2PPeers
 	if len(peerIDs) == 0 {
@@ -178,7 +177,7 @@ func (t *TssCommon) NodeSync(msgChan chan *p2p.Message, messageType p2p.THORChai
 				t.sendMsg(wrappedMsg, t.P2PPeers)
 				i += 1
 			}
-			if i > conf.SyncRetry {
+			if i > t.conf.SyncRetry {
 				err = errors.New("too many errors in retry")
 				return
 			}
@@ -198,7 +197,7 @@ func (t *TssCommon) NodeSync(msgChan chan *p2p.Message, messageType p2p.THORChai
 					t.sendMsg(wrappedMsg, peerIDs)
 					return
 				}
-			case <-time.After(time.Second * conf.SyncTimeout):
+			case <-time.After(t.conf.SyncTimeout):
 				stopChan <- true
 				err = errors.New("error in sync timeout")
 				return
