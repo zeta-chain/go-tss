@@ -182,7 +182,7 @@ func (tKeyGen *TssKeyGen) processKeyGen(errChan chan struct{}, outCh <-chan btss
 					tKeyGen.logger.Error().Err(err).Msg("fail to process the received message")
 					return nil, err
 				}
-			case <-time.After(30 * time.Second):
+			case <-time.After(tKeyGen.tssCommonStruct.GetConf().KeyGenTimeout):
 				err := errors.New("timeout")
 				tKeyGen.logger.Error().Err(err).Msg("fail to process the received message")
 			}

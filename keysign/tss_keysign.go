@@ -202,7 +202,7 @@ func (tKeySign *TssKeySign) processKeySign(errChan chan struct{}, outCh <-chan b
 					tKeySign.logger.Error().Err(err).Msg("fail to process the received message")
 					return nil, err
 				}
-			case <-time.After(30 * time.Second):
+			case <-time.After(tKeySign.tssCommonStruct.GetConf().KeySignTimeout):
 				err := errors.New("timeout")
 				tKeySign.logger.Error().Err(err).Msg("fail to process the received message")
 			}
