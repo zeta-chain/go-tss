@@ -85,8 +85,6 @@ func NewTssHttpServer(tssAddr string, t *TssServer) *http.Server {
 	server := &http.Server{
 		Addr:         tssAddr,
 		Handler:      t.tssNewHandler(true),
-		ReadTimeout:  time.Second * 10,
-		WriteTimeout: time.Second * 10,
 	}
 	return server
 }
