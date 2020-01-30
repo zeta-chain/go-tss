@@ -168,10 +168,23 @@ func (tKeyGen *TssKeyGen) processKeyGen(errChan chan struct{}, outCh <-chan btss
 				tKeyGen.logger.Error().Err(err).Msg("fail to unmarshal wrapped message bytes")
 				return nil, err
 			}
-			err := tKeyGen.tssCommonStruct.ProcessOneMessage(&wrappedMsg, m.PeerID.String())
-			if err != nil {
+
+			// create timeout func so we can ensure TSS doesn't get locked up and frozen
+			errChan := make(chan error, 1)
+			go func() {
+				err := tKeyGen.tssCommonStruct.ProcessOneMessage(&wrappedMsg, m.PeerID.String())
+				errChan <- err
+			}()
+
+			select {
+			case err := <-errChan:
+				if err != nil {
+					tKeyGen.logger.Error().Err(err).Msg("fail to process the received message")
+					return nil, err
+				}
+			case <-time.After(tKeyGen.tssCommonStruct.GetConf().KeyGenTimeout):
+				err := errors.New("timeout")
 				tKeyGen.logger.Error().Err(err).Msg("fail to process the received message")
-				return nil, err
 			}
 
 		case msg := <-endCh:

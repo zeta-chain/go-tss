@@ -145,6 +145,7 @@ func (tKeySign *TssKeySign) SignMessage(req KeySignReq) (*signing.SignatureData,
 	tKeySign.logger.Info().Msg("successfully sign the message")
 	return result, nil
 }
+
 func (tKeySign *TssKeySign) processKeySign(errChan chan struct{}, outCh <-chan btss.Message, endCh <-chan signing.SignatureData) (*signing.SignatureData, error) {
 	defer tKeySign.logger.Info().Msg("key sign finished")
 	tKeySign.logger.Info().Msg("start to read messages from local party")
@@ -187,11 +188,25 @@ func (tKeySign *TssKeySign) processKeySign(errChan chan struct{}, outCh <-chan b
 				tKeySign.logger.Error().Err(err).Msg("fail to unmarshal wrapped message bytes")
 				return nil, err
 			}
-			err := tKeySign.tssCommonStruct.ProcessOneMessage(&wrappedMsg, m.PeerID.String())
-			if err != nil {
-				tKeySign.logger.Error().Err(err).Msg("failed to process the received message")
-				return nil, err
+
+			// create timeout func so we can ensure TSS doesn't get locked up and frozen
+			errChan := make(chan error, 1)
+			go func() {
+				err := tKeySign.tssCommonStruct.ProcessOneMessage(&wrappedMsg, m.PeerID.String())
+				errChan <- err
+			}()
+
+			select {
+			case err := <-errChan:
+				if err != nil {
+					tKeySign.logger.Error().Err(err).Msg("fail to process the received message")
+					return nil, err
+				}
+			case <-time.After(tKeySign.tssCommonStruct.GetConf().KeySignTimeout):
+				err := errors.New("timeout")
+				tKeySign.logger.Error().Err(err).Msg("fail to process the received message")
 			}
+
 		case msg := <-endCh:
 			tKeySign.logger.Debug().Msg("we have done the key sign")
 			return &msg, nil
