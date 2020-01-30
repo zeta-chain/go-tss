@@ -31,7 +31,7 @@ var testBlamePubKeys = []string{"thorpub1addwnpepqtr5p8tllhp4xaxmu77zhqen24pmrdl
 var testBlamePrivKey = "OWU2YTk1NzdlOTA5NTAxZmI4YjUyODYyMmZkYzBjNzJlMTQ5YTI2YWY5NzkzYTc0MjA3MDBkMWQzMzFiMDNhZg=="
 
 func (t *BlameTestSuite) SetUpSuite(c *C) {
-	common.InitLog("info", true)
+	common.InitLog("info", true, "blame_test")
 }
 
 type TestParties struct {

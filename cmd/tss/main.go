@@ -30,7 +30,7 @@ func main() {
 		flag.PrintDefaults()
 		return
 	}
-	common.InitLog(generalConf.LogLevel, generalConf.Pretty)
+	common.InitLog(generalConf.LogLevel, generalConf.Pretty, "tss_service")
 	inBuf := bufio.NewReader(os.Stdin)
 	priKeyBytes, err := input.GetPassword("input node secret key:", inBuf)
 	if err != nil {
