@@ -159,7 +159,7 @@ func (tKeySign *TssKeySign) processKeySign(errChan chan struct{}, outCh <-chan b
 			return nil, errors.New("received exit signal")
 		case <-time.After(tssConf.KeySignTimeout):
 			// we bail out after KeySignTimeoutSeconds
-			tKeySign.logger.Error().Msgf("fail to sign message with %d seconds", tssConf.KeySignTimeout)
+			tKeySign.logger.Error().Msgf("fail to sign message with %s", tssConf.KeySignTimeout.String())
 			tssCommonStruct := tKeySign.GetTssCommonStruct()
 			localCachedItems := tssCommonStruct.TryGetAllLocalCached()
 			blamePeers, err := tssCommonStruct.TssTimeoutBlame(localCachedItems)

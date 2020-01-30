@@ -63,17 +63,17 @@ func blameCheck(c *C, blames []string, targets []int) {
 	c.Assert(blames, DeepEquals, targetBlamePeers)
 }
 
-func blameInclude(c *C, blames []string, targets []int){
+func blameInclude(c *C, blames []string, targets []int) {
 
 	var targetBlamePeers []string
 	for _, each := range targets {
 		targetBlamePeers = append(targetBlamePeers, testPubKeys[each])
 	}
 	blameDic := make(map[string]bool)
-	for _, each := range blames{
-		blameDic[each]= true
+	for _, each := range blames {
+		blameDic[each] = true
 	}
-	for _, each := range targetBlamePeers{
+	for _, each := range targetBlamePeers {
 		_, ok := blameDic[each]
 		c.Assert(ok, Equals, true)
 	}

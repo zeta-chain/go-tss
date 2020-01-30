@@ -208,7 +208,6 @@ func (c *Communication) readFromStream(stream network.Stream) {
 			n, err := stream.Read(length)
 			if err != nil {
 				if errors.Is(err, io.EOF) {
-					c.logger.Error().Err(err).Msg("the stream cannot be read")
 					return
 				}
 				c.logger.Error().Err(err).Msgf("fail to read from header from stream,peerID: %s", peerID)
