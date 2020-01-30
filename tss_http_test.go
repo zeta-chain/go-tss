@@ -25,7 +25,7 @@ type TssTestSuite struct{}
 var _ = Suite(&TssTestSuite{})
 
 func (t *TssTestSuite) SetUpSuite(c *C) {
-	common.InitLog("info", true)
+	common.InitLog("info", true, "tss_http_test")
 }
 
 func setupTssForTest(c *C) *TssServer {

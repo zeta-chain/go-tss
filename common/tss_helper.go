@@ -93,7 +93,7 @@ func hashToInt(hash []byte, c elliptic.Curve) *big.Int {
 	return ret
 }
 
-func InitLog(level string, pretty bool) {
+func InitLog(level string, pretty bool, serviceValue string) {
 	l, err := zerolog.ParseLevel(level)
 	if err != nil {
 		log.Warn().Msgf("%s is not a valid log-level, falling back to 'info'", level)
@@ -103,7 +103,7 @@ func InitLog(level string, pretty bool) {
 		out = zerolog.ConsoleWriter{Out: os.Stdout}
 	}
 	zerolog.SetGlobalLevel(l)
-	log.Logger = log.Output(out).With().Str("service", "go-tss-test").Logger()
+	log.Logger = log.Output(out).With().Str("service", serviceValue).Logger()
 }
 
 func AccPubKeysFromPartyIDs(partyIDs []string, partyIDMap map[string]*btss.PartyID) ([]string, error) {
