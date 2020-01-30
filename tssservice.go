@@ -83,8 +83,8 @@ func (t *TssServer) infoHandler(verbose bool) http.Handler {
 // Tssport should only listen to the loopback
 func NewTssHttpServer(tssAddr string, t *TssServer) *http.Server {
 	server := &http.Server{
-		Addr:         tssAddr,
-		Handler:      t.tssNewHandler(true),
+		Addr:    tssAddr,
+		Handler: t.tssNewHandler(true),
 	}
 	return server
 }

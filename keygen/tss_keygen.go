@@ -137,7 +137,7 @@ func (tKeyGen *TssKeyGen) processKeyGen(errChan chan struct{}, outCh <-chan btss
 		case <-time.After(tssConf.KeyGenTimeout):
 			// we bail out after KeyGenTimeoutSeconds
 
-			tKeyGen.logger.Error().Msgf("fail to sign message with %d seconds", tssConf.KeyGenTimeout)
+			tKeyGen.logger.Error().Msgf("fail to generate message with %s", tssConf.KeyGenTimeout.String())
 			tssCommonStruct := tKeyGen.GetTssCommonStruct()
 			localCachedItems := tssCommonStruct.TryGetAllLocalCached()
 			blamePeers, err := tssCommonStruct.TssTimeoutBlame(localCachedItems)
