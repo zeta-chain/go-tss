@@ -15,5 +15,5 @@ type KeySignResp struct {
 	R      string        `json:"r"`
 	S      string        `json:"s"`
 	Status common.Status `json:"status"`
-	Blame  common.Blame  `json:"Blame"`
+	Blame  common.Blame  `json:"blame"`
 }
