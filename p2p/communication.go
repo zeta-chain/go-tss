@@ -241,7 +241,7 @@ func (c *Communication) readFromStream(stream network.Stream) {
 				c.logger.Error().Err(err).Msg("fail to unmarshal wrapped message bytes")
 				continue
 			}
-			c.logger.Debug().Msgf(">>>>>>>%v", wrappedMsg)
+			c.logger.Debug().Msgf(">>>>>>>[%s] %s", wrappedMsg.MessageType, string(wrappedMsg.Payload))
 			channel, ok := c.subscribers[wrappedMsg.MessageType]
 			if !ok {
 				c.logger.Info().Msgf("no subscriber %s found for this message", wrappedMsg.MessageType.String())
@@ -255,6 +255,7 @@ func (c *Communication) readFromStream(stream network.Stream) {
 		}
 	}
 }
+
 func (c *Communication) handleStream(stream network.Stream) {
 	peerID := stream.Conn().RemotePeer().String()
 	c.logger.Debug().Msgf("handle stream from peer: %s", peerID)
