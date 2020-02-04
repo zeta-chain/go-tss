@@ -62,7 +62,7 @@ func GetPeersID(partyIDtoP2PID map[string]peer.ID, localPeerID string) []peer.ID
 func SetupIDMaps(parties map[string]*btss.PartyID, partyIDtoP2PID map[string]peer.ID) error {
 	for id, party := range parties {
 		peerID, err := getPeerIDFromPartyID(party)
-		if nil != err {
+		if err != nil {
 			return err
 		}
 		partyIDtoP2PID[id] = peerID
@@ -73,7 +73,7 @@ func SetupIDMaps(parties map[string]*btss.PartyID, partyIDtoP2PID map[string]pee
 func MsgToHashInt(msg []byte) (*big.Int, error) {
 	h := sha256.New()
 	_, err := h.Write(msg)
-	if nil != err {
+	if err != nil {
 		return nil, fmt.Errorf("fail to caculate sha256 hash: %w", err)
 	}
 	return hashToInt(h.Sum(nil), btcec.S256()), nil
@@ -82,7 +82,7 @@ func MsgToHashInt(msg []byte) (*big.Int, error) {
 func MsgToHashString(msg []byte) (string, error) {
 	h := sha256.New()
 	_, err := h.Write(msg)
-	if nil != err {
+	if err != nil {
 		return "", fmt.Errorf("fail to caculate sha256 hash: %w", err)
 	}
 	return hex.EncodeToString(h.Sum(nil)), nil

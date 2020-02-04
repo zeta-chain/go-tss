@@ -110,7 +110,7 @@ func newTss(bootstrapPeers []maddr.Multiaddr, p2pPort int, tssAddr, infoAddr str
 		return nil, errors.New("cannot parse the private key")
 	}
 	P2PServer, err := p2p.NewCommunication(rendezvous, bootstrapPeers, p2pPort, protocolID)
-	if nil != err {
+	if err != nil {
 		return nil, fmt.Errorf("fail to create communication layer: %w", err)
 	}
 	setupBech32Prefix()
@@ -122,7 +122,7 @@ func newTss(bootstrapPeers []maddr.Multiaddr, p2pPort int, tssAddr, infoAddr str
 			preParams = &optionalPreParams[0]
 		} else {
 			preParams, err = bkeygen.GeneratePreParams(conf.PreParamTimeout)
-			if nil != err {
+			if err != nil {
 				return nil, fmt.Errorf("fail to generate pre parameters: %w", err)
 			}
 		}
@@ -227,7 +227,7 @@ func (t *TssServer) Start(ctx context.Context) error {
 	}()
 
 	prikeyBytes, err := getPriKeyRawBytes(t.priKey)
-	if nil != err {
+	if err != nil {
 		return err
 	}
 
@@ -253,11 +253,11 @@ func setupBech32Prefix() {
 
 func getPriKey(priKeyString string) (cryptokey.PrivKey, error) {
 	priHexBytes, err := base64.StdEncoding.DecodeString(priKeyString)
-	if nil != err {
+	if err != nil {
 		return nil, fmt.Errorf("fail to decode private key: %w", err)
 	}
 	rawBytes, err := hex.DecodeString(string(priHexBytes))
-	if nil != err {
+	if err != nil {
 		return nil, fmt.Errorf("fail to hex decode private key: %w", err)
 	}
 	var keyBytesArray [32]byte
@@ -358,7 +358,7 @@ func (t *TssServer) keygen(w http.ResponseWriter, r *http.Request) {
 	}
 
 	newPubKey, addr, err := common.GetTssPubKey(k)
-	if nil != err {
+	if err != nil {
 		t.logger.Error().Err(err).Msg("fail to generate the new Tss key")
 		status = common.Fail
 	}
@@ -372,13 +372,13 @@ func (t *TssServer) keygen(w http.ResponseWriter, r *http.Request) {
 		Blame:       keygenInstance.GetTssCommonStruct().BlamePeers,
 	}
 	buf, err := json.Marshal(resp)
-	if nil != err {
+	if err != nil {
 		t.logger.Error().Err(err).Msg("fail to marshal response to json")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	_, err = w.Write(buf)
-	if nil != err {
+	if err != nil {
 		t.logger.Error().Err(err).Msg("fail to write to response")
 	}
 }
@@ -442,20 +442,20 @@ func (t *TssServer) keySign(w http.ResponseWriter, r *http.Request) {
 func (t *TssServer) getP2pID(w http.ResponseWriter, _ *http.Request) {
 	localPeerID := t.p2pCommunication.GetLocalPeerID()
 	_, err := w.Write([]byte(localPeerID))
-	if nil != err {
+	if err != nil {
 		t.logger.Error().Err(err).Msg("fail to write to response")
 	}
 }
 
 func (t *TssServer) getNodeStatus(w http.ResponseWriter, _ *http.Request) {
 	buf, err := json.Marshal(t.Status)
-	if nil != err {
+	if err != nil {
 		t.logger.Error().Err(err).Msg("fail to marshal response to json")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	_, err = w.Write(buf)
-	if nil != err {
+	if err != nil {
 		t.logger.Error().Err(err).Msg("fail to write to response")
 	}
 }

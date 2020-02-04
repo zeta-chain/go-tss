@@ -16,7 +16,7 @@ test:
 	@go test ./...
 
 test-watch: clear
-	@./scripts/watch.bash
+	@gow -c test -tags testnet -mod=readonly ./...
 
 lint-pre:
 	@test -z $(gofumpt -l .) # checks code is in proper format

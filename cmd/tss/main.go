@@ -43,7 +43,7 @@ func main() {
 	}
 	protocolID := protocol.ConvertFromStrings([]string{p2pConf.ProtocolID})[0]
 	tss, err := tss.NewTss(p2pConf.BootstrapPeers, p2pConf.Port, generalConf.TssAddr, generalConf.InfoAddr, protocolID, []byte(priKeyBytes), p2pConf.RendezvousString, generalConf.BaseFolder, tssConf)
-	if nil != err {
+	if err != nil {
 		panic(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())

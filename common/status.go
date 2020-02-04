@@ -34,7 +34,7 @@ func LoadLocalState(filePathName string) (KeygenLocalStateItem, error) {
 	}
 
 	buf, err := ioutil.ReadFile(filePathName)
-	if nil != err {
+	if err != nil {
 		return KeygenLocalStateItem{}, fmt.Errorf("file to read from file(%s): %w", filePathName, err)
 	}
 	var localState KeygenLocalStateItem

@@ -61,21 +61,21 @@ func (tKeySign *TssKeySign) SignMessage(req KeySignReq) (*signing.SignatureData,
 		localFileName = filepath.Join(tKeySign.homeBase, localFileName)
 	}
 	storedKeyGenLocalStateItem, err := common.LoadLocalState(localFileName)
-	if nil != err {
+	if err != nil {
 		return nil, fmt.Errorf("fail to read local state file: %w", err)
 	}
 	msgToSign, err := base64.StdEncoding.DecodeString(req.Message)
-	if nil != err {
+	if err != nil {
 		return nil, fmt.Errorf("fail to decode message(%s): %w", req.Message, err)
 	}
 	threshold, err := common.GetThreshold(len(storedKeyGenLocalStateItem.ParticipantKeys))
-	if nil != err {
+	if err != nil {
 		return nil, err
 	}
 	tKeySign.logger.Debug().Msgf("keysign threshold: %d", threshold)
 	partiesID, localPartyID, err := common.GetParties(storedKeyGenLocalStateItem.ParticipantKeys, storedKeyGenLocalStateItem.LocalPartyKey, false)
 	tKeySign.localParty = localPartyID
-	if nil != err {
+	if err != nil {
 		return nil, fmt.Errorf("fail to form key sign party: %w", err)
 	}
 	if !common.Contains(partiesID, localPartyID) {
@@ -95,13 +95,13 @@ func (tKeySign *TssKeySign) SignMessage(req KeySignReq) (*signing.SignatureData,
 	endCh := make(chan signing.SignatureData, len(partiesID))
 	errCh := make(chan struct{})
 	m, err := common.MsgToHashInt(msgToSign)
-	if nil != err {
+	if err != nil {
 		return nil, fmt.Errorf("fail to convert msg to hash int: %w", err)
 	}
 	keySignParty := signing.NewLocalParty(m, params, localKeyData, outCh, endCh)
 	partyIDMap := common.SetupPartyIDMap(partiesID)
 	err = common.SetupIDMaps(partyIDMap, tKeySign.tssCommonStruct.PartyIDtoP2PID)
-	if nil != err {
+	if err != nil {
 		tKeySign.logger.Error().Msgf("error in creating mapping between partyID and P2P ID")
 		return nil, err
 	}
@@ -139,7 +139,7 @@ func (tKeySign *TssKeySign) SignMessage(req KeySignReq) (*signing.SignatureData,
 	}()
 
 	result, err := tKeySign.processKeySign(errCh, outCh, endCh)
-	if nil != err {
+	if err != nil {
 		return nil, fmt.Errorf("fail to process key sign: %w", err)
 	}
 	tKeySign.logger.Info().Msg("successfully sign the message")
@@ -176,7 +176,7 @@ func (tKeySign *TssKeySign) processKeySign(errChan chan struct{}, outCh <-chan b
 			// we report a rough status of current round
 			*tKeySign.keySignCurrent = msg.Type()
 			err := tKeySign.tssCommonStruct.ProcessOutCh(msg, p2p.TSSKeySignMsg)
-			if nil != err {
+			if err != nil {
 				return nil, err
 			}
 		case m, ok := <-tKeySign.tssCommonStruct.TssMsg:
@@ -224,13 +224,13 @@ func (tKeySign *TssKeySign) WriteKeySignResult(w http.ResponseWriter, R, S strin
 		Blame:  tKeySign.tssCommonStruct.BlamePeers,
 	}
 	jsonResult, err := json.MarshalIndent(signResp, "", "	")
-	if nil != err {
+	if err != nil {
 		tKeySign.logger.Error().Err(err).Msg("fail to marshal response to json message")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	_, err = w.Write(jsonResult)
-	if nil != err {
+	if err != nil {
 		tKeySign.logger.Error().Err(err).Msg("fail to write response")
 	}
 }

@@ -63,7 +63,7 @@ type Communication struct {
 // NewCommunication create a new instance of Communication
 func NewCommunication(rendezvous string, bootstrapPeers []maddr.Multiaddr, port int, protocolID protocol.ID) (*Communication, error) {
 	addr, err := maddr.NewMultiaddr(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", port))
-	if nil != err {
+	if err != nil {
 		return nil, fmt.Errorf("fail to create listen addr: %w", err)
 	}
 	return &Communication{
@@ -105,7 +105,7 @@ func (c *Communication) broadcastToPeers(peers []peer.ID, msg []byte) {
 	ctx, cancel := context.WithTimeout(context.Background(), TimeoutBroadcast)
 	defer cancel()
 	peerChan, err := c.routingDiscovery.FindPeers(ctx, c.rendezvous)
-	if nil != err {
+	if err != nil {
 		c.logger.Error().Err(err).Msg("fail to find any peers")
 		return
 	}
@@ -145,7 +145,7 @@ func (c *Communication) writeToStream(ai peer.AddrInfo, msg []byte) error {
 		return nil
 	}
 	stream, err := c.connectToOnePeer(ai)
-	if nil != err {
+	if err != nil {
 		return fmt.Errorf("fail to open stream to peer(%s): %w", ai.ID, err)
 	}
 	if nil == stream {
@@ -165,7 +165,7 @@ func (c *Communication) writeToStream(ai peer.AddrInfo, msg []byte) error {
 		return errors.New("fail to set write deadline")
 	}
 	n, err := stream.Write(buf)
-	if nil != err {
+	if err != nil {
 		c.logger.Error().Err(err).Msgf("fail to write to peer : %s", stream.Conn().RemotePeer().String())
 		return err
 	}
@@ -176,7 +176,7 @@ func (c *Communication) writeToStream(ai peer.AddrInfo, msg []byte) error {
 		return errors.New("fail to set write deadline")
 	}
 	n, err = stream.Write(msg)
-	if nil != err {
+	if err != nil {
 		return fmt.Errorf("fail to write: %w", err)
 	}
 	if n < length {
@@ -229,7 +229,7 @@ func (c *Communication) readFromStream(stream network.Stream) {
 				c.logger.Error().Err(err).Msg("fail to set read deadline")
 			}
 			n, err = stream.Read(buf)
-			if nil != err {
+			if err != nil {
 				c.logger.Error().Err(err).Msgf("fail to read from stream,peerID: %s", peerID)
 				return
 			}
@@ -283,7 +283,7 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 		libp2p.ListenAddrs([]maddr.Multiaddr{c.listenAddr}...),
 		libp2p.Identity(p2pPriKey),
 	)
-	if nil != err {
+	if err != nil {
 		return fmt.Errorf("fail to create p2p host: %w", err)
 	}
 	c.host = h
@@ -325,7 +325,7 @@ func (c *Communication) connectToOnePeer(ai peer.AddrInfo) (network.Stream, erro
 	ctx, cancel := context.WithTimeout(context.Background(), TimeoutConnecting)
 	defer cancel()
 	stream, err := c.host.NewStream(ctx, ai.ID, c.protocolID)
-	if nil != err {
+	if err != nil {
 		return nil, fmt.Errorf("fail to create new stream to peer: %s, %w", ai.ID, err)
 	}
 	return stream, nil
@@ -337,7 +337,7 @@ func (c *Communication) connectToBootstrapPeers() error {
 	var wg sync.WaitGroup
 	for _, peerAddr := range c.bootstrapPeers {
 		pi, err := peer.AddrInfoFromP2pAddr(peerAddr)
-		if nil != err {
+		if err != nil {
 			return fmt.Errorf("fail to add peer: %w", err)
 		}
 		wg.Add(1)
@@ -414,7 +414,7 @@ func (c *Communication) ProcessBroadcast() {
 		select {
 		case msg := <-c.BroadcastMsgChan:
 			wrappedMsgBytes, err := json.Marshal(msg.WrappedMessage)
-			if nil != err {
+			if err != nil {
 				c.logger.Error().Err(err).Msg("fail to marshal a wrapped message to json bytes")
 				continue
 			}

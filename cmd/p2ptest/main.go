@@ -37,7 +37,7 @@ func main() {
 	}
 	protocolID := protocol.ConvertFromStrings([]string{p2pConf.ProtocolID})[0]
 	c, err := p2p.NewCommunication("tss", p2pConf.BootstrapPeers, p2pConf.Port, protocolID)
-	if nil != err {
+	if err != nil {
 		panic(err)
 	}
 	testPriKey := "OTI4OTdkYzFjMWFhMjU3MDNiMTE4MDM1OTQyY2Y3MDVkOWFhOGIzN2JlOGIwOWIwMTZjYTkxZjNjOTBhYjhlYQ=="
