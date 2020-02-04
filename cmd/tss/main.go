@@ -14,9 +14,9 @@ import (
 	"github.com/libp2p/go-libp2p-core/protocol"
 	"github.com/whyrusleeping/go-logging"
 
-	"gitlab.com/thorchain/tss/go-tss"
 	"gitlab.com/thorchain/tss/go-tss/common"
 	"gitlab.com/thorchain/tss/go-tss/p2p"
+	"gitlab.com/thorchain/tss/go-tss/tss"
 )
 
 func main() {
@@ -56,6 +56,7 @@ func main() {
 		[]byte(priKeyBytes),
 		p2pConf.RendezvousString,
 		generalConf.BaseFolder,
+		false,
 		tssConf,
 	)
 	if nil != err {

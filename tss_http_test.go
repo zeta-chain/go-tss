@@ -14,6 +14,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"gitlab.com/thorchain/tss/go-tss/common"
+	"gitlab.com/thorchain/tss/go-tss/tss"
 )
 
 const testPriKey = "OTI4OTdkYzFjMWFhMjU3MDNiMTE4MDM1OTQyY2Y3MDVkOWFhOGIzN2JlOGIwOWIwMTZjYTkxZjNjOTBhYjhlYQ=="
@@ -28,11 +29,10 @@ func (t *TssTestSuite) SetUpSuite(c *C) {
 	common.InitLog("info", true, "tss_http_test")
 }
 
-func setupTssForTest(c *C) *TssServer {
+func setupTssForTest(c *C) *tss.TssServer {
 	protocolID := protocol.ConvertFromStrings([]string{"tss"})[0]
-	ByPassGeneratePreParam = true
 	conf := common.TssConfig{}
-	tss, err := NewTss(nil, 6668, ":8080", ":8081", protocolID, []byte(testPriKey), "Asgard", "", conf)
+	tss, err := tss.NewTss(nil, 6668, ":8080", ":8081", protocolID, []byte(testPriKey), "Asgard", "", true, conf)
 	c.Assert(err, IsNil)
 	c.Assert(tss, NotNil)
 	return tss
@@ -40,9 +40,8 @@ func setupTssForTest(c *C) *TssServer {
 
 func (t *TssTestSuite) TestHttpTssReusePort(c *C) {
 	protocolID := protocol.ConvertFromStrings([]string{"tss"})[0]
-	ByPassGeneratePreParam = true
 	conf := common.TssConfig{}
-	tss1, err := NewTss(nil, 6660, "127.0.0.1:8080", ":8081", protocolID, []byte(testPriKey), "Asgard", "", conf)
+	tss1, err := tss.NewTss(nil, 6660, "127.0.0.1:8080", ":8081", protocolID, []byte(testPriKey), "Asgard", "", true, conf)
 	c.Assert(err, IsNil)
 	wg := sync.WaitGroup{}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -56,7 +55,7 @@ func (t *TssTestSuite) TestHttpTssReusePort(c *C) {
 	_, err = retryablehttp.Get("http://127.0.0.1:8081/ping")
 	c.Assert(err, IsNil)
 
-	tss2, err := NewTss(nil, 6661, "127.0.0.1:8080", ":8082", protocolID, []byte(testPriKey), "Asgard", "", conf)
+	tss2, err := tss.NewTss(nil, 6661, "127.0.0.1:8080", ":8082", protocolID, []byte(testPriKey), "Asgard", "", true, conf)
 	ctx2, cancel2 := context.WithCancel(context.Background())
 	err = tss2.Start(ctx2)
 	c.Assert(err, ErrorMatches, "listen tcp 127.0.0.1:8080: bind: address already in use")
@@ -68,7 +67,7 @@ func (t *TssTestSuite) TestHttpTssReusePort(c *C) {
 func (t *TssTestSuite) TestHttpNewTss(c *C) {
 	protocolID := protocol.ConvertFromStrings([]string{"tss"})[0]
 	conf := common.TssConfig{}
-	tss, err := NewTss(nil, 6668, ":12345", ":8081", protocolID, []byte(testPriKey), "Asgard", "", conf)
+	tss, err := tss.NewTss(nil, 6668, ":12345", ":8081", protocolID, []byte(testPriKey), "Asgard", "", true, conf)
 	c.Assert(err, IsNil)
 	c.Assert(tss, NotNil)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -94,15 +93,15 @@ func (t *TssTestSuite) TestHttpNewTss(c *C) {
 }
 
 func (t *TssTestSuite) TestHttpKeySign(c *C) {
-	tss := setupTssForTest(c)
-	c.Assert(tss, NotNil)
+	tssService := setupTssForTest(c)
+	c.Assert(tssService, NotNil)
 	respRecorder := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/keysign", nil)
-	tss.keySign(respRecorder, req)
+	tssService.KeySign(respRecorder, req)
 	c.Assert(respRecorder.Code, Equals, http.StatusMethodNotAllowed)
 
 	respRecorder = httptest.NewRecorder()
 	reqInvalidBody := httptest.NewRequest(http.MethodPost, "/keysign", bytes.NewBuffer([]byte("whatever")))
-	tss.keySign(respRecorder, reqInvalidBody)
+	tssService.KeySign(respRecorder, reqInvalidBody)
 	c.Assert(respRecorder.Code, Equals, http.StatusBadRequest)
 }

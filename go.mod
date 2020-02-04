@@ -8,6 +8,7 @@ require (
 	github.com/btcsuite/btcd v0.20.1-beta
 	github.com/cespare/xxhash/v2 v2.1.1 // indirect
 	github.com/cosmos/cosmos-sdk v0.37.4
+	github.com/go-kit/kit v0.9.0
 	github.com/gorilla/mux v1.7.3
 	github.com/hashicorp/go-retryablehttp v0.6.1
 	github.com/ipfs/go-log v0.0.1
