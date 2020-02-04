@@ -30,11 +30,11 @@ type TssKeySign struct {
 	keySignCurrent  *string
 }
 
-func NewTssKeySign(homeBase, localP2PID string, conf common.TssConfig, privKey cryptokey.PrivKey, broadcastChan chan *p2p.BroadcastMsgChan, stopChan *chan struct{}, keySignCurrent *string) TssKeySign {
+func NewTssKeySign(homeBase, localP2PID string, conf common.TssConfig, privKey cryptokey.PrivKey, broadcastChan chan *p2p.BroadcastMsgChan, stopChan *chan struct{}, keySignCurrent *string, msgID string) TssKeySign {
 	return TssKeySign{
 		logger:          log.With().Str("module", "keySign").Logger(),
 		priKey:          privKey,
-		tssCommonStruct: common.NewTssCommon(localP2PID, broadcastChan, conf),
+		tssCommonStruct: common.NewTssCommon(localP2PID, broadcastChan, conf, msgID),
 		stopChan:        stopChan,
 		homeBase:        homeBase,
 		syncMsg:         make(chan *p2p.Message),

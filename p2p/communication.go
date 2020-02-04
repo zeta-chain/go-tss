@@ -54,7 +54,7 @@ type Communication struct {
 	routingDiscovery *discovery.RoutingDiscovery
 	wg               *sync.WaitGroup
 	stopChan         chan struct{} // channel to indicate whether we should stop
-	subscribers      map[THORChainTSSMessageType]chan *Message
+	subscribers      map[THORChainTSSMessageType]map[string]chan *Message
 	subscriberLocker *sync.Mutex
 	streamCount      int64
 	BroadcastMsgChan chan *BroadcastMsgChan
@@ -74,7 +74,7 @@ func NewCommunication(rendezvous string, bootstrapPeers []maddr.Multiaddr, port 
 		listenAddr:       addr,
 		wg:               &sync.WaitGroup{},
 		stopChan:         make(chan struct{}),
-		subscribers:      make(map[THORChainTSSMessageType]chan *Message, 0),
+		subscribers:      make(map[THORChainTSSMessageType]map[string]chan *Message, 0),
 		subscriberLocker: &sync.Mutex{},
 		streamCount:      0,
 		BroadcastMsgChan: make(chan *BroadcastMsgChan, 1024),
@@ -242,9 +242,14 @@ func (c *Communication) readFromStream(stream network.Stream) {
 				continue
 			}
 			c.logger.Debug().Msgf(">>>>>>>[%s] %s", wrappedMsg.MessageType, string(wrappedMsg.Payload))
-			channel, ok := c.subscribers[wrappedMsg.MessageType]
+			channels, ok := c.subscribers[wrappedMsg.MessageType]
 			if !ok {
 				c.logger.Info().Msgf("no subscriber %s found for this message", wrappedMsg.MessageType.String())
+				continue
+			}
+			channel, ok := channels[wrappedMsg.MsgID]
+			if !ok {
+				c.logger.Info().Msgf("no MsgID %s found for this message", wrappedMsg.MsgID)
 				continue
 			} else {
 				channel <- &Message{
@@ -366,16 +371,36 @@ func (c *Communication) Stop() error {
 	return nil
 }
 
-func (c *Communication) SetSubscribe(topic THORChainTSSMessageType, channel chan *Message) {
+func (c *Communication) SetSubscribe(topic THORChainTSSMessageType, msgID string, channel chan *Message) {
 	c.subscriberLocker.Lock()
 	defer c.subscriberLocker.Unlock()
-	c.subscribers[topic] = channel
+
+	channels, ok := c.subscribers[topic]
+	if !ok {
+		channels := make(map[string]chan *Message)
+		channels[msgID] = channel
+		c.subscribers[topic] = channels
+		return
+	}
+	channels[msgID] = channel
+	c.subscribers[topic] = channels
 }
 
-func (c *Communication) CancelSubscribe(topic THORChainTSSMessageType) {
+func (c *Communication) CancelSubscribe(topic THORChainTSSMessageType, msgID string) {
 	c.subscriberLocker.Lock()
 	defer c.subscriberLocker.Unlock()
-	delete(c.subscribers, topic)
+
+	channels, ok := c.subscribers[topic]
+	if !ok {
+		c.logger.Debug().Msgf("cannot find the given channels %s", topic.String())
+		return
+	}
+	delete(channels, msgID)
+	if len(channels) == 0 {
+		delete(c.subscribers, topic)
+		return
+	}
+	c.subscribers[topic] = channels
 }
 
 func (c *Communication) ProcessBroadcast() {

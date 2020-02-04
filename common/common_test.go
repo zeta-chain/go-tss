@@ -194,7 +194,7 @@ func (t *TssTestSuite) TestTssProcessOutCh(c *C) {
 	}
 	msg := btss.NewMessageWrapper(messageRouting, testContent)
 	tssMsg := btss.NewMessage(messageRouting, testContent, msg)
-	tssCommonStruct := NewTssCommon("", nil, conf)
+	tssCommonStruct := NewTssCommon("", nil, conf, "test")
 	err = tssCommonStruct.ProcessOutCh(tssMsg, p2p.TSSKeyGenMsg)
 	c.Assert(err, IsNil)
 }
@@ -273,7 +273,7 @@ func setupProcessVerMsgEnv(c *C, keyPool []string, partyNum int) (*TssCommon, []
 	c.Assert(sk, NotNil)
 	conf := TssConfig{}
 	//keySignInstance := keysign.NewTssKeySign("", "", conf, sk, nil, nil, nil)
-	tssCommonStruct := NewTssCommon("", nil, conf)
+	tssCommonStruct := NewTssCommon("", nil, conf, "test")
 	//tssCommonStruct := keySignInstance.GetTssCommonStruct()
 	localTestPubKeys := make([]string, partyNum)
 	copy(localTestPubKeys, keyPool[:partyNum])

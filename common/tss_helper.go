@@ -3,6 +3,7 @@ package common
 import (
 	"crypto/elliptic"
 	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -76,6 +77,15 @@ func MsgToHashInt(msg []byte) (*big.Int, error) {
 		return nil, fmt.Errorf("fail to caculate sha256 hash: %w", err)
 	}
 	return hashToInt(h.Sum(nil), btcec.S256()), nil
+}
+
+func MsgToHashString(msg []byte) (string, error) {
+	h := sha256.New()
+	_, err := h.Write(msg)
+	if nil != err {
+		return "", fmt.Errorf("fail to caculate sha256 hash: %w", err)
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
 func hashToInt(hash []byte, c elliptic.Curve) *big.Int {
