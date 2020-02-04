@@ -71,7 +71,7 @@ func main() {
 
 // parseFlags - Parses the cli flags
 func parseFlags() (generalConf common.GeneralConfig, tssConf common.TssConfig, p2pConf p2p.P2PConfig) {
-	//we setup the configure for the general configuration
+	// we setup the configure for the general configuration
 	flag.StringVar(&generalConf.TssAddr, "tss-port", "127.0.0.1:8080", "tss port")
 	flag.StringVar(&generalConf.InfoAddr, "info-port", ":8081", "info port")
 	flag.BoolVar(&generalConf.Help, "h", false, "Display Help")
