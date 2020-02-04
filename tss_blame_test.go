@@ -64,7 +64,6 @@ func blameCheck(c *C, blames []string, targets []int) {
 }
 
 func blameInclude(c *C, blames []string, targets []int) {
-
 	var targetBlamePeers []string
 	for _, each := range targets {
 		targetBlamePeers = append(targetBlamePeers, testPubKeys[each])
@@ -77,11 +76,9 @@ func blameInclude(c *C, blames []string, targets []int) {
 		_, ok := blameDic[each]
 		c.Assert(ok, Equals, true)
 	}
-
 }
 
 func doStartKeygen(c *C, i int, locker *sync.Mutex, requestGroup *sync.WaitGroup, request []byte, keyGenRespArr *[]*keygen.KeyGenResp) {
-
 	defer requestGroup.Done()
 	url := fmt.Sprintf("http://127.0.0.1:%d/keygen", baseTssPort+i)
 	respByte := sendTestRequest(c, url, request)
@@ -94,7 +91,6 @@ func doStartKeygen(c *C, i int, locker *sync.Mutex, requestGroup *sync.WaitGroup
 }
 
 func doStartKeySign(c *C, i int, locker *sync.Mutex, requestGroup *sync.WaitGroup, request []byte, keySignRespArr *[]*keysign.KeySignResp) {
-
 	defer requestGroup.Done()
 	url := fmt.Sprintf("http://127.0.0.1:%d/keysign", baseTssPort+i)
 	respByte := sendTestRequest(c, url, request)
@@ -128,7 +124,6 @@ func testBlameNodeSync(c *C, testParties TestParties, reason string) {
 }
 
 func checkNodeStatus(c *C, testParties TestParties, expected uint64) {
-
 	requestGroup := sync.WaitGroup{}
 	for _, partyIndex := range testParties.honest {
 		requestGroup.Add(1)
@@ -168,7 +163,6 @@ func testNodeSyncBlame(c *C) {
 }
 
 func doObserveAndStop(c *C, testParties TestParties, expected int, cancel context.CancelFunc) {
-
 	requestGroup := sync.WaitGroup{}
 	for _, partyIndex := range testParties.malicious {
 		requestGroup.Add(1)
@@ -225,7 +219,7 @@ func doBlameTimeoutTest(c *C, poolPubKey string, testParties TestParties, cancel
 		if len(keySignRespArr[i].Blame.BlameNodes) > 0 {
 			// since one node stop immediately when it found an error, the peers may not receive the message
 			// from this stopped peer, so it may also blame it, it happens when the system is not that synchronised
-			//todo we may ask the node to send the share before it quit to avoid others blame it in future
+			// todo we may ask the node to send the share before it quit to avoid others blame it in future
 			blameInclude(c, keySignRespArr[i].Blame.BlameNodes, testParties.malicious)
 			c.Assert(keySignRespArr[i].Blame.FailReason, Equals, common.BlameTssTimeout)
 		}
@@ -237,7 +231,7 @@ func testKeySignBlameTimeout(c *C, poolPubKey string, cancels []context.CancelFu
 		honest:    []int{0, 3},
 		malicious: []int{2},
 	}
-	//in our test, we only have 4 nodes, so we can only have one malicious node
+	// in our test, we only have 4 nodes, so we can only have one malicious node
 	nodeIndex := testParties.malicious[0]
 	doBlameTimeoutTest(c, poolPubKey, testParties, cancels[nodeIndex])
 }

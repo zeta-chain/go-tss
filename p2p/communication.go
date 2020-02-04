@@ -138,6 +138,7 @@ func (c *Communication) shouldWeWriteToPeer(ai peer.AddrInfo, peers []peer.ID) b
 	}
 	return false
 }
+
 func (c *Communication) writeToStream(ai peer.AddrInfo, msg []byte) error {
 	// don't send to ourself
 	if ai.ID.String() == c.host.ID().String() {
@@ -329,6 +330,7 @@ func (c *Communication) connectToOnePeer(ai peer.AddrInfo) (network.Stream, erro
 	}
 	return stream, nil
 }
+
 func (c *Communication) connectToBootstrapPeers() error {
 	// Let's connect to the bootstrap nodes first. They will tell us about the
 	// other nodes in the network.
@@ -361,7 +363,7 @@ func (c *Communication) Start(priKeyBytes []byte) error {
 
 // Stop communication
 func (c *Communication) Stop() error {
-	//we need to stop the handler and the p2p services firstly, then terminate the our communication threads
+	// we need to stop the handler and the p2p services firstly, then terminate the our communication threads
 	c.host.RemoveStreamHandler(c.protocolID)
 	c.host.Close()
 	close(c.stopChan)

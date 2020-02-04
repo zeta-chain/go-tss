@@ -125,7 +125,7 @@ func (tKeySign *TssKeySign) SignMessage(req KeySignReq) (*signing.SignatureData,
 		}
 		return nil, err
 	}
-	//start the key sign
+	// start the key sign
 	go func() {
 		if err := keySignParty.Start(); nil != err {
 			tKeySign.logger.Error().Err(err).Msg("fail to start key sign party")
@@ -215,9 +215,8 @@ func (tKeySign *TssKeySign) processKeySign(errChan chan struct{}, outCh <-chan b
 }
 
 func (tKeySign *TssKeySign) WriteKeySignResult(w http.ResponseWriter, R, S string, status common.Status) {
-
-	//blame := common.NewBlame()
-	//blame.SetBlame(tKeySign.tssCommonStruct.Blame.FailReason, tKeySign.tssCommonStruct.Blame.BlameNodes)
+	// blame := common.NewBlame()
+	// blame.SetBlame(tKeySign.tssCommonStruct.Blame.FailReason, tKeySign.tssCommonStruct.Blame.BlameNodes)
 	signResp := KeySignResp{
 		R:      R,
 		S:      S,

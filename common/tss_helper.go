@@ -135,7 +135,7 @@ func AccPubKeysFromPartyIDs(partyIDs []string, partyIDMap map[string]*btss.Party
 	return pubKeys, nil
 }
 
-//GetBlamePubKeysInList returns the nodes public key who are in the peer list
+// GetBlamePubKeysInList returns the nodes public key who are in the peer list
 func (t *TssCommon) getBlamePubKeysInList(peers []string) ([]string, error) {
 	var partiesInList []string
 	// we convert nodes (in the peers list) P2PID to public key
@@ -186,9 +186,8 @@ func (t *TssCommon) getBlamePubKeysNotInList(peers []string) ([]string, error) {
 	return blamePubKeys, nil
 }
 
-//GetBlamePubKeysNotInList returns the nodes public key who are not in the peer list
+// GetBlamePubKeysNotInList returns the nodes public key who are not in the peer list
 func (t *TssCommon) GetBlamePubKeysLists(peer []string) ([]string, []string, error) {
-
 	inList, err := t.getBlamePubKeysInList(peer)
 	if err != nil {
 		return nil, nil, err
@@ -226,7 +225,7 @@ func (t *TssCommon) TssTimeoutBlame(localCachedItems []*LocalCacheItem) ([]strin
 
 func (t *TssCommon) findBlamePeers(localCacheItem *LocalCacheItem, dataOwnerP2PID string) ([]string, error) {
 	// our tss is based on the assumption that 2/3 of the nodes are honest. we define the majority as 2/3 node,
-	//Then we have the following scenarios:
+	// Then we have the following scenarios:
 	// if our hash is the same with the majority, we blame the minority and the msg owner.
 	// if our hash is the same with the one of the minorities, we blame the msg owner.
 	blamePeers := make([]string, 0)
@@ -253,7 +252,7 @@ func (t *TssCommon) findBlamePeers(localCacheItem *LocalCacheItem, dataOwnerP2PI
 			if key == ourHash {
 				continue
 			}
-			//we blame all the rest of the minorities
+			// we blame all the rest of the minorities
 			if len(peers) < threshold {
 				blamePeers = append(blamePeers, peers...)
 			}

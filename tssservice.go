@@ -36,9 +36,7 @@ import (
 	"gitlab.com/thorchain/tss/go-tss/p2p"
 )
 
-var (
-	ByPassGeneratePreParam = false
-)
+var ByPassGeneratePreParam = false
 
 // PartyInfo the information used by tss key gen and key sign
 type PartyInfo struct {
@@ -211,7 +209,6 @@ func (t *TssServer) StartHttpServers() error {
 		return nil
 	})
 	return g.Wait()
-
 }
 
 // Start Tss server
@@ -222,7 +219,7 @@ func (t *TssServer) Start(ctx context.Context) error {
 	go func() {
 		<-ctx.Done()
 		close(t.stopChan)
-		//stop the p2p and finish the p2p wait group
+		// stop the p2p and finish the p2p wait group
 		err := t.p2pCommunication.Stop()
 		if err != nil {
 			t.logger.Error().Msgf("error in shutdown the p2p server")
@@ -284,7 +281,6 @@ func (t *TssServer) ping(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (t *TssServer) requestToMsgId(request interface{}) (string, error) {
-
 	var dat []byte
 	switch value := request.(type) {
 	case keygen.KeyGenReq:
@@ -385,7 +381,6 @@ func (t *TssServer) keygen(w http.ResponseWriter, r *http.Request) {
 	if nil != err {
 		t.logger.Error().Err(err).Msg("fail to write to response")
 	}
-
 }
 
 func (t *TssServer) keySign(w http.ResponseWriter, r *http.Request) {
@@ -451,6 +446,7 @@ func (t *TssServer) getP2pID(w http.ResponseWriter, _ *http.Request) {
 		t.logger.Error().Err(err).Msg("fail to write to response")
 	}
 }
+
 func (t *TssServer) getNodeStatus(w http.ResponseWriter, _ *http.Request) {
 	buf, err := json.Marshal(t.Status)
 	if nil != err {

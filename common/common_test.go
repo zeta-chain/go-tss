@@ -25,9 +25,11 @@ import (
 
 const testPriKey = "OTI4OTdkYzFjMWFhMjU3MDNiMTE4MDM1OTQyY2Y3MDVkOWFhOGIzN2JlOGIwOWIwMTZjYTkxZjNjOTBhYjhlYQ=="
 
-var testBlamePrivKey = "OWU2YTk1NzdlOTA5NTAxZmI4YjUyODYyMmZkYzBjNzJlMTQ5YTI2YWY5NzkzYTc0MjA3MDBkMWQzMzFiMDNhZg=="
-var testPubKeys = [...]string{"thorpub1addwnpepqtdklw8tf3anjz7nn5fly3uvq2e67w2apn560s4smmrt9e3x52nt2svmmu3", "thorpub1addwnpepqtspqyy6gk22u37ztra4hq3hdakc0w0k60sfy849mlml2vrpfr0wvm6uz09", "thorpub1addwnpepq2ryyje5zr09lq7gqptjwnxqsy2vcdngvwd6z7yt5yjcnyj8c8cn559xe69", "thorpub1addwnpepqfjcw5l4ay5t00c32mmlky7qrppepxzdlkcwfs2fd5u73qrwna0vzag3y4j"}
-var testBlamePubKeys = []string{"thorpub1addwnpepqtr5p8tllhp4xaxmu77zhqen24pmrdlnekzevshaqkyzdqljm6rejnnt02t", "thorpub1addwnpepqwz59mn4ae82svm2pfqnycducjjeez0qlf3sum7rclrr8mn44pr5gkeey25", "thorpub1addwnpepqga4nded5hhnwsrwmrns803w7vu9mffp9r6dz4l6smaww2l5useuq6vkttg", "thorpub1addwnpepq28hfdpu3rdgvj8skzhlm8hyt5nlwwc8pjrzvn253j86e4dujj6jsmuf25q", "thorpub1addwnpepqfuq0xc67052h288r6flp67l0ny9mg6u3sxhsrlukyfg0fe9j6q36ysd33y", "thorpub1addwnpepq0jszts80udfl4pkfk6cp93647yl6fhu6pk486uwjdz2sf94qvu0kw0t6ug", "thorpub1addwnpepqw6mmffk69n5taaqhq3wsc8mvdpsrdnx960kujeh4jwm9lj8nuyux9hz5e4", "thorpub1addwnpepq0pdhm2jatzg2vy6fyw89vs6q374zayqd5498wn8ww780grq256ygq7hhjt", "thorpub1addwnpepqggwmlgd8u9t2sx4a0styqwhzrvdhpvdww7sqwnweyrh25rjwwm9q65kx9s", "thorpub1addwnpepqtssltyjvms8pa7k4yg85lnrjqtvvr2ecr36rhm7pa4ztf55tnuzzgvegpk"}
+var (
+	testBlamePrivKey = "OWU2YTk1NzdlOTA5NTAxZmI4YjUyODYyMmZkYzBjNzJlMTQ5YTI2YWY5NzkzYTc0MjA3MDBkMWQzMzFiMDNhZg=="
+	testPubKeys      = [...]string{"thorpub1addwnpepqtdklw8tf3anjz7nn5fly3uvq2e67w2apn560s4smmrt9e3x52nt2svmmu3", "thorpub1addwnpepqtspqyy6gk22u37ztra4hq3hdakc0w0k60sfy849mlml2vrpfr0wvm6uz09", "thorpub1addwnpepq2ryyje5zr09lq7gqptjwnxqsy2vcdngvwd6z7yt5yjcnyj8c8cn559xe69", "thorpub1addwnpepqfjcw5l4ay5t00c32mmlky7qrppepxzdlkcwfs2fd5u73qrwna0vzag3y4j"}
+	testBlamePubKeys = []string{"thorpub1addwnpepqtr5p8tllhp4xaxmu77zhqen24pmrdlnekzevshaqkyzdqljm6rejnnt02t", "thorpub1addwnpepqwz59mn4ae82svm2pfqnycducjjeez0qlf3sum7rclrr8mn44pr5gkeey25", "thorpub1addwnpepqga4nded5hhnwsrwmrns803w7vu9mffp9r6dz4l6smaww2l5useuq6vkttg", "thorpub1addwnpepq28hfdpu3rdgvj8skzhlm8hyt5nlwwc8pjrzvn253j86e4dujj6jsmuf25q", "thorpub1addwnpepqfuq0xc67052h288r6flp67l0ny9mg6u3sxhsrlukyfg0fe9j6q36ysd33y", "thorpub1addwnpepq0jszts80udfl4pkfk6cp93647yl6fhu6pk486uwjdz2sf94qvu0kw0t6ug", "thorpub1addwnpepqw6mmffk69n5taaqhq3wsc8mvdpsrdnx960kujeh4jwm9lj8nuyux9hz5e4", "thorpub1addwnpepq0pdhm2jatzg2vy6fyw89vs6q374zayqd5498wn8ww780grq256ygq7hhjt", "thorpub1addwnpepqggwmlgd8u9t2sx4a0styqwhzrvdhpvdww7sqwnweyrh25rjwwm9q65kx9s", "thorpub1addwnpepqtssltyjvms8pa7k4yg85lnrjqtvvr2ecr36rhm7pa4ztf55tnuzzgvegpk"}
+)
 
 type TestParties struct {
 	honest    []int
@@ -136,7 +138,7 @@ func doNodeSyncTest(c *C, peers []peer.ID, targets []peer.ID) {
 }
 
 func (t *TssTestSuite) TestNodeSync(c *C) {
-	//in test, we pretend to be node1
+	// in test, we pretend to be node1
 	node2, err := peer.IDB58Decode("16Uiu2HAmAWKWf5vnpiAhfdSQebTbbB3Bg35qtyG7Hr4ce23VFA8V")
 	c.Assert(err, IsNil)
 	node3, err := peer.IDB58Decode("16Uiu2HAm4TmEzUqy3q3Dv7HvdoSboHk5sFj2FH3npiN5vDbJC6gh")
@@ -162,7 +164,7 @@ func (t *TssTestSuite) TestGetPriKey(c *C) {
 	pk, err = GetPriKey(input)
 	c.Assert(err, NotNil)
 	c.Assert(pk, IsNil)
-	//pk, err = GetPriKey("MmVhNTI1ZDk3N2Y1NWU3OWM3M2JhNjZiNzM2NDU0ZGI2Mjc2NmU4ZTMzMzg2ZDlhZGM4YmI2MjE2NmRiMWFkMQ==")
+	// pk, err = GetPriKey("MmVhNTI1ZDk3N2Y1NWU3OWM3M2JhNjZiNzM2NDU0ZGI2Mjc2NmU4ZTMzMzg2ZDlhZGM4YmI2MjE2NmRiMWFkMQ==")
 	pk, err = GetPriKey(testPriKey)
 	c.Assert(err, IsNil)
 	c.Assert(pk, NotNil)
@@ -256,7 +258,7 @@ func (t *TssTestSuite) testVerMsgDuplication(c *C, tssCommonStruct *TssCommon, s
 	c.Assert(err, IsNil)
 	localItem := tssCommonStruct.TryGetLocalCacheItem(msgKey)
 	c.Assert(localItem.ConfirmedList, HasLen, 1)
-	//we send the verify message from the the same sender, Tss should only accept the first verify message
+	// we send the verify message from the the same sender, Tss should only accept the first verify message
 	wrappedMsg = fabricateVerMsg(c, msgHash, msgKey)
 	for i := 0; i < 2; i++ {
 		err := tssCommonStruct.ProcessOneMessage(wrappedMsg, tssCommonStruct.PartyIDtoP2PID[partiesID[1].Id].String())
@@ -266,18 +268,17 @@ func (t *TssTestSuite) testVerMsgDuplication(c *C, tssCommonStruct *TssCommon, s
 }
 
 func setupProcessVerMsgEnv(c *C, keyPool []string, partyNum int) (*TssCommon, []*btss.PartyID, []*btss.PartyID) {
-
 	ByPassGeneratePreParam = true
 	sk, err := GetPriKey(testBlamePrivKey)
 	c.Assert(err, IsNil)
 	c.Assert(sk, NotNil)
 	conf := TssConfig{}
-	//keySignInstance := keysign.NewTssKeySign("", "", conf, sk, nil, nil, nil)
+	// keySignInstance := keysign.NewTssKeySign("", "", conf, sk, nil, nil, nil)
 	tssCommonStruct := NewTssCommon("", nil, conf, "test")
-	//tssCommonStruct := keySignInstance.GetTssCommonStruct()
+	// tssCommonStruct := keySignInstance.GetTssCommonStruct()
 	localTestPubKeys := make([]string, partyNum)
 	copy(localTestPubKeys, keyPool[:partyNum])
-	//for the test, we choose the first pubic key as the test instance public key
+	// for the test, we choose the first pubic key as the test instance public key
 	partiesID, localPartyID, err := GetParties(localTestPubKeys, keyPool[0], true)
 	c.Assert(err, IsNil)
 	partyIDMap := SetupPartyIDMap(partiesID)
@@ -300,8 +301,7 @@ func setupProcessVerMsgEnv(c *C, keyPool []string, partyNum int) (*TssCommon, []
 }
 
 func (t *TssTestSuite) testDropMsgOwner(c *C, tssCommonStruct *TssCommon, senderID *btss.PartyID, peerPartiesID []*btss.PartyID) {
-
-	//clean up the blamepeer list for each test
+	// clean up the blamepeer list for each test
 	defer func() {
 		tssCommonStruct.BlamePeers = NewBlame()
 	}()
@@ -326,7 +326,7 @@ func (t *TssTestSuite) testDropMsgOwner(c *C, tssCommonStruct *TssCommon, sender
 		c.Assert(err, IsNil)
 		c.Assert(localItem.ConfirmedList, HasLen, i+1)
 	}
-	//the data owner's message should be raise an error
+	// the data owner's message should be raise an error
 	err = tssCommonStruct.ProcessOneMessage(wrappedVerMsg, tssCommonStruct.PartyIDtoP2PID[senderID.Id].String())
 	c.Assert(err, Equals, ErrHashFromOwner)
 	c.Assert(tssCommonStruct.BlamePeers.FailReason, Equals, BlameHashCheck)
@@ -336,7 +336,6 @@ func (t *TssTestSuite) testDropMsgOwner(c *C, tssCommonStruct *TssCommon, sender
 }
 
 func (t *TssTestSuite) testVerMsgAndUpdate(c *C, tssCommonStruct *TssCommon, senderID *btss.PartyID, partiesID []*btss.PartyID) {
-
 	testMsg := "testVerMsgAndUpdate"
 	roundInfo := "round testVerMsgAndUpdate"
 	msgHash, err := BytesToHashString([]byte(testMsg))
@@ -349,18 +348,17 @@ func (t *TssTestSuite) testVerMsgAndUpdate(c *C, tssCommonStruct *TssCommon, sen
 	localItem := tssCommonStruct.TryGetLocalCacheItem(msgKey)
 	c.Assert(localItem.ConfirmedList, HasLen, 1)
 
-	//we send the verify message from the the same sender, Tss should only accept the first verify message
+	// we send the verify message from the the same sender, Tss should only accept the first verify message
 	wrappedVerMsg := fabricateVerMsg(c, msgHash, msgKey)
 	err = tssCommonStruct.ProcessOneMessage(wrappedVerMsg, tssCommonStruct.PartyIDtoP2PID[partiesID[1].Id].String())
 	c.Assert(err, IsNil)
 	c.Assert(localItem.ConfirmedList, HasLen, 2)
-	//this error message indicates the message share is accepted by the this system.
+	// this error message indicates the message share is accepted by the this system.
 	c.Assert(tssCommonStruct.ProcessOneMessage(wrappedVerMsg, tssCommonStruct.PartyIDtoP2PID[partiesID[2].Id].String()), ErrorMatches, "fail to update the message to local party: fail to set bytes to local party: task , party <nil>, round -1: proto: can't skip unknown wire type 4")
 }
 
 func (t *TssTestSuite) testVerMsgWrongHash(c *C, tssCommonStruct *TssCommon, senderID *btss.PartyID, peerParties []*btss.PartyID, testParties TestParties, senderMsg *p2p.WrappedMessage, peerMsgMap map[int]*p2p.WrappedMessage, msgKey string, blameOwner bool) {
-
-	//clean up the blamepeer list for each test
+	// clean up the blamepeer list for each test
 	defer func() {
 		tssCommonStruct.BlamePeers = NewBlame()
 	}()
@@ -378,7 +376,7 @@ func (t *TssTestSuite) testVerMsgWrongHash(c *C, tssCommonStruct *TssCommon, sen
 		c.Assert(localItem.ConfirmedList, HasLen, 2+i)
 	}
 
-	//we now load the malicious nodes message
+	// we now load the malicious nodes message
 	currentLength := len(localItem.ConfirmedList)
 	for i, nodeIndex := range testParties.malicious {
 
@@ -408,7 +406,6 @@ func (t *TssTestSuite) testVerMsgWrongHash(c *C, tssCommonStruct *TssCommon, sen
 
 // TestProcessVerMessage is the tests for processing the verified message
 func (t *TssTestSuite) TestProcessVerMessage(c *C) {
-
 	tssCommonStruct, peerPartiesID, partiesID := setupProcessVerMsgEnv(c, testBlamePubKeys, 4)
 	t.testVerMsgDuplication(c, tssCommonStruct, partiesID[0], peerPartiesID)
 	t.testVerMsgAndUpdate(c, tssCommonStruct, peerPartiesID[0], partiesID)
@@ -425,7 +422,7 @@ func constructMsg(c *C, senderID *btss.PartyID, testParties TestParties, modifie
 		senderMsg = fabricateTssMsg(c, senderID, roundInfo, modifiedOwnerMsg)
 	}
 
-	//we send the verify message from the the same sender, Tss should only accept the first verify message
+	// we send the verify message from the the same sender, Tss should only accept the first verify message
 
 	for _, each := range testParties.honest {
 		wrappedMsgMap[each] = fabricateVerMsg(c, msgHash, msgKey)
@@ -440,7 +437,6 @@ func constructMsg(c *C, senderID *btss.PartyID, testParties TestParties, modifie
 
 // TestProcessVerMessage is the tests for the hash inconsistency blame. Because of the complexity of the hash inconsistency check, we separate them from the TestProcessVerMessage. We simulate the hashchek is tested under the environment of 10 nodes
 func (t *TssTestSuite) TestProcessVerMsgBlame(c *C) {
-
 	tssCommonStruct, peerPartiesID, _ := setupProcessVerMsgEnv(c, testBlamePubKeys, 10)
 	t.testDropMsgOwner(c, tssCommonStruct, peerPartiesID[0], peerPartiesID)
 	// case 1, we test the blame that only peer report the wrong hash value and the msg owner
@@ -448,7 +444,7 @@ func (t *TssTestSuite) TestProcessVerMsgBlame(c *C) {
 		honest:    []int{1, 3, 4, 5, 6, 7, 8},
 		malicious: []int{2},
 	}
-	//the modified hash should be paired with malicious nodes.
+	// the modified hash should be paired with malicious nodes.
 	modifiedHash := []string{"wrong"}
 	roundInfo := "scenario1"
 	senderMsg, wrappedMsgMap, msgKey := constructMsg(c, peerPartiesID[0], testParties, modifiedHash, roundInfo, "")
@@ -459,7 +455,7 @@ func (t *TssTestSuite) TestProcessVerMsgBlame(c *C) {
 		honest:    []int{1, 2, 3, 4, 5, 6, 7},
 		malicious: []int{8},
 	}
-	//the modified hash should be paired with malicious nodes.
+	// the modified hash should be paired with malicious nodes.
 	roundInfo = "scenario2"
 	testMsg := "testVerMsgWrongHash"
 	msgHash, err := BytesToHashString([]byte(testMsg))
@@ -473,7 +469,7 @@ func (t *TssTestSuite) TestProcessVerMsgBlame(c *C) {
 		honest:    []int{1, 3, 4, 5, 6, 7},
 		malicious: []int{2, 8},
 	}
-	//the modified hash should be paired with malicious nodes.
+	// the modified hash should be paired with malicious nodes.
 	roundInfo = "scenario3"
 	modifiedHash = []string{"differentHash", "differentHash"}
 	senderMsg, wrappedMsgMap, msgKey = constructMsg(c, peerPartiesID[0], testParties, modifiedHash, roundInfo, "")
@@ -484,7 +480,7 @@ func (t *TssTestSuite) TestProcessVerMsgBlame(c *C) {
 		honest:    []int{1, 5, 6, 7},
 		malicious: []int{2, 3, 4, 8},
 	}
-	//the modified hash should be paired with malicious nodes.
+	// the modified hash should be paired with malicious nodes.
 	roundInfo = "scenario4"
 	modifiedHash = []string{"differentHash", "differentHash", "differentHash2", "differentHash3"}
 	senderMsg, wrappedMsgMap, msgKey = constructMsg(c, peerPartiesID[0], testParties, modifiedHash, roundInfo, "")

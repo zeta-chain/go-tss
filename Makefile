@@ -19,7 +19,7 @@ test-watch: clear
 	@./scripts/watch.bash
 
 lint-pre:
-	@test -z $(gofmt -l .) # checks code is in proper format
+	@test -z $(gofumpt -l .) # checks code is in proper format
 	@go mod verify
 
 lint: lint-pre

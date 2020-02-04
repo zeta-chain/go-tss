@@ -54,7 +54,6 @@ func main() {
 }
 
 func parseFlags(generalConf *common.GeneralConfig, p2pConf *p2p.P2PConfig) {
-
 	flag.BoolVar(&generalConf.Help, "h", false, "Display Help")
 	flag.StringVar(&p2pConf.RendezvousString, "rendezvous", "Asgard",
 		"Unique string to identify group of nodes. Share this with your friends to let them connect with you")
