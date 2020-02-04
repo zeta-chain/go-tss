@@ -16,10 +16,10 @@ test:
 	@go test ./...
 
 test-watch: clear
-	@./scripts/watch.bash
+	@gow -c test -tags testnet -mod=readonly ./...
 
 lint-pre:
-	@test -z $(gofmt -l .) # checks code is in proper format
+	@test -z "$(shell gofumpt -l .)"
 	@go mod verify
 
 lint: lint-pre

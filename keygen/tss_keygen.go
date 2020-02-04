@@ -54,11 +54,11 @@ func (tKeyGen *TssKeyGen) GetTssCommonStruct() *common.TssCommon {
 
 func (tKeyGen *TssKeyGen) GenerateNewKey(keygenReq KeyGenReq) (*crypto.ECPoint, error) {
 	pubKey, err := sdk.Bech32ifyAccPub(tKeyGen.priKey.PubKey())
-	if nil != err {
+	if err != nil {
 		return nil, fmt.Errorf("fail to genearte the key: %w", err)
 	}
 	partiesID, localPartyID, err := common.GetParties(keygenReq.Keys, pubKey, true)
-	if nil != err {
+	if err != nil {
 		return nil, fmt.Errorf("fail to get keygen parties: %w", err)
 	}
 	keyGenLocalStateItem := common.KeygenLocalStateItem{
@@ -67,7 +67,7 @@ func (tKeyGen *TssKeyGen) GenerateNewKey(keygenReq KeyGenReq) (*crypto.ECPoint, 
 	}
 
 	threshold, err := common.GetThreshold(len(partiesID))
-	if nil != err {
+	if err != nil {
 		return nil, err
 	}
 	ctx := btss.NewPeerContext(partiesID)
@@ -82,7 +82,7 @@ func (tKeyGen *TssKeyGen) GenerateNewKey(keygenReq KeyGenReq) (*crypto.ECPoint, 
 	keyGenParty := bkeygen.NewLocalParty(params, outCh, endCh, *tKeyGen.preParams)
 	partyIDMap := common.SetupPartyIDMap(partiesID)
 	err = common.SetupIDMaps(partyIDMap, tKeyGen.tssCommonStruct.PartyIDtoP2PID)
-	if nil != err {
+	if err != nil {
 		tKeyGen.logger.Error().Msgf("error in creating mapping between partyID and P2P ID")
 		return nil, err
 	}
@@ -155,7 +155,7 @@ func (tKeyGen *TssKeyGen) processKeyGen(errChan chan struct{}, outCh <-chan btss
 			// we report a rough status of current round
 			*tKeyGen.keygenCurrent = msg.Type()
 			err := tKeyGen.tssCommonStruct.ProcessOutCh(msg, p2p.TSSKeyGenMsg)
-			if nil != err {
+			if err != nil {
 				return nil, err
 			}
 

@@ -43,7 +43,7 @@ func main() {
 	}
 	protocolID := protocol.ConvertFromStrings([]string{p2pConf.ProtocolID})[0]
 	tss, err := tss.NewTss(p2pConf.BootstrapPeers, p2pConf.Port, generalConf.TssAddr, generalConf.InfoAddr, protocolID, []byte(priKeyBytes), p2pConf.RendezvousString, generalConf.BaseFolder, tssConf)
-	if nil != err {
+	if err != nil {
 		panic(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -54,7 +54,7 @@ func main() {
 }
 
 func parseFlags(generalConf *common.GeneralConfig, tssConf *common.TssConfig, p2pConf *p2p.P2PConfig) {
-	//we setup the configure for the general configuration
+	// we setup the configure for the general configuration
 	flag.StringVar(&generalConf.TssAddr, "tss-port", "127.0.0.1:8080", "tss port")
 	flag.StringVar(&generalConf.InfoAddr, "info-port", ":8081", "info port")
 	flag.BoolVar(&generalConf.Help, "h", false, "Display Help")
@@ -62,14 +62,14 @@ func parseFlags(generalConf *common.GeneralConfig, tssConf *common.TssConfig, p2
 	flag.BoolVar(&generalConf.Pretty, "pretty-log", false, "Enables unstructured prettified logging. This is useful for local debugging")
 	flag.StringVar(&generalConf.BaseFolder, "home", "", "home folder to store the keygen state file")
 
-	//we setup the Tss parameter configuration
+	// we setup the Tss parameter configuration
 	flag.DurationVar(&tssConf.KeyGenTimeout, "gentimeout", 30*time.Second, "keygen timeout")
 	flag.DurationVar(&tssConf.KeySignTimeout, "signtimeout", 30*time.Second, "keysign timeout")
 	flag.DurationVar(&tssConf.SyncTimeout, "synctimeout", 5*time.Second, "node sync wait time")
 	flag.DurationVar(&tssConf.PreParamTimeout, "preparamtimeout", 5*time.Minute, "pre-parameter generation timeout")
 	flag.IntVar(&tssConf.SyncRetry, "syncretry", 20, "retry of node sync")
 
-	//we setup the p2p network configuration
+	// we setup the p2p network configuration
 	flag.StringVar(&p2pConf.RendezvousString, "rendezvous", "Asgard",
 		"Unique string to identify group of nodes. Share this with your friends to let them connect with you")
 	flag.StringVar(&p2pConf.ProtocolID, "protocolID", "tss", "protocol ID for p2p communication")

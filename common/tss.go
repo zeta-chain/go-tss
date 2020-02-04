@@ -44,7 +44,7 @@ type TssCommon struct {
 	localPeerID         string
 	broadcastChannel    chan *p2p.BroadcastMsgChan
 	TssMsg              chan *p2p.Message
-	P2PPeers            []peer.ID //most of tss message are broadcast, we store the peers ID to avoid iterating
+	P2PPeers            []peer.ID // most of tss message are broadcast, we store the peers ID to avoid iterating
 	BlamePeers          Blame
 	msgID               string
 }
@@ -69,11 +69,11 @@ func NewTssCommon(peerID string, broadcastChannel chan *p2p.BroadcastMsgChan, co
 
 func GetPriKey(priKeyString string) (cryptokey.PrivKey, error) {
 	priHexBytes, err := base64.StdEncoding.DecodeString(priKeyString)
-	if nil != err {
+	if err != nil {
 		return nil, fmt.Errorf("fail to decode private key: %w", err)
 	}
 	rawBytes, err := hex.DecodeString(string(priHexBytes))
-	if nil != err {
+	if err != nil {
 		return nil, fmt.Errorf("fail to hex decode private key: %w", err)
 	}
 	var keyBytesArray [32]byte
@@ -98,7 +98,7 @@ func GetParties(keys []string, localPartyKey string, keygen bool) ([]*btss.Party
 	sort.Strings(keys)
 	for idx, item := range keys {
 		pk, err := sdk.GetAccPubKeyBech32(item)
-		if nil != err {
+		if err != nil {
 			return nil, nil, fmt.Errorf("fail to get account pub key address(%s): %w", item, err)
 		}
 		secpPk := pk.(secp256k1.PubKeySecp256k1)
@@ -122,7 +122,7 @@ func GetParties(keys []string, localPartyKey string, keygen bool) ([]*btss.Party
 	// not on the node ID.
 	if !keygen {
 		threshold, err := GetThreshold(len(keys))
-		if nil != err {
+		if err != nil {
 			return nil, nil, err
 		}
 		partiesID = partiesID[:threshold+1]
@@ -140,14 +140,13 @@ func (t *TssCommon) renderToP2P(broadcastMsg *p2p.BroadcastMsgChan) {
 }
 
 func (t *TssCommon) sendMsg(message p2p.WrappedMessage, peerIDs []peer.ID) {
-
 	t.renderToP2P(&p2p.BroadcastMsgChan{
 		WrappedMessage: message,
 		PeersID:        peerIDs,
 	})
 }
 
-//signers sync function
+// signers sync function
 func (t *TssCommon) NodeSync(msgChan chan *p2p.Message, messageType p2p.THORChainTSSMessageType) ([]string, error) {
 	var err error
 	var standbyPeers []string
@@ -247,7 +246,7 @@ func (t *TssCommon) SetLocalPeerID(peerID string) {
 func BytesToHashString(msg []byte) (string, error) {
 	h := sha256.New()
 	_, err := h.Write(msg)
-	if nil != err {
+	if err != nil {
 		return "", fmt.Errorf("fail to caculate sha256 hash: %w", err)
 	}
 	return hex.EncodeToString(h.Sum(nil)), nil
@@ -282,7 +281,7 @@ func (t *TssCommon) isLocalPartyReady() bool {
 
 func (t *TssCommon) checkDupAndUpdateVerMsg(bMsg *p2p.BroadcastConfirmMessage, peerID string) bool {
 	localCacheItem := t.TryGetLocalCacheItem(bMsg.Key)
-	//we check whether this node has already sent the VerMsg message to avoid eclipse of others VerMsg
+	// we check whether this node has already sent the VerMsg message to avoid eclipse of others VerMsg
 	if localCacheItem == nil {
 		bMsg.P2PID = peerID
 		return true
@@ -316,7 +315,7 @@ func (t *TssCommon) ProcessOneMessage(wrappedMsg *p2p.WrappedMessage, peerID str
 		if err := json.Unmarshal(wrappedMsg.Payload, &bMsg); nil != err {
 			return errors.New("fail to unmarshal broadcast confirm message")
 		}
-		//we check whether this peer has already send us the VerMsg before update
+		// we check whether this peer has already send us the VerMsg before update
 		ret := t.checkDupAndUpdateVerMsg(&bMsg, peerID)
 		if ret {
 			return t.processVerMsg(&bMsg)
@@ -355,7 +354,7 @@ func (t *TssCommon) hashCheck(localCacheItem *LocalCacheItem) error {
 func (t *TssCommon) ProcessOutCh(msg btss.Message, msgType p2p.THORChainTSSMessageType) error {
 	buf, r, err := msg.WireBytes()
 	// if we cannot get the wire share, the tss keygen will fail, we just quit.
-	if nil != err {
+	if err != nil {
 		return fmt.Errorf("fail to get wire bytes: %w", err)
 	}
 	wireMsg := p2p.WireMessage{
@@ -364,7 +363,7 @@ func (t *TssCommon) ProcessOutCh(msg btss.Message, msgType p2p.THORChainTSSMessa
 		Message:   buf,
 	}
 	wireMsgBytes, err := json.Marshal(wireMsg)
-	if nil != err {
+	if err != nil {
 		return fmt.Errorf("fail to convert tss msg to wire bytes: %w", err)
 	}
 	wrappedMsg := p2p.WrappedMessage{
@@ -389,7 +388,6 @@ func (t *TssCommon) ProcessOutCh(msg btss.Message, msgType p2p.THORChainTSSMessa
 			}
 			peerIDs = append(peerIDs, peerID)
 		}
-
 	}
 	t.renderToP2P(&p2p.BroadcastMsgChan{
 		WrappedMessage: wrappedMsg,
@@ -462,12 +460,12 @@ func (t *TssCommon) processTSSMsg(wireMsg *p2p.WireMessage, msgType p2p.THORChai
 	}
 	// broadcast message , we save a copy locally , and then tell all others what we got
 	msgHash, err := BytesToHashString(wireMsg.Message)
-	if nil != err {
+	if err != nil {
 		return fmt.Errorf("fail to calculate hash of the wire message: %w", err)
 	}
 	partyInfo := t.getPartyInfo()
 	key := wireMsg.GetCacheKey()
-	//P2PID will be filled up by the receiver.
+	// P2PID will be filled up by the receiver.
 	broadcastConfirmMsg := &p2p.BroadcastConfirmMessage{
 		P2PID: "",
 		Key:   key,
@@ -494,7 +492,7 @@ func (t *TssCommon) processTSSMsg(wireMsg *p2p.WireMessage, msgType p2p.THORChai
 		}
 	}
 	buf, err := json.Marshal(broadcastConfirmMsg)
-	if nil != err {
+	if err != nil {
 		return fmt.Errorf("fail to marshal borad cast confirm message: %w", err)
 	}
 	t.logger.Debug().Msg("broadcast VerMsg to all other parties")
@@ -516,6 +514,7 @@ func (t *TssCommon) processTSSMsg(wireMsg *p2p.WireMessage, msgType p2p.THORChai
 	})
 	return nil
 }
+
 func getBroadcastMessageType(msgType p2p.THORChainTSSMessageType) p2p.THORChainTSSMessageType {
 	switch msgType {
 	case p2p.TSSKeyGenMsg:
@@ -525,7 +524,6 @@ func getBroadcastMessageType(msgType p2p.THORChainTSSMessageType) p2p.THORChainT
 	default:
 		return p2p.Unknown // this should not happen
 	}
-
 }
 
 func (t *TssCommon) TryGetLocalCacheItem(key string) *LocalCacheItem {

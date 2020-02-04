@@ -37,7 +37,7 @@ func main() {
 	}
 	protocolID := protocol.ConvertFromStrings([]string{p2pConf.ProtocolID})[0]
 	c, err := p2p.NewCommunication("tss", p2pConf.BootstrapPeers, p2pConf.Port, protocolID)
-	if nil != err {
+	if err != nil {
 		panic(err)
 	}
 	testPriKey := "OTI4OTdkYzFjMWFhMjU3MDNiMTE4MDM1OTQyY2Y3MDVkOWFhOGIzN2JlOGIwOWIwMTZjYTkxZjNjOTBhYjhlYQ=="
@@ -54,7 +54,6 @@ func main() {
 }
 
 func parseFlags(generalConf *common.GeneralConfig, p2pConf *p2p.P2PConfig) {
-
 	flag.BoolVar(&generalConf.Help, "h", false, "Display Help")
 	flag.StringVar(&p2pConf.RendezvousString, "rendezvous", "Asgard",
 		"Unique string to identify group of nodes. Share this with your friends to let them connect with you")

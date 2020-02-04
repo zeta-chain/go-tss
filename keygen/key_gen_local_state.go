@@ -28,7 +28,7 @@ type KeyGenResp struct {
 
 func SaveLocalStateToFile(filePathName string, state common.KeygenLocalStateItem) error {
 	buf, err := json.Marshal(state)
-	if nil != err {
+	if err != nil {
 		return fmt.Errorf("fail to marshal KeygenLocalState to json: %w", err)
 	}
 	return ioutil.WriteFile(filePathName, buf, 0655)
@@ -36,7 +36,7 @@ func SaveLocalStateToFile(filePathName string, state common.KeygenLocalStateItem
 
 func (tKeyGen *TssKeyGen) AddLocalPartySaveData(homeBase string, data keygen.LocalPartySaveData, keyGenLocalStateItem common.KeygenLocalStateItem) error {
 	pubKey, addr, err := common.GetTssPubKey(data.ECDSAPub)
-	if nil != err {
+	if err != nil {
 		return fmt.Errorf("fail to get thorchain pubkey: %w", err)
 	}
 	tKeyGen.logger.Debug().Msgf("pubkey: %s, bnb address: %s", pubKey, addr)
