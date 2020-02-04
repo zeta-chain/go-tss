@@ -50,6 +50,7 @@ func (msgType THORChainTSSMessageType) String() string {
 // WrappedMessage is a message with type in it
 type WrappedMessage struct {
 	MessageType THORChainTSSMessageType `json:"message_type"`
+	MsgID       string                  `json:"message_id"`
 	Payload     []byte                  `json:"payload"`
 }
 

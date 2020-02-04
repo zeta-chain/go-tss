@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -282,6 +283,38 @@ func (t *TssServer) ping(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+func (t *TssServer) requestToMsgId(request interface{}) (string, error) {
+
+	var dat []byte
+	switch value := request.(type) {
+	case keygen.KeyGenReq:
+		keyAccumulation := ""
+		keys := value.Keys
+		sort.Strings(keys)
+		for _, el := range keys {
+			keyAccumulation += el
+		}
+		dat = []byte(keyAccumulation)
+	case keysign.KeySignReq:
+		msgToSign, err := base64.StdEncoding.DecodeString(value.Message)
+		if err != nil {
+			t.logger.Error().Err(err).Msg("error in decode the keysign req")
+			return "", err
+		}
+		dat = msgToSign
+	default:
+		t.logger.Error().Msg("unknown request type")
+		return "", errors.New("unknown request type")
+	}
+
+	msgID, err := common.MsgToHashString(dat)
+	if err != nil {
+		t.logger.Error().Err(err).Msg("fail to hash the message")
+		return "", err
+	}
+	return msgID, nil
+}
+
 func (t *TssServer) keygen(w http.ResponseWriter, r *http.Request) {
 	t.tssKeyGenLocker.Lock()
 	defer t.tssKeyGenLocker.Unlock()
@@ -303,14 +336,20 @@ func (t *TssServer) keygen(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	keygenInstance := keygen.NewTssKeyGen(t.homeBase, t.p2pCommunication.GetLocalPeerID(), t.conf, t.priKey, t.p2pCommunication.BroadcastMsgChan, &t.stopChan, t.preParams, &t.Status.CurrKeyGen)
+
+	msgID, err := t.requestToMsgId(keygenReq)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	keygenInstance := keygen.NewTssKeyGen(t.homeBase, t.p2pCommunication.GetLocalPeerID(), t.conf, t.priKey, t.p2pCommunication.BroadcastMsgChan, &t.stopChan, t.preParams, &t.Status.CurrKeyGen, msgID)
 	keygenMsgChannel, keygenSyncChannel := keygenInstance.GetTssKeyGenChannels()
-	t.p2pCommunication.SetSubscribe(p2p.TSSKeyGenMsg, keygenMsgChannel)
-	t.p2pCommunication.SetSubscribe(p2p.TSSKeyGenVerMsg, keygenMsgChannel)
-	t.p2pCommunication.SetSubscribe(p2p.TSSKeyGenSync, keygenSyncChannel)
-	defer t.p2pCommunication.CancelSubscribe(p2p.TSSKeyGenMsg)
-	defer t.p2pCommunication.CancelSubscribe(p2p.TSSKeyGenVerMsg)
-	defer t.p2pCommunication.CancelSubscribe(p2p.TSSKeyGenSync)
+	t.p2pCommunication.SetSubscribe(p2p.TSSKeyGenMsg, msgID, keygenMsgChannel)
+	t.p2pCommunication.SetSubscribe(p2p.TSSKeyGenVerMsg, msgID, keygenMsgChannel)
+	t.p2pCommunication.SetSubscribe(p2p.TSSKeyGenSync, msgID, keygenSyncChannel)
+	defer t.p2pCommunication.CancelSubscribe(p2p.TSSKeyGenMsg, msgID)
+	defer t.p2pCommunication.CancelSubscribe(p2p.TSSKeyGenVerMsg, msgID)
+	defer t.p2pCommunication.CancelSubscribe(p2p.TSSKeyGenSync, msgID)
 
 	// the statistic of keygen only care about Tss it self, even if the following http response aborts,
 	// it still counted as a successful keygen as the Tss model runs successfully.
@@ -371,15 +410,20 @@ func (t *TssServer) keySign(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	keysignInstance := keysign.NewTssKeySign(t.homeBase, t.p2pCommunication.GetLocalPeerID(), t.conf, t.priKey, t.p2pCommunication.BroadcastMsgChan, &t.stopChan, &t.Status.CurrKeySign)
+	msgID, err := t.requestToMsgId(keySignReq)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	keysignInstance := keysign.NewTssKeySign(t.homeBase, t.p2pCommunication.GetLocalPeerID(), t.conf, t.priKey, t.p2pCommunication.BroadcastMsgChan, &t.stopChan, &t.Status.CurrKeySign, msgID)
 
 	keygenMsgChannel, keygenSyncChannel := keysignInstance.GetTssKeySignChannels()
-	t.p2pCommunication.SetSubscribe(p2p.TSSKeySignMsg, keygenMsgChannel)
-	t.p2pCommunication.SetSubscribe(p2p.TSSKeySignVerMsg, keygenMsgChannel)
-	t.p2pCommunication.SetSubscribe(p2p.TSSKeySignSync, keygenSyncChannel)
-	defer t.p2pCommunication.CancelSubscribe(p2p.TSSKeySignMsg)
-	defer t.p2pCommunication.CancelSubscribe(p2p.TSSKeySignVerMsg)
-	defer t.p2pCommunication.CancelSubscribe(p2p.TSSKeySignSync)
+	t.p2pCommunication.SetSubscribe(p2p.TSSKeySignMsg, msgID, keygenMsgChannel)
+	t.p2pCommunication.SetSubscribe(p2p.TSSKeySignVerMsg, msgID, keygenMsgChannel)
+	t.p2pCommunication.SetSubscribe(p2p.TSSKeySignSync, msgID, keygenSyncChannel)
+	defer t.p2pCommunication.CancelSubscribe(p2p.TSSKeySignMsg, msgID)
+	defer t.p2pCommunication.CancelSubscribe(p2p.TSSKeySignVerMsg, msgID)
+	defer t.p2pCommunication.CancelSubscribe(p2p.TSSKeySignSync, msgID)
 
 	signatureData, err := keysignInstance.SignMessage(keySignReq)
 	// the statistic of keygen only care about Tss it self, even if the following http response aborts,

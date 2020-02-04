@@ -46,9 +46,10 @@ type TssCommon struct {
 	TssMsg              chan *p2p.Message
 	P2PPeers            []peer.ID //most of tss message are broadcast, we store the peers ID to avoid iterating
 	BlamePeers          Blame
+	msgID               string
 }
 
-func NewTssCommon(peerID string, broadcastChannel chan *p2p.BroadcastMsgChan, conf TssConfig) *TssCommon {
+func NewTssCommon(peerID string, broadcastChannel chan *p2p.BroadcastMsgChan, conf TssConfig, msgID string) *TssCommon {
 	return &TssCommon{
 		conf:                conf,
 		logger:              log.With().Str("module", "tsscommon").Logger(),
@@ -62,6 +63,7 @@ func NewTssCommon(peerID string, broadcastChannel chan *p2p.BroadcastMsgChan, co
 		TssMsg:              make(chan *p2p.Message),
 		P2PPeers:            nil,
 		BlamePeers:          NewBlame(),
+		msgID:               msgID,
 	}
 }
 
@@ -158,6 +160,7 @@ func (t *TssCommon) NodeSync(msgChan chan *p2p.Message, messageType p2p.THORChai
 	}
 	wrappedMsg := p2p.WrappedMessage{
 		MessageType: messageType,
+		MsgID:       t.msgID,
 		Payload:     []byte{0},
 	}
 	stopChan := make(chan bool, len(peerIDs))
@@ -366,6 +369,7 @@ func (t *TssCommon) ProcessOutCh(msg btss.Message, msgType p2p.THORChainTSSMessa
 	}
 	wrappedMsg := p2p.WrappedMessage{
 		MessageType: msgType,
+		MsgID:       t.msgID,
 		Payload:     wireMsgBytes,
 	}
 	peerIDs := make([]peer.ID, 0)
@@ -502,6 +506,7 @@ func (t *TssCommon) processTSSMsg(wireMsg *p2p.WireMessage, msgType p2p.THORChai
 
 	p2prappedMSg := p2p.WrappedMessage{
 		MessageType: getBroadcastMessageType(msgType),
+		MsgID:       t.msgID,
 		Payload:     buf,
 	}
 
