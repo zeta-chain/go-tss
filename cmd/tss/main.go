@@ -5,6 +5,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"time"
 
@@ -19,42 +20,58 @@ import (
 )
 
 func main() {
-	p2pConf := p2p.P2PConfig{}
-	tssConf := common.TssConfig{}
-	generalConf := common.GeneralConfig{}
-	golog.SetAllLoggers(logging.INFO)
-	_ = golog.SetLogLevel("tss-lib", "INFO")
-
-	parseFlags(&generalConf, &tssConf, &p2pConf)
+	// Parse the cli into configuration structs
+	generalConf, tssConf, p2pConf := parseFlags()
 	if generalConf.Help {
 		flag.PrintDefaults()
 		return
 	}
+	// get protocol ID
+	protocolIDs := protocol.ConvertFromStrings([]string{p2pConf.ProtocolID})
+	if len(protocolIDs) != 1 {
+		log.Fatal("no valid protocol ID found, or too many")
+	}
+	protocolID := protocolIDs[0]
+
+	// Setup logging
+	golog.SetAllLoggers(logging.INFO)
+	_ = golog.SetLogLevel("tss-lib", "INFO")
 	common.InitLog(generalConf.LogLevel, generalConf.Pretty, "tss_service")
+
+	// Read stdin for the private key
 	inBuf := bufio.NewReader(os.Stdin)
 	priKeyBytes, err := input.GetPassword("input node secret key:", inBuf)
 	if err != nil {
 		fmt.Printf("error in get the secret key: %s\n", err.Error())
 		return
 	}
-	if p2pConf.ProtocolID == "" {
-		fmt.Printf("invalid prtocol ID")
-		return
+
+	// init tss module
+	tss, err := tss.NewTss(
+		p2pConf.BootstrapPeers,
+		p2pConf.Port,
+		generalConf.TssAddr,
+		generalConf.InfoAddr,
+		protocolID,
+		[]byte(priKeyBytes),
+		p2pConf.RendezvousString,
+		generalConf.BaseFolder,
+		tssConf,
+	)
+	if nil != err {
+		log.Fatal(err)
 	}
-	protocolID := protocol.ConvertFromStrings([]string{p2pConf.ProtocolID})[0]
-	tss, err := tss.NewTss(p2pConf.BootstrapPeers, p2pConf.Port, generalConf.TssAddr, generalConf.InfoAddr, protocolID, []byte(priKeyBytes), p2pConf.RendezvousString, generalConf.BaseFolder, tssConf)
-	if err != nil {
-		panic(err)
-	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	if err := tss.Start(ctx); nil != err {
-		panic(err)
+		log.Fatal(err)
 	}
 }
 
-func parseFlags(generalConf *common.GeneralConfig, tssConf *common.TssConfig, p2pConf *p2p.P2PConfig) {
-	// we setup the configure for the general configuration
+// parseFlags - Parses the cli flags
+func parseFlags() (generalConf common.GeneralConfig, tssConf common.TssConfig, p2pConf p2p.P2PConfig) {
+	//we setup the configure for the general configuration
 	flag.StringVar(&generalConf.TssAddr, "tss-port", "127.0.0.1:8080", "tss port")
 	flag.StringVar(&generalConf.InfoAddr, "info-port", ":8081", "info port")
 	flag.BoolVar(&generalConf.Help, "h", false, "Display Help")
@@ -76,4 +93,5 @@ func parseFlags(generalConf *common.GeneralConfig, tssConf *common.TssConfig, p2
 	flag.IntVar(&p2pConf.Port, "p2p-port", 6668, "listening port local")
 	flag.Var(&p2pConf.BootstrapPeers, "peer", "Adds a peer multiaddress to the bootstrap list")
 	flag.Parse()
+	return
 }
