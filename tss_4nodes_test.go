@@ -76,6 +76,7 @@ func setupContextAndNodes(c *C, partyNum int, conf common.TssConfig) ([]context.
 	var localTss []*tss.TssServer
 	var ctxs []context.Context
 	var cancels []context.CancelFunc
+	common.SetupBech32Prefix()
 	multiAddr, err := maddr.NewMultiaddr(peerID)
 	protocolID := protocol.ConvertFromStrings([]string{"tss"})[0]
 	c.Assert(err, IsNil)

@@ -67,7 +67,7 @@ func NewTss(
 	// time.
 	// This code will generate those parameters using a concurrency limit equal
 	// to the number of available CPU cores.
-	if !preParams.Validate() {
+	if preParams == nil || !preParams.Validate() {
 		preParams, err = bkeygen.GeneratePreParams(conf.PreParamTimeout)
 		if err != nil {
 			return nil, fmt.Errorf("fail to generate pre parameters: %w", err)

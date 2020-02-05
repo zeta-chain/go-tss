@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/libp2p/go-libp2p-core/protocol"
@@ -31,7 +32,9 @@ func (t *TssTestSuite) SetUpSuite(c *C) {
 
 func setupTssForTest(c *C) *tss.TssServer {
 	protocolID := protocol.ConvertFromStrings([]string{"tss"})[0]
-	conf := common.TssConfig{}
+	conf := common.TssConfig{
+		PreParamTimeout: 60 * time.Second,
+	}
 	tss, err := tss.NewTss(nil, 6668, protocolID, []byte(testPriKey), "Asgard", "", conf, nil)
 	c.Assert(err, IsNil)
 	tss.ConfigureHttpServers(
@@ -44,7 +47,9 @@ func setupTssForTest(c *C) *tss.TssServer {
 
 func (t *TssTestSuite) TestHttpTssReusePort(c *C) {
 	protocolID := protocol.ConvertFromStrings([]string{"tss"})[0]
-	conf := common.TssConfig{}
+	conf := common.TssConfig{
+		PreParamTimeout: 60 * time.Second,
+	}
 	tss1, err := tss.NewTss(nil, 6660, protocolID, []byte(testPriKey), "Asgard", "", conf, nil)
 	c.Assert(err, IsNil)
 	tss1.ConfigureHttpServers(
@@ -79,7 +84,9 @@ func (t *TssTestSuite) TestHttpTssReusePort(c *C) {
 
 func (t *TssTestSuite) TestHttpNewTss(c *C) {
 	protocolID := protocol.ConvertFromStrings([]string{"tss"})[0]
-	conf := common.TssConfig{}
+	conf := common.TssConfig{
+		PreParamTimeout: 60 * time.Second,
+	}
 	tss, err := tss.NewTss(nil, 6668, protocolID, []byte(testPriKey), "Asgard", "", conf, nil)
 	c.Assert(err, IsNil)
 	tss.ConfigureHttpServers(

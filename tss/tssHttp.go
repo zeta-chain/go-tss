@@ -29,8 +29,6 @@ func (t *TssServer) tssNewHandler(verbose bool) http.Handler {
 }
 
 func (t *TssServer) KeygenHandler(w http.ResponseWriter, r *http.Request) {
-	t.tssKeyGenLocker.Lock()
-	defer t.tssKeyGenLocker.Unlock()
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
