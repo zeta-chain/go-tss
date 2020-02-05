@@ -25,6 +25,7 @@ import (
 	"gitlab.com/thorchain/tss/go-tss/common"
 	"gitlab.com/thorchain/tss/go-tss/keygen"
 	"gitlab.com/thorchain/tss/go-tss/keysign"
+	"gitlab.com/thorchain/tss/go-tss/tss"
 )
 
 const (
@@ -53,9 +54,9 @@ func checkServeReady(c *C, port int) {
 	c.Assert(resp.StatusCode == http.StatusOK, Equals, true)
 }
 
-func startServerAndCheck(c *C, wg sync.WaitGroup, server *TssServer, ctx context.Context, port int) {
+func startServerAndCheck(c *C, wg sync.WaitGroup, server *tss.TssServer, ctx context.Context, port int) {
 	wg.Add(1)
-	go func(server *TssServer, ctx context.Context) {
+	go func(server *tss.TssServer, ctx context.Context) {
 		defer wg.Done()
 		err := server.Start(ctx)
 		c.Assert(err, IsNil)
@@ -63,7 +64,7 @@ func startServerAndCheck(c *C, wg sync.WaitGroup, server *TssServer, ctx context
 	checkServeReady(c, port)
 }
 
-func spinUpServers(c *C, localTss []*TssServer, ctxs []context.Context, wg sync.WaitGroup, partyNum int) {
+func spinUpServers(c *C, localTss []*tss.TssServer, ctxs []context.Context, wg sync.WaitGroup, partyNum int) {
 	// we spin up the first signer as the "bootstrap node", and the rest 3 nodes connect to it
 	startServerAndCheck(c, wg, localTss[0], ctxs[0], baseInfoPort)
 	for i := 1; i < partyNum; i++ {
@@ -71,8 +72,8 @@ func spinUpServers(c *C, localTss []*TssServer, ctxs []context.Context, wg sync.
 	}
 }
 
-func setupContextAndNodes(c *C, partyNum int, conf common.TssConfig) ([]context.Context, []context.CancelFunc, []*TssServer) {
-	var localTss []*TssServer
+func setupContextAndNodes(c *C, partyNum int, conf common.TssConfig) ([]context.Context, []context.CancelFunc, []*tss.TssServer) {
+	var localTss []*tss.TssServer
 	var ctxs []context.Context
 	var cancels []context.CancelFunc
 	multiAddr, err := maddr.NewMultiaddr(peerID)
@@ -103,11 +104,11 @@ func setupContextAndNodes(c *C, partyNum int, conf common.TssConfig) ([]context.
 			c.Assert(err, IsNil)
 		}
 		if i == 0 {
-			instance, err := newTss(nil, p2pPort, tssAddr, infoAddr, protocolID, []byte(testPriKeyArr[i]), "Asgard", baseHome, conf, *preParamArray[i])
+			instance, err := tss.NewTss(nil, p2pPort, tssAddr, infoAddr, protocolID, []byte(testPriKeyArr[i]), "Asgard", baseHome, false, conf, *preParamArray[i])
 			c.Assert(err, IsNil)
 			localTss = append(localTss, instance)
 		} else {
-			instance, err := newTss(peerIDs, p2pPort, tssAddr, infoAddr, protocolID, []byte(testPriKeyArr[i]), "Asgard", baseHome, conf, *preParamArray[i])
+			instance, err := tss.NewTss(peerIDs, p2pPort, tssAddr, infoAddr, protocolID, []byte(testPriKeyArr[i]), "Asgard", baseHome, false, conf, *preParamArray[i])
 			c.Assert(err, IsNil)
 			localTss = append(localTss, instance)
 		}
@@ -115,8 +116,7 @@ func setupContextAndNodes(c *C, partyNum int, conf common.TssConfig) ([]context.
 	return ctxs, cancels, localTss
 }
 
-func setupNodeForTest(c *C, partyNum int) ([]context.Context, []*TssServer, []context.CancelFunc, *sync.WaitGroup) {
-	ByPassGeneratePreParam = false
+func setupNodeForTest(c *C, partyNum int) ([]context.Context, []*tss.TssServer, []context.CancelFunc, *sync.WaitGroup) {
 	conf := common.TssConfig{
 		KeyGenTimeout:   30 * time.Second,
 		KeySignTimeout:  30 * time.Second,

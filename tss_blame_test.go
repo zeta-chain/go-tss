@@ -19,6 +19,7 @@ import (
 	"gitlab.com/thorchain/tss/go-tss/common"
 	"gitlab.com/thorchain/tss/go-tss/keygen"
 	"gitlab.com/thorchain/tss/go-tss/keysign"
+	"gitlab.com/thorchain/tss/go-tss/tss"
 )
 
 type BlameTestSuite struct{}
@@ -39,7 +40,7 @@ type TestParties struct {
 	malicious []int
 }
 
-func setupNodeBlameForTest(c *C, partyNum int) ([]context.Context, []*TssServer, []context.CancelFunc, *sync.WaitGroup) {
+func setupNodeBlameForTest(c *C, partyNum int) ([]context.Context, []*tss.TssServer, []context.CancelFunc, *sync.WaitGroup) {
 	conf := common.TssConfig{
 		KeyGenTimeout:   time.Second * 5,
 		KeySignTimeout:  time.Second * 5,
@@ -237,7 +238,6 @@ func testKeySignBlameTimeout(c *C, poolPubKey string, cancels []context.CancelFu
 }
 
 func (t *BlameTestSuite) TestNodeSyncAndTimeoutBlame(c *C) {
-	ByPassGeneratePreParam = false
 	_, _, cancels, wg := setupNodeBlameForTest(c, partyNum)
 	defer cleanUp(c, cancels, wg, partyNum)
 
