@@ -29,6 +29,9 @@ type TssTestSuite struct {
 var _ = Suite(&TssTestSuite{})
 
 func (t *TssTestSuite) SetUpSuite(c *C) {
+	if testing.Short() {
+		c.Skip("Skipping, unit tests only")
+	}
 	common.InitLog("info", true, "tss_http_test")
 	t.preParams = getPreparams(c)
 }

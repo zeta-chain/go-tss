@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"testing"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -32,6 +33,9 @@ var testBlamePubKeys = []string{"thorpub1addwnpepqtr5p8tllhp4xaxmu77zhqen24pmrdl
 var testBlamePrivKey = "OWU2YTk1NzdlOTA5NTAxZmI4YjUyODYyMmZkYzBjNzJlMTQ5YTI2YWY5NzkzYTc0MjA3MDBkMWQzMzFiMDNhZg=="
 
 func (t *BlameTestSuite) SetUpSuite(c *C) {
+	if testing.Short() {
+		c.Skip("Skipping, unit tests only")
+	}
 	common.InitLog("info", true, "blame_test")
 }
 
