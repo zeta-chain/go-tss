@@ -11,7 +11,6 @@ import (
 	"time"
 
 	bkeygen "github.com/binance-chain/tss-lib/ecdsa/keygen"
-	"github.com/gorilla/mux"
 	"github.com/libp2p/go-libp2p-core/protocol"
 	maddr "github.com/multiformats/go-multiaddr"
 	"github.com/rs/zerolog"
@@ -50,35 +49,34 @@ func NewTss(
 	priKeyBytes []byte,
 	rendezvous,
 	baseFolder string,
-	byPassPreParam bool,
 	conf common.TssConfig,
-	optionalPreParams ...bkeygen.LocalPreParams,
+	preParams *bkeygen.LocalPreParams,
 ) (*TssServer, error) {
 	priKey, err := getPriKey(string(priKeyBytes))
 	if err != nil {
 		return nil, errors.New("cannot parse the private key")
 	}
+
 	P2PServer, err := p2p.NewCommunication(rendezvous, bootstrapPeers, p2pPort, protocolID)
 	if err != nil {
 		return nil, fmt.Errorf("fail to create communication layer: %w", err)
 	}
-	common.SetupBech32Prefix()
-	// When using the keygen party it is recommended that you pre-compute the "safe primes" and Paillier secret beforehand because this can take some time.
-	// This code will generate those parameters using a concurrency limit equal to the number of available CPU cores.
-	var preParams *bkeygen.LocalPreParams
-	if !byPassPreParam {
-		if len(optionalPreParams) > 0 {
-			preParams = &optionalPreParams[0]
-		} else {
-			preParams, err = bkeygen.GeneratePreParams(conf.PreParamTimeout)
-			if err != nil {
-				return nil, fmt.Errorf("fail to generate pre parameters: %w", err)
-			}
+
+	// When using the keygen party it is recommended that you pre-compute the
+	// "safe primes" and Paillier secret beforehand because this can take some
+	// time.
+	// This code will generate those parameters using a concurrency limit equal
+	// to the number of available CPU cores.
+	if !preParams.Validate() {
+		preParams, err = bkeygen.GeneratePreParams(conf.PreParamTimeout)
+		if err != nil {
+			return nil, fmt.Errorf("fail to generate pre parameters: %w", err)
 		}
 	}
-	if preParams == nil && !byPassPreParam {
-		return nil, errors.New("invalid ppreparams")
+	if !preParams.Validate() {
+		return nil, errors.New("invalid preparams")
 	}
+
 	tssServer := TssServer{
 		conf:   conf,
 		logger: log.With().Str("module", "tss").Logger(),
@@ -96,31 +94,6 @@ func NewTss(
 	}
 
 	return &tssServer, nil
-}
-
-func logMiddleware(verbose bool) mux.MiddlewareFunc {
-	return func(handler http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if verbose {
-				log.Debug().
-					Str("route", r.URL.Path).
-					Str("port", r.URL.Port()).
-					Str("method", r.Method).
-					Msg("HTTP request received")
-			}
-			handler.ServeHTTP(w, r)
-		})
-	}
-}
-
-func StopServer(server *http.Server) error {
-	c, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	err := server.Shutdown(c)
-	if err != nil {
-		log.Error().Err(err).Msg("Failed to shutdown the Tss server gracefully")
-	}
-	return err
 }
 
 func (t *TssServer) ConfigureHttpServers(tss, info string) {

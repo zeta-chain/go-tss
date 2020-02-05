@@ -32,7 +32,7 @@ func (t *TssTestSuite) SetUpSuite(c *C) {
 func setupTssForTest(c *C) *tss.TssServer {
 	protocolID := protocol.ConvertFromStrings([]string{"tss"})[0]
 	conf := common.TssConfig{}
-	tss, err := tss.NewTss(nil, 6668, protocolID, []byte(testPriKey), "Asgard", "", true, conf)
+	tss, err := tss.NewTss(nil, 6668, protocolID, []byte(testPriKey), "Asgard", "", conf, nil)
 	c.Assert(err, IsNil)
 	tss.ConfigureHttpServers(
 		":8080",
@@ -45,7 +45,7 @@ func setupTssForTest(c *C) *tss.TssServer {
 func (t *TssTestSuite) TestHttpTssReusePort(c *C) {
 	protocolID := protocol.ConvertFromStrings([]string{"tss"})[0]
 	conf := common.TssConfig{}
-	tss1, err := tss.NewTss(nil, 6660, protocolID, []byte(testPriKey), "Asgard", "", true, conf)
+	tss1, err := tss.NewTss(nil, 6660, protocolID, []byte(testPriKey), "Asgard", "", conf, nil)
 	c.Assert(err, IsNil)
 	tss1.ConfigureHttpServers(
 		"127.0.0.1:8080",
@@ -63,7 +63,7 @@ func (t *TssTestSuite) TestHttpTssReusePort(c *C) {
 	_, err = retryablehttp.Get("http://127.0.0.1:8081/ping")
 	c.Assert(err, IsNil)
 
-	tss2, err := tss.NewTss(nil, 6661, protocolID, []byte(testPriKey), "Asgard", "", true, conf)
+	tss2, err := tss.NewTss(nil, 6661, protocolID, []byte(testPriKey), "Asgard", "", conf, nil)
 	c.Assert(err, IsNil)
 	tss2.ConfigureHttpServers(
 		"127.0.0.1:8080",
@@ -80,7 +80,7 @@ func (t *TssTestSuite) TestHttpTssReusePort(c *C) {
 func (t *TssTestSuite) TestHttpNewTss(c *C) {
 	protocolID := protocol.ConvertFromStrings([]string{"tss"})[0]
 	conf := common.TssConfig{}
-	tss, err := tss.NewTss(nil, 6668, protocolID, []byte(testPriKey), "Asgard", "", true, conf)
+	tss, err := tss.NewTss(nil, 6668, protocolID, []byte(testPriKey), "Asgard", "", conf, nil)
 	c.Assert(err, IsNil)
 	tss.ConfigureHttpServers(
 		":12345",
