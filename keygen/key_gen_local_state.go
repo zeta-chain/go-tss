@@ -26,6 +26,21 @@ type KeyGenResp struct {
 	Blame       common.Blame  `json:"blame"`
 }
 
+func NewKeyGenReq(keys []string) KeyGenReq {
+	return KeyGenReq{
+		Keys: keys,
+	}
+}
+
+func NewKeyGenResp(pk, addr string, status common.Status, blame common.Blame) KeyGenResp {
+	return KeyGenResp{
+		PubKey:      pk,
+		PoolAddress: addr,
+		Status:      status,
+		Blame:       blame,
+	}
+}
+
 func SaveLocalStateToFile(filePathName string, state common.KeygenLocalStateItem) error {
 	buf, err := json.Marshal(state)
 	if err != nil {

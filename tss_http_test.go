@@ -97,11 +97,11 @@ func (t *TssTestSuite) TestHttpKeySign(c *C) {
 	c.Assert(tssService, NotNil)
 	respRecorder := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/keysign", nil)
-	tssService.KeySign(respRecorder, req)
+	tssService.KeySignHandler(respRecorder, req)
 	c.Assert(respRecorder.Code, Equals, http.StatusMethodNotAllowed)
 
 	respRecorder = httptest.NewRecorder()
 	reqInvalidBody := httptest.NewRequest(http.MethodPost, "/keysign", bytes.NewBuffer([]byte("whatever")))
-	tssService.KeySign(respRecorder, reqInvalidBody)
+	tssService.KeySignHandler(respRecorder, reqInvalidBody)
 	c.Assert(respRecorder.Code, Equals, http.StatusBadRequest)
 }

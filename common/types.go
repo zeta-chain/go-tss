@@ -24,6 +24,8 @@ var (
 	ErrNodeSync            = errors.New("error nodesync Timeout")
 )
 
+var NoBlame = Blame{}
+
 // LocalCacheItem used to cache the unconfirmed broadcast message
 type LocalCacheItem struct {
 	Msg           *p2p.WireMessage
