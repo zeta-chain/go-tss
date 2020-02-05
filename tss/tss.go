@@ -46,8 +46,6 @@ type TssServer struct {
 func NewTss(
 	bootstrapPeers []maddr.Multiaddr,
 	p2pPort int,
-	tssAddr,
-	infoAddr string,
 	protocolID protocol.ID,
 	priKeyBytes []byte,
 	rendezvous,
@@ -96,8 +94,6 @@ func NewTss(
 		subscribers:      make(map[string]chan *p2p.Message),
 		homeBase:         baseFolder,
 	}
-	tssServer.tssHttpServer = NewTssHttpServer(tssAddr, &tssServer)
-	tssServer.infoHttpServer = NewInfoHttpServer(infoAddr, &tssServer)
 
 	return &tssServer, nil
 }
@@ -127,7 +123,16 @@ func StopServer(server *http.Server) error {
 	return err
 }
 
+func (t *TssServer) ConfigureHttpServers(tss, info string) {
+	t.tssHttpServer = NewTssHttpServer(tss, t)
+	t.infoHttpServer = NewInfoHttpServer(info, t)
+}
+
 func (t *TssServer) StartHttpServers() error {
+	if t.tssHttpServer == nil || t.infoHttpServer == nil {
+		return nil
+	}
+
 	defer t.wg.Done()
 	ctx := context.Background()
 	g, newCtx := errgroup.WithContext(ctx)

@@ -23,7 +23,7 @@ func (t *TssServer) tssNewHandler(verbose bool) http.Handler {
 	router := mux.NewRouter()
 	router.Handle("/keygen", http.HandlerFunc(t.KeygenHandler)).Methods(http.MethodPost)
 	router.Handle("/keysign", http.HandlerFunc(t.KeySignHandler)).Methods(http.MethodPost)
-	router.Handle("/nodestatus", http.HandlerFunc(t.getNodeStatus)).Methods(http.MethodGet)
+	router.Handle("/nodestatus", http.HandlerFunc(t.getNodeStatusHandler)).Methods(http.MethodGet)
 	router.Use(logMiddleware(verbose))
 	return router
 }
@@ -107,7 +107,7 @@ func (t *TssServer) KeySignHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (t *TssServer) getNodeStatus(w http.ResponseWriter, _ *http.Request) {
+func (t *TssServer) getNodeStatusHandler(w http.ResponseWriter, _ *http.Request) {
 	buf, err := json.Marshal(t.Status)
 	if err != nil {
 		t.logger.Error().Err(err).Msg("fail to marshal response to json")

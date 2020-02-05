@@ -50,8 +50,6 @@ func main() {
 	tss, err := tss.NewTss(
 		p2pConf.BootstrapPeers,
 		p2pConf.Port,
-		generalConf.TssAddr,
-		generalConf.InfoAddr,
 		protocolID,
 		[]byte(priKeyBytes),
 		p2pConf.RendezvousString,
@@ -62,6 +60,11 @@ func main() {
 	if nil != err {
 		log.Fatal(err)
 	}
+
+	tss.ConfigureHttpServers(
+		generalConf.TssAddr,
+		generalConf.InfoAddr,
+	)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
