@@ -38,6 +38,9 @@ func main() {
 	_ = golog.SetLogLevel("tss-lib", "INFO")
 	common.InitLog(generalConf.LogLevel, generalConf.Pretty, "tss_service")
 
+	// Setup Bech32 Prefixes
+	common.SetupBech32Prefix()
+
 	// Read stdin for the private key
 	inBuf := bufio.NewReader(os.Stdin)
 	priKeyBytes, err := input.GetPassword("input node secret key:", inBuf)
@@ -50,18 +53,21 @@ func main() {
 	tss, err := tss.NewTss(
 		p2pConf.BootstrapPeers,
 		p2pConf.Port,
-		generalConf.TssAddr,
-		generalConf.InfoAddr,
 		protocolID,
 		[]byte(priKeyBytes),
 		p2pConf.RendezvousString,
 		generalConf.BaseFolder,
-		false,
 		tssConf,
+		nil,
 	)
 	if nil != err {
 		log.Fatal(err)
 	}
+
+	tss.ConfigureHttpServers(
+		generalConf.TssAddr,
+		generalConf.InfoAddr,
+	)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

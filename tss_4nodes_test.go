@@ -72,14 +72,7 @@ func spinUpServers(c *C, localTss []*tss.TssServer, ctxs []context.Context, wg s
 	}
 }
 
-func setupContextAndNodes(c *C, partyNum int, conf common.TssConfig) ([]context.Context, []context.CancelFunc, []*tss.TssServer) {
-	var localTss []*tss.TssServer
-	var ctxs []context.Context
-	var cancels []context.CancelFunc
-	multiAddr, err := maddr.NewMultiaddr(peerID)
-	protocolID := protocol.ConvertFromStrings([]string{"tss"})[0]
-	c.Assert(err, IsNil)
-	peerIDs := []maddr.Multiaddr{multiAddr}
+func getPreparams(c *C) []*btsskeygen.LocalPreParams {
 	var preParamArray []*btsskeygen.LocalPreParams
 	buf, err := ioutil.ReadFile(path.Join(testFileLocation, preParamTestFile))
 	c.Assert(err, IsNil)
@@ -91,6 +84,19 @@ func setupContextAndNodes(c *C, partyNum int, conf common.TssConfig) ([]context.
 		json.Unmarshal(val, &preParam)
 		preParamArray = append(preParamArray, &preParam)
 	}
+	return preParamArray
+}
+
+func setupContextAndNodes(c *C, partyNum int, conf common.TssConfig) ([]context.Context, []context.CancelFunc, []*tss.TssServer) {
+	var localTss []*tss.TssServer
+	var ctxs []context.Context
+	var cancels []context.CancelFunc
+	common.SetupBech32Prefix()
+	multiAddr, err := maddr.NewMultiaddr(peerID)
+	protocolID := protocol.ConvertFromStrings([]string{"tss"})[0]
+	c.Assert(err, IsNil)
+	peerIDs := []maddr.Multiaddr{multiAddr}
+	preParamArray := getPreparams(c)
 	for i := 0; i < partyNum; i++ {
 		ctx, cancel := context.WithCancel(context.Background())
 		ctxs = append(ctxs, ctx)
@@ -104,12 +110,20 @@ func setupContextAndNodes(c *C, partyNum int, conf common.TssConfig) ([]context.
 			c.Assert(err, IsNil)
 		}
 		if i == 0 {
-			instance, err := tss.NewTss(nil, p2pPort, tssAddr, infoAddr, protocolID, []byte(testPriKeyArr[i]), "Asgard", baseHome, false, conf, *preParamArray[i])
+			instance, err := tss.NewTss(nil, p2pPort, protocolID, []byte(testPriKeyArr[i]), "Asgard", baseHome, conf, preParamArray[i])
 			c.Assert(err, IsNil)
+			instance.ConfigureHttpServers(
+				tssAddr,
+				infoAddr,
+			)
 			localTss = append(localTss, instance)
 		} else {
-			instance, err := tss.NewTss(peerIDs, p2pPort, tssAddr, infoAddr, protocolID, []byte(testPriKeyArr[i]), "Asgard", baseHome, false, conf, *preParamArray[i])
+			instance, err := tss.NewTss(peerIDs, p2pPort, protocolID, []byte(testPriKeyArr[i]), "Asgard", baseHome, conf, preParamArray[i])
 			c.Assert(err, IsNil)
+			instance.ConfigureHttpServers(
+				tssAddr,
+				infoAddr,
+			)
 			localTss = append(localTss, instance)
 		}
 	}

@@ -19,17 +19,17 @@ func NewInfoHttpServer(infoAddr string, t *TssServer) *http.Server {
 
 func (t *TssServer) infoHandler(verbose bool) http.Handler {
 	router := mux.NewRouter()
-	router.Handle("/ping", http.HandlerFunc(t.ping)).Methods(http.MethodGet)
-	router.Handle("/p2pid", http.HandlerFunc(t.getP2pID)).Methods(http.MethodGet)
+	router.Handle("/ping", http.HandlerFunc(t.pingHandler)).Methods(http.MethodGet)
+	router.Handle("/p2pid", http.HandlerFunc(t.getP2pIDHandler)).Methods(http.MethodGet)
 	router.Use(logMiddleware(verbose))
 	return router
 }
 
-func (t *TssServer) ping(w http.ResponseWriter, _ *http.Request) {
+func (t *TssServer) pingHandler(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func (t *TssServer) getP2pID(w http.ResponseWriter, _ *http.Request) {
+func (t *TssServer) getP2pIDHandler(w http.ResponseWriter, _ *http.Request) {
 	localPeerID := t.p2pCommunication.GetLocalPeerID()
 	_, err := w.Write([]byte(localPeerID))
 	if err != nil {

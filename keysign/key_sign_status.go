@@ -17,3 +17,19 @@ type KeySignResp struct {
 	Status common.Status `json:"status"`
 	Blame  common.Blame  `json:"blame"`
 }
+
+func NewKeySignReq(pk, msg string) KeySignReq {
+	return KeySignReq{
+		PoolPubKey: pk,
+		Message:    msg,
+	}
+}
+
+func NewKeySignResp(r, s string, status common.Status, blame common.Blame) KeySignResp {
+	return KeySignResp{
+		R:      r,
+		S:      s,
+		Status: status,
+		Blame:  blame,
+	}
+}
