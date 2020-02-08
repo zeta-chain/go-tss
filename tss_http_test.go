@@ -11,7 +11,6 @@ import (
 
 	btsskeygen "github.com/binance-chain/tss-lib/ecdsa/keygen"
 	"github.com/hashicorp/go-retryablehttp"
-	"github.com/libp2p/go-libp2p-core/protocol"
 	. "gopkg.in/check.v1"
 
 	"gitlab.com/thorchain/tss/go-tss/common"
@@ -37,10 +36,9 @@ func (t *TssTestSuite) SetUpSuite(c *C) {
 }
 
 func setupTssForTest(c *C) *tss.TssServer {
-	protocolID := protocol.ConvertFromStrings([]string{"tss"})[0]
 	conf := common.TssConfig{}
 	preParams := getPreparams(c)
-	tss, err := tss.NewTss(nil, 6668, protocolID, []byte(testPriKey), "Asgard", "", conf, preParams[0])
+	tss, err := tss.NewTss(nil, 6668, []byte(testPriKey), "Asgard", "", conf, preParams[0])
 	c.Assert(err, IsNil)
 	tss.ConfigureHttpServers(
 		":8080",
@@ -51,9 +49,8 @@ func setupTssForTest(c *C) *tss.TssServer {
 }
 
 func (t *TssTestSuite) TestHttpTssReusePort(c *C) {
-	protocolID := protocol.ConvertFromStrings([]string{"tss"})[0]
 	conf := common.TssConfig{}
-	tss1, err := tss.NewTss(nil, 6660, protocolID, []byte(testPriKey), "Asgard", "", conf, t.preParams[0])
+	tss1, err := tss.NewTss(nil, 6660, []byte(testPriKey), "Asgard", "", conf, t.preParams[0])
 	c.Assert(err, IsNil)
 	tss1.ConfigureHttpServers(
 		"127.0.0.1:8080",
@@ -71,7 +68,7 @@ func (t *TssTestSuite) TestHttpTssReusePort(c *C) {
 	_, err = retryablehttp.Get("http://127.0.0.1:8081/ping")
 	c.Assert(err, IsNil)
 
-	tss2, err := tss.NewTss(nil, 6661, protocolID, []byte(testPriKey), "Asgard", "", conf, t.preParams[1])
+	tss2, err := tss.NewTss(nil, 6661, []byte(testPriKey), "Asgard", "", conf, t.preParams[1])
 	c.Assert(err, IsNil)
 	tss2.ConfigureHttpServers(
 		"127.0.0.1:8080",
@@ -86,9 +83,8 @@ func (t *TssTestSuite) TestHttpTssReusePort(c *C) {
 }
 
 func (t *TssTestSuite) TestHttpNewTss(c *C) {
-	protocolID := protocol.ConvertFromStrings([]string{"tss"})[0]
 	conf := common.TssConfig{}
-	tss, err := tss.NewTss(nil, 6668, protocolID, []byte(testPriKey), "Asgard", "", conf, t.preParams[0])
+	tss, err := tss.NewTss(nil, 6668, []byte(testPriKey), "Asgard", "", conf, t.preParams[0])
 	c.Assert(err, IsNil)
 	tss.ConfigureHttpServers(
 		":12345",

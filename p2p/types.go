@@ -11,7 +11,6 @@ type addrList []maddr.Multiaddr
 
 type P2PConfig struct {
 	RendezvousString string
-	ProtocolID       string
 	Port             int
 	BootstrapPeers   addrList
 }
