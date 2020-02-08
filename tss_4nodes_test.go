@@ -18,7 +18,6 @@ import (
 
 	btsskeygen "github.com/binance-chain/tss-lib/ecdsa/keygen"
 	"github.com/hashicorp/go-retryablehttp"
-	"github.com/libp2p/go-libp2p-core/protocol"
 	maddr "github.com/multiformats/go-multiaddr"
 	. "gopkg.in/check.v1"
 
@@ -93,7 +92,6 @@ func setupContextAndNodes(c *C, partyNum int, conf common.TssConfig) ([]context.
 	var cancels []context.CancelFunc
 	common.SetupBech32Prefix()
 	multiAddr, err := maddr.NewMultiaddr(peerID)
-	protocolID := protocol.ConvertFromStrings([]string{"tss"})[0]
 	c.Assert(err, IsNil)
 	peerIDs := []maddr.Multiaddr{multiAddr}
 	preParamArray := getPreparams(c)
@@ -110,7 +108,7 @@ func setupContextAndNodes(c *C, partyNum int, conf common.TssConfig) ([]context.
 			c.Assert(err, IsNil)
 		}
 		if i == 0 {
-			instance, err := tss.NewTss(nil, p2pPort, protocolID, []byte(testPriKeyArr[i]), "Asgard", baseHome, conf, preParamArray[i])
+			instance, err := tss.NewTss(nil, p2pPort, []byte(testPriKeyArr[i]), "Asgard", baseHome, conf, preParamArray[i])
 			c.Assert(err, IsNil)
 			instance.ConfigureHttpServers(
 				tssAddr,
@@ -118,7 +116,7 @@ func setupContextAndNodes(c *C, partyNum int, conf common.TssConfig) ([]context.
 			)
 			localTss = append(localTss, instance)
 		} else {
-			instance, err := tss.NewTss(peerIDs, p2pPort, protocolID, []byte(testPriKeyArr[i]), "Asgard", baseHome, conf, preParamArray[i])
+			instance, err := tss.NewTss(peerIDs, p2pPort, []byte(testPriKeyArr[i]), "Asgard", baseHome, conf, preParamArray[i])
 			c.Assert(err, IsNil)
 			instance.ConfigureHttpServers(
 				tssAddr,

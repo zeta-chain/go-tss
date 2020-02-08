@@ -8,7 +8,6 @@ import (
 	"syscall"
 
 	golog "github.com/ipfs/go-log"
-	"github.com/libp2p/go-libp2p-core/protocol"
 	"github.com/rs/zerolog/log"
 	"github.com/whyrusleeping/go-logging"
 
@@ -32,11 +31,7 @@ func main() {
 		flag.PrintDefaults()
 		return
 	}
-	if p2pConf.ProtocolID == "" {
-		panic("error in process protocol ID")
-	}
-	protocolID := protocol.ConvertFromStrings([]string{p2pConf.ProtocolID})[0]
-	c, err := p2p.NewCommunication("tss", p2pConf.BootstrapPeers, p2pConf.Port, protocolID)
+	c, err := p2p.NewCommunication("tss", p2pConf.BootstrapPeers, p2pConf.Port)
 	if err != nil {
 		panic(err)
 	}
@@ -57,7 +52,6 @@ func parseFlags(generalConf *common.GeneralConfig, p2pConf *p2p.P2PConfig) {
 	flag.BoolVar(&generalConf.Help, "h", false, "Display Help")
 	flag.StringVar(&p2pConf.RendezvousString, "rendezvous", "Asgard",
 		"Unique string to identify group of nodes. Share this with your friends to let them connect with you")
-	flag.StringVar(&p2pConf.ProtocolID, "protocolID", "tss", "protocol ID for p2p communication")
 	flag.Var(&p2pConf.BootstrapPeers, "peer", "Adds a peer multiaddress to the bootstrap list")
 	flag.IntVar(&p2pConf.Port, "p2p-port", 6668, "listening port local")
 	flag.Parse()

@@ -11,7 +11,6 @@ import (
 
 	"github.com/cosmos/cosmos-sdk/client/input"
 	golog "github.com/ipfs/go-log"
-	"github.com/libp2p/go-libp2p-core/protocol"
 	"github.com/whyrusleeping/go-logging"
 
 	"gitlab.com/thorchain/tss/go-tss/common"
@@ -26,13 +25,6 @@ func main() {
 		flag.PrintDefaults()
 		return
 	}
-	// get protocol ID
-	protocolIDs := protocol.ConvertFromStrings([]string{p2pConf.ProtocolID})
-	if len(protocolIDs) != 1 {
-		log.Fatal("no valid protocol ID found, or too many")
-	}
-	protocolID := protocolIDs[0]
-
 	// Setup logging
 	golog.SetAllLoggers(logging.INFO)
 	_ = golog.SetLogLevel("tss-lib", "INFO")
@@ -53,7 +45,6 @@ func main() {
 	tss, err := tss.NewTss(
 		p2pConf.BootstrapPeers,
 		p2pConf.Port,
-		protocolID,
 		[]byte(priKeyBytes),
 		p2pConf.RendezvousString,
 		generalConf.BaseFolder,
@@ -96,7 +87,6 @@ func parseFlags() (generalConf common.GeneralConfig, tssConf common.TssConfig, p
 	// we setup the p2p network configuration
 	flag.StringVar(&p2pConf.RendezvousString, "rendezvous", "Asgard",
 		"Unique string to identify group of nodes. Share this with your friends to let them connect with you")
-	flag.StringVar(&p2pConf.ProtocolID, "protocolID", "tss", "protocol ID for p2p communication")
 	flag.IntVar(&p2pConf.Port, "p2p-port", 6668, "listening port local")
 	flag.Var(&p2pConf.BootstrapPeers, "peer", "Adds a peer multiaddress to the bootstrap list")
 	flag.Parse()

@@ -11,7 +11,6 @@ import (
 	"time"
 
 	bkeygen "github.com/binance-chain/tss-lib/ecdsa/keygen"
-	"github.com/libp2p/go-libp2p-core/protocol"
 	maddr "github.com/multiformats/go-multiaddr"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -45,7 +44,6 @@ type TssServer struct {
 func NewTss(
 	bootstrapPeers []maddr.Multiaddr,
 	p2pPort int,
-	protocolID protocol.ID,
 	priKeyBytes []byte,
 	rendezvous,
 	baseFolder string,
@@ -57,7 +55,7 @@ func NewTss(
 		return nil, errors.New("cannot parse the private key")
 	}
 
-	P2PServer, err := p2p.NewCommunication(rendezvous, bootstrapPeers, p2pPort, protocolID)
+	P2PServer, err := p2p.NewCommunication(rendezvous, bootstrapPeers, p2pPort)
 	if err != nil {
 		return nil, fmt.Errorf("fail to create communication layer: %w", err)
 	}

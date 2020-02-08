@@ -24,6 +24,9 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+// TSSProtocolID protocol id used for tss
+var TSSProtocolID protocol.ID = "/p2p/tss"
+
 const (
 	// LengthHeader represent how many bytes we used as header
 	LengthHeader = 4
@@ -46,7 +49,6 @@ type Message struct {
 // Communication use p2p to broadcast messages among all the TSS nodes
 type Communication struct {
 	rendezvous       string // based on group
-	protocolID       protocol.ID
 	bootstrapPeers   []maddr.Multiaddr
 	logger           zerolog.Logger
 	listenAddr       maddr.Multiaddr
@@ -61,14 +63,13 @@ type Communication struct {
 }
 
 // NewCommunication create a new instance of Communication
-func NewCommunication(rendezvous string, bootstrapPeers []maddr.Multiaddr, port int, protocolID protocol.ID) (*Communication, error) {
+func NewCommunication(rendezvous string, bootstrapPeers []maddr.Multiaddr, port int) (*Communication, error) {
 	addr, err := maddr.NewMultiaddr(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", port))
 	if err != nil {
 		return nil, fmt.Errorf("fail to create listen addr: %w", err)
 	}
 	return &Communication{
 		rendezvous:       rendezvous,
-		protocolID:       protocolID,
 		bootstrapPeers:   bootstrapPeers,
 		logger:           log.With().Str("module", "communication").Logger(),
 		listenAddr:       addr,
@@ -288,7 +289,7 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 	}
 	c.host = h
 	c.logger.Info().Msgf("Host created, we are: %s, at: %s", h.ID(), h.Addrs())
-	h.SetStreamHandler(c.protocolID, c.handleStream)
+	h.SetStreamHandler(TSSProtocolID, c.handleStream)
 	// Start a DHT, for use in peer discovery. We can't just make a new DHT
 	// client because we want each peer to maintain its own local copy of the
 	// DHT, so that the bootstrapping node of the DHT can go down without
@@ -324,7 +325,7 @@ func (c *Communication) connectToOnePeer(ai peer.AddrInfo) (network.Stream, erro
 	c.logger.Debug().Msgf("connect to peer : %s", ai.ID.String())
 	ctx, cancel := context.WithTimeout(context.Background(), TimeoutConnecting)
 	defer cancel()
-	stream, err := c.host.NewStream(ctx, ai.ID, c.protocolID)
+	stream, err := c.host.NewStream(ctx, ai.ID, TSSProtocolID)
 	if err != nil {
 		return nil, fmt.Errorf("fail to create new stream to peer: %s, %w", ai.ID, err)
 	}
@@ -364,11 +365,11 @@ func (c *Communication) Start(priKeyBytes []byte) error {
 // Stop communication
 func (c *Communication) Stop() error {
 	// we need to stop the handler and the p2p services firstly, then terminate the our communication threads
-	c.host.RemoveStreamHandler(c.protocolID)
-	c.host.Close()
+	if err := c.host.Close(); err != nil {
+		c.logger.Err(err).Msg("fail to close host network")
+	}
+
 	close(c.stopChan)
-	c.host.RemoveStreamHandler(c.protocolID)
-	c.host.Close()
 	c.wg.Wait()
 	return nil
 }
