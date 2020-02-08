@@ -15,6 +15,7 @@ type P2PConfig struct {
 	BootstrapPeers   addrList
 }
 
+// String implement fmt.Stringer
 func (al *addrList) String() string {
 	strs := make([]string, len(*al))
 	for i, addr := range *al {
@@ -23,6 +24,7 @@ func (al *addrList) String() string {
 	return strings.Join(strs, ",")
 }
 
+// Set add the given value to addList
 func (al *addrList) Set(value string) error {
 	addr, err := maddr.NewMultiaddr(value)
 	if err != nil {

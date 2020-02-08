@@ -1,0 +1,20 @@
+syntax = "proto3";
+package messages;
+
+message JoinPartyRequest {
+    string ID = 1; // the unique hash id
+    int32 Threshold = 2; // how many party is required
+    repeated string PeerIDs = 3;
+}
+
+message JoinPartyResponse {
+    enum ResponseType {
+        Unknown = 0;
+        Success = 1;
+        Timeout = 2;
+        AlreadyStarted = 3;
+    }
+    string ID = 1; // unique hash id
+    ResponseType type = 2; // result
+    repeated string PeerIDs = 3; // if Success , this will be the list of peers to form the ceremony, if fail , this will be the peers that are available
+}

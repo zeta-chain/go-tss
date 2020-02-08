@@ -24,12 +24,13 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+var joinPartyProtocol protocol.ID = "/p2p/join-party"
+
 // TSSProtocolID protocol id used for tss
 var TSSProtocolID protocol.ID = "/p2p/tss"
 
 const (
-	// LengthHeader represent how many bytes we used as header
-	LengthHeader = 4
+
 	// MaxPayload the maximum payload for a message
 	MaxPayload = 81920 // 80kb
 	// TimeoutReadWrite maximum time to wait on read and write
