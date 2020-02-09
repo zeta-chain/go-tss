@@ -38,6 +38,7 @@ type TssServer struct {
 	stopChan         chan struct{}
 	subscribers      map[string]chan *p2p.Message
 	homeBase         string
+	partyCoordinator *p2p.PartyCoordinator
 }
 
 // NewTss create a new instance of Tss
@@ -55,7 +56,7 @@ func NewTss(
 		return nil, errors.New("cannot parse the private key")
 	}
 
-	P2PServer, err := p2p.NewCommunication(rendezvous, bootstrapPeers, p2pPort)
+	comm, err := p2p.NewCommunication(rendezvous, bootstrapPeers, p2pPort)
 	if err != nil {
 		return nil, fmt.Errorf("fail to create communication layer: %w", err)
 	}
@@ -75,13 +76,22 @@ func NewTss(
 		return nil, errors.New("invalid preparams")
 	}
 
+	priKeyRawBytes, err := getPriKeyRawBytes(priKey)
+	if err != nil {
+		return nil, fmt.Errorf("fail to get private key")
+	}
+	if err := comm.Start(priKeyRawBytes); nil != err {
+		return nil, fmt.Errorf("fail to start p2p network: %w", err)
+	}
+	pc := p2p.NewPartyCoordinator(comm.GetHost())
+
 	tssServer := TssServer{
 		conf:   conf,
 		logger: log.With().Str("module", "tss").Logger(),
 		Status: common.TssStatus{
 			Starttime: time.Now(),
 		},
-		p2pCommunication: P2PServer,
+		p2pCommunication: comm,
 		priKey:           priKey,
 		preParams:        preParams,
 		tssKeyGenLocker:  &sync.Mutex{},
@@ -89,6 +99,7 @@ func NewTss(
 		stopChan:         make(chan struct{}),
 		subscribers:      make(map[string]chan *p2p.Message),
 		homeBase:         baseFolder,
+		partyCoordinator: pc,
 	}
 
 	return &tssServer, nil
@@ -151,18 +162,12 @@ func (t *TssServer) Start(ctx context.Context) error {
 		if err != nil {
 			t.logger.Error().Msgf("error in shutdown the p2p server")
 		}
+		t.partyCoordinator.Stop()
 	}()
 
-	prikeyBytes, err := getPriKeyRawBytes(t.priKey)
-	if err != nil {
-		return err
-	}
-
 	go t.p2pCommunication.ProcessBroadcast()
-	if err := t.p2pCommunication.Start(prikeyBytes); nil != err {
-		return fmt.Errorf("fail to start p2p communication layer: %w", err)
-	}
-	err = t.StartHttpServers()
+	t.partyCoordinator.Start()
+	err := t.StartHttpServers()
 	if err != nil {
 		return err
 	}
