@@ -33,7 +33,7 @@ type PartyCoordinator struct {
 
 // NewPartyCoordinator create a new instance of PartyCoordinator
 func NewPartyCoordinator(host host.Host) *PartyCoordinator {
-	return &PartyCoordinator{
+	pc := &PartyCoordinator{
 		logger:       log.With().Str("module", "party_coordinator").Logger(),
 		host:         host,
 		ceremonyLock: &sync.Mutex{},
@@ -41,6 +41,8 @@ func NewPartyCoordinator(host host.Host) *PartyCoordinator {
 		wg:           &sync.WaitGroup{},
 		stopChan:     make(chan struct{}),
 	}
+	host.SetStreamHandler(joinPartyProtocol, pc.HandleStream)
+	return pc
 }
 
 // Start the party coordinator role
@@ -53,6 +55,7 @@ func (pc *PartyCoordinator) Start() {
 // Stop the PartyCoordinator rune
 func (pc *PartyCoordinator) Stop() {
 	defer pc.logger.Info().Msg("stop party coordinator")
+	pc.host.RemoveStreamHandler(joinPartyProtocol)
 	close(pc.stopChan)
 	pc.wg.Wait()
 }
@@ -183,6 +186,7 @@ func (pc *PartyCoordinator) onJoinParty(joinParty *JoinParty) error {
 		Type:   messages.JoinPartyResponse_Success,
 		PeerID: c.GetParties(),
 	}
+	pc.logger.Info().Msgf("party formed: %+v", resp.PeerID)
 	for _, item := range c.JoinPartyRequests {
 		select {
 		case <-pc.stopChan: // receive request to exit

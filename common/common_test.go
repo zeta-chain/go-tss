@@ -181,7 +181,7 @@ func (t *TssTestSuite) TestTssProcessOutCh(c *C) {
 	conf := TssConfig{}
 	localTestPubKeys := make([]string, len(testPubKeys))
 	copy(localTestPubKeys, testPubKeys[:])
-	partiesID, localPartyID, err := GetParties(localTestPubKeys, testPubKeys[0], true)
+	partiesID, localPartyID, err := GetParties(localTestPubKeys, testPubKeys[0])
 	c.Assert(err, IsNil)
 	messageRouting := btss.MessageRouting{
 		From:                    localPartyID,
@@ -279,7 +279,7 @@ func setupProcessVerMsgEnv(c *C, keyPool []string, partyNum int) (*TssCommon, []
 	localTestPubKeys := make([]string, partyNum)
 	copy(localTestPubKeys, keyPool[:partyNum])
 	// for the test, we choose the first pubic key as the test instance public key
-	partiesID, localPartyID, err := GetParties(localTestPubKeys, keyPool[0], true)
+	partiesID, localPartyID, err := GetParties(localTestPubKeys, keyPool[0])
 	c.Assert(err, IsNil)
 	partyIDMap := SetupPartyIDMap(partiesID)
 	SetupIDMaps(partyIDMap, tssCommonStruct.PartyIDtoP2PID)

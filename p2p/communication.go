@@ -83,6 +83,11 @@ func NewCommunication(rendezvous string, bootstrapPeers []maddr.Multiaddr, port 
 	}, nil
 }
 
+// GetHost return the host
+func (c *Communication) GetHost() host.Host {
+	return c.host
+}
+
 // GetLocalPeerID from p2p host
 func (c *Communication) GetLocalPeerID() string {
 	return c.host.ID().String()

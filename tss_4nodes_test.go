@@ -149,7 +149,11 @@ func sendTestRequest(c *C, url string, request []byte) []byte {
 		resp, err = http.Get(url)
 	} else {
 		resp, err = http.Post(url, "application/json", bytes.NewBuffer(request))
+		if resp.StatusCode != http.StatusOK {
+			return nil
+		}
 	}
+
 	c.Assert(err, IsNil)
 	body, err := ioutil.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
@@ -173,20 +177,24 @@ func testKeySign(c *C, poolPubKey string, partyNum int) {
 			defer requestGroup.Done()
 			url := fmt.Sprintf("http://127.0.0.1:%d/keysign", baseTssPort+i)
 			respByte := sendTestRequest(c, url, request)
-			var tempResp keysign.KeySignResp
-			err = json.Unmarshal(respByte, &tempResp)
-			c.Assert(err, IsNil)
-			locker.Lock()
-			keySignRespArr = append(keySignRespArr, &tempResp)
-			locker.Unlock()
+			if nil != respByte {
+				var tempResp keysign.KeySignResp
+				err = json.Unmarshal(respByte, &tempResp)
+				c.Assert(err, IsNil)
+				locker.Lock()
+				if len(tempResp.S) > 0 {
+					keySignRespArr = append(keySignRespArr, &tempResp)
+				}
+				locker.Unlock()
+			}
 		}(i, request)
 	}
 	requestGroup.Wait()
 	// this first node should get the empty result
-	c.Assert(keySignRespArr[0].S, Equals, "")
-	// size of the signature should be 44
-	c.Assert(keySignRespArr[1].S, HasLen, 44)
-	for i := 1; i < partyNum-1; i++ {
+
+	for i := 0; i < len(keySignRespArr)-1; i++ {
+		// size of the signature should be 44
+		c.Assert(keySignRespArr[i].S, HasLen, 44)
 		c.Assert(keySignRespArr[i].S, Equals, keySignRespArr[i+1].S)
 		c.Assert(keySignRespArr[i].R, Equals, keySignRespArr[i+1].R)
 	}

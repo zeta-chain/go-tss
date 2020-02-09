@@ -1,12 +1,10 @@
 package keysign
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
-	"path/filepath"
 	"time"
 
 	"github.com/binance-chain/tss-lib/ecdsa/signing"
@@ -37,14 +35,13 @@ func NewTssKeySign(homeBase, localP2PID string, conf common.TssConfig, privKey c
 		tssCommonStruct: common.NewTssCommon(localP2PID, broadcastChan, conf, msgID),
 		stopChan:        stopChan,
 		homeBase:        homeBase,
-		syncMsg:         make(chan *p2p.Message),
 		localParty:      nil,
 		keySignCurrent:  keySignCurrent,
 	}
 }
 
-func (tKeySign *TssKeySign) GetTssKeySignChannels() (chan *p2p.Message, chan *p2p.Message) {
-	return tKeySign.tssCommonStruct.TssMsg, tKeySign.syncMsg
+func (tKeySign *TssKeySign) GetTssKeySignChannels() chan *p2p.Message {
+	return tKeySign.tssCommonStruct.TssMsg
 }
 
 func (tKeySign *TssKeySign) GetTssCommonStruct() *common.TssCommon {
@@ -52,28 +49,9 @@ func (tKeySign *TssKeySign) GetTssCommonStruct() *common.TssCommon {
 }
 
 // signMessage
-func (tKeySign *TssKeySign) SignMessage(req KeySignReq) (*signing.SignatureData, error) {
-	if len(req.PoolPubKey) == 0 {
-		return nil, errors.New("empty pool pub key")
-	}
-	localFileName := fmt.Sprintf("localstate-%s.json", req.PoolPubKey)
-	if len(tKeySign.homeBase) > 0 {
-		localFileName = filepath.Join(tKeySign.homeBase, localFileName)
-	}
-	storedKeyGenLocalStateItem, err := common.LoadLocalState(localFileName)
-	if err != nil {
-		return nil, fmt.Errorf("fail to read local state file: %w", err)
-	}
-	msgToSign, err := base64.StdEncoding.DecodeString(req.Message)
-	if err != nil {
-		return nil, fmt.Errorf("fail to decode message(%s): %w", req.Message, err)
-	}
-	threshold, err := common.GetThreshold(len(storedKeyGenLocalStateItem.ParticipantKeys))
-	if err != nil {
-		return nil, err
-	}
-	tKeySign.logger.Debug().Msgf("keysign threshold: %d", threshold)
-	partiesID, localPartyID, err := common.GetParties(storedKeyGenLocalStateItem.ParticipantKeys, storedKeyGenLocalStateItem.LocalPartyKey, false)
+func (tKeySign *TssKeySign) SignMessage(msgToSign []byte, localStateItem common.KeygenLocalStateItem, parties []string) (*signing.SignatureData, error) {
+
+	partiesID, localPartyID, err := common.GetParties(parties, localStateItem.LocalPartyKey)
 	tKeySign.localParty = localPartyID
 	if err != nil {
 		return nil, fmt.Errorf("fail to form key sign party: %w", err)
@@ -82,12 +60,11 @@ func (tKeySign *TssKeySign) SignMessage(req KeySignReq) (*signing.SignatureData,
 		tKeySign.logger.Info().Msgf("we are not in this rounds key sign")
 		return nil, nil
 	}
+	threshold, err := common.GetThreshold(len(localStateItem.ParticipantKeys))
+	if err != nil {
+		return nil, errors.New("fail to get threshold")
+	}
 
-	localKeyData, partiesID := common.ProcessStateFile(storedKeyGenLocalStateItem, partiesID)
-	// Set up the parameters
-	// Note: The `id` and `moniker` fields are for convenience to allow you to easily track participants.
-	// The `id` should be a unique string representing this party in the network and `moniker` can be anything (even left blank).
-	// The `uniqueKey` is a unique identifying key for this peer (such as its p2p public key) as a big.Int.
 	tKeySign.logger.Debug().Msgf("local party: %+v", localPartyID)
 	ctx := btss.NewPeerContext(partiesID)
 	params := btss.NewParameters(ctx, localPartyID, len(partiesID), threshold)
@@ -98,7 +75,7 @@ func (tKeySign *TssKeySign) SignMessage(req KeySignReq) (*signing.SignatureData,
 	if err != nil {
 		return nil, fmt.Errorf("fail to convert msg to hash int: %w", err)
 	}
-	keySignParty := signing.NewLocalParty(m, params, localKeyData, outCh, endCh)
+	keySignParty := signing.NewLocalParty(m, params, localStateItem.LocalData, outCh, endCh)
 	partyIDMap := common.SetupPartyIDMap(partiesID)
 	err = common.SetupIDMaps(partyIDMap, tKeySign.tssCommonStruct.PartyIDtoP2PID)
 	if err != nil {
@@ -111,20 +88,7 @@ func (tKeySign *TssKeySign) SignMessage(req KeySignReq) (*signing.SignatureData,
 	})
 
 	tKeySign.tssCommonStruct.P2PPeers = common.GetPeersID(tKeySign.tssCommonStruct.PartyIDtoP2PID, tKeySign.tssCommonStruct.GetLocalPeerID())
-	standbyPeers, err := tKeySign.tssCommonStruct.NodeSync(tKeySign.syncMsg, p2p.TSSKeySignSync)
-	if err != nil {
-		tKeySign.logger.Error().Err(err).Msg("node sync error")
-		if err == common.ErrNodeSync {
-			tKeySign.logger.Error().Err(err).Msgf("the nodes online are +%v", standbyPeers)
-			_, blamePubKeys, err := tKeySign.tssCommonStruct.GetBlamePubKeysLists(standbyPeers)
-			if err != nil {
-				tKeySign.logger.Error().Err(err).Msg("error in get blame node pubkey")
-				return nil, err
-			}
-			tKeySign.tssCommonStruct.BlamePeers.SetBlame(common.BlameNodeSyncCheck, blamePubKeys)
-		}
-		return nil, err
-	}
+
 	// start the key sign
 	go func() {
 		if err := keySignParty.Start(); nil != err {
