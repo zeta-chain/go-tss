@@ -3,6 +3,7 @@ package keygen
 import (
 	"testing"
 
+	sdk "github.com/cosmos/cosmos-sdk/types"
 	. "gopkg.in/check.v1"
 
 	"gitlab.com/thorchain/tss/go-tss/common"
@@ -30,7 +31,10 @@ func (t *TssTestSuite) TestSignMessage(c *C) {
 	sk, err := common.GetPriKey(testPriKey)
 	c.Assert(err, IsNil)
 	c.Assert(sk, NotNil)
-	keyGenInstance := NewTssKeyGen("", "", conf, sk, nil, nil, nil, nil, "test")
+	pubKey, err := sdk.Bech32ifyAccPub(sk.PubKey())
+	c.Assert(err, IsNil)
+
+	keyGenInstance := NewTssKeyGen("", "", conf, pubKey, nil, nil, nil, nil, "test")
 	signatureData, err := keyGenInstance.GenerateNewKey(req)
 	c.Assert(err, NotNil)
 	c.Assert(signatureData, IsNil)

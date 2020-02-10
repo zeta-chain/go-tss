@@ -9,10 +9,8 @@ import (
 	"github.com/binance-chain/tss-lib/crypto"
 	bkeygen "github.com/binance-chain/tss-lib/ecdsa/keygen"
 	btss "github.com/binance-chain/tss-lib/tss"
-	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	cryptokey "github.com/tendermint/tendermint/crypto"
 
 	"gitlab.com/thorchain/tss/go-tss/common"
 	"gitlab.com/thorchain/tss/go-tss/p2p"
@@ -20,7 +18,7 @@ import (
 
 type TssKeyGen struct {
 	logger          zerolog.Logger
-	priKey          cryptokey.PrivKey
+	localNodePubKey string
 	preParams       *bkeygen.LocalPreParams
 	tssCommonStruct *common.TssCommon
 	stopChan        *chan struct{} // channel to indicate whether we should stop
@@ -30,10 +28,10 @@ type TssKeyGen struct {
 	keygenCurrent   *string
 }
 
-func NewTssKeyGen(homeBase, localP2PID string, conf common.TssConfig, privKey cryptokey.PrivKey, broadcastChan chan *p2p.BroadcastMsgChan, stopChan *chan struct{}, preParam *bkeygen.LocalPreParams, keygenCurrent *string, msgID string) TssKeyGen {
+func NewTssKeyGen(homeBase, localP2PID string, conf common.TssConfig, localNodePubKey string, broadcastChan chan *p2p.BroadcastMsgChan, stopChan *chan struct{}, preParam *bkeygen.LocalPreParams, keygenCurrent *string, msgID string) TssKeyGen {
 	return TssKeyGen{
 		logger:          log.With().Str("module", "keyGen").Logger(),
-		priKey:          privKey,
+		localNodePubKey: localNodePubKey,
 		preParams:       preParam,
 		tssCommonStruct: common.NewTssCommon(localP2PID, broadcastChan, conf, msgID),
 		stopChan:        stopChan,
@@ -53,17 +51,14 @@ func (tKeyGen *TssKeyGen) GetTssCommonStruct() *common.TssCommon {
 }
 
 func (tKeyGen *TssKeyGen) GenerateNewKey(keygenReq KeyGenReq) (*crypto.ECPoint, error) {
-	pubKey, err := sdk.Bech32ifyAccPub(tKeyGen.priKey.PubKey())
-	if err != nil {
-		return nil, fmt.Errorf("fail to genearte the key: %w", err)
-	}
-	partiesID, localPartyID, err := common.GetParties(keygenReq.Keys, pubKey)
+
+	partiesID, localPartyID, err := common.GetParties(keygenReq.Keys, tKeyGen.localNodePubKey)
 	if err != nil {
 		return nil, fmt.Errorf("fail to get keygen parties: %w", err)
 	}
 	keyGenLocalStateItem := common.KeygenLocalStateItem{
 		ParticipantKeys: keygenReq.Keys,
-		LocalPartyKey:   pubKey,
+		LocalPartyKey:   tKeyGen.localNodePubKey,
 	}
 
 	threshold, err := common.GetThreshold(len(partiesID))

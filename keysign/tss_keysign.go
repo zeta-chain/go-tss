@@ -11,7 +11,6 @@ import (
 	btss "github.com/binance-chain/tss-lib/tss"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	cryptokey "github.com/tendermint/tendermint/crypto"
 
 	"gitlab.com/thorchain/tss/go-tss/common"
 	"gitlab.com/thorchain/tss/go-tss/p2p"
@@ -19,7 +18,6 @@ import (
 
 type TssKeySign struct {
 	logger          zerolog.Logger
-	priKey          cryptokey.PrivKey
 	tssCommonStruct *common.TssCommon
 	stopChan        *chan struct{} // channel to indicate whether we should stop
 	homeBase        string
@@ -28,10 +26,11 @@ type TssKeySign struct {
 	keySignCurrent  *string
 }
 
-func NewTssKeySign(homeBase, localP2PID string, conf common.TssConfig, privKey cryptokey.PrivKey, broadcastChan chan *p2p.BroadcastMsgChan, stopChan *chan struct{}, keySignCurrent *string, msgID string) TssKeySign {
+func NewTssKeySign(homeBase,
+	localP2PID string,
+	conf common.TssConfig, broadcastChan chan *p2p.BroadcastMsgChan, stopChan *chan struct{}, keySignCurrent *string, msgID string) TssKeySign {
 	return TssKeySign{
 		logger:          log.With().Str("module", "keySign").Logger(),
-		priKey:          privKey,
 		tssCommonStruct: common.NewTssCommon(localP2PID, broadcastChan, conf, msgID),
 		stopChan:        stopChan,
 		homeBase:        homeBase,

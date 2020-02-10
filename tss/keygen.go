@@ -5,6 +5,7 @@ import (
 	"sync/atomic"
 
 	"github.com/binance-chain/go-sdk/common/types"
+
 	"gitlab.com/thorchain/tss/go-tss/common"
 	"gitlab.com/thorchain/tss/go-tss/keygen"
 	"gitlab.com/thorchain/tss/go-tss/p2p"
@@ -25,7 +26,7 @@ func (t *TssServer) Keygen(req keygen.KeyGenReq) (keygen.KeyGenResp, error) {
 		t.homeBase,
 		t.p2pCommunication.GetLocalPeerID(),
 		t.conf,
-		t.priKey,
+		t.localNodePubKey,
 		t.p2pCommunication.BroadcastMsgChan,
 		&t.stopChan,
 		t.preParams,
