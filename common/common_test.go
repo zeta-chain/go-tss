@@ -1,7 +1,6 @@
 package common
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,7 +11,6 @@ import (
 	btsskeygen "github.com/binance-chain/tss-lib/ecdsa/keygen"
 	btss "github.com/binance-chain/tss-lib/tss"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/tendermint/tendermint/crypto/secp256k1"
@@ -22,8 +20,6 @@ import (
 
 	"gitlab.com/thorchain/tss/go-tss/p2p"
 )
-
-const testPriKey = "OTI4OTdkYzFjMWFhMjU3MDNiMTE4MDM1OTQyY2Y3MDVkOWFhOGIzN2JlOGIwOWIwMTZjYTkxZjNjOTBhYjhlYQ=="
 
 var (
 	testBlamePrivKey = "OWU2YTk1NzdlOTA5NTAxZmI4YjUyODYyMmZkYzBjNzJlMTQ5YTI2YWY5NzkzYTc0MjA3MDBkMWQzMzFiMDNhZg=="
@@ -110,74 +106,7 @@ func (t *TssTestSuite) TestContains(c *C) {
 	c.Assert(ret, Equals, false)
 }
 
-func doNodeSyncTest(c *C, peers []peer.ID, targets []peer.ID) {
-	tssCommonStruct := TssCommon{
-		PartyIDtoP2PID: nil,
-		TssMsg:         nil,
-		P2PPeers:       peers,
-	}
-	receiver := make(chan *p2p.Message, 4)
-	var expected []string
-	for _, each := range targets {
-		msg := p2p.Message{
-			PeerID:  each,
-			Payload: []byte("hello"),
-		}
-		receiver <- &msg
-		expected = append(expected, each.String())
-	}
-	returnedPeers, err := tssCommonStruct.NodeSync(receiver, p2p.TSSKeySignVerMsg)
-	sort.Strings(returnedPeers)
-	sort.Strings(expected)
-	c.Assert(returnedPeers, DeepEquals, expected)
-	if len(peers) == len(targets) {
-		c.Assert(err, IsNil)
-	} else {
-		c.Assert(err, NotNil)
-	}
-}
-
-func (t *TssTestSuite) TestNodeSync(c *C) {
-	// in test, we pretend to be node1
-	node2, err := peer.IDB58Decode("16Uiu2HAmAWKWf5vnpiAhfdSQebTbbB3Bg35qtyG7Hr4ce23VFA8V")
-	c.Assert(err, IsNil)
-	node3, err := peer.IDB58Decode("16Uiu2HAm4TmEzUqy3q3Dv7HvdoSboHk5sFj2FH3npiN5vDbJC6gh")
-	c.Assert(err, IsNil)
-	node4, err := peer.IDB58Decode("16Uiu2HAm2FzqoUdS6Y9Esg2EaGcAG5rVe1r6BFNnmmQr2H3bqafa")
-	c.Assert(err, IsNil)
-
-	peers := []peer.ID{node2, node3, node4}
-	target := []peer.ID{node4}
-	doNodeSyncTest(c, peers, target)
-	target = []peer.ID{node2, node4}
-	doNodeSyncTest(c, peers, target)
-	// in the 4 nodes scenario, we need to have the response of 3 nodes(loopback msg is not broadcast in the p2p)
-	target = []peer.ID{node2, node3, node4}
-	doNodeSyncTest(c, peers, target)
-}
-
-func (t *TssTestSuite) TestGetPriKey(c *C) {
-	pk, err := GetPriKey("whatever")
-	c.Assert(err, NotNil)
-	c.Assert(pk, IsNil)
-	input := base64.StdEncoding.EncodeToString([]byte("whatever"))
-	pk, err = GetPriKey(input)
-	c.Assert(err, NotNil)
-	c.Assert(pk, IsNil)
-	// pk, err = GetPriKey("MmVhNTI1ZDk3N2Y1NWU3OWM3M2JhNjZiNzM2NDU0ZGI2Mjc2NmU4ZTMzMzg2ZDlhZGM4YmI2MjE2NmRiMWFkMQ==")
-	pk, err = GetPriKey(testPriKey)
-	c.Assert(err, IsNil)
-	c.Assert(pk, NotNil)
-	result, err := GetPriKeyRawBytes(pk)
-	c.Assert(err, IsNil)
-	c.Assert(result, NotNil)
-	c.Assert(result, HasLen, 32)
-}
-
 func (t *TssTestSuite) TestTssProcessOutCh(c *C) {
-	sk, err := GetPriKey(testPriKey)
-	c.Assert(err, IsNil)
-	c.Assert(sk, NotNil)
 	conf := TssConfig{}
 	localTestPubKeys := make([]string, len(testPubKeys))
 	copy(localTestPubKeys, testPubKeys[:])
@@ -269,9 +198,6 @@ func (t *TssTestSuite) testVerMsgDuplication(c *C, tssCommonStruct *TssCommon, s
 
 func setupProcessVerMsgEnv(c *C, keyPool []string, partyNum int) (*TssCommon, []*btss.PartyID, []*btss.PartyID) {
 	ByPassGeneratePreParam = true
-	sk, err := GetPriKey(testBlamePrivKey)
-	c.Assert(err, IsNil)
-	c.Assert(sk, NotNil)
 	conf := TssConfig{}
 	// keySignInstance := keysign.NewTssKeySign("", "", conf, sk, nil, nil, nil)
 	tssCommonStruct := NewTssCommon("", nil, conf, "test")

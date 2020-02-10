@@ -2,7 +2,6 @@ package common
 
 import (
 	"crypto/sha256"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -11,7 +10,6 @@ import (
 	"sort"
 	"strconv"
 	"sync"
-	"time"
 
 	"github.com/binance-chain/go-sdk/common/types"
 	"github.com/binance-chain/tss-lib/crypto"
@@ -21,7 +19,6 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	cryptokey "github.com/tendermint/tendermint/crypto"
 	"github.com/tendermint/tendermint/crypto/secp256k1"
 
 	"gitlab.com/thorchain/tss/go-tss/p2p"
@@ -67,31 +64,6 @@ func NewTssCommon(peerID string, broadcastChannel chan *p2p.BroadcastMsgChan, co
 	}
 }
 
-func GetPriKey(priKeyString string) (cryptokey.PrivKey, error) {
-	priHexBytes, err := base64.StdEncoding.DecodeString(priKeyString)
-	if err != nil {
-		return nil, fmt.Errorf("fail to decode private key: %w", err)
-	}
-	rawBytes, err := hex.DecodeString(string(priHexBytes))
-	if err != nil {
-		return nil, fmt.Errorf("fail to hex decode private key: %w", err)
-	}
-	var keyBytesArray [32]byte
-	copy(keyBytesArray[:], rawBytes[:32])
-	priKey := secp256k1.PrivKeySecp256k1(keyBytesArray)
-	return priKey, nil
-}
-
-func GetPriKeyRawBytes(priKey cryptokey.PrivKey) ([]byte, error) {
-	var keyBytesArray [32]byte
-	pk, ok := priKey.(secp256k1.PrivKeySecp256k1)
-	if !ok {
-		return nil, errors.New("private key is not secp256p1.PrivKeySecp256k1")
-	}
-	copy(keyBytesArray[:], pk[:])
-	return keyBytesArray[:], nil
-}
-
 func GetParties(keys []string, localPartyKey string) ([]*btss.PartyID, *btss.PartyID, error) {
 	var localPartyID *btss.PartyID
 	var unSortedPartiesID []*btss.PartyID
@@ -134,71 +106,6 @@ func (t *TssCommon) sendMsg(message p2p.WrappedMessage, peerIDs []peer.ID) {
 		WrappedMessage: message,
 		PeersID:        peerIDs,
 	})
-}
-
-// signers sync function
-func (t *TssCommon) NodeSync(msgChan chan *p2p.Message, messageType p2p.THORChainTSSMessageType) ([]string, error) {
-	var err error
-	var standbyPeers []string
-	peersMap := make(map[string]bool)
-
-	peerIDs := t.P2PPeers
-	if len(peerIDs) == 0 {
-		t.logger.Error().Msg("fail to get any peer")
-		return standbyPeers, errors.New("fail to get any peer")
-	}
-	wrappedMsg := p2p.WrappedMessage{
-		MessageType: messageType,
-		MsgID:       t.msgID,
-		Payload:     []byte{0},
-	}
-	stopChan := make(chan bool, len(peerIDs))
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		t.sendMsg(wrappedMsg, t.P2PPeers)
-		i := 0
-		for {
-			select {
-			case <-stopChan:
-				return
-			case <-time.After(time.Millisecond * 500):
-				t.sendMsg(wrappedMsg, t.P2PPeers)
-				i += 1
-			}
-			if i > t.conf.SyncRetry {
-				err = errors.New("too many errors in retry")
-				return
-			}
-		}
-	}()
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for {
-			select {
-			case m := <-msgChan:
-				peersMap[m.PeerID.String()] = true
-				if len(peersMap) == len(peerIDs) {
-					stopChan <- true
-					// we send the last sync msg before we quit
-					t.sendMsg(wrappedMsg, peerIDs)
-					return
-				}
-			case <-time.After(t.conf.SyncTimeout):
-				stopChan <- true
-				err = ErrNodeSync
-				return
-			}
-		}
-	}()
-	wg.Wait()
-	for k := range peersMap {
-		standbyPeers = append(standbyPeers, k)
-	}
-	return standbyPeers, err
 }
 
 func getPeerIDFromPartyID(partyID *btss.PartyID) (peer.ID, error) {

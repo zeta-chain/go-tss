@@ -48,9 +48,7 @@ func setupNodeBlameForTest(c *C, partyNum int) ([]context.Context, []*tss.TssSer
 	conf := common.TssConfig{
 		KeyGenTimeout:   time.Second * 5,
 		KeySignTimeout:  time.Second * 5,
-		SyncTimeout:     time.Second * 2,
 		PreParamTimeout: time.Second * 5,
-		SyncRetry:       10,
 	}
 	ctxs, cancels, localTss := setupContextAndNodes(c, partyNum, conf)
 	wg := sync.WaitGroup{}
@@ -107,27 +105,6 @@ func doStartKeySign(c *C, i int, locker *sync.Mutex, requestGroup *sync.WaitGrou
 	locker.Unlock()
 }
 
-func testBlameNodeSync(c *C, testParties TestParties, reason string) {
-	var keyGenRespArr []*keygen.KeyGenResp
-	var locker sync.Mutex
-	keyGenReq := keygen.KeyGenReq{
-		Keys: testPubKeys[:],
-	}
-	request, err := json.Marshal(keyGenReq)
-	c.Assert(err, IsNil)
-	requestGroup := sync.WaitGroup{}
-	for _, partyIndex := range testParties.honest {
-		requestGroup.Add(1)
-		go doStartKeygen(c, partyIndex, &locker, &requestGroup, request, &keyGenRespArr)
-	}
-	requestGroup.Wait()
-
-	for i := 0; i < len(testParties.honest); i++ {
-		blameCheck(c, keyGenRespArr[i].Blame.BlameNodes, testParties.malicious)
-		c.Assert(keyGenRespArr[i].Blame.FailReason, Equals, reason)
-	}
-}
-
 func checkNodeStatus(c *C, testParties TestParties, expected uint64) {
 	requestGroup := sync.WaitGroup{}
 	for _, partyIndex := range testParties.honest {
@@ -143,28 +120,6 @@ func checkNodeStatus(c *C, testParties TestParties, expected uint64) {
 		}(partyIndex)
 	}
 	requestGroup.Wait()
-}
-
-func testNodeSyncBlame(c *C) {
-	testParties := TestParties{
-		honest:    []int{0, 1, 2},
-		malicious: []int{3},
-	}
-	testBlameNodeSync(c, testParties, common.BlameNodeSyncCheck)
-
-	testParties = TestParties{
-		honest:    []int{1, 2},
-		malicious: []int{0, 3},
-	}
-	testBlameNodeSync(c, testParties, common.BlameNodeSyncCheck)
-
-	testParties = TestParties{
-		honest:    []int{2},
-		malicious: []int{0, 1, 3},
-	}
-	testBlameNodeSync(c, testParties, common.BlameNodeSyncCheck)
-	// we run node sync test 3 times, we expect to have 3 failure logged
-	checkNodeStatus(c, testParties, 3)
 }
 
 func doObserveAndStop(c *C, testParties TestParties, expected int, cancel context.CancelFunc) {
@@ -244,8 +199,6 @@ func testKeySignBlameTimeout(c *C, poolPubKey string, cancels []context.CancelFu
 func (t *BlameTestSuite) TestNodeSyncAndTimeoutBlame(c *C) {
 	_, _, cancels, wg := setupNodeBlameForTest(c, partyNum)
 	defer cleanUp(c, cancels, wg, partyNum)
-
-	testNodeSyncBlame(c)
 
 	poolPubKey := testKeyGen(c, partyNum)
 	// we choose key sign to test blame because keysign have more rounds and easy for us to catch the stop point
