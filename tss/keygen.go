@@ -23,7 +23,7 @@ func (t *TssServer) Keygen(req keygen.KeyGenReq) (keygen.KeyGenResp, error) {
 		t.homeBase,
 		t.p2pCommunication.GetLocalPeerID(),
 		t.conf,
-		t.priKey,
+		t.localNodePubKey,
 		t.p2pCommunication.BroadcastMsgChan,
 		&t.stopChan,
 		t.preParams,

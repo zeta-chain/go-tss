@@ -2,7 +2,6 @@ package common
 
 import (
 	"crypto/sha256"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -20,7 +19,6 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	cryptokey "github.com/tendermint/tendermint/crypto"
 	"github.com/tendermint/tendermint/crypto/secp256k1"
 
 	"gitlab.com/thorchain/tss/go-tss/p2p"
@@ -64,31 +62,6 @@ func NewTssCommon(peerID string, broadcastChannel chan *p2p.BroadcastMsgChan, co
 		BlamePeers:          NewBlame(),
 		msgID:               msgID,
 	}
-}
-
-func GetPriKey(priKeyString string) (cryptokey.PrivKey, error) {
-	priHexBytes, err := base64.StdEncoding.DecodeString(priKeyString)
-	if err != nil {
-		return nil, fmt.Errorf("fail to decode private key: %w", err)
-	}
-	rawBytes, err := hex.DecodeString(string(priHexBytes))
-	if err != nil {
-		return nil, fmt.Errorf("fail to hex decode private key: %w", err)
-	}
-	var keyBytesArray [32]byte
-	copy(keyBytesArray[:], rawBytes[:32])
-	priKey := secp256k1.PrivKeySecp256k1(keyBytesArray)
-	return priKey, nil
-}
-
-func GetPriKeyRawBytes(priKey cryptokey.PrivKey) ([]byte, error) {
-	var keyBytesArray [32]byte
-	pk, ok := priKey.(secp256k1.PrivKeySecp256k1)
-	if !ok {
-		return nil, errors.New("private key is not secp256p1.PrivKeySecp256k1")
-	}
-	copy(keyBytesArray[:], pk[:])
-	return keyBytesArray[:], nil
 }
 
 func GetParties(keys []string, localPartyKey string) ([]*btss.PartyID, *btss.PartyID, error) {

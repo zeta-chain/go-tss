@@ -8,7 +8,6 @@ require (
 	github.com/btcsuite/btcd v0.20.1-beta
 	github.com/cespare/xxhash/v2 v2.1.1 // indirect
 	github.com/cosmos/cosmos-sdk v0.37.4
-	github.com/go-kit/kit v0.9.0
 	github.com/gogo/protobuf v1.3.1
 	github.com/golang/protobuf v1.3.2
 	github.com/gorilla/mux v1.7.3
@@ -38,5 +37,4 @@ require (
 	google.golang.org/genproto v0.0.0-20191206224255-0243a4be9c8f // indirect
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15
 	gopkg.in/yaml.v2 v2.2.7 // indirect
-	mvdan.cc/gofumpt v0.0.0-20200129124340-2a103673760e // indirect
 )

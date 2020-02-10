@@ -8,8 +8,6 @@ import (
 	"gitlab.com/thorchain/tss/go-tss/common"
 )
 
-const testPriKey = "OTI4OTdkYzFjMWFhMjU3MDNiMTE4MDM1OTQyY2Y3MDVkOWFhOGIzN2JlOGIwOWIwMTZjYTkxZjNjOTBhYjhlYQ=="
-
 func TestPackage(t *testing.T) { TestingT(t) }
 
 type TssTestSuite struct{}

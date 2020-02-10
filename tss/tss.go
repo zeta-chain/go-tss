@@ -11,10 +11,10 @@ import (
 	"time"
 
 	bkeygen "github.com/binance-chain/tss-lib/ecdsa/keygen"
+	sdk "github.com/cosmos/cosmos-sdk/types"
 	maddr "github.com/multiformats/go-multiaddr"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	cryptokey "github.com/tendermint/tendermint/crypto"
 	"golang.org/x/sync/errgroup"
 
 	"gitlab.com/thorchain/tss/go-tss/common"
@@ -30,7 +30,7 @@ type TssServer struct {
 	tssHttpServer    *http.Server
 	infoHttpServer   *http.Server
 	p2pCommunication *p2p.Communication
-	priKey           cryptokey.PrivKey
+	localNodePubKey  string
 	preParams        *bkeygen.LocalPreParams
 	wg               sync.WaitGroup
 	tssKeyGenLocker  *sync.Mutex
@@ -54,6 +54,10 @@ func NewTss(
 	priKey, err := getPriKey(string(priKeyBytes))
 	if err != nil {
 		return nil, errors.New("cannot parse the private key")
+	}
+	pubKey, err := sdk.Bech32ifyAccPub(priKey.PubKey())
+	if err != nil {
+		return nil, fmt.Errorf("fail to genearte the key: %w", err)
 	}
 
 	comm, err := p2p.NewCommunication(rendezvous, bootstrapPeers, p2pPort)
@@ -92,7 +96,7 @@ func NewTss(
 			Starttime: time.Now(),
 		},
 		p2pCommunication: comm,
-		priKey:           priKey,
+		localNodePubKey:  pubKey,
 		preParams:        preParams,
 		tssKeyGenLocker:  &sync.Mutex{},
 		tssKeySignLocker: &sync.Mutex{},

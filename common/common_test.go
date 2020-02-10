@@ -1,7 +1,6 @@
 package common
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -21,8 +20,6 @@ import (
 
 	"gitlab.com/thorchain/tss/go-tss/p2p"
 )
-
-const testPriKey = "OTI4OTdkYzFjMWFhMjU3MDNiMTE4MDM1OTQyY2Y3MDVkOWFhOGIzN2JlOGIwOWIwMTZjYTkxZjNjOTBhYjhlYQ=="
 
 var (
 	testBlamePrivKey = "OWU2YTk1NzdlOTA5NTAxZmI4YjUyODYyMmZkYzBjNzJlMTQ5YTI2YWY5NzkzYTc0MjA3MDBkMWQzMzFiMDNhZg=="
@@ -109,28 +106,7 @@ func (t *TssTestSuite) TestContains(c *C) {
 	c.Assert(ret, Equals, false)
 }
 
-func (t *TssTestSuite) TestGetPriKey(c *C) {
-	pk, err := GetPriKey("whatever")
-	c.Assert(err, NotNil)
-	c.Assert(pk, IsNil)
-	input := base64.StdEncoding.EncodeToString([]byte("whatever"))
-	pk, err = GetPriKey(input)
-	c.Assert(err, NotNil)
-	c.Assert(pk, IsNil)
-	// pk, err = GetPriKey("MmVhNTI1ZDk3N2Y1NWU3OWM3M2JhNjZiNzM2NDU0ZGI2Mjc2NmU4ZTMzMzg2ZDlhZGM4YmI2MjE2NmRiMWFkMQ==")
-	pk, err = GetPriKey(testPriKey)
-	c.Assert(err, IsNil)
-	c.Assert(pk, NotNil)
-	result, err := GetPriKeyRawBytes(pk)
-	c.Assert(err, IsNil)
-	c.Assert(result, NotNil)
-	c.Assert(result, HasLen, 32)
-}
-
 func (t *TssTestSuite) TestTssProcessOutCh(c *C) {
-	sk, err := GetPriKey(testPriKey)
-	c.Assert(err, IsNil)
-	c.Assert(sk, NotNil)
 	conf := TssConfig{}
 	localTestPubKeys := make([]string, len(testPubKeys))
 	copy(localTestPubKeys, testPubKeys[:])
@@ -222,9 +198,6 @@ func (t *TssTestSuite) testVerMsgDuplication(c *C, tssCommonStruct *TssCommon, s
 
 func setupProcessVerMsgEnv(c *C, keyPool []string, partyNum int) (*TssCommon, []*btss.PartyID, []*btss.PartyID) {
 	ByPassGeneratePreParam = true
-	sk, err := GetPriKey(testBlamePrivKey)
-	c.Assert(err, IsNil)
-	c.Assert(sk, NotNil)
 	conf := TssConfig{}
 	// keySignInstance := keysign.NewTssKeySign("", "", conf, sk, nil, nil, nil)
 	tssCommonStruct := NewTssCommon("", nil, conf, "test")

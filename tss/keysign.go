@@ -31,7 +31,6 @@ func (t *TssServer) KeySign(req keysign.KeySignReq) (keysign.KeySignResp, error)
 		t.homeBase,
 		t.p2pCommunication.GetLocalPeerID(),
 		t.conf,
-		t.priKey,
 		t.p2pCommunication.BroadcastMsgChan,
 		&t.stopChan,
 		&t.Status.CurrKeySign,

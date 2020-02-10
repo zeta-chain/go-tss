@@ -1,10 +1,19 @@
 package tss
 
 import (
+	"encoding/base64"
 	"testing"
+
+	. "gopkg.in/check.v1"
 
 	"gitlab.com/thorchain/tss/go-tss/common"
 )
+
+const testPriKey = "OTI4OTdkYzFjMWFhMjU3MDNiMTE4MDM1OTQyY2Y3MDVkOWFhOGIzN2JlOGIwOWIwMTZjYTkxZjNjOTBhYjhlYQ=="
+
+type KeyProviderTestSuite struct{}
+
+var _ = Suite(&KeyProviderTestSuite{})
 
 func TestGetPubKeysFromPeerIDs(t *testing.T) {
 	common.SetupBech32Prefix()
@@ -18,4 +27,20 @@ func TestGetPubKeysFromPeerIDs(t *testing.T) {
 		t.FailNow()
 	}
 	t.Logf("%+v", result)
+}
+func (*KeyProviderTestSuite) TestGetPriKey(c *C) {
+	pk, err := getPriKey("whatever")
+	c.Assert(err, NotNil)
+	c.Assert(pk, IsNil)
+	input := base64.StdEncoding.EncodeToString([]byte("whatever"))
+	pk, err = getPriKey(input)
+	c.Assert(err, NotNil)
+	c.Assert(pk, IsNil)
+	pk, err = getPriKey(testPriKey)
+	c.Assert(err, IsNil)
+	c.Assert(pk, NotNil)
+	result, err := getPriKeyRawBytes(pk)
+	c.Assert(err, IsNil)
+	c.Assert(result, NotNil)
+	c.Assert(result, HasLen, 32)
 }
