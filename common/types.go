@@ -11,9 +11,8 @@ import (
 )
 
 const (
-	BlameHashCheck     = "hash check failed"
-	BlameNodeSyncCheck = "node sync failed"
-	BlameTssTimeout    = "Tss timeout"
+	BlameHashCheck  = "hash check failed"
+	BlameTssTimeout = "Tss timeout"
 )
 
 var (
@@ -21,7 +20,6 @@ var (
 	ErrHashFromOwner       = errors.New("hashcheck error from data owner")
 	ErrHashFromPeer        = errors.New("hashcheck error from peer")
 	ErrTssTimeOut          = errors.New("error Tss Timeout")
-	ErrNodeSync            = errors.New("error nodesync Timeout")
 )
 
 var NoBlame = Blame{}
@@ -62,12 +60,8 @@ type TssConfig struct {
 	KeyGenTimeout time.Duration
 	// KeySignTimeoutSeconds defines how long do we wait keysign
 	KeySignTimeout time.Duration
-	// SyncTimeout defines how long do we wait for sync message
-	SyncTimeout time.Duration
 	// Pre-parameter define the pre-parameter generations timeout
 	PreParamTimeout time.Duration
-	// SyncRetry defines how many times we try to sync the peers
-	SyncRetry int
 }
 
 type TssStatus struct {

@@ -132,9 +132,7 @@ func setupNodeForTest(c *C, partyNum int) ([]context.Context, []*tss.TssServer, 
 	conf := common.TssConfig{
 		KeyGenTimeout:   30 * time.Second,
 		KeySignTimeout:  30 * time.Second,
-		SyncTimeout:     5 * time.Second,
 		PreParamTimeout: 5 * time.Second,
-		SyncRetry:       20,
 	}
 	ctxs, cancels, localTss := setupContextAndNodes(c, partyNum, conf)
 	wg := sync.WaitGroup{}

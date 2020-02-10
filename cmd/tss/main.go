@@ -9,6 +9,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/binance-chain/go-sdk/common/types"
 	"github.com/cosmos/cosmos-sdk/client/input"
 	golog "github.com/ipfs/go-log"
 	"github.com/whyrusleeping/go-logging"
@@ -32,7 +33,10 @@ func main() {
 
 	// Setup Bech32 Prefixes
 	common.SetupBech32Prefix()
-
+	// this is only need for the binance library
+	if os.Getenv("NET") == "testnet" || os.Getenv("NET") == "mocknet" {
+		types.Network = types.TestNetwork
+	}
 	// Read stdin for the private key
 	inBuf := bufio.NewReader(os.Stdin)
 	priKeyBytes, err := input.GetPassword("input node secret key:", inBuf)
@@ -80,9 +84,7 @@ func parseFlags() (generalConf common.GeneralConfig, tssConf common.TssConfig, p
 	// we setup the Tss parameter configuration
 	flag.DurationVar(&tssConf.KeyGenTimeout, "gentimeout", 30*time.Second, "keygen timeout")
 	flag.DurationVar(&tssConf.KeySignTimeout, "signtimeout", 30*time.Second, "keysign timeout")
-	flag.DurationVar(&tssConf.SyncTimeout, "synctimeout", 5*time.Second, "node sync wait time")
 	flag.DurationVar(&tssConf.PreParamTimeout, "preparamtimeout", 5*time.Minute, "pre-parameter generation timeout")
-	flag.IntVar(&tssConf.SyncRetry, "syncretry", 20, "retry of node sync")
 
 	// we setup the p2p network configuration
 	flag.StringVar(&p2pConf.RendezvousString, "rendezvous", "Asgard",
