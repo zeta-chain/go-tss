@@ -19,10 +19,6 @@ const (
 	TSSKeyGenVerMsg
 	// TSSKeySignVerMsg is the message we create to make sure every party receive the same broadcast message
 	TSSKeySignVerMsg
-	// TSSKEYGENSYNC is the message we create to sync the signers before keygen
-	TSSKeyGenSync
-	// TSSKEYSIGNSYNC is the message we create to sync the signers before keysign
-	TSSKeySignSync
 	// Unknown is the message indicates the undefined message type
 	Unknown
 )
@@ -38,10 +34,6 @@ func (msgType THORChainTSSMessageType) String() string {
 		return "TSSKeyGenVerMsg"
 	case TSSKeySignVerMsg:
 		return "TSSKeySignVerMsg"
-	case TSSKeySignSync:
-		return "TSSKeySignSync"
-	case TSSKeyGenSync:
-		return "TSSKeyGenSync"
 	default:
 		return "Unknown"
 	}

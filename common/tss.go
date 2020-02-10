@@ -11,7 +11,6 @@ import (
 	"sort"
 	"strconv"
 	"sync"
-	"time"
 
 	"github.com/binance-chain/go-sdk/common/types"
 	"github.com/binance-chain/tss-lib/crypto"
@@ -134,71 +133,6 @@ func (t *TssCommon) sendMsg(message p2p.WrappedMessage, peerIDs []peer.ID) {
 		WrappedMessage: message,
 		PeersID:        peerIDs,
 	})
-}
-
-// signers sync function
-func (t *TssCommon) NodeSync(msgChan chan *p2p.Message, messageType p2p.THORChainTSSMessageType) ([]string, error) {
-	var err error
-	var standbyPeers []string
-	peersMap := make(map[string]bool)
-
-	peerIDs := t.P2PPeers
-	if len(peerIDs) == 0 {
-		t.logger.Error().Msg("fail to get any peer")
-		return standbyPeers, errors.New("fail to get any peer")
-	}
-	wrappedMsg := p2p.WrappedMessage{
-		MessageType: messageType,
-		MsgID:       t.msgID,
-		Payload:     []byte{0},
-	}
-	stopChan := make(chan bool, len(peerIDs))
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		t.sendMsg(wrappedMsg, t.P2PPeers)
-		i := 0
-		for {
-			select {
-			case <-stopChan:
-				return
-			case <-time.After(time.Millisecond * 500):
-				t.sendMsg(wrappedMsg, t.P2PPeers)
-				i += 1
-			}
-			if i > t.conf.SyncRetry {
-				err = errors.New("too many errors in retry")
-				return
-			}
-		}
-	}()
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for {
-			select {
-			case m := <-msgChan:
-				peersMap[m.PeerID.String()] = true
-				if len(peersMap) == len(peerIDs) {
-					stopChan <- true
-					// we send the last sync msg before we quit
-					t.sendMsg(wrappedMsg, peerIDs)
-					return
-				}
-			case <-time.After(t.conf.SyncTimeout):
-				stopChan <- true
-				err = ErrNodeSync
-				return
-			}
-		}
-	}()
-	wg.Wait()
-	for k := range peersMap {
-		standbyPeers = append(standbyPeers, k)
-	}
-	return standbyPeers, err
 }
 
 func getPeerIDFromPartyID(partyID *btss.PartyID) (peer.ID, error) {

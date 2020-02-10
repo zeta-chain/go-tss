@@ -1,10 +1,8 @@
 package tss
 
 import (
-	"os"
 	"sync/atomic"
 
-	"github.com/binance-chain/go-sdk/common/types"
 	"gitlab.com/thorchain/tss/go-tss/common"
 	"gitlab.com/thorchain/tss/go-tss/keygen"
 	"gitlab.com/thorchain/tss/go-tss/p2p"
@@ -33,13 +31,12 @@ func (t *TssServer) Keygen(req keygen.KeyGenReq) (keygen.KeyGenResp, error) {
 		msgID,
 	)
 
-	keygenMsgChannel, keygenSyncChannel := keygenInstance.GetTssKeyGenChannels()
+	keygenMsgChannel := keygenInstance.GetTssKeyGenChannels()
 	t.p2pCommunication.SetSubscribe(p2p.TSSKeyGenMsg, msgID, keygenMsgChannel)
 	t.p2pCommunication.SetSubscribe(p2p.TSSKeyGenVerMsg, msgID, keygenMsgChannel)
-	t.p2pCommunication.SetSubscribe(p2p.TSSKeyGenSync, msgID, keygenSyncChannel)
+
 	defer t.p2pCommunication.CancelSubscribe(p2p.TSSKeyGenMsg, msgID)
 	defer t.p2pCommunication.CancelSubscribe(p2p.TSSKeyGenVerMsg, msgID)
-	defer t.p2pCommunication.CancelSubscribe(p2p.TSSKeyGenSync, msgID)
 
 	// the statistic of keygen only care about Tss it self, even if the
 	// following http response aborts, it still counted as a successful keygen
@@ -56,10 +53,6 @@ func (t *TssServer) Keygen(req keygen.KeyGenReq) (keygen.KeyGenResp, error) {
 	if err != nil {
 		t.logger.Error().Err(err).Msg("fail to generate the new Tss key")
 		status = common.Fail
-	}
-
-	if os.Getenv("NET") == "testnet" || os.Getenv("NET") == "mocknet" {
-		types.Network = types.TestNetwork
 	}
 
 	return keygen.NewKeyGenResp(

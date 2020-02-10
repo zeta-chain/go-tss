@@ -36,6 +36,7 @@ func GetPeerIDsFromPubKeys(pubkeys []string) ([]string, error) {
 	return peerIDs, nil
 }
 
+// GetPubKeysFromPeerIDs given a list of peer ids, and get a list og pub keys.
 func GetPubKeysFromPeerIDs(peers []string) ([]string, error) {
 	var result []string
 	for _, item := range peers {

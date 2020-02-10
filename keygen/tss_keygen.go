@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/binance-chain/tss-lib/crypto"
-	bkeygen "github.com/binance-chain/tss-lib/ecdsa/keygen"
+	bkg "github.com/binance-chain/tss-lib/ecdsa/keygen"
 	btss "github.com/binance-chain/tss-lib/tss"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/rs/zerolog"
@@ -21,16 +21,22 @@ import (
 type TssKeyGen struct {
 	logger          zerolog.Logger
 	priKey          cryptokey.PrivKey
-	preParams       *bkeygen.LocalPreParams
+	preParams       *bkg.LocalPreParams
 	tssCommonStruct *common.TssCommon
 	stopChan        *chan struct{} // channel to indicate whether we should stop
 	homeBase        string
-	syncMsg         chan *p2p.Message
 	localParty      *btss.PartyID
 	keygenCurrent   *string
 }
 
-func NewTssKeyGen(homeBase, localP2PID string, conf common.TssConfig, privKey cryptokey.PrivKey, broadcastChan chan *p2p.BroadcastMsgChan, stopChan *chan struct{}, preParam *bkeygen.LocalPreParams, keygenCurrent *string, msgID string) TssKeyGen {
+func NewTssKeyGen(homeBase, localP2PID string,
+	conf common.TssConfig,
+	privKey cryptokey.PrivKey,
+	broadcastChan chan *p2p.BroadcastMsgChan,
+	stopChan *chan struct{},
+	preParam *bkg.LocalPreParams,
+	keygenCurrent *string,
+	msgID string) TssKeyGen {
 	return TssKeyGen{
 		logger:          log.With().Str("module", "keyGen").Logger(),
 		priKey:          privKey,
@@ -38,14 +44,13 @@ func NewTssKeyGen(homeBase, localP2PID string, conf common.TssConfig, privKey cr
 		tssCommonStruct: common.NewTssCommon(localP2PID, broadcastChan, conf, msgID),
 		stopChan:        stopChan,
 		homeBase:        homeBase,
-		syncMsg:         make(chan *p2p.Message),
 		localParty:      nil,
 		keygenCurrent:   keygenCurrent,
 	}
 }
 
-func (tKeyGen *TssKeyGen) GetTssKeyGenChannels() (chan *p2p.Message, chan *p2p.Message) {
-	return tKeyGen.tssCommonStruct.TssMsg, tKeyGen.syncMsg
+func (tKeyGen *TssKeyGen) GetTssKeyGenChannels() chan *p2p.Message {
+	return tKeyGen.tssCommonStruct.TssMsg
 }
 
 func (tKeyGen *TssKeyGen) GetTssCommonStruct() *common.TssCommon {
@@ -73,13 +78,13 @@ func (tKeyGen *TssKeyGen) GenerateNewKey(keygenReq KeyGenReq) (*crypto.ECPoint, 
 	ctx := btss.NewPeerContext(partiesID)
 	params := btss.NewParameters(ctx, localPartyID, len(partiesID), threshold)
 	outCh := make(chan btss.Message, len(partiesID))
-	endCh := make(chan bkeygen.LocalPartySaveData, len(partiesID))
+	endCh := make(chan bkg.LocalPartySaveData, len(partiesID))
 	errChan := make(chan struct{})
 	if tKeyGen.preParams == nil {
 		tKeyGen.logger.Error().Err(err).Msg("error, empty pre-parameters")
 		return nil, errors.New("error, empty pre-parameters")
 	}
-	keyGenParty := bkeygen.NewLocalParty(params, outCh, endCh, *tKeyGen.preParams)
+	keyGenParty := bkg.NewLocalParty(params, outCh, endCh, *tKeyGen.preParams)
 	partyIDMap := common.SetupPartyIDMap(partiesID)
 	err = common.SetupIDMaps(partyIDMap, tKeyGen.tssCommonStruct.PartyIDtoP2PID)
 	if err != nil {
@@ -92,20 +97,7 @@ func (tKeyGen *TssKeyGen) GenerateNewKey(keygenReq KeyGenReq) (*crypto.ECPoint, 
 		PartyIDMap: partyIDMap,
 	})
 	tKeyGen.tssCommonStruct.P2PPeers = common.GetPeersID(tKeyGen.tssCommonStruct.PartyIDtoP2PID, tKeyGen.tssCommonStruct.GetLocalPeerID())
-	standbyPeers, err := tKeyGen.tssCommonStruct.NodeSync(tKeyGen.syncMsg, p2p.TSSKeyGenSync)
-	if err != nil {
-		tKeyGen.logger.Error().Err(err).Msg("node sync error")
-		if err == common.ErrNodeSync {
-			tKeyGen.logger.Error().Err(err).Msgf("the nodes online are +%v", standbyPeers)
-			_, blamePubKeys, err := tKeyGen.tssCommonStruct.GetBlamePubKeysLists(standbyPeers)
-			if err != nil {
-				tKeyGen.logger.Error().Err(err).Msg("error in get blame node pubkey")
-				return nil, err
-			}
-			tKeyGen.tssCommonStruct.BlamePeers.SetBlame(common.BlameNodeSyncCheck, blamePubKeys)
-		}
-		return nil, err
-	}
+
 	// start keygen
 	go func() {
 		defer tKeyGen.logger.Info().Msg("keyGenParty finished")
@@ -119,7 +111,7 @@ func (tKeyGen *TssKeyGen) GenerateNewKey(keygenReq KeyGenReq) (*crypto.ECPoint, 
 	return r, err
 }
 
-func (tKeyGen *TssKeyGen) processKeyGen(errChan chan struct{}, outCh <-chan btss.Message, endCh <-chan bkeygen.LocalPartySaveData, keyGenLocalStateItem common.KeygenLocalStateItem) (*crypto.ECPoint, error) {
+func (tKeyGen *TssKeyGen) processKeyGen(errChan chan struct{}, outCh <-chan btss.Message, endCh <-chan bkg.LocalPartySaveData, keyGenLocalStateItem common.KeygenLocalStateItem) (*crypto.ECPoint, error) {
 	defer tKeyGen.logger.Info().Msg("finished keygen process")
 	tKeyGen.logger.Info().Msg("start to read messages from local party")
 	tssConf := tKeyGen.tssCommonStruct.GetConf()
