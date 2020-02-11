@@ -10,18 +10,18 @@ import (
 func NewInfoHttpServer(infoAddr string, t *TssServer) *http.Server {
 	server := &http.Server{
 		Addr:         infoAddr,
-		Handler:      t.infoHandler(true),
+		Handler:      t.infoHandler(),
 		ReadTimeout:  time.Second * 10,
 		WriteTimeout: time.Second * 10,
 	}
 	return server
 }
 
-func (t *TssServer) infoHandler(verbose bool) http.Handler {
+func (t *TssServer) infoHandler() http.Handler {
 	router := mux.NewRouter()
 	router.Handle("/ping", http.HandlerFunc(t.pingHandler)).Methods(http.MethodGet)
 	router.Handle("/p2pid", http.HandlerFunc(t.getP2pIDHandler)).Methods(http.MethodGet)
-	router.Use(logMiddleware(verbose))
+	router.Use(logMiddleware())
 	return router
 }
 

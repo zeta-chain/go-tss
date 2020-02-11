@@ -14,22 +14,22 @@ import (
 func NewTssHttpServer(tssAddr string, t *TssServer) *http.Server {
 	server := &http.Server{
 		Addr:    tssAddr,
-		Handler: t.tssNewHandler(true),
+		Handler: t.tssNewHandler(),
 	}
 	return server
 }
 
 // NewHandler registers the API routes and returns a new HTTP handler
-func (t *TssServer) tssNewHandler(verbose bool) http.Handler {
+func (t *TssServer) tssNewHandler() http.Handler {
 	router := mux.NewRouter()
-	router.Handle("/keygen", http.HandlerFunc(t.KeygenHandler)).Methods(http.MethodPost)
-	router.Handle("/keysign", http.HandlerFunc(t.KeySignHandler)).Methods(http.MethodPost)
+	router.Handle("/keygen", http.HandlerFunc(t.keygenHandler)).Methods(http.MethodPost)
+	router.Handle("/keysign", http.HandlerFunc(t.keySignHandler)).Methods(http.MethodPost)
 	router.Handle("/nodestatus", http.HandlerFunc(t.getNodeStatusHandler)).Methods(http.MethodGet)
-	router.Use(logMiddleware(verbose))
+	router.Use(logMiddleware())
 	return router
 }
 
-func (t *TssServer) KeygenHandler(w http.ResponseWriter, r *http.Request) {
+func (t *TssServer) keygenHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
@@ -41,7 +41,7 @@ func (t *TssServer) KeygenHandler(w http.ResponseWriter, r *http.Request) {
 	}()
 	t.logger.Info().Msg("receive key gen request")
 	decoder := json.NewDecoder(r.Body)
-	var keygenReq keygen.KeyGenReq
+	var keygenReq keygen.Request
 	if err := decoder.Decode(&keygenReq); nil != err {
 		t.logger.Error().Err(err).Msg("fail to decode keygen request")
 		w.WriteHeader(http.StatusBadRequest)
@@ -67,7 +67,7 @@ func (t *TssServer) KeygenHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (t *TssServer) KeySignHandler(w http.ResponseWriter, r *http.Request) {
+func (t *TssServer) keySignHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
@@ -79,7 +79,7 @@ func (t *TssServer) KeySignHandler(w http.ResponseWriter, r *http.Request) {
 	}()
 	t.logger.Info().Msg("receive key sign request")
 
-	var keySignReq keysign.KeySignReq
+	var keySignReq keysign.Request
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&keySignReq); nil != err {
 		t.logger.Error().Err(err).Msg("fail to decode key sign request")
