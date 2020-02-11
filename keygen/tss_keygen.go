@@ -14,6 +14,7 @@ import (
 
 	"gitlab.com/thorchain/tss/go-tss/common"
 	"gitlab.com/thorchain/tss/go-tss/p2p"
+	"gitlab.com/thorchain/tss/go-tss/storage"
 )
 
 type TssKeyGen struct {
@@ -22,28 +23,29 @@ type TssKeyGen struct {
 	preParams       *bkg.LocalPreParams
 	tssCommonStruct *common.TssCommon
 	stopChan        *chan struct{} // channel to indicate whether we should stop
-	homeBase        string
 	localParty      *btss.PartyID
 	keygenCurrent   *string
+	stateManager    storage.LocalStateManager
 }
 
-func NewTssKeyGen(homeBase, localP2PID string,
+func NewTssKeyGen(localP2PID string,
 	conf common.TssConfig,
 	localNodePubKey string,
 	broadcastChan chan *p2p.BroadcastMsgChan,
 	stopChan *chan struct{},
 	preParam *bkg.LocalPreParams,
 	keygenCurrent *string,
-	msgID string) TssKeyGen {
+	msgID string,
+	stateManager storage.LocalStateManager) TssKeyGen {
 	return TssKeyGen{
 		logger:          log.With().Str("module", "keyGen").Logger(),
 		localNodePubKey: localNodePubKey,
 		preParams:       preParam,
 		tssCommonStruct: common.NewTssCommon(localP2PID, broadcastChan, conf, msgID),
 		stopChan:        stopChan,
-		homeBase:        homeBase,
 		localParty:      nil,
 		keygenCurrent:   keygenCurrent,
+		stateManager:    stateManager,
 	}
 }
 
@@ -61,7 +63,7 @@ func (tKeyGen *TssKeyGen) GenerateNewKey(keygenReq KeyGenReq) (*crypto.ECPoint, 
 	if err != nil {
 		return nil, fmt.Errorf("fail to get keygen parties: %w", err)
 	}
-	keyGenLocalStateItem := common.KeygenLocalStateItem{
+	keyGenLocalStateItem := storage.KeygenLocalState{
 		ParticipantKeys: keygenReq.Keys,
 		LocalPartyKey:   tKeyGen.localNodePubKey,
 	}
@@ -106,7 +108,10 @@ func (tKeyGen *TssKeyGen) GenerateNewKey(keygenReq KeyGenReq) (*crypto.ECPoint, 
 	return r, err
 }
 
-func (tKeyGen *TssKeyGen) processKeyGen(errChan chan struct{}, outCh <-chan btss.Message, endCh <-chan bkg.LocalPartySaveData, keyGenLocalStateItem common.KeygenLocalStateItem) (*crypto.ECPoint, error) {
+func (tKeyGen *TssKeyGen) processKeyGen(errChan chan struct{},
+	outCh <-chan btss.Message,
+	endCh <-chan bkg.LocalPartySaveData,
+	keyGenLocalStateItem storage.KeygenLocalState) (*crypto.ECPoint, error) {
 	defer tKeyGen.logger.Info().Msg("finished keygen process")
 	tKeyGen.logger.Info().Msg("start to read messages from local party")
 	tssConf := tKeyGen.tssCommonStruct.GetConf()
@@ -175,10 +180,17 @@ func (tKeyGen *TssKeyGen) processKeyGen(errChan chan struct{}, outCh <-chan btss
 			}
 
 		case msg := <-endCh:
-			tKeyGen.logger.Debug().Msgf("we have done the keygen %s", msg.ECDSAPub.Y().String())
-			if err := tKeyGen.AddLocalPartySaveData(tKeyGen.homeBase, msg, keyGenLocalStateItem); nil != err {
-				return nil, fmt.Errorf("fail to save key gen result to local store: %w", err)
+			tKeyGen.logger.Debug().Msgf("keygen finished successfully: %s", msg.ECDSAPub.Y().String())
+			pubKey, _, err := common.GetTssPubKey(msg.ECDSAPub)
+			if err != nil {
+				return nil, fmt.Errorf("fail to get thorchain pubkey: %w", err)
 			}
+			keyGenLocalStateItem.LocalData = msg
+			keyGenLocalStateItem.PubKey = pubKey
+			if err := tKeyGen.stateManager.SaveLocalState(keyGenLocalStateItem); err != nil {
+				return nil, fmt.Errorf("fail to save keygen result to storage: %w", err)
+			}
+
 			return msg.ECDSAPub, nil
 		}
 	}

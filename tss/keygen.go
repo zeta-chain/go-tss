@@ -20,7 +20,6 @@ func (t *TssServer) Keygen(req keygen.KeyGenReq) (keygen.KeyGenResp, error) {
 	}
 
 	keygenInstance := keygen.NewTssKeyGen(
-		t.homeBase,
 		t.p2pCommunication.GetLocalPeerID(),
 		t.conf,
 		t.localNodePubKey,
@@ -29,7 +28,7 @@ func (t *TssServer) Keygen(req keygen.KeyGenReq) (keygen.KeyGenResp, error) {
 		t.preParams,
 		&t.Status.CurrKeyGen,
 		msgID,
-	)
+		t.stateManager)
 
 	keygenMsgChannel := keygenInstance.GetTssKeyGenChannels()
 	t.p2pCommunication.SetSubscribe(p2p.TSSKeyGenMsg, msgID, keygenMsgChannel)

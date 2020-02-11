@@ -6,6 +6,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"gitlab.com/thorchain/tss/go-tss/common"
+	"gitlab.com/thorchain/tss/go-tss/storage"
 )
 
 var testPubKeys = []string{
@@ -30,7 +31,8 @@ func (t *TssTestSuite) TestSignMessage(c *C) {
 		Keys: testPubKeys[:],
 	}
 	conf := common.TssConfig{}
-	keyGenInstance := NewTssKeyGen("", "", conf, "", nil, nil, nil, nil, "test")
+	stateManager := &storage.MockLocalStateManager{}
+	keyGenInstance := NewTssKeyGen("", conf, "", nil, nil, nil, nil, "test", stateManager)
 	signatureData, err := keyGenInstance.GenerateNewKey(req)
 	c.Assert(err, NotNil)
 	c.Assert(signatureData, IsNil)

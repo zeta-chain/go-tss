@@ -5,8 +5,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/binance-chain/tss-lib/ecdsa/keygen"
-
 	"gitlab.com/thorchain/tss/go-tss/p2p"
 )
 
@@ -36,14 +34,6 @@ type LocalCacheItem struct {
 type Blame struct {
 	FailReason string   `json:"fail_reason"`
 	BlameNodes []string `json:"blame_peers"`
-}
-
-// KeygenLocalStateItem
-type KeygenLocalStateItem struct {
-	PubKey          string                    `json:"pub_key"`
-	LocalData       keygen.LocalPartySaveData `json:"local_data"`
-	ParticipantKeys []string                  `json:"participant_keys"` // the paticipant of last key gen
-	LocalPartyKey   string                    `json:"local_party_key"`
 }
 
 type GeneralConfig struct {
