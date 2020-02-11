@@ -7,9 +7,9 @@ import (
 	"fmt"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	crypto2 "github.com/libp2p/go-libp2p-core/crypto"
+	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
-	cryptokey "github.com/tendermint/tendermint/crypto"
+	tcrypto "github.com/tendermint/tendermint/crypto"
 	"github.com/tendermint/tendermint/crypto/secp256k1"
 )
 
@@ -20,7 +20,7 @@ func GetPeerIDFromPubKey(pubkey string) (peer.ID, error) {
 		return "", fmt.Errorf("fail to parse account pub key(%s): %w", pubkey, err)
 	}
 	secpPubKey := pk.(secp256k1.PubKeySecp256k1)
-	ppk, err := crypto2.UnmarshalSecp256k1PublicKey(secpPubKey[:])
+	ppk, err := crypto.UnmarshalSecp256k1PublicKey(secpPubKey[:])
 	if err != nil {
 		return "", fmt.Errorf("fail to convert pubkey to the crypto pubkey used in libp2p: %w", err)
 	}
@@ -66,7 +66,8 @@ func GetPubKeysFromPeerIDs(peers []string) ([]string, error) {
 	}
 	return result, nil
 }
-func getPriKey(priKeyString string) (cryptokey.PrivKey, error) {
+
+func getPriKey(priKeyString string) (tcrypto.PrivKey, error) {
 	priHexBytes, err := base64.StdEncoding.DecodeString(priKeyString)
 	if err != nil {
 		return nil, fmt.Errorf("fail to decode private key: %w", err)
@@ -81,7 +82,7 @@ func getPriKey(priKeyString string) (cryptokey.PrivKey, error) {
 	return priKey, nil
 }
 
-func getPriKeyRawBytes(priKey cryptokey.PrivKey) ([]byte, error) {
+func getPriKeyRawBytes(priKey tcrypto.PrivKey) ([]byte, error) {
 	var keyBytesArray [32]byte
 	pk, ok := priKey.(secp256k1.PrivKeySecp256k1)
 	if !ok {

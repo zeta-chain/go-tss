@@ -8,7 +8,7 @@ import (
 	"gitlab.com/thorchain/tss/go-tss/p2p"
 )
 
-func (t *TssServer) Keygen(req keygen.KeyGenReq) (keygen.KeyGenResp, error) {
+func (t *TssServer) Keygen(req keygen.Request) (keygen.Response, error) {
 	t.tssKeyGenLocker.Lock()
 	defer t.tssKeyGenLocker.Unlock()
 
@@ -16,7 +16,7 @@ func (t *TssServer) Keygen(req keygen.KeyGenReq) (keygen.KeyGenResp, error) {
 
 	msgID, err := t.requestToMsgId(req)
 	if err != nil {
-		return keygen.KeyGenResp{}, err
+		return keygen.Response{}, err
 	}
 
 	keygenInstance := keygen.NewTssKeyGen(
@@ -54,7 +54,7 @@ func (t *TssServer) Keygen(req keygen.KeyGenReq) (keygen.KeyGenResp, error) {
 		status = common.Fail
 	}
 
-	return keygen.NewKeyGenResp(
+	return keygen.NewResponse(
 		newPubKey,
 		addr.String(),
 		status,

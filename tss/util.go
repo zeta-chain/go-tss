@@ -9,16 +9,15 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-func logMiddleware(verbose bool) mux.MiddlewareFunc {
+func logMiddleware() mux.MiddlewareFunc {
 	return func(handler http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if verbose {
-				log.Debug().
-					Str("route", r.URL.Path).
-					Str("port", r.URL.Port()).
-					Str("method", r.Method).
-					Msg("HTTP request received")
-			}
+			log.Debug().
+				Str("route", r.URL.Path).
+				Str("port", r.URL.Port()).
+				Str("method", r.Method).
+				Msg("HTTP request received")
+
 			handler.ServeHTTP(w, r)
 		})
 	}

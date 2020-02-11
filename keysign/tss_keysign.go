@@ -182,7 +182,7 @@ func (tKeySign *TssKeySign) processKeySign(errChan chan struct{}, outCh <-chan b
 func (tKeySign *TssKeySign) WriteKeySignResult(w http.ResponseWriter, R, S string, status common.Status) {
 	// blame := common.NewBlame()
 	// blame.SetBlame(tKeySign.tssCommonStruct.Blame.FailReason, tKeySign.tssCommonStruct.Blame.BlameNodes)
-	signResp := KeySignResp{
+	signResp := Response{
 		R:      R,
 		S:      S,
 		Status: status,

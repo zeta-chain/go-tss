@@ -27,7 +27,7 @@ func (t *TssTestSuite) SetUpSuite(c *C) {
 }
 
 func (t *TssTestSuite) TestSignMessage(c *C) {
-	req := KeyGenReq{
+	req := Request{
 		Keys: testPubKeys[:],
 	}
 	conf := common.TssConfig{}

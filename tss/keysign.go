@@ -15,7 +15,7 @@ import (
 	"gitlab.com/thorchain/tss/go-tss/storage"
 )
 
-func (t *TssServer) KeySign(req keysign.KeySignReq) (keysign.KeySignResp, error) {
+func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 	t.tssKeySignLocker.Lock()
 	defer t.tssKeySignLocker.Unlock()
 
@@ -23,7 +23,7 @@ func (t *TssServer) KeySign(req keysign.KeySignReq) (keysign.KeySignResp, error)
 
 	msgID, err := t.requestToMsgId(req)
 	if err != nil {
-		return keysign.KeySignResp{}, err
+		return keysign.Response{}, err
 	}
 
 	keysignInstance := keysign.NewTssKeySign(
@@ -44,23 +44,23 @@ func (t *TssServer) KeySign(req keysign.KeySignReq) (keysign.KeySignResp, error)
 
 	localStateItem, err := t.stateManager.GetLocalState(req.PoolPubKey)
 	if err != nil {
-		return keysign.KeySignResp{}, fmt.Errorf("fail to get local keygen state: %w", err)
+		return keysign.Response{}, fmt.Errorf("fail to get local keygen state: %w", err)
 	}
 	msgToSign, err := base64.StdEncoding.DecodeString(req.Message)
 	if err != nil {
-		return keysign.KeySignResp{}, fmt.Errorf("fail to decode message(%s): %w", req.Message, err)
+		return keysign.Response{}, fmt.Errorf("fail to decode message(%s): %w", req.Message, err)
 	}
 	result, err := t.joinParty(msgID, msgToSign, localStateItem)
 	if err != nil {
 		// don't blame node for forming party
-		return keysign.KeySignResp{}, fmt.Errorf("fail to form keysign party: %w", err)
+		return keysign.Response{}, fmt.Errorf("fail to form keysign party: %w", err)
 	}
 	if result.Type != messages.JoinPartyResponse_Success {
-		return keysign.KeySignResp{}, fmt.Errorf("fail to form keysign party: %s", result.Type)
+		return keysign.Response{}, fmt.Errorf("fail to form keysign party: %s", result.Type)
 	}
 	keys, err := GetPubKeysFromPeerIDs(result.PeerID)
 	if err != nil {
-		return keysign.KeySignResp{}, fmt.Errorf("fail to convert peer ID to pub keys: %w", err)
+		return keysign.Response{}, fmt.Errorf("fail to convert peer ID to pub keys: %w", err)
 	}
 	signatureData, err := keysignInstance.SignMessage(msgToSign, localStateItem, keys)
 	// the statistic of keygen only care about Tss it self, even if the following http response aborts,
@@ -77,10 +77,10 @@ func (t *TssServer) KeySign(req keysign.KeySignReq) (keysign.KeySignResp, error)
 
 	// this indicates we are not in this round keysign
 	if signatureData == nil && err == nil {
-		return keysign.NewKeySignResp("", "", common.NA, blame), nil
+		return keysign.NewResponse("", "", common.NA, blame), nil
 	}
 
-	return keysign.NewKeySignResp(
+	return keysign.NewResponse(
 		base64.StdEncoding.EncodeToString(signatureData.R),
 		base64.StdEncoding.EncodeToString(signatureData.S),
 		keySignFlag,

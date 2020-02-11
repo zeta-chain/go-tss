@@ -24,7 +24,6 @@ import (
 	"gitlab.com/thorchain/tss/go-tss/common"
 	"gitlab.com/thorchain/tss/go-tss/keygen"
 	"gitlab.com/thorchain/tss/go-tss/keysign"
-	"gitlab.com/thorchain/tss/go-tss/tss"
 )
 
 const (
@@ -37,7 +36,7 @@ const (
 	baseTssPort      = 1200
 	baseInfoPort     = 8000
 	partyNum         = 4
-	testFileLocation = "./test_data"
+	testFileLocation = "../test_data"
 	preParamTestFile = "preParam_test.data"
 )
 
@@ -53,9 +52,9 @@ func checkServeReady(c *C, port int) {
 	c.Assert(resp.StatusCode == http.StatusOK, Equals, true)
 }
 
-func startServerAndCheck(c *C, wg sync.WaitGroup, server *tss.TssServer, ctx context.Context, port int) {
+func startServerAndCheck(c *C, wg sync.WaitGroup, server *TssServer, ctx context.Context, port int) {
 	wg.Add(1)
-	go func(server *tss.TssServer, ctx context.Context) {
+	go func(server *TssServer, ctx context.Context) {
 		defer wg.Done()
 		err := server.Start(ctx)
 		c.Assert(err, IsNil)
@@ -63,7 +62,7 @@ func startServerAndCheck(c *C, wg sync.WaitGroup, server *tss.TssServer, ctx con
 	checkServeReady(c, port)
 }
 
-func spinUpServers(c *C, localTss []*tss.TssServer, ctxs []context.Context, wg sync.WaitGroup, partyNum int) {
+func spinUpServers(c *C, localTss []*TssServer, ctxs []context.Context, wg sync.WaitGroup, partyNum int) {
 	// we spin up the first signer as the "bootstrap node", and the rest 3 nodes connect to it
 	startServerAndCheck(c, wg, localTss[0], ctxs[0], baseInfoPort)
 	for i := 1; i < partyNum; i++ {
@@ -86,8 +85,8 @@ func getPreparams(c *C) []*btsskeygen.LocalPreParams {
 	return preParamArray
 }
 
-func setupContextAndNodes(c *C, partyNum int, conf common.TssConfig) ([]context.Context, []context.CancelFunc, []*tss.TssServer) {
-	var localTss []*tss.TssServer
+func setupContextAndNodes(c *C, partyNum int, conf common.TssConfig) ([]context.Context, []context.CancelFunc, []*TssServer) {
+	var localTss []*TssServer
 	var ctxs []context.Context
 	var cancels []context.CancelFunc
 	common.SetupBech32Prefix()
@@ -108,7 +107,7 @@ func setupContextAndNodes(c *C, partyNum int, conf common.TssConfig) ([]context.
 			c.Assert(err, IsNil)
 		}
 		if i == 0 {
-			instance, err := tss.NewTss(nil, p2pPort, []byte(testPriKeyArr[i]), "Asgard", baseHome, conf, preParamArray[i])
+			instance, err := NewTss(nil, p2pPort, []byte(testPriKeyArr[i]), "Asgard", baseHome, conf, preParamArray[i])
 			c.Assert(err, IsNil)
 			instance.ConfigureHttpServers(
 				tssAddr,
@@ -116,7 +115,7 @@ func setupContextAndNodes(c *C, partyNum int, conf common.TssConfig) ([]context.
 			)
 			localTss = append(localTss, instance)
 		} else {
-			instance, err := tss.NewTss(peerIDs, p2pPort, []byte(testPriKeyArr[i]), "Asgard", baseHome, conf, preParamArray[i])
+			instance, err := NewTss(peerIDs, p2pPort, []byte(testPriKeyArr[i]), "Asgard", baseHome, conf, preParamArray[i])
 			c.Assert(err, IsNil)
 			instance.ConfigureHttpServers(
 				tssAddr,
@@ -128,7 +127,7 @@ func setupContextAndNodes(c *C, partyNum int, conf common.TssConfig) ([]context.
 	return ctxs, cancels, localTss
 }
 
-func setupNodeForTest(c *C, partyNum int) ([]context.Context, []*tss.TssServer, []context.CancelFunc, *sync.WaitGroup) {
+func setupNodeForTest(c *C, partyNum int) ([]context.Context, []*TssServer, []context.CancelFunc, *sync.WaitGroup) {
 	conf := common.TssConfig{
 		KeyGenTimeout:   30 * time.Second,
 		KeySignTimeout:  30 * time.Second,
@@ -159,10 +158,10 @@ func sendTestRequest(c *C, url string, request []byte) []byte {
 }
 
 func testKeySign(c *C, poolPubKey string, partyNum int) {
-	var keySignRespArr []*keysign.KeySignResp
+	var keySignRespArr []*keysign.Response
 	var locker sync.Mutex
 	msg := base64.StdEncoding.EncodeToString([]byte("hello"))
-	keySignReq := keysign.KeySignReq{
+	keySignReq := keysign.Request{
 		PoolPubKey: poolPubKey,
 		Message:    msg,
 	}
@@ -176,7 +175,7 @@ func testKeySign(c *C, poolPubKey string, partyNum int) {
 			url := fmt.Sprintf("http://127.0.0.1:%d/keysign", baseTssPort+i)
 			respByte := sendTestRequest(c, url, request)
 			if nil != respByte {
-				var tempResp keysign.KeySignResp
+				var tempResp keysign.Response
 				err = json.Unmarshal(respByte, &tempResp)
 				c.Assert(err, IsNil)
 				locker.Lock()
@@ -199,9 +198,9 @@ func testKeySign(c *C, poolPubKey string, partyNum int) {
 }
 
 func testKeyGen(c *C, partyNum int) string {
-	var keyGenRespArr []*keygen.KeyGenResp
+	var keyGenRespArr []*keygen.Response
 	var locker sync.Mutex
-	keyGenReq := keygen.KeyGenReq{
+	keyGenReq := keygen.Request{
 		Keys: testPubKeys[:],
 	}
 	request, err := json.Marshal(keyGenReq)
@@ -213,7 +212,7 @@ func testKeyGen(c *C, partyNum int) string {
 			defer requestGroup.Done()
 			url := fmt.Sprintf("http://127.0.0.1:%d/keygen", baseTssPort+i)
 			respByte := sendTestRequest(c, url, request)
-			var tempResp keygen.KeyGenResp
+			var tempResp keygen.Response
 			err = json.Unmarshal(respByte, &tempResp)
 			c.Assert(err, IsNil)
 			locker.Lock()

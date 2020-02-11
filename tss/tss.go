@@ -37,7 +37,6 @@ type TssServer struct {
 	tssKeyGenLocker  *sync.Mutex
 	tssKeySignLocker *sync.Mutex
 	stopChan         chan struct{}
-	subscribers      map[string]chan *p2p.Message
 	homeBase         string
 	partyCoordinator *p2p.PartyCoordinator
 	stateManager     storage.LocalStateManager
@@ -106,7 +105,6 @@ func NewTss(
 		tssKeyGenLocker:  &sync.Mutex{},
 		tssKeySignLocker: &sync.Mutex{},
 		stopChan:         make(chan struct{}),
-		subscribers:      make(map[string]chan *p2p.Message),
 		partyCoordinator: pc,
 		stateManager:     stateManager,
 	}
@@ -188,7 +186,7 @@ func (t *TssServer) Start(ctx context.Context) error {
 func (t *TssServer) requestToMsgId(request interface{}) (string, error) {
 	var dat []byte
 	switch value := request.(type) {
-	case keygen.KeyGenReq:
+	case keygen.Request:
 		keyAccumulation := ""
 		keys := value.Keys
 		sort.Strings(keys)
@@ -196,7 +194,7 @@ func (t *TssServer) requestToMsgId(request interface{}) (string, error) {
 			keyAccumulation += el
 		}
 		dat = []byte(keyAccumulation)
-	case keysign.KeySignReq:
+	case keysign.Request:
 		msgToSign, err := base64.StdEncoding.DecodeString(value.Message)
 		if err != nil {
 			t.logger.Error().Err(err).Msg("error in decode the keysign req")
@@ -208,10 +206,6 @@ func (t *TssServer) requestToMsgId(request interface{}) (string, error) {
 		return "", errors.New("unknown request type")
 	}
 
-	msgID, err := common.MsgToHashString(dat)
-	if err != nil {
-		t.logger.Error().Err(err).Msg("fail to hash the message")
-		return "", err
-	}
-	return msgID, nil
+	return common.MsgToHashString(dat)
+
 }

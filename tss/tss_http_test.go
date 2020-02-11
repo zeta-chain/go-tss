@@ -9,20 +9,17 @@ import (
 	"sync"
 	"testing"
 
-	btsskeygen "github.com/binance-chain/tss-lib/ecdsa/keygen"
+	bkg "github.com/binance-chain/tss-lib/ecdsa/keygen"
 	"github.com/hashicorp/go-retryablehttp"
 	. "gopkg.in/check.v1"
 
 	"gitlab.com/thorchain/tss/go-tss/common"
-	"gitlab.com/thorchain/tss/go-tss/tss"
 )
-
-const testPriKey = "OTI4OTdkYzFjMWFhMjU3MDNiMTE4MDM1OTQyY2Y3MDVkOWFhOGIzN2JlOGIwOWIwMTZjYTkxZjNjOTBhYjhlYQ=="
 
 func TestPackage(t *testing.T) { TestingT(t) }
 
 type TssTestSuite struct {
-	preParams []*btsskeygen.LocalPreParams
+	preParams []*bkg.LocalPreParams
 }
 
 var _ = Suite(&TssTestSuite{})
@@ -35,10 +32,10 @@ func (t *TssTestSuite) SetUpSuite(c *C) {
 	t.preParams = getPreparams(c)
 }
 
-func setupTssForTest(c *C) *tss.TssServer {
+func setupTssForTest(c *C) *TssServer {
 	conf := common.TssConfig{}
 	preParams := getPreparams(c)
-	tss, err := tss.NewTss(nil, 6668, []byte(testPriKey), "Asgard", "", conf, preParams[0])
+	tss, err := NewTss(nil, 6668, []byte(testPriKey), "Asgard", "", conf, preParams[0])
 	c.Assert(err, IsNil)
 	tss.ConfigureHttpServers(
 		":8080",
@@ -50,7 +47,7 @@ func setupTssForTest(c *C) *tss.TssServer {
 
 func (t *TssTestSuite) TestHttpTssReusePort(c *C) {
 	conf := common.TssConfig{}
-	tss1, err := tss.NewTss(nil, 6660, []byte(testPriKey), "Asgard", "", conf, t.preParams[0])
+	tss1, err := NewTss(nil, 6660, []byte(testPriKey), "Asgard", "", conf, t.preParams[0])
 	c.Assert(err, IsNil)
 	tss1.ConfigureHttpServers(
 		"127.0.0.1:8080",
@@ -68,7 +65,7 @@ func (t *TssTestSuite) TestHttpTssReusePort(c *C) {
 	_, err = retryablehttp.Get("http://127.0.0.1:8081/ping")
 	c.Assert(err, IsNil)
 
-	tss2, err := tss.NewTss(nil, 6661, []byte(testPriKey), "Asgard", "", conf, t.preParams[1])
+	tss2, err := NewTss(nil, 6661, []byte(testPriKey), "Asgard", "", conf, t.preParams[1])
 	c.Assert(err, IsNil)
 	tss2.ConfigureHttpServers(
 		"127.0.0.1:8080",
@@ -84,7 +81,7 @@ func (t *TssTestSuite) TestHttpTssReusePort(c *C) {
 
 func (t *TssTestSuite) TestHttpNewTss(c *C) {
 	conf := common.TssConfig{}
-	tss, err := tss.NewTss(nil, 6668, []byte(testPriKey), "Asgard", "", conf, t.preParams[0])
+	tss, err := NewTss(nil, 6668, []byte(testPriKey), "Asgard", "", conf, t.preParams[0])
 	c.Assert(err, IsNil)
 	tss.ConfigureHttpServers(
 		":12345",
@@ -118,11 +115,11 @@ func (t *TssTestSuite) TestHttpKeySign(c *C) {
 	c.Assert(tssService, NotNil)
 	respRecorder := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/keysign", nil)
-	tssService.KeySignHandler(respRecorder, req)
+	tssService.keySignHandler(respRecorder, req)
 	c.Assert(respRecorder.Code, Equals, http.StatusMethodNotAllowed)
 
 	respRecorder = httptest.NewRecorder()
 	reqInvalidBody := httptest.NewRequest(http.MethodPost, "/keysign", bytes.NewBuffer([]byte("whatever")))
-	tssService.KeySignHandler(respRecorder, reqInvalidBody)
+	tssService.keySignHandler(respRecorder, reqInvalidBody)
 	c.Assert(respRecorder.Code, Equals, http.StatusBadRequest)
 }
