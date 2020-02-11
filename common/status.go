@@ -1,10 +1,6 @@
 package common
 
 import (
-	"encoding/json"
-	"fmt"
-	"io/ioutil"
-	"os"
 	"sync"
 
 	"gitlab.com/thorchain/tss/go-tss/p2p"
@@ -17,26 +13,6 @@ const (
 	Success
 	Fail
 )
-
-// LoadLocalState from file
-func LoadLocalState(filePathName string) (KeygenLocalStateItem, error) {
-	if len(filePathName) == 0 {
-		return KeygenLocalStateItem{}, nil
-	}
-	if _, err := os.Stat(filePathName); os.IsNotExist(err) {
-		return KeygenLocalStateItem{}, nil
-	}
-
-	buf, err := ioutil.ReadFile(filePathName)
-	if err != nil {
-		return KeygenLocalStateItem{}, fmt.Errorf("file to read from file(%s): %w", filePathName, err)
-	}
-	var localState KeygenLocalStateItem
-	if err := json.Unmarshal(buf, &localState); nil != err {
-		return KeygenLocalStateItem{}, fmt.Errorf("fail to unmarshal KeygenLocalState: %w", err)
-	}
-	return localState, nil
-}
 
 func NewLocalCacheItem(msg *p2p.WireMessage, hash string) *LocalCacheItem {
 	return &LocalCacheItem{

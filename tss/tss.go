@@ -21,6 +21,7 @@ import (
 	"gitlab.com/thorchain/tss/go-tss/keygen"
 	"gitlab.com/thorchain/tss/go-tss/keysign"
 	"gitlab.com/thorchain/tss/go-tss/p2p"
+	"gitlab.com/thorchain/tss/go-tss/storage"
 )
 
 type TssServer struct {
@@ -39,6 +40,7 @@ type TssServer struct {
 	subscribers      map[string]chan *p2p.Message
 	homeBase         string
 	partyCoordinator *p2p.PartyCoordinator
+	stateManager     storage.LocalStateManager
 }
 
 // NewTss create a new instance of Tss
@@ -88,7 +90,10 @@ func NewTss(
 		return nil, fmt.Errorf("fail to start p2p network: %w", err)
 	}
 	pc := p2p.NewPartyCoordinator(comm.GetHost())
-
+	stateManager, err := storage.NewFileStateMgr(baseFolder)
+	if err != nil {
+		return nil, fmt.Errorf("fail to create file state manager")
+	}
 	tssServer := TssServer{
 		conf:   conf,
 		logger: log.With().Str("module", "tss").Logger(),
@@ -102,8 +107,8 @@ func NewTss(
 		tssKeySignLocker: &sync.Mutex{},
 		stopChan:         make(chan struct{}),
 		subscribers:      make(map[string]chan *p2p.Message),
-		homeBase:         baseFolder,
 		partyCoordinator: pc,
+		stateManager:     stateManager,
 	}
 
 	return &tssServer, nil

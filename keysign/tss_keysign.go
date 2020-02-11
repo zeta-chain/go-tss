@@ -14,6 +14,7 @@ import (
 
 	"gitlab.com/thorchain/tss/go-tss/common"
 	"gitlab.com/thorchain/tss/go-tss/p2p"
+	"gitlab.com/thorchain/tss/go-tss/storage"
 )
 
 type TssKeySign struct {
@@ -26,14 +27,16 @@ type TssKeySign struct {
 	keySignCurrent  *string
 }
 
-func NewTssKeySign(homeBase,
-	localP2PID string,
-	conf common.TssConfig, broadcastChan chan *p2p.BroadcastMsgChan, stopChan *chan struct{}, keySignCurrent *string, msgID string) TssKeySign {
+func NewTssKeySign(localP2PID string,
+	conf common.TssConfig,
+	broadcastChan chan *p2p.BroadcastMsgChan,
+	stopChan *chan struct{},
+	keySignCurrent *string,
+	msgID string) TssKeySign {
 	return TssKeySign{
 		logger:          log.With().Str("module", "keySign").Logger(),
 		tssCommonStruct: common.NewTssCommon(localP2PID, broadcastChan, conf, msgID),
 		stopChan:        stopChan,
-		homeBase:        homeBase,
 		localParty:      nil,
 		keySignCurrent:  keySignCurrent,
 	}
@@ -48,8 +51,7 @@ func (tKeySign *TssKeySign) GetTssCommonStruct() *common.TssCommon {
 }
 
 // signMessage
-func (tKeySign *TssKeySign) SignMessage(msgToSign []byte, localStateItem common.KeygenLocalStateItem, parties []string) (*signing.SignatureData, error) {
-
+func (tKeySign *TssKeySign) SignMessage(msgToSign []byte, localStateItem storage.KeygenLocalState, parties []string) (*signing.SignatureData, error) {
 	partiesID, localPartyID, err := common.GetParties(parties, localStateItem.LocalPartyKey)
 	tKeySign.localParty = localPartyID
 	if err != nil {

@@ -2,9 +2,7 @@ package tss
 
 import (
 	"encoding/base64"
-	"errors"
 	"fmt"
-	"path/filepath"
 	"sort"
 	"sync/atomic"
 
@@ -14,6 +12,7 @@ import (
 	"gitlab.com/thorchain/tss/go-tss/keysign"
 	"gitlab.com/thorchain/tss/go-tss/messages"
 	"gitlab.com/thorchain/tss/go-tss/p2p"
+	"gitlab.com/thorchain/tss/go-tss/storage"
 )
 
 func (t *TssServer) KeySign(req keysign.KeySignReq) (keysign.KeySignResp, error) {
@@ -28,7 +27,6 @@ func (t *TssServer) KeySign(req keysign.KeySignReq) (keysign.KeySignResp, error)
 	}
 
 	keysignInstance := keysign.NewTssKeySign(
-		t.homeBase,
 		t.p2pCommunication.GetLocalPeerID(),
 		t.conf,
 		t.p2pCommunication.BroadcastMsgChan,
@@ -43,7 +41,8 @@ func (t *TssServer) KeySign(req keysign.KeySignReq) (keysign.KeySignResp, error)
 
 	defer t.p2pCommunication.CancelSubscribe(p2p.TSSKeySignMsg, msgID)
 	defer t.p2pCommunication.CancelSubscribe(p2p.TSSKeySignVerMsg, msgID)
-	localStateItem, err := t.getLocalState(req.PoolPubKey)
+
+	localStateItem, err := t.stateManager.GetLocalState(req.PoolPubKey)
 	if err != nil {
 		return keysign.KeySignResp{}, fmt.Errorf("fail to get local keygen state: %w", err)
 	}
@@ -89,23 +88,7 @@ func (t *TssServer) KeySign(req keysign.KeySignReq) (keysign.KeySignResp, error)
 	), nil
 }
 
-func (t *TssServer) getLocalState(poolPubKey string) (common.KeygenLocalStateItem, error) {
-	localStateItem := common.KeygenLocalStateItem{}
-	if len(poolPubKey) == 0 {
-		return localStateItem, errors.New("pool pub key is empty")
-	}
-	localFileName := fmt.Sprintf("localstate-%s.json", poolPubKey)
-	if len(t.homeBase) > 0 {
-		localFileName = filepath.Join(t.homeBase, localFileName)
-	}
-	localStateItem, err := common.LoadLocalState(localFileName)
-	if err != nil {
-		return localStateItem, fmt.Errorf("fail to read local state file: %w", err)
-	}
-	return localStateItem, nil
-}
-
-func (t *TssServer) joinParty(msgID string, messageToSign []byte, localStateItem common.KeygenLocalStateItem) (*messages.JoinPartyResponse, error) {
+func (t *TssServer) joinParty(msgID string, messageToSign []byte, localStateItem storage.KeygenLocalState) (*messages.JoinPartyResponse, error) {
 	keys := localStateItem.ParticipantKeys
 	sort.Slice(keys, func(i, j int) bool {
 		return keys[i] < keys[j]

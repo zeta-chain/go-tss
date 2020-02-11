@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
+
 	"gitlab.com/thorchain/tss/go-tss/keygen"
 	"gitlab.com/thorchain/tss/go-tss/keysign"
 )
