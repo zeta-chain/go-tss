@@ -31,6 +31,7 @@ func (s *FileStateMgrTestSuite) TestNewFileStateMgr(c *C) {
 	fileName := fsm.getFilePathName("whatever")
 	c.Assert(fileName, Equals, filepath.Join(f, "localstate-whatever.json"))
 }
+
 func (s *FileStateMgrTestSuite) TestSaveLocalState(c *C) {
 	stateItem := KeygenLocalState{
 		PubKey:    "wasdfasdfasdfasdfasdfasdf",

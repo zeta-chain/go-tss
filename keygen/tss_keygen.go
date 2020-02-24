@@ -58,7 +58,6 @@ func (tKeyGen *TssKeyGen) GetTssCommonStruct() *common.TssCommon {
 }
 
 func (tKeyGen *TssKeyGen) GenerateNewKey(keygenReq Request) (*crypto.ECPoint, error) {
-
 	partiesID, localPartyID, err := common.GetParties(keygenReq.Keys, tKeyGen.localNodePubKey)
 	if err != nil {
 		return nil, fmt.Errorf("fail to get keygen parties: %w", err)

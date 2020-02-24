@@ -28,6 +28,7 @@ func TestGetPubKeysFromPeerIDs(t *testing.T) {
 	}
 	t.Logf("%+v", result)
 }
+
 func (*KeyProviderTestSuite) TestGetPriKey(c *C) {
 	pk, err := getPriKey("whatever")
 	c.Assert(err, NotNil)

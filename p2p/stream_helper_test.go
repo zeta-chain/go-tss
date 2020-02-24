@@ -27,12 +27,14 @@ func NewMockNetworkStream() *MockNetworkStream {
 		protocol: testProtocolID,
 	}
 }
+
 func (m MockNetworkStream) Read(buf []byte) (int, error) {
 	if m.errRead {
 		return 0, errors.New("you asked for it")
 	}
 	return m.Buffer.Read(buf)
 }
+
 func (m MockNetworkStream) Close() error {
 	return nil
 }
@@ -79,7 +81,6 @@ func (m MockNetworkStream) Conn() network.Conn {
 }
 
 func TestReadLength(t *testing.T) {
-
 	testCases := []struct {
 		name           string
 		streamProvider func() network.Stream
