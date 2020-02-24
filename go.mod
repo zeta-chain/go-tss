@@ -24,10 +24,8 @@ require (
 	github.com/prometheus/client_model v0.0.0-20191202183732-d1d2010b5bee // indirect
 	github.com/prometheus/procfs v0.0.8 // indirect
 	github.com/rs/zerolog v1.17.2
-	github.com/tecbot/gorocksdb v0.0.0-20191122205208-eb0a0d0d32b3 // indirect
 	github.com/tendermint/btcd v0.1.1
 	github.com/tendermint/tendermint v0.32.8
-	github.com/tendermint/tm-db v0.3.0 // indirect
 	github.com/whyrusleeping/go-logging v0.0.0-20170515211332-0457bb6b88fc
 	gitlab.com/thorchain/thornode v0.0.0-20191211232842-a3c254579d07
 	golang.org/x/crypto v0.0.0-20191206172530-e9b2fee46413 // indirect
