@@ -5,14 +5,17 @@ package messages
 
 import (
 	fmt "fmt"
-	proto "github.com/golang/protobuf/proto"
 	math "math"
+
+	proto "github.com/golang/protobuf/proto"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
-var _ = proto.Marshal
-var _ = fmt.Errorf
-var _ = math.Inf
+var (
+	_ = proto.Marshal
+	_ = fmt.Errorf
+	_ = math.Inf
+)
 
 // This is a compile-time assertion to ensure that this generated file
 // is compatible with the proto package it is being compiled against.
@@ -70,15 +73,19 @@ func (*JoinPartyRequest) Descriptor() ([]byte, []int) {
 func (m *JoinPartyRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_JoinPartyRequest.Unmarshal(m, b)
 }
+
 func (m *JoinPartyRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_JoinPartyRequest.Marshal(b, m, deterministic)
 }
+
 func (m *JoinPartyRequest) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_JoinPartyRequest.Merge(m, src)
 }
+
 func (m *JoinPartyRequest) XXX_Size() int {
 	return xxx_messageInfo_JoinPartyRequest.Size(m)
 }
+
 func (m *JoinPartyRequest) XXX_DiscardUnknown() {
 	xxx_messageInfo_JoinPartyRequest.DiscardUnknown(m)
 }
@@ -125,15 +132,19 @@ func (*JoinPartyResponse) Descriptor() ([]byte, []int) {
 func (m *JoinPartyResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_JoinPartyResponse.Unmarshal(m, b)
 }
+
 func (m *JoinPartyResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_JoinPartyResponse.Marshal(b, m, deterministic)
 }
+
 func (m *JoinPartyResponse) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_JoinPartyResponse.Merge(m, src)
 }
+
 func (m *JoinPartyResponse) XXX_Size() int {
 	return xxx_messageInfo_JoinPartyResponse.Size(m)
 }
+
 func (m *JoinPartyResponse) XXX_DiscardUnknown() {
 	xxx_messageInfo_JoinPartyResponse.DiscardUnknown(m)
 }

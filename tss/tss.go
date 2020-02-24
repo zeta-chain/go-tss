@@ -207,5 +207,4 @@ func (t *TssServer) requestToMsgId(request interface{}) (string, error) {
 	}
 
 	return common.MsgToHashString(dat)
-
 }

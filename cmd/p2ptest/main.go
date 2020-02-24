@@ -9,7 +9,6 @@ import (
 
 	golog "github.com/ipfs/go-log"
 	"github.com/rs/zerolog/log"
-	"github.com/whyrusleeping/go-logging"
 
 	"gitlab.com/thorchain/tss/go-tss/common"
 	"gitlab.com/thorchain/tss/go-tss/p2p"
@@ -18,7 +17,7 @@ import (
 func main() {
 	p2pConf := p2p.P2PConfig{}
 	generalConf := common.GeneralConfig{}
-	golog.SetAllLoggers(logging.INFO)
+	golog.SetAllLoggers(golog.LevelInfo)
 	if err := golog.SetLogLevel("tss_p2p", "DEBUG"); nil != err {
 		panic(err)
 	}
