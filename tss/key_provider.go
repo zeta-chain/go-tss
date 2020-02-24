@@ -67,7 +67,7 @@ func GetPubKeysFromPeerIDs(peers []string) ([]string, error) {
 	return result, nil
 }
 
-func getPriKey(priKeyString string) (tcrypto.PrivKey, error) {
+func GetPriKey(priKeyString string) (tcrypto.PrivKey, error) {
 	priHexBytes, err := base64.StdEncoding.DecodeString(priKeyString)
 	if err != nil {
 		return nil, fmt.Errorf("fail to decode private key: %w", err)
