@@ -15,6 +15,7 @@ import (
 	maddr "github.com/multiformats/go-multiaddr"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	tcrypto "github.com/tendermint/tendermint/crypto"
 	"golang.org/x/sync/errgroup"
 
 	"gitlab.com/thorchain/tss/go-tss/common"
@@ -46,16 +47,13 @@ type TssServer struct {
 func NewTss(
 	bootstrapPeers []maddr.Multiaddr,
 	p2pPort int,
-	priKeyBytes []byte,
+	priKey tcrypto.PrivKey,
 	rendezvous,
 	baseFolder string,
 	conf common.TssConfig,
 	preParams *bkeygen.LocalPreParams,
 ) (*TssServer, error) {
-	priKey, err := getPriKey(string(priKeyBytes))
-	if err != nil {
-		return nil, errors.New("cannot parse the private key")
-	}
+
 	pubKey, err := sdk.Bech32ifyAccPub(priKey.PubKey())
 	if err != nil {
 		return nil, fmt.Errorf("fail to genearte the key: %w", err)

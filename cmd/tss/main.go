@@ -43,12 +43,15 @@ func main() {
 		fmt.Printf("error in get the secret key: %s\n", err.Error())
 		return
 	}
-
+	priKey, err := tss.GetPriKey(priKeyBytes)
+	if err != nil {
+		log.Fatal(err)
+	}
 	// init tss module
 	tss, err := tss.NewTss(
 		p2pConf.BootstrapPeers,
 		p2pConf.Port,
-		[]byte(priKeyBytes),
+		priKey,
 		p2pConf.RendezvousString,
 		generalConf.BaseFolder,
 		tssConf,

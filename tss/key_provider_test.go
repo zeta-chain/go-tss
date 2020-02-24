@@ -30,14 +30,14 @@ func TestGetPubKeysFromPeerIDs(t *testing.T) {
 }
 
 func (*KeyProviderTestSuite) TestGetPriKey(c *C) {
-	pk, err := getPriKey("whatever")
+	pk, err := GetPriKey("whatever")
 	c.Assert(err, NotNil)
 	c.Assert(pk, IsNil)
 	input := base64.StdEncoding.EncodeToString([]byte("whatever"))
-	pk, err = getPriKey(input)
+	pk, err = GetPriKey(input)
 	c.Assert(err, NotNil)
 	c.Assert(pk, IsNil)
-	pk, err = getPriKey(testPriKey)
+	pk, err = GetPriKey(testPriKey)
 	c.Assert(err, IsNil)
 	c.Assert(pk, NotNil)
 	result, err := getPriKeyRawBytes(pk)

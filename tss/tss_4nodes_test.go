@@ -106,8 +106,10 @@ func setupContextAndNodes(c *C, partyNum int, conf common.TssConfig) ([]context.
 			err := os.Mkdir(baseHome, os.ModePerm)
 			c.Assert(err, IsNil)
 		}
+		priKey, err := GetPriKey(testPriKeyArr[i])
+		c.Assert(err, IsNil)
 		if i == 0 {
-			instance, err := NewTss(nil, p2pPort, []byte(testPriKeyArr[i]), "Asgard", baseHome, conf, preParamArray[i])
+			instance, err := NewTss(nil, p2pPort, priKey, "Asgard", baseHome, conf, preParamArray[i])
 			c.Assert(err, IsNil)
 			instance.ConfigureHttpServers(
 				tssAddr,
@@ -115,7 +117,7 @@ func setupContextAndNodes(c *C, partyNum int, conf common.TssConfig) ([]context.
 			)
 			localTss = append(localTss, instance)
 		} else {
-			instance, err := NewTss(peerIDs, p2pPort, []byte(testPriKeyArr[i]), "Asgard", baseHome, conf, preParamArray[i])
+			instance, err := NewTss(peerIDs, p2pPort, priKey, "Asgard", baseHome, conf, preParamArray[i])
 			c.Assert(err, IsNil)
 			instance.ConfigureHttpServers(
 				tssAddr,
