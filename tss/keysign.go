@@ -2,6 +2,7 @@ package tss
 
 import (
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"sort"
 	"sync/atomic"
@@ -12,7 +13,6 @@ import (
 	"gitlab.com/thorchain/tss/go-tss/keysign"
 	"gitlab.com/thorchain/tss/go-tss/messages"
 	"gitlab.com/thorchain/tss/go-tss/p2p"
-	"gitlab.com/thorchain/tss/go-tss/storage"
 )
 
 func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
@@ -50,15 +50,29 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 	if err != nil {
 		return keysign.Response{}, fmt.Errorf("fail to decode message(%s): %w", req.Message, err)
 	}
-	result, err := t.joinParty(msgID, msgToSign, localStateItem)
+	if len(req.SignerPubKeys) == 0 {
+		return keysign.Response{}, errors.New("empty signer pub keys")
+	}
+	if !t.isPartOfKeysignParty(req.SignerPubKeys) {
+		return keysign.Response{}, errors.New("not part of keysign party")
+	}
+	result, err := t.joinParty(msgID, msgToSign, req.SignerPubKeys)
 	if err != nil {
 		// don't blame node for forming party
 		return keysign.Response{}, fmt.Errorf("fail to form keysign party: %w", err)
 	}
 	if result.Type != messages.JoinPartyResponse_Success {
-		return keysign.Response{}, fmt.Errorf("fail to form keysign party: %s", result.Type)
+		blame, err := t.getBlamePeers(req.SignerPubKeys, result.PeerIDs)
+		if err != nil {
+			t.logger.Err(err).Msg("fail to get peers to blame")
+		}
+
+		return keysign.Response{
+			Status: common.Fail,
+			Blame:  blame,
+		}, fmt.Errorf("fail to form keysign party: %s", result.Type)
 	}
-	keys, err := GetPubKeysFromPeerIDs(result.PeerID)
+	keys, err := GetPubKeysFromPeerIDs(result.PeerIDs)
 	if err != nil {
 		return keysign.Response{}, fmt.Errorf("fail to convert peer ID to pub keys: %w", err)
 	}
@@ -88,21 +102,25 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 	), nil
 }
 
-func (t *TssServer) joinParty(msgID string, messageToSign []byte, localStateItem storage.KeygenLocalState) (*messages.JoinPartyResponse, error) {
-	keys := localStateItem.ParticipantKeys
-	sort.Slice(keys, func(i, j int) bool {
+func (t *TssServer) isPartOfKeysignParty(parties []string) bool {
+	for _, item := range parties {
+		if t.localNodePubKey == item {
+			return true
+		}
+	}
+	return false
+}
+
+func (t *TssServer) joinParty(msgID string, messageToSign []byte, keys []string) (*messages.JoinPartyResponse, error) {
+	sort.SliceStable(keys, func(i, j int) bool {
 		return keys[i] < keys[j]
 	})
 	peerIDs, err := GetPeerIDsFromPubKeys(keys)
 	if err != nil {
 		return nil, fmt.Errorf("fail to convert pub key to peer id: %w", err)
 	}
-	totalNodes := len(localStateItem.ParticipantKeys)
-	threshold, err := common.GetThreshold(totalNodes)
-	if err != nil {
-		return nil, err
-	}
-	leader, err := p2p.LeaderNode(messageToSign, int32(totalNodes))
+	totalNodes := int32(len(keys))
+	leader, err := p2p.LeaderNode(messageToSign, totalNodes)
 	if err != nil {
 		return nil, fmt.Errorf("fail to get leader node")
 	}
@@ -111,10 +129,11 @@ func (t *TssServer) joinParty(msgID string, messageToSign []byte, localStateItem
 	if err != nil {
 		return nil, fmt.Errorf("fail to get peer id from node pubkey: %w", err)
 	}
+	t.logger.Info().Msgf("leader peer: %s", leaderPeerID)
 	joinPartyReq := &messages.JoinPartyRequest{
 		ID:        msgID,
-		Threshold: int32(threshold + 1),
-		PeerID:    peerIDs,
+		Threshold: totalNodes,
+		PeerIDs:   peerIDs,
 	}
-	return t.partyCoordinator.JoinParty(leaderPeerID, joinPartyReq)
+	return t.partyCoordinator.JoinPartyWithRetry(leaderPeerID, joinPartyReq)
 }

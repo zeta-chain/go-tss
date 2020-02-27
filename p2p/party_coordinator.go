@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cenkalti/backoff/v4"
 	"github.com/gogo/protobuf/proto"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
@@ -27,7 +28,6 @@ type PartyCoordinator struct {
 	host         host.Host
 	ceremonyLock *sync.Mutex
 	ceremonies   map[string]*Ceremony
-	wg           *sync.WaitGroup
 	stopChan     chan struct{}
 }
 
@@ -38,7 +38,6 @@ func NewPartyCoordinator(host host.Host) *PartyCoordinator {
 		host:         host,
 		ceremonyLock: &sync.Mutex{},
 		ceremonies:   make(map[string]*Ceremony),
-		wg:           &sync.WaitGroup{},
 		stopChan:     make(chan struct{}),
 	}
 	host.SetStreamHandler(joinPartyProtocol, pc.HandleStream)
@@ -48,8 +47,6 @@ func NewPartyCoordinator(host host.Host) *PartyCoordinator {
 // Start the party coordinator role
 func (pc *PartyCoordinator) Start() {
 	pc.logger.Info().Msg("start party coordinator")
-	pc.wg.Add(1)
-	go pc.ceremonyMonitor()
 }
 
 // Stop the PartyCoordinator rune
@@ -57,7 +54,6 @@ func (pc *PartyCoordinator) Stop() {
 	defer pc.logger.Info().Msg("stop party coordinator")
 	pc.host.RemoveStreamHandler(joinPartyProtocol)
 	close(pc.stopChan)
-	pc.wg.Wait()
 }
 
 // HandleStream handle party coordinate stream
@@ -101,14 +97,25 @@ func (pc *PartyCoordinator) processJoinPartyRequest(remotePeer peer.ID, msg *mes
 		Peer: remotePeer,
 		Resp: make(chan *messages.JoinPartyResponse, 1),
 	}
+	if remotePeer == pc.host.ID() {
+		pc.logger.Info().Msg("we are the leader , create ceremony")
+		pc.createCeremony(joinParty)
+	}
 	if err := pc.onJoinParty(joinParty); err != nil {
-		if errors.Is(err, errPartyGathered) {
-			// join too late , ceremony already gather enough parties , and started already
+		if errors.Is(err, errLeaderNotReady) {
+			// leader node doesn't have request yet, so don't know how to handle the join party request
 			return &messages.JoinPartyResponse{
 				ID:   msg.ID,
-				Type: messages.JoinPartyResponse_AlreadyStarted,
+				Type: messages.JoinPartyResponse_LeaderNotReady,
 			}, nil
 		}
+		if errors.Is(err, errUnknownPeer) {
+			return &messages.JoinPartyResponse{
+				ID:   msg.ID,
+				Type: messages.JoinPartyResponse_UnknownPeer,
+			}, nil
+		}
+		pc.logger.Error().Err(err).Msg("fail to join party")
 	}
 	for {
 		select {
@@ -116,10 +123,12 @@ func (pc *PartyCoordinator) processJoinPartyRequest(remotePeer peer.ID, msg *mes
 			return r, nil
 		case <-time.After(WaitForPartyGatheringTimeout):
 			// TODO make this timeout dynamic based on the threshold
-			if !pc.onJoinPartyTimeout(joinParty) {
+			result, parties := pc.onJoinPartyTimeout(joinParty)
+			if !result {
 				return &messages.JoinPartyResponse{
-					ID:   msg.ID,
-					Type: messages.JoinPartyResponse_Timeout,
+					ID:      msg.ID,
+					Type:    messages.JoinPartyResponse_Timeout,
+					PeerIDs: parties,
 				}, nil
 			}
 		}
@@ -143,7 +152,10 @@ func (pc *PartyCoordinator) writeResponse(stream network.Stream, resp *messages.
 	return nil
 }
 
-var errPartyGathered = errors.New("ceremony party already assembled")
+var (
+	errLeaderNotReady = errors.New("leader node is not ready")
+	errUnknownPeer    = errors.New("unknown peer trying to join party")
+)
 
 // onJoinParty is a call back function
 func (pc *PartyCoordinator) onJoinParty(joinParty *JoinParty) error {
@@ -151,28 +163,17 @@ func (pc *PartyCoordinator) onJoinParty(joinParty *JoinParty) error {
 		Str("ID", joinParty.Msg.ID).
 		Str("remote peer", joinParty.Peer.String()).
 		Int32("threshold", joinParty.Msg.Threshold).
-		Str("peer ids", strings.Join(joinParty.Msg.PeerID, ",")).
+		Str("peer ids", strings.Join(joinParty.Msg.PeerIDs, ",")).
 		Msgf("get join party request")
 	pc.ceremonyLock.Lock()
 	defer pc.ceremonyLock.Unlock()
 	c, ok := pc.ceremonies[joinParty.Msg.ID]
 	if !ok {
-		ceremony := &Ceremony{
-			ID:        joinParty.Msg.ID,
-			Threshold: uint32(joinParty.Msg.Threshold),
-			JoinPartyRequests: []*JoinParty{
-				joinParty,
-			},
-			Status:  GatheringParties,
-			Started: time.Now().UTC(),
-		}
-		pc.ceremonies[joinParty.Msg.ID] = ceremony
-		return nil
+		return errLeaderNotReady
 	}
-	if c.Status == Finished {
-		return errPartyGathered
+	if !c.ValidPeer(joinParty.Peer) {
+		return errUnknownPeer
 	}
-
 	c.JoinPartyRequests = append(c.JoinPartyRequests, joinParty)
 	if !c.IsReady() {
 		// Ceremony is not ready , still waiting for more party to join
@@ -180,11 +181,11 @@ func (pc *PartyCoordinator) onJoinParty(joinParty *JoinParty) error {
 	}
 
 	resp := &messages.JoinPartyResponse{
-		ID:     c.ID,
-		Type:   messages.JoinPartyResponse_Success,
-		PeerID: c.GetParties(),
+		ID:      c.ID,
+		Type:    messages.JoinPartyResponse_Success,
+		PeerIDs: c.GetParties(),
 	}
-	pc.logger.Info().Msgf("party formed: %+v", resp.PeerID)
+	pc.logger.Info().Msgf("party formed: %+v", resp.PeerIDs)
 	for _, item := range c.JoinPartyRequests {
 		select {
 		case <-pc.stopChan: // receive request to exit
@@ -192,7 +193,7 @@ func (pc *PartyCoordinator) onJoinParty(joinParty *JoinParty) error {
 		case item.Resp <- resp:
 		}
 	}
-	c.Status = Finished
+	delete(pc.ceremonies, c.ID)
 	return nil
 }
 
@@ -202,22 +203,22 @@ func (pc *PartyCoordinator) onJoinParty(joinParty *JoinParty) error {
 // the first bool return value indicate whether it should give up sending the timeout resp back to client
 // usually that means a timeout and success has almost step on each other's foot, it should give up timeout , because the
 // success resp is already there
-func (pc *PartyCoordinator) onJoinPartyTimeout(joinParty *JoinParty) bool {
+func (pc *PartyCoordinator) onJoinPartyTimeout(joinParty *JoinParty) (bool, []string) {
 	pc.logger.Info().
 		Str("ID", joinParty.Msg.ID).
 		Str("remote peer", joinParty.Peer.String()).
 		Int32("threshold", joinParty.Msg.Threshold).
-		Str("peer ids", strings.Join(joinParty.Msg.PeerID, ",")).
+		Str("peer ids", strings.Join(joinParty.Msg.PeerIDs, ",")).
 		Msgf("join party timeout")
 	pc.ceremonyLock.Lock()
 	defer pc.ceremonyLock.Unlock()
 	c, ok := pc.ceremonies[joinParty.Msg.ID]
 	if !ok {
-		return false
+		return false, nil
 	}
 	// it could be timeout / finish almost happen at the same time, we give up timeout
 	if c.Status == Finished {
-		return true
+		return true, c.GetParties()
 	}
 	// remove this party as they sick of waiting
 	idxToDelete := -1
@@ -226,35 +227,28 @@ func (pc *PartyCoordinator) onJoinPartyTimeout(joinParty *JoinParty) bool {
 			idxToDelete = idx
 		}
 	}
+	// withdraw request
 	c.JoinPartyRequests = append(c.JoinPartyRequests[:idxToDelete], c.JoinPartyRequests[idxToDelete+1:]...)
-	return false
-}
 
-func (pc *PartyCoordinator) ceremonyMonitor() {
-	defer pc.wg.Done()
-	for {
-		select {
-		case <-pc.stopChan:
-			return
-		case <-time.After(time.Second * 30):
-			pc.markCeremony()
-		}
+	// no one is waiting , let's remove the ceremony
+	if len(c.JoinPartyRequests) == 0 {
+		delete(pc.ceremonies, joinParty.Msg.ID)
 	}
+	return false, c.GetParties()
 }
 
-func (pc *PartyCoordinator) markCeremony() {
+func (pc *PartyCoordinator) createCeremony(party *JoinParty) {
 	pc.ceremonyLock.Lock()
 	defer pc.ceremonyLock.Unlock()
-	for key, c := range pc.ceremonies {
-		if time.Since(c.Started) > (2 * WaitForPartyGatheringTimeout) {
-			pc.logger.Info().
-				Str("ID", key).
-				Str("Status", c.Status.String()).
-				Str("started", c.Started.String()).
-				Msg("remove ceremony")
-			delete(pc.ceremonies, key)
-		}
+	ceremony := &Ceremony{
+		ID:                party.Msg.ID,
+		Threshold:         uint32(party.Msg.Threshold),
+		JoinPartyRequests: []*JoinParty{},
+		Status:            GatheringParties,
+		Started:           time.Now().UTC(),
+		Peers:             party.Msg.PeerIDs,
 	}
+	pc.ceremonies[party.Msg.ID] = ceremony
 }
 
 // JoinParty join a ceremony , it could be keygen or key sign
@@ -303,4 +297,25 @@ func (pc *PartyCoordinator) JoinParty(remotePeer peer.ID, msg *messages.JoinPart
 		return nil, fmt.Errorf("fail to unmarshal JoinGameResp: %w", err)
 	}
 	return &resp, nil
+}
+
+// JoinPartyWithRetry this method provide the functionality to join party with retry and backoff
+func (pc *PartyCoordinator) JoinPartyWithRetry(remotePeer peer.ID, msg *messages.JoinPartyRequest) (*messages.JoinPartyResponse, error) {
+	bf := backoff.NewExponentialBackOff()
+	bf.MaxElapsedTime = WaitForPartyGatheringTimeout
+	var resp *messages.JoinPartyResponse
+	err := backoff.Retry(func() error {
+		joinPartyResp, err := pc.JoinParty(remotePeer, msg)
+		if err == nil {
+			if joinPartyResp.Type == messages.JoinPartyResponse_LeaderNotReady {
+				return errors.New("leader not ready")
+			}
+			resp = joinPartyResp
+			return nil
+		}
+		pc.logger.Err(err).Msg("fail to join party")
+		return err
+	}, bf)
+
+	return resp, err
 }

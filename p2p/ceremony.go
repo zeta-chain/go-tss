@@ -3,6 +3,8 @@ package p2p
 import (
 	"sort"
 	"time"
+
+	"github.com/libp2p/go-libp2p-core/peer"
 )
 
 type CeremonyStatus int
@@ -36,6 +38,7 @@ type Ceremony struct {
 	JoinPartyRequests []*JoinParty   // all the join party requests
 	Status            CeremonyStatus // ceremony status
 	Started           time.Time      // when the ceremony created
+	Peers             []string       // peers
 }
 
 // IsReady do we have enough players to start the game?
@@ -43,6 +46,17 @@ func (c *Ceremony) IsReady() bool {
 	// we got enough nodes
 	if len(c.JoinPartyRequests) >= int(c.Threshold) {
 		return true
+	}
+	return false
+}
+
+// ValidPeer is going to validate the peer against the peers list in ceremony
+// Ceremony will be create by the leader node,if the peer is unknown to the ceremony , it will reject the join party request.
+func (c *Ceremony) ValidPeer(id peer.ID) bool {
+	for _, item := range c.Peers {
+		if item == id.String() {
+			return true
+		}
 	}
 	return false
 }

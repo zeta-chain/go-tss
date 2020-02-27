@@ -164,8 +164,9 @@ func testKeySign(c *C, poolPubKey string, partyNum int) {
 	var locker sync.Mutex
 	msg := base64.StdEncoding.EncodeToString([]byte("hello"))
 	keySignReq := keysign.Request{
-		PoolPubKey: poolPubKey,
-		Message:    msg,
+		PoolPubKey:    poolPubKey,
+		Message:       msg,
+		SignerPubKeys: testPubKeys[:],
 	}
 	request, err := json.Marshal(keySignReq)
 	c.Assert(err, IsNil)
@@ -269,6 +270,7 @@ func (t *TssTestSuite) TestHttp4NodesTss(c *C) {
 func (t *TssTestSuite) TestHttpRedoKeyGen(c *C) {
 	_, _, cancels, wg := setupNodeForTest(c, partyNum)
 	defer cleanUp(c, cancels, wg, partyNum)
+
 	// test key gen.
 	testKeyGen(c, partyNum)
 }

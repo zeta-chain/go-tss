@@ -53,7 +53,6 @@ func NewTss(
 	conf common.TssConfig,
 	preParams *bkeygen.LocalPreParams,
 ) (*TssServer, error) {
-
 	pubKey, err := sdk.Bech32ifyAccPub(priKey.PubKey())
 	if err != nil {
 		return nil, fmt.Errorf("fail to genearte the key: %w", err)
@@ -203,6 +202,5 @@ func (t *TssServer) requestToMsgId(request interface{}) (string, error) {
 		t.logger.Error().Msg("unknown request type")
 		return "", errors.New("unknown request type")
 	}
-
 	return common.MsgToHashString(dat)
 }

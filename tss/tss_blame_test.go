@@ -96,6 +96,9 @@ func doStartKeySign(c *C, i int, locker *sync.Mutex, requestGroup *sync.WaitGrou
 	defer requestGroup.Done()
 	url := fmt.Sprintf("http://127.0.0.1:%d/keysign", baseTssPort+i)
 	respByte := sendTestRequest(c, url, request)
+	if nil == respByte {
+		return
+	}
 	var tempResp keysign.Response
 	err := json.Unmarshal(respByte, &tempResp)
 	c.Assert(err, IsNil)
@@ -157,8 +160,9 @@ func doBlameTimeoutTest(c *C, poolPubKey string, testParties TestParties, cancel
 	requestGroup := sync.WaitGroup{}
 	msg := base64.StdEncoding.EncodeToString([]byte("hello"))
 	keySignReq := keysign.Request{
-		PoolPubKey: poolPubKey,
-		Message:    msg,
+		PoolPubKey:    poolPubKey,
+		Message:       msg,
+		SignerPubKeys: testPubKeys[:],
 	}
 	request, err := json.Marshal(keySignReq)
 	c.Assert(err, IsNil)
@@ -174,6 +178,9 @@ func doBlameTimeoutTest(c *C, poolPubKey string, testParties TestParties, cancel
 	}
 	requestGroup.Wait()
 	for i := 0; i < len(testParties.honest)+len(testParties.malicious); i++ {
+		if i >= len(keySignRespArr) {
+			continue
+		}
 		// honest nodes should have the blame nodes
 		if len(keySignRespArr[i].Blame.BlameNodes) > 0 {
 			// since one node stop immediately when it found an error, the peers may not receive the message
