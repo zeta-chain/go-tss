@@ -86,7 +86,7 @@ func (t *TssServer) keySignHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-
+	t.logger.Info().Msgf("request:%+v", keySignReq)
 	signResp, err := t.KeySign(keySignReq)
 	if err != nil {
 		t.logger.Error().Err(err).Msg("fail to key sign")

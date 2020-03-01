@@ -9,6 +9,7 @@ import (
 // A new type we need for writing a custom flag parser
 type addrList []maddr.Multiaddr
 
+// P2PConfig is configuration for P2P
 type P2PConfig struct {
 	RendezvousString string
 	Port             int

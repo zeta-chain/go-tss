@@ -40,3 +40,7 @@ func (t *TssTestSuite) TestSignMessage(c *C) {
 	c.Assert(err, NotNil)
 	c.Assert(generatedKey, IsNil)
 }
+
+func (t *TssTestSuite) TestTssKeysign(c *C) {
+
+}
