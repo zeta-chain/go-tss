@@ -2,6 +2,8 @@ package common
 
 import (
 	"errors"
+	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -33,7 +35,18 @@ type LocalCacheItem struct {
 // Blame is used to store the blame nodes and the fail reason
 type Blame struct {
 	FailReason string   `json:"fail_reason"`
-	BlameNodes []string `json:"blame_peers"`
+	BlameNodes []string `json:"blame_peers,omitempty"`
+}
+
+func (b Blame) IsEmpty() bool {
+	return len(b.BlameNodes) == 0 || len(b.FailReason) == 0
+}
+
+func (b Blame) String() string {
+	sb := strings.Builder{}
+	sb.WriteString("reason:" + b.FailReason + "\n")
+	sb.WriteString(fmt.Sprintf("nodes:%+v\n", b.BlameNodes))
+	return sb.String()
 }
 
 type GeneralConfig struct {
