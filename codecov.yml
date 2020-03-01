@@ -5,3 +5,8 @@ coverage:
   precision: 2
   round: down
   range: "10...40"
+  threshold: 5%
+ignore:
+  - "build"
+  - "cmd"
+  - "test_data"

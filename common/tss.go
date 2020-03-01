@@ -470,3 +470,27 @@ func GetTssPubKey(pubKeyPoint *crypto.ECPoint) (string, types.AccAddress, error)
 	addr := types.AccAddress(pubKeyCompressed.Address().Bytes())
 	return pubKey, addr, err
 }
+
+func (t *TssCommon) ProcessInboundMessages(finishChan chan struct{}) {
+	t.logger.Info().Msg("start processing inbound messages")
+	defer t.logger.Info().Msg("stop processing inbound messages")
+	for {
+		select {
+		case <-finishChan:
+			return
+		case m, ok := <-t.TssMsg:
+			if !ok {
+				return
+			}
+			var wrappedMsg p2p.WrappedMessage
+			if err := json.Unmarshal(m.Payload, &wrappedMsg); nil != err {
+				t.logger.Error().Err(err).Msg("fail to unmarshal wrapped message bytes")
+				continue
+			}
+
+			if err := t.ProcessOneMessage(&wrappedMsg, m.PeerID.String()); err != nil {
+				t.logger.Error().Err(err).Msg("fail to process the received message")
+			}
+		}
+	}
+}

@@ -92,11 +92,7 @@ func (pc *PartyCoordinator) HandleStream(stream network.Stream) {
 }
 
 func (pc *PartyCoordinator) processJoinPartyRequest(remotePeer peer.ID, msg *messages.JoinPartyRequest) (*messages.JoinPartyResponse, error) {
-	joinParty := &JoinParty{
-		Msg:  msg,
-		Peer: remotePeer,
-		Resp: make(chan *messages.JoinPartyResponse, 1),
-	}
+	joinParty := NewJoinParty(msg, remotePeer)
 	if remotePeer == pc.host.ID() {
 		pc.logger.Info().Msg("we are the leader , create ceremony")
 		pc.createCeremony(joinParty)
