@@ -19,8 +19,6 @@ unit_tests:
   script:
     - go test  -v -coverprofile=coverage.out ./...
     - go tool cover -func=coverage.out
-  after_script:
-    - bash <(curl -s https://codecov.io/bash) -t $CODECOV_TOKEN
 
 lint_code:
   image: golangci/golangci-lint
