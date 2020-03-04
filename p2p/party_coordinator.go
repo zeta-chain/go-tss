@@ -210,8 +210,9 @@ func (pc *PartyCoordinator) onJoinPartyTimeout(joinParty *JoinParty) (bool, []st
 		}
 	}
 	// withdraw request
-	c.JoinPartyRequests = append(c.JoinPartyRequests[:idxToDelete], c.JoinPartyRequests[idxToDelete+1:]...)
-
+	if idxToDelete != -1 {
+		c.JoinPartyRequests = append(c.JoinPartyRequests[:idxToDelete], c.JoinPartyRequests[idxToDelete+1:]...)
+	}
 	// no one is waiting , let's remove the ceremony
 	if len(c.JoinPartyRequests) == 0 {
 		delete(pc.ceremonies, joinParty.Msg.ID)
