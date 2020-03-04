@@ -131,9 +131,7 @@ func (t *TssServer) joinParty(msgID string, messageToSign []byte, keys []string)
 	}
 	t.logger.Info().Msgf("leader peer: %s", leaderPeerID)
 	joinPartyReq := &messages.JoinPartyRequest{
-		ID:        msgID,
-		Threshold: totalNodes,
-		PeerIDs:   peerIDs,
+		ID: msgID,
 	}
-	return t.partyCoordinator.JoinPartyWithRetry(leaderPeerID, joinPartyReq)
+	return t.partyCoordinator.JoinPartyWithRetry(leaderPeerID, joinPartyReq, peerIDs, totalNodes)
 }

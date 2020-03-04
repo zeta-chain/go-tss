@@ -62,18 +62,18 @@ func TestNewPartyCoordinator(t *testing.T) {
 	defer pc3.Stop()
 
 	msgID := RandStringBytesMask(64)
+	threshold := int32(3)
+	peers := []string{
+		p1.String(), p2.String(), p3.String(),
+	}
 	joinPartyReq := messages.JoinPartyRequest{
-		ID:        msgID,
-		Threshold: 3,
-		PeerIDs: []string{
-			p1.String(), p2.String(), p3.String(),
-		},
+		ID: msgID,
 	}
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		resp, err := pc1.JoinParty(p1, &joinPartyReq)
+		resp, err := pc1.JoinParty(p1, &joinPartyReq, peers, threshold)
 		if err != nil {
 			t.Error(err)
 		}
@@ -82,7 +82,7 @@ func TestNewPartyCoordinator(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		resp, err := pc2.JoinParty(p1, &joinPartyReq)
+		resp, err := pc2.JoinParty(p1, &joinPartyReq, peers, threshold)
 		if err != nil {
 			t.Error(err)
 		}
@@ -91,7 +91,7 @@ func TestNewPartyCoordinator(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		resp, err := pc3.JoinParty(p1, &joinPartyReq)
+		resp, err := pc3.JoinParty(p1, &joinPartyReq, peers, threshold)
 		if err != nil {
 			t.Error(err)
 		}
@@ -99,20 +99,19 @@ func TestNewPartyCoordinator(t *testing.T) {
 		t.Log(resp)
 	}()
 	wg.Wait()
-
+	threshold = int32(3)
+	peers = []string{
+		p1.String(), p2.String(), p4.String(),
+	}
 	msgID1 := RandStringBytesMask(64)
 	joinPartyReq1 := messages.JoinPartyRequest{
-		ID:        msgID1,
-		Threshold: 3,
-		PeerIDs: []string{
-			p1.String(), p2.String(), p4.String(),
-		},
+		ID: msgID1,
 	}
 	wg = sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		resp, err := pc1.JoinParty(p1, &joinPartyReq1)
+		resp, err := pc1.JoinParty(p1, &joinPartyReq1, peers, threshold)
 		if err != nil {
 			t.Error(err)
 		}
@@ -125,7 +124,7 @@ func TestNewPartyCoordinator(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		resp, err := pc2.JoinParty(p1, &joinPartyReq1)
+		resp, err := pc2.JoinParty(p1, &joinPartyReq1, peers, threshold)
 		if err != nil {
 			t.Error(err)
 		}
@@ -138,7 +137,7 @@ func TestNewPartyCoordinator(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		resp, err := pc3.JoinParty(p1, &joinPartyReq1)
+		resp, err := pc3.JoinParty(p1, &joinPartyReq1, peers, threshold)
 		if err != nil {
 			t.Error(err)
 		}
@@ -193,18 +192,16 @@ func TestNewPartyCoordinatorWithTimeout(t *testing.T) {
 	defer pc3.Stop()
 
 	msgID := RandStringBytesMask(64)
+	threshold := int32(4)
+	peers := []string{p1.String(), p2.String(), p3.String()}
 	joinPartyReq := messages.JoinPartyRequest{
-		ID:        msgID,
-		Threshold: 4,
-		PeerIDs: []string{
-			p1.String(), p2.String(), p3.String(),
-		},
+		ID: msgID,
 	}
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		resp, err := pc1.JoinPartyWithRetry(p1, &joinPartyReq)
+		resp, err := pc1.JoinPartyWithRetry(p1, &joinPartyReq, peers, threshold)
 		if err != nil {
 			t.Error(err)
 		}
@@ -216,7 +213,7 @@ func TestNewPartyCoordinatorWithTimeout(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		resp, err := pc2.JoinPartyWithRetry(p1, &joinPartyReq)
+		resp, err := pc2.JoinPartyWithRetry(p1, &joinPartyReq, peers, threshold)
 		if err != nil {
 			t.Error(err)
 		}
@@ -228,7 +225,7 @@ func TestNewPartyCoordinatorWithTimeout(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		resp, err := pc3.JoinPartyWithRetry(p1, &joinPartyReq)
+		resp, err := pc3.JoinPartyWithRetry(p1, &joinPartyReq, peers, threshold)
 		if err != nil {
 			t.Error(err)
 		}

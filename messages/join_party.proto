@@ -3,8 +3,6 @@ package messages;
 
 message JoinPartyRequest {
     string ID = 1; // the unique hash id
-    int32 Threshold = 2; // how many party is required
-    repeated string PeerIDs = 3;
 }
 
 message JoinPartyResponse {

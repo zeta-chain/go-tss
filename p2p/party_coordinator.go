@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"strings"
 	"sync"
 	"time"
 
@@ -88,10 +87,6 @@ func (pc *PartyCoordinator) HandleStream(stream network.Stream) {
 
 func (pc *PartyCoordinator) processJoinPartyRequest(remotePeer peer.ID, msg *messages.JoinPartyRequest) (*messages.JoinPartyResponse, error) {
 	joinParty := NewJoinParty(msg, remotePeer)
-	if remotePeer == pc.host.ID() {
-		pc.logger.Info().Msg("we are the leader , create ceremony")
-		pc.createCeremony(joinParty)
-	}
 	if err := pc.onJoinParty(joinParty); err != nil {
 		if errors.Is(err, errLeaderNotReady) {
 			// leader node doesn't have request yet, so don't know how to handle the join party request
@@ -153,8 +148,6 @@ func (pc *PartyCoordinator) onJoinParty(joinParty *JoinParty) error {
 	pc.logger.Info().
 		Str("ID", joinParty.Msg.ID).
 		Str("remote peer", joinParty.Peer.String()).
-		Int32("threshold", joinParty.Msg.Threshold).
-		Str("peer ids", strings.Join(joinParty.Msg.PeerIDs, ",")).
 		Msgf("get join party request")
 	pc.ceremonyLock.Lock()
 	defer pc.ceremonyLock.Unlock()
@@ -198,8 +191,6 @@ func (pc *PartyCoordinator) onJoinPartyTimeout(joinParty *JoinParty) (bool, []st
 	pc.logger.Info().
 		Str("ID", joinParty.Msg.ID).
 		Str("remote peer", joinParty.Peer.String()).
-		Int32("threshold", joinParty.Msg.Threshold).
-		Str("peer ids", strings.Join(joinParty.Msg.PeerIDs, ",")).
 		Msgf("join party timeout")
 	pc.ceremonyLock.Lock()
 	defer pc.ceremonyLock.Unlock()
@@ -228,21 +219,21 @@ func (pc *PartyCoordinator) onJoinPartyTimeout(joinParty *JoinParty) (bool, []st
 	return false, c.GetParties()
 }
 
-func (pc *PartyCoordinator) createCeremony(party *JoinParty) {
+func (pc *PartyCoordinator) createCeremony(messageID string, peers []string, threshold int32) {
 	pc.ceremonyLock.Lock()
 	defer pc.ceremonyLock.Unlock()
-	pIDs, err := pc.getPeerIDs(party.Msg.PeerIDs)
+	pIDs, err := pc.getPeerIDs(peers)
 	if err != nil {
 		pc.logger.Error().Err(err).Msg("fail to parse peer id")
 	}
 	ceremony := &Ceremony{
-		ID:                party.Msg.ID,
-		Threshold:         uint32(party.Msg.Threshold),
+		ID:                messageID,
+		Threshold:         uint32(threshold),
 		JoinPartyRequests: []*JoinParty{},
 		Status:            GatheringParties,
 		Peers:             pIDs,
 	}
-	pc.ceremonies[party.Msg.ID] = ceremony
+	pc.ceremonies[messageID] = ceremony
 }
 
 func (pc *PartyCoordinator) getPeerIDs(ids []string) ([]peer.ID, error) {
@@ -258,8 +249,14 @@ func (pc *PartyCoordinator) getPeerIDs(ids []string) ([]peer.ID, error) {
 }
 
 // JoinParty join a ceremony , it could be keygen or key sign
-func (pc *PartyCoordinator) JoinParty(remotePeer peer.ID, msg *messages.JoinPartyRequest) (*messages.JoinPartyResponse, error) {
+func (pc *PartyCoordinator) JoinParty(remotePeer peer.ID, msg *messages.JoinPartyRequest, peers []string, threshold int32) (*messages.JoinPartyResponse, error) {
 	if remotePeer == pc.host.ID() {
+		pc.logger.Info().
+			Str("message-id", msg.ID).
+			Str("peerid", remotePeer.String()).
+			Int32("threshold", threshold).
+			Msg("we are the leader, create ceremony")
+		pc.createCeremony(msg.ID, peers, threshold)
 		return pc.processJoinPartyRequest(remotePeer, msg)
 	}
 	msgBuf, err := proto.Marshal(msg)
@@ -306,12 +303,12 @@ func (pc *PartyCoordinator) JoinParty(remotePeer peer.ID, msg *messages.JoinPart
 }
 
 // JoinPartyWithRetry this method provide the functionality to join party with retry and backoff
-func (pc *PartyCoordinator) JoinPartyWithRetry(remotePeer peer.ID, msg *messages.JoinPartyRequest) (*messages.JoinPartyResponse, error) {
+func (pc *PartyCoordinator) JoinPartyWithRetry(remotePeer peer.ID, msg *messages.JoinPartyRequest, peers []string, threshold int32) (*messages.JoinPartyResponse, error) {
 	bf := backoff.NewExponentialBackOff()
 	bf.MaxElapsedTime = WaitForPartyGatheringTimeout
 	var resp *messages.JoinPartyResponse
 	err := backoff.Retry(func() error {
-		joinPartyResp, err := pc.JoinParty(remotePeer, msg)
+		joinPartyResp, err := pc.JoinParty(remotePeer, msg, peers, threshold)
 		if err == nil {
 			if joinPartyResp.Type == messages.JoinPartyResponse_LeaderNotReady {
 				return errors.New("leader not ready")
