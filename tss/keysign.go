@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"sync/atomic"
 
 	"github.com/binance-chain/tss-lib/ecdsa/signing"
@@ -16,6 +17,10 @@ import (
 )
 
 func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
+	t.logger.Info().Str("pool pub key", req.PoolPubKey).
+		Str("signer pub keys", strings.Join(req.SignerPubKeys, ",")).
+		Str("msg", req.Message).
+		Msg("received keysign request")
 	t.tssKeySignLocker.Lock()
 	defer t.tssKeySignLocker.Unlock()
 
