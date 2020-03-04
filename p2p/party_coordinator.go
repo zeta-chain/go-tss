@@ -44,11 +44,6 @@ func NewPartyCoordinator(host host.Host) *PartyCoordinator {
 	return pc
 }
 
-// Start the party coordinator role
-func (pc *PartyCoordinator) Start() {
-	pc.logger.Info().Msg("start party coordinator")
-}
-
 // Stop the PartyCoordinator rune
 func (pc *PartyCoordinator) Stop() {
 	defer pc.logger.Info().Msg("stop party coordinator")
@@ -236,15 +231,30 @@ func (pc *PartyCoordinator) onJoinPartyTimeout(joinParty *JoinParty) (bool, []st
 func (pc *PartyCoordinator) createCeremony(party *JoinParty) {
 	pc.ceremonyLock.Lock()
 	defer pc.ceremonyLock.Unlock()
+	pIDs, err := pc.getPeerIDs(party.Msg.PeerIDs)
+	if err != nil {
+		pc.logger.Error().Err(err).Msg("fail to parse peer id")
+	}
 	ceremony := &Ceremony{
 		ID:                party.Msg.ID,
 		Threshold:         uint32(party.Msg.Threshold),
 		JoinPartyRequests: []*JoinParty{},
 		Status:            GatheringParties,
-		Started:           time.Now().UTC(),
-		Peers:             party.Msg.PeerIDs,
+		Peers:             pIDs,
 	}
 	pc.ceremonies[party.Msg.ID] = ceremony
+}
+
+func (pc *PartyCoordinator) getPeerIDs(ids []string) ([]peer.ID, error) {
+	result := make([]peer.ID, len(ids))
+	for i, item := range ids {
+		pid, err := peer.Decode(item)
+		if err != nil {
+			return nil, fmt.Errorf("fail to decode peer id(%s):%w", item, err)
+		}
+		result[i] = pid
+	}
+	return result, nil
 }
 
 // JoinParty join a ceremony , it could be keygen or key sign

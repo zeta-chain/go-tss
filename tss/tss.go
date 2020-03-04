@@ -170,7 +170,6 @@ func (t *TssServer) Start(ctx context.Context) error {
 	}()
 
 	go t.p2pCommunication.ProcessBroadcast()
-	t.partyCoordinator.Start()
 	err := t.StartHttpServers()
 	if err != nil {
 		return err
