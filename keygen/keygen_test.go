@@ -42,5 +42,4 @@ func (t *TssTestSuite) TestSignMessage(c *C) {
 }
 
 func (t *TssTestSuite) TestTssKeysign(c *C) {
-
 }

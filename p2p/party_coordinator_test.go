@@ -8,6 +8,7 @@ import (
 
 	tnet "github.com/libp2p/go-libp2p-testing/net"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
+	"github.com/stretchr/testify/assert"
 
 	"gitlab.com/thorchain/tss/go-tss/messages"
 )
@@ -56,9 +57,6 @@ func TestNewPartyCoordinator(t *testing.T) {
 	pc2 := NewPartyCoordinator(h2)
 	pc3 := NewPartyCoordinator(h3)
 
-	pc1.Start()
-	pc2.Start()
-	pc3.Start()
 	defer pc1.Stop()
 	defer pc2.Stop()
 	defer pc3.Stop()
@@ -190,9 +188,6 @@ func TestNewPartyCoordinatorWithTimeout(t *testing.T) {
 	pc2 := NewPartyCoordinator(h2)
 	pc3 := NewPartyCoordinator(h3)
 
-	pc1.Start()
-	pc2.Start()
-	pc3.Start()
 	defer pc1.Stop()
 	defer pc2.Stop()
 	defer pc3.Stop()
@@ -261,4 +256,33 @@ func RandStringBytesMask(n int) string {
 		}
 	}
 	return string(b)
+}
+
+func TestGetPeerIDs(t *testing.T) {
+	applyDeadline = false
+	id1 := tnet.RandIdentityOrFatal(t)
+	mn := mocknet.New(context.Background())
+	// add peers to mock net
+
+	a1 := tnet.RandLocalTCPAddress()
+	h1, err := mn.AddPeer(id1.PrivateKey(), a1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p1 := h1.ID()
+	pc := NewPartyCoordinator(h1)
+	r, err := pc.getPeerIDs([]string{})
+	assert.Nil(t, err)
+	assert.Len(t, r, 0)
+	input := []string{
+		p1.String(),
+	}
+	r1, err := pc.getPeerIDs(input)
+	assert.Nil(t, err)
+	assert.Len(t, r1, 1)
+	assert.Equal(t, r1[0], p1)
+	input = append(input, "whatever")
+	r2, err := pc.getPeerIDs(input)
+	assert.NotNil(t, err)
+	assert.Len(t, r2, 0)
 }
