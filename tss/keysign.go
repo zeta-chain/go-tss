@@ -58,6 +58,17 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 	if len(req.SignerPubKeys) == 0 {
 		return keysign.Response{}, errors.New("empty signer pub keys")
 	}
+
+	threshold, err := common.GetThreshold(len(localStateItem.ParticipantKeys))
+	if err != nil {
+		t.logger.Error().Err(err).Msg("fail to get the threshold")
+		return keysign.Response{}, errors.New("fail to get threshold")
+	}
+	if len(req.SignerPubKeys) <= threshold {
+		t.logger.Error().Msgf("not enough signers, threshold=%d and signers=%d", threshold, len(req.SignerPubKeys))
+		return keysign.Response{}, errors.New("not enough signers")
+	}
+
 	if !t.isPartOfKeysignParty(req.SignerPubKeys) {
 		return keysign.Response{}, errors.New("not part of keysign party")
 	}
