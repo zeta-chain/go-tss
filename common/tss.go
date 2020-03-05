@@ -21,6 +21,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/tendermint/tendermint/crypto/secp256k1"
 
+	"gitlab.com/thorchain/tss/go-tss"
 	"gitlab.com/thorchain/tss/go-tss/p2p"
 )
 
@@ -112,7 +113,7 @@ func getPeerIDFromPartyID(partyID *btss.PartyID) (peer.ID, error) {
 	pkBytes := partyID.KeyInt().Bytes()
 	var pk secp256k1.PubKeySecp256k1
 	copy(pk[:], pkBytes)
-	return GetPeerIDFromSecp256PubKey(pk)
+	return go_tss.GetPeerIDFromSecp256PubKey(pk)
 }
 
 // GetConf get current configuration for Tss

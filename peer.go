@@ -1,4 +1,4 @@
-package common
+package go_tss
 
 import (
 	"fmt"
@@ -8,12 +8,11 @@ import (
 	"github.com/tendermint/tendermint/crypto/secp256k1"
 )
 
-var emptyPeerID peer.ID
-
+// GetPeerIDFromSecp256PubKey convert the given pubkey into a peer.ID
 func GetPeerIDFromSecp256PubKey(pk secp256k1.PubKeySecp256k1) (peer.ID, error) {
 	ppk, err := crypto2.UnmarshalSecp256k1PublicKey(pk[:])
 	if err != nil {
-		return emptyPeerID, fmt.Errorf("fail to convert pubkey to the crypto pubkey used in libp2p: %w", err)
+		return peer.ID(""), fmt.Errorf("fail to convert pubkey to the crypto pubkey used in libp2p: %w", err)
 	}
 	return peer.IDFromPublicKey(ppk)
 }

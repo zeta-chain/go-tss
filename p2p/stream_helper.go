@@ -19,13 +19,13 @@ const (
 
 // applyDeadline will be true , and only disable it when we are doing test
 // the reason being the p2p network , mocknet, mock stream doesn't support SetReadDeadline ,SetWriteDeadline feature
-var applyDeadline = true
+var ApplyDeadline = true
 
 // ReadLength will read the length from stream
 func ReadLength(stream network.Stream) (uint32, error) {
 	buf := make([]byte, LengthHeader)
 	r := io.LimitReader(stream, LengthHeader)
-	if applyDeadline {
+	if ApplyDeadline {
 		if err := stream.SetReadDeadline(time.Now().Add(TimeoutReadHeader)); nil != err {
 			if errReset := stream.Reset(); errReset != nil {
 				return 0, errReset
@@ -46,7 +46,7 @@ func ReadLength(stream network.Stream) (uint32, error) {
 // ReadPayload from stream
 func ReadPayload(stream network.Stream, length uint32) ([]byte, error) {
 	buf := make([]byte, length)
-	if applyDeadline {
+	if ApplyDeadline {
 		if err := stream.SetReadDeadline(time.Now().Add(TimeoutReadPayload)); nil != err {
 			if errReset := stream.Reset(); errReset != nil {
 				return nil, errReset
@@ -69,7 +69,7 @@ func ReadPayload(stream network.Stream, length uint32) ([]byte, error) {
 func WriteLength(stream network.Stream, length uint32) error {
 	buf := make([]byte, LengthHeader)
 	binary.LittleEndian.PutUint32(buf, length)
-	if applyDeadline {
+	if ApplyDeadline {
 		if err := stream.SetWriteDeadline(time.Now().Add(TimeoutWriteHeader)); nil != err {
 			if errReset := stream.Reset(); errReset != nil {
 				return errReset

@@ -9,6 +9,7 @@ import (
 	"github.com/tendermint/tendermint/crypto/secp256k1"
 	. "gopkg.in/check.v1"
 
+	"gitlab.com/thorchain/tss/go-tss"
 	"gitlab.com/thorchain/tss/go-tss/p2p"
 )
 
@@ -19,7 +20,7 @@ var _ = Suite(&TssCommonTestSuite{})
 func (TssCommonTestSuite) TestTssCommon(c *C) {
 	pk, err := sdk.GetAccPubKeyBech32("thorpub1addwnpepqtdklw8tf3anjz7nn5fly3uvq2e67w2apn560s4smmrt9e3x52nt2svmmu3")
 	c.Assert(err, IsNil)
-	peerID, err := GetPeerIDFromSecp256PubKey(pk.(secp256k1.PubKeySecp256k1))
+	peerID, err := go_tss.GetPeerIDFromSecp256PubKey(pk.(secp256k1.PubKeySecp256k1))
 	c.Assert(err, IsNil)
 	broadcastChannel := make(chan *p2p.BroadcastMsgChan)
 	tssCommon := NewTssCommon(peerID.String(), broadcastChannel, TssConfig{}, "message-id")
