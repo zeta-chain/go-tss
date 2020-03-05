@@ -37,8 +37,9 @@ func NewTssKeyGen(localP2PID string,
 	keygenCurrent *string,
 	msgID string,
 	stateManager storage.LocalStateManager) TssKeyGen {
+	logItems := []string{"keyGen", msgID}
 	return TssKeyGen{
-		logger:          log.With().Str("module", "keyGen").Logger(),
+		logger:          log.With().Strs("module", logItems).Logger(),
 		localNodePubKey: localNodePubKey,
 		preParams:       preParam,
 		tssCommonStruct: common.NewTssCommon(localP2PID, broadcastChan, conf, msgID),
