@@ -10,11 +10,12 @@ import (
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
 	"github.com/stretchr/testify/assert"
 
+	"gitlab.com/thorchain/tss/go-tss"
 	"gitlab.com/thorchain/tss/go-tss/messages"
 )
 
 func TestNewPartyCoordinator(t *testing.T) {
-	applyDeadline = false
+	ApplyDeadline = false
 	id1 := tnet.RandIdentityOrFatal(t)
 	id2 := tnet.RandIdentityOrFatal(t)
 	id3 := tnet.RandIdentityOrFatal(t)
@@ -61,7 +62,7 @@ func TestNewPartyCoordinator(t *testing.T) {
 	defer pc2.Stop()
 	defer pc3.Stop()
 
-	msgID := RandStringBytesMask(64)
+	msgID := go_tss.RandStringBytesMask(64)
 	threshold := int32(3)
 	peers := []string{
 		p1.String(), p2.String(), p3.String(),
@@ -99,11 +100,12 @@ func TestNewPartyCoordinator(t *testing.T) {
 		t.Log(resp)
 	}()
 	wg.Wait()
+
+	msgID1 := go_tss.RandStringBytesMask(64)
 	threshold = int32(3)
 	peers = []string{
 		p1.String(), p2.String(), p4.String(),
 	}
-	msgID1 := RandStringBytesMask(64)
 	joinPartyReq1 := messages.JoinPartyRequest{
 		ID: msgID1,
 	}
@@ -151,7 +153,7 @@ func TestNewPartyCoordinator(t *testing.T) {
 }
 
 func TestNewPartyCoordinatorWithTimeout(t *testing.T) {
-	applyDeadline = false
+	ApplyDeadline = false
 	id1 := tnet.RandIdentityOrFatal(t)
 	id2 := tnet.RandIdentityOrFatal(t)
 	id3 := tnet.RandIdentityOrFatal(t)
@@ -191,7 +193,7 @@ func TestNewPartyCoordinatorWithTimeout(t *testing.T) {
 	defer pc2.Stop()
 	defer pc3.Stop()
 
-	msgID := RandStringBytesMask(64)
+	msgID := go_tss.RandStringBytesMask(64)
 	threshold := int32(4)
 	peers := []string{p1.String(), p2.String(), p3.String()}
 	joinPartyReq := messages.JoinPartyRequest{
@@ -241,7 +243,6 @@ const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 const (
 	letterIdxBits = 6                    // 6 bits to represent a letter index
 	letterIdxMask = 1<<letterIdxBits - 1 // All 1-bits, as many as letterIdxBits
-	letterIdxMax  = 63 / letterIdxBits   // # of letter indices fitting in 63 bits
 )
 
 func RandStringBytesMask(n int) string {
@@ -256,7 +257,7 @@ func RandStringBytesMask(n int) string {
 }
 
 func TestGetPeerIDs(t *testing.T) {
-	applyDeadline = false
+	ApplyDeadline = false
 	id1 := tnet.RandIdentityOrFatal(t)
 	mn := mocknet.New(context.Background())
 	// add peers to mock net
