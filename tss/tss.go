@@ -12,6 +12,7 @@ import (
 
 	bkeygen "github.com/binance-chain/tss-lib/ecdsa/keygen"
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	"github.com/libp2p/go-libp2p-core/peer"
 	maddr "github.com/multiformats/go-multiaddr"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -21,6 +22,7 @@ import (
 	"gitlab.com/thorchain/tss/go-tss/common"
 	"gitlab.com/thorchain/tss/go-tss/keygen"
 	"gitlab.com/thorchain/tss/go-tss/keysign"
+	"gitlab.com/thorchain/tss/go-tss/messages"
 	"gitlab.com/thorchain/tss/go-tss/p2p"
 	"gitlab.com/thorchain/tss/go-tss/storage"
 )
@@ -202,4 +204,30 @@ func (t *TssServer) requestToMsgId(request interface{}) (string, error) {
 		return "", errors.New("unknown request type")
 	}
 	return common.MsgToHashString(dat)
+}
+
+func (t *TssServer) joinParty(msgID string, messageToSign []byte, keys []string) (*messages.JoinPartyResponse, peer.ID, error) {
+	sort.SliceStable(keys, func(i, j int) bool {
+		return keys[i] < keys[j]
+	})
+	peerIDs, err := GetPeerIDsFromPubKeys(keys)
+	if err != nil {
+		return nil, "", fmt.Errorf("fail to convert pub key to peer id: %w", err)
+	}
+	totalNodes := int32(len(keys))
+	leader, err := p2p.LeaderNode(messageToSign, totalNodes)
+	if err != nil {
+		return nil, "", fmt.Errorf("fail to get leader node")
+	}
+
+	leaderPeerID, err := GetPeerIDFromPubKey(keys[leader])
+	if err != nil {
+		return nil, leaderPeerID, fmt.Errorf("fail to get peer id from node pubkey: %w", err)
+	}
+	t.logger.Info().Msgf("leader peer: %s", leaderPeerID)
+	joinPartyReq := &messages.JoinPartyRequest{
+		ID: msgID,
+	}
+	msg, error := t.partyCoordinator.JoinPartyWithRetry(leaderPeerID, joinPartyReq, peerIDs, totalNodes)
+	return msg, leaderPeerID, error
 }
