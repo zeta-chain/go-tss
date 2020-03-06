@@ -65,13 +65,23 @@ func (t *TssServer) Keygen(req keygen.Request) (keygen.Response, error) {
 
 	defer t.p2pCommunication.CancelSubscribe(p2p.TSSKeyGenMsg, msgID)
 	defer t.p2pCommunication.CancelSubscribe(p2p.TSSKeyGenVerMsg, msgID)
-	result, err := t.joinParty(msgID, []byte(strings.Join(req.Keys, ",")), req.Keys)
+	result, leaderPeerID, err := t.joinParty(msgID, []byte(strings.Join(req.Keys, ",")), req.Keys)
 	if err != nil {
-		return keygen.Response{}, fmt.Errorf("fail to form keygen party: %w", err)
+
+		blame, err := t.getBlamePeers(req.Keys, []string{leaderPeerID.String()})
+		if err != nil {
+			t.logger.Err(err).Msg("fail to get peers to blame")
+		}
+
+		return keygen.Response{
+			Status: common.Fail,
+			Blame:  blame,
+		}, fmt.Errorf("fail to form keysign party: %s", result.Type)
 	}
 
 	if result.Type != messages.JoinPartyResponse_Success {
-		blame, err := t.getBlamePeers(req.Keys, result.PeerIDs)
+		blamePeers := append(result.PeerIDs, leaderPeerID.String())
+		blame, err := t.getBlamePeers(req.Keys, blamePeers)
 		if err != nil {
 			t.logger.Err(err).Msg("fail to get peers to blame")
 		}
