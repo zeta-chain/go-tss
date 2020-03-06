@@ -57,7 +57,7 @@ type Communication struct {
 	routingDiscovery *discovery.RoutingDiscovery
 	wg               *sync.WaitGroup
 	stopChan         chan struct{} // channel to indicate whether we should stop
-	subscribers      map[THORChainTSSMessageType]map[string]chan *Message
+	subscribers      map[THORChainTSSMessageType]*MessageIDSubscriber
 	subscriberLocker *sync.Mutex
 	streamCount      int64
 	BroadcastMsgChan chan *BroadcastMsgChan
@@ -76,7 +76,7 @@ func NewCommunication(rendezvous string, bootstrapPeers []maddr.Multiaddr, port 
 		listenAddr:       addr,
 		wg:               &sync.WaitGroup{},
 		stopChan:         make(chan struct{}),
-		subscribers:      make(map[THORChainTSSMessageType]map[string]chan *Message, 0),
+		subscribers:      make(map[THORChainTSSMessageType]*MessageIDSubscriber),
 		subscriberLocker: &sync.Mutex{},
 		streamCount:      0,
 		BroadcastMsgChan: make(chan *BroadcastMsgChan, 1024),
@@ -250,20 +250,14 @@ func (c *Communication) readFromStream(stream network.Stream) {
 				continue
 			}
 			c.logger.Debug().Msgf(">>>>>>>[%s] %s", wrappedMsg.MessageType, string(wrappedMsg.Payload))
-			channels, ok := c.subscribers[wrappedMsg.MessageType]
-			if !ok {
-				c.logger.Info().Msgf("no subscriber %s found for this message", wrappedMsg.MessageType.String())
-				continue
-			}
-			channel, ok := channels[wrappedMsg.MsgID]
-			if !ok {
+			channel := c.getSubscriber(wrappedMsg.MessageType, wrappedMsg.MsgID)
+			if nil == channel {
 				c.logger.Info().Msgf("no MsgID %s found for this message", wrappedMsg.MsgID)
 				continue
-			} else {
-				channel <- &Message{
-					PeerID:  stream.Conn().RemotePeer(),
-					Payload: buf,
-				}
+			}
+			channel <- &Message{
+				PeerID:  stream.Conn().RemotePeer(),
+				Payload: buf,
 			}
 		}
 	}
@@ -384,32 +378,39 @@ func (c *Communication) SetSubscribe(topic THORChainTSSMessageType, msgID string
 	c.subscriberLocker.Lock()
 	defer c.subscriberLocker.Unlock()
 
-	channels, ok := c.subscribers[topic]
+	messageIDSubscribers, ok := c.subscribers[topic]
 	if !ok {
-		channels := make(map[string]chan *Message)
-		channels[msgID] = channel
-		c.subscribers[topic] = channels
-		return
+		messageIDSubscribers = NewMessageIDSubscriber()
+		c.subscribers[topic] = messageIDSubscribers
 	}
-	channels[msgID] = channel
-	c.subscribers[topic] = channels
+	messageIDSubscribers.Subscribe(msgID, channel)
 }
-
+func (c *Communication) getSubscriber(topic THORChainTSSMessageType, msgID string) chan *Message {
+	c.subscriberLocker.Lock()
+	defer c.subscriberLocker.Unlock()
+	messageIDSubscribers, ok := c.subscribers[topic]
+	if !ok {
+		c.logger.Debug().Msgf("fail to find subscribers for %s", topic)
+		return nil
+	}
+	return messageIDSubscribers.GetSubscriber(msgID)
+}
 func (c *Communication) CancelSubscribe(topic THORChainTSSMessageType, msgID string) {
 	c.subscriberLocker.Lock()
 	defer c.subscriberLocker.Unlock()
 
-	channels, ok := c.subscribers[topic]
+	messageIDSubscribers, ok := c.subscribers[topic]
 	if !ok {
 		c.logger.Debug().Msgf("cannot find the given channels %s", topic.String())
 		return
 	}
-	delete(channels, msgID)
-	if len(channels) == 0 {
-		delete(c.subscribers, topic)
+	if nil == messageIDSubscribers {
 		return
 	}
-	c.subscribers[topic] = channels
+	messageIDSubscribers.UnSubscribe(msgID)
+	if messageIDSubscribers.IsEmpty() {
+		delete(c.subscribers, topic)
+	}
 }
 
 func (c *Communication) ProcessBroadcast() {
