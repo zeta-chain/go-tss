@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 
 	"github.com/binance-chain/tss-lib/ecdsa/signing"
+	peer "github.com/libp2p/go-libp2p-core/peer"
 
 	"gitlab.com/thorchain/tss/go-tss/common"
 	"gitlab.com/thorchain/tss/go-tss/keysign"
@@ -61,13 +62,21 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 	if !t.isPartOfKeysignParty(req.SignerPubKeys) {
 		return keysign.Response{}, errors.New("not part of keysign party")
 	}
-	result, err := t.joinParty(msgID, msgToSign, req.SignerPubKeys)
+	result, leaderPeerID, err := t.joinParty(msgID, msgToSign, req.SignerPubKeys)
 	if err != nil {
-		// don't blame node for forming party
-		return keysign.Response{}, fmt.Errorf("fail to form keysign party: %w", err)
+		blame, err := t.getBlamePeers(req.SignerPubKeys, []string{leaderPeerID.String()})
+		if err != nil {
+			t.logger.Err(err).Msg("fail to get peers to blame")
+		}
+
+		return keysign.Response{
+			Status: common.Fail,
+			Blame:  blame,
+		}, fmt.Errorf("fail to form keysign party: %s", result.Type)
 	}
 	if result.Type != messages.JoinPartyResponse_Success {
-		blame, err := t.getBlamePeers(req.SignerPubKeys, result.PeerIDs)
+		blamePeers := append(result.PeerIDs, leaderPeerID.String())
+		blame, err := t.getBlamePeers(req.SignerPubKeys, blamePeers)
 		if err != nil {
 			t.logger.Err(err).Msg("fail to get peers to blame")
 		}
@@ -116,27 +125,28 @@ func (t *TssServer) isPartOfKeysignParty(parties []string) bool {
 	return false
 }
 
-func (t *TssServer) joinParty(msgID string, messageToSign []byte, keys []string) (*messages.JoinPartyResponse, error) {
+func (t *TssServer) joinParty(msgID string, messageToSign []byte, keys []string) (*messages.JoinPartyResponse, peer.ID, error) {
 	sort.SliceStable(keys, func(i, j int) bool {
 		return keys[i] < keys[j]
 	})
 	peerIDs, err := GetPeerIDsFromPubKeys(keys)
 	if err != nil {
-		return nil, fmt.Errorf("fail to convert pub key to peer id: %w", err)
+		return nil, "", fmt.Errorf("fail to convert pub key to peer id: %w", err)
 	}
 	totalNodes := int32(len(keys))
 	leader, err := p2p.LeaderNode(messageToSign, totalNodes)
 	if err != nil {
-		return nil, fmt.Errorf("fail to get leader node")
+		return nil, "", fmt.Errorf("fail to get leader node")
 	}
 
 	leaderPeerID, err := GetPeerIDFromPubKey(keys[leader])
 	if err != nil {
-		return nil, fmt.Errorf("fail to get peer id from node pubkey: %w", err)
+		return nil, leaderPeerID, fmt.Errorf("fail to get peer id from node pubkey: %w", err)
 	}
 	t.logger.Info().Msgf("leader peer: %s", leaderPeerID)
 	joinPartyReq := &messages.JoinPartyRequest{
 		ID: msgID,
 	}
-	return t.partyCoordinator.JoinPartyWithRetry(leaderPeerID, joinPartyReq, peerIDs, totalNodes)
+	msg, error := t.partyCoordinator.JoinPartyWithRetry(leaderPeerID, joinPartyReq, peerIDs, totalNodes)
+	return msg, leaderPeerID, error
 }
