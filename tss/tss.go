@@ -212,27 +212,31 @@ func (t *TssServer) requestToMsgId(request interface{}) (string, error) {
 }
 
 func (t *TssServer) joinParty(msgID string, messageToSign []byte, keys []string) (*messages.JoinPartyResponse, peer.ID, error) {
+	noResponse := &messages.JoinPartyResponse{
+		Type: messages.JoinPartyResponse_Unknown,
+	}
+
 	sort.SliceStable(keys, func(i, j int) bool {
 		return keys[i] < keys[j]
 	})
 	peerIDs, err := GetPeerIDsFromPubKeys(keys)
 	if err != nil {
-		return nil, "", fmt.Errorf("fail to convert pub key to peer id: %w", err)
+		return noResponse, "", fmt.Errorf("fail to convert pub key to peer id: %w", err)
 	}
 	totalNodes := int32(len(keys))
 	leader, err := p2p.LeaderNode(messageToSign, totalNodes)
 	if err != nil {
-		return nil, "", fmt.Errorf("fail to get leader node")
+		return noResponse, "", fmt.Errorf("fail to get leader node: %w", err)
 	}
 
 	leaderPeerID, err := GetPeerIDFromPubKey(keys[leader])
 	if err != nil {
-		return nil, leaderPeerID, fmt.Errorf("fail to get peer id from node pubkey: %w", err)
+		return noResponse, leaderPeerID, fmt.Errorf("fail to get peer id from node pubkey: %w", err)
 	}
 	t.logger.Info().Msgf("leader peer: %s", leaderPeerID)
 	joinPartyReq := &messages.JoinPartyRequest{
 		ID: msgID,
 	}
-	msg, error := t.partyCoordinator.JoinPartyWithRetry(leaderPeerID, joinPartyReq, peerIDs, totalNodes)
-	return msg, leaderPeerID, error
+	msg, err := t.partyCoordinator.JoinPartyWithRetry(leaderPeerID, joinPartyReq, peerIDs, totalNodes)
+	return msg, leaderPeerID, err
 }
