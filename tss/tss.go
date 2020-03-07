@@ -226,7 +226,7 @@ func (t *TssServer) joinParty(msgID string, messageToSign []byte, keys []string)
 	totalNodes := int32(len(keys))
 	leader, err := p2p.LeaderNode(messageToSign, totalNodes)
 	if err != nil {
-		return noResponse, "", fmt.Errorf("fail to get leader node")
+		return noResponse, "", fmt.Errorf("fail to get leader node: %w", err)
 	}
 
 	leaderPeerID, err := GetPeerIDFromPubKey(keys[leader])
