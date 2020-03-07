@@ -2,6 +2,7 @@ package keysign
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -54,9 +55,13 @@ func TestSignatureNotifierHappyPath(t *testing.T) {
 	assert.NotNil(t, n1)
 	assert.NotNil(t, n2)
 	assert.NotNil(t, n3)
-	assert.Nil(t, n1.Start())
-	assert.Nil(t, n2.Start())
-	assert.Nil(t, n3.Start())
+	n1.Start()
+	n2.Start()
+	n3.Start()
+	defer n1.Stop()
+	defer n2.Stop()
+	defer n3.Stop()
+
 	s := &signing.SignatureData{
 		Signature:         []byte(go_tss.RandStringBytesMask(32)),
 		SignatureRecovery: []byte(go_tss.RandStringBytesMask(32)),
@@ -65,7 +70,10 @@ func TestSignatureNotifierHappyPath(t *testing.T) {
 		M:                 []byte(go_tss.RandStringBytesMask(32)),
 	}
 	messageID := go_tss.RandStringBytesMask(24)
+	wg := sync.WaitGroup{}
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		sig, err := n1.WaitForSignature(messageID, []peer.ID{
 			p2, p3,
 		}, time.Second*30)
@@ -78,4 +86,5 @@ func TestSignatureNotifierHappyPath(t *testing.T) {
 	assert.Nil(t, n3.BroadcastSignature(messageID, s, []peer.ID{
 		p1, p2,
 	}))
+	wg.Wait()
 }

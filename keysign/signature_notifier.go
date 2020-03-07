@@ -105,19 +105,17 @@ func (s *SignatureNotifier) handleStream(stream network.Stream) {
 	}
 }
 
-func (s *SignatureNotifier) Start() error {
+func (s *SignatureNotifier) Start() {
 	for i := 0; i < signatureNotifiers; i++ {
 		s.wg.Add(1)
 		go s.sendMessageToPeer()
 	}
-	return nil
 }
 
 // Stop the signature notifier
-func (s *SignatureNotifier) Stop() error {
+func (s *SignatureNotifier) Stop() {
 	close(s.stopChan)
 	s.wg.Wait()
-	return nil
 }
 
 func (s *SignatureNotifier) sendMessageToPeer() {
@@ -143,7 +141,7 @@ func (s *SignatureNotifier) sendOneMsgToPeer(m *signatureItem) error {
 	if err != nil {
 		return fmt.Errorf("fail to create stream to peer(%s):%w", m.peerID, err)
 	}
-	s.logger.Info().Msgf("open stream to (%s) successfully", m.peerID)
+	s.logger.Debug().Msgf("open stream to (%s) successfully", m.peerID)
 	defer func() {
 		if err := stream.Close(); err != nil {
 			s.logger.Error().Err(err).Msg("fail to close stream")
@@ -178,6 +176,10 @@ func (s *SignatureNotifier) sendOneMsgToPeer(m *signatureItem) error {
 // BroadcastSignature sending the keysign signature to all other peers
 func (s *SignatureNotifier) BroadcastSignature(messageID string, sig *signing.SignatureData, peers []peer.ID) error {
 	for _, p := range peers {
+		if p == s.host.ID() {
+			// don't send the signature to itself
+			continue
+		}
 		select {
 		case s.messages <- &signatureItem{
 			messageID:     messageID,
