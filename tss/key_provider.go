@@ -40,11 +40,24 @@ func GetPeerIDsFromPubKeys(pubkeys []string) ([]string, error) {
 	return peerIDs, nil
 }
 
+// GetPeerIDs return a slice of peer id
+func GetPeerIDs(pubkeys []string) ([]peer.ID, error) {
+	var peerIDs []peer.ID
+	for _, item := range pubkeys {
+		pID, err := GetPeerIDFromPubKey(item)
+		if err != nil {
+			return nil, fmt.Errorf("fail to get peer id from pubkey(%s):%w", item, err)
+		}
+		peerIDs = append(peerIDs, pID)
+	}
+	return peerIDs, nil
+}
+
 // GetPubKeysFromPeerIDs given a list of peer ids, and get a list og pub keys.
 func GetPubKeysFromPeerIDs(peers []string) ([]string, error) {
 	var result []string
 	for _, item := range peers {
-		peerID, err := peer.IDB58Decode(item)
+		peerID, err := peer.Decode(item)
 		if err != nil {
 			return nil, fmt.Errorf("fail to decode peer id: %w", err)
 		}

@@ -28,21 +28,22 @@ import (
 )
 
 type TssServer struct {
-	conf             common.TssConfig
-	logger           zerolog.Logger
-	Status           common.TssStatus
-	tssHttpServer    *http.Server
-	infoHttpServer   *http.Server
-	p2pCommunication *p2p.Communication
-	localNodePubKey  string
-	preParams        *bkeygen.LocalPreParams
-	wg               sync.WaitGroup
-	tssKeyGenLocker  *sync.Mutex
-	tssKeySignLocker *sync.Mutex
-	stopChan         chan struct{}
-	homeBase         string
-	partyCoordinator *p2p.PartyCoordinator
-	stateManager     storage.LocalStateManager
+	conf              common.TssConfig
+	logger            zerolog.Logger
+	Status            common.TssStatus
+	tssHttpServer     *http.Server
+	infoHttpServer    *http.Server
+	p2pCommunication  *p2p.Communication
+	localNodePubKey   string
+	preParams         *bkeygen.LocalPreParams
+	wg                sync.WaitGroup
+	tssKeyGenLocker   *sync.Mutex
+	tssKeySignLocker  *sync.Mutex
+	stopChan          chan struct{}
+	homeBase          string
+	partyCoordinator  *p2p.PartyCoordinator
+	stateManager      storage.LocalStateManager
+	signatureNotifier *keysign.SignatureNotifier
 }
 
 // NewTss create a new instance of Tss
@@ -92,20 +93,22 @@ func NewTss(
 	if err != nil {
 		return nil, fmt.Errorf("fail to create file state manager")
 	}
+	sn := keysign.NewSignatureNotifier(comm.GetHost())
 	tssServer := TssServer{
 		conf:   conf,
 		logger: log.With().Str("module", "tss").Logger(),
 		Status: common.TssStatus{
 			Starttime: time.Now(),
 		},
-		p2pCommunication: comm,
-		localNodePubKey:  pubKey,
-		preParams:        preParams,
-		tssKeyGenLocker:  &sync.Mutex{},
-		tssKeySignLocker: &sync.Mutex{},
-		stopChan:         make(chan struct{}),
-		partyCoordinator: pc,
-		stateManager:     stateManager,
+		p2pCommunication:  comm,
+		localNodePubKey:   pubKey,
+		preParams:         preParams,
+		tssKeyGenLocker:   &sync.Mutex{},
+		tssKeySignLocker:  &sync.Mutex{},
+		stopChan:          make(chan struct{}),
+		partyCoordinator:  pc,
+		stateManager:      stateManager,
+		signatureNotifier: sn,
 	}
 
 	return &tssServer, nil
@@ -168,9 +171,11 @@ func (t *TssServer) Start(ctx context.Context) error {
 		if err != nil {
 			t.logger.Error().Msgf("error in shutdown the p2p server")
 		}
+		t.signatureNotifier.Stop()
 		t.partyCoordinator.Stop()
-	}()
 
+	}()
+	t.signatureNotifier.Start()
 	go t.p2pCommunication.ProcessBroadcast()
 	err := t.StartHttpServers()
 	if err != nil {
