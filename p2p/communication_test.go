@@ -18,5 +18,4 @@ func (CommunicationTestSuite) TestCommunication(c *C) {
 	comm.CancelSubscribe(TSSKeyGenMsg, "hello")
 	comm.CancelSubscribe(TSSKeyGenMsg, "whatever")
 	comm.CancelSubscribe(TSSKeySignMsg, "asdsdf")
-
 }

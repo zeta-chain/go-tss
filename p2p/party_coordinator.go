@@ -307,7 +307,9 @@ func (pc *PartyCoordinator) JoinParty(remotePeer peer.ID, msg *messages.JoinPart
 func (pc *PartyCoordinator) JoinPartyWithRetry(remotePeer peer.ID, msg *messages.JoinPartyRequest, peers []string, threshold int32) (*messages.JoinPartyResponse, error) {
 	bf := backoff.NewExponentialBackOff()
 	bf.MaxElapsedTime = WaitForPartyGatheringTimeout
-	var resp *messages.JoinPartyResponse
+	resp := &messages.JoinPartyResponse{
+		Type: messages.JoinPartyResponse_Unknown,
+	}
 	err := backoff.Retry(func() error {
 		joinPartyResp, err := pc.JoinParty(remotePeer, msg, peers, threshold)
 		if err == nil {

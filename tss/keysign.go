@@ -19,8 +19,6 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 		Str("signer pub keys", strings.Join(req.SignerPubKeys, ",")).
 		Str("msg", req.Message).
 		Msg("received keysign request")
-	t.tssKeySignLocker.Lock()
-	defer t.tssKeySignLocker.Unlock()
 
 	msgID, err := t.requestToMsgId(req)
 	if err != nil {

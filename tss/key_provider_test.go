@@ -49,6 +49,7 @@ func (*KeyProviderTestSuite) TestGetPriKey(c *C) {
 	c.Assert(result, NotNil)
 	c.Assert(result, HasLen, 32)
 }
+
 func (KeyProviderTestSuite) TestGetPeerIDs(c *C) {
 	pubKeys := []string{
 		"thorpub1addwnpepqtctt9l4fddeh0krvdpxmqsxa5z9xsa0ac6frqfhm9fq6c6u5lck5s8fm4n",
