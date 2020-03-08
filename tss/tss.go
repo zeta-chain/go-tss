@@ -173,7 +173,6 @@ func (t *TssServer) Start(ctx context.Context) error {
 		}
 		t.signatureNotifier.Stop()
 		t.partyCoordinator.Stop()
-
 	}()
 	t.signatureNotifier.Start()
 	go t.p2pCommunication.ProcessBroadcast()

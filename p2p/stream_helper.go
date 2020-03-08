@@ -54,8 +54,7 @@ func ReadPayload(stream network.Stream, length uint32) ([]byte, error) {
 			return nil, err
 		}
 	}
-
-	_, err := stream.Read(buf)
+	_, err := io.ReadFull(stream, buf)
 	if err != nil && !errors.Is(err, io.EOF) {
 		if errReset := stream.Reset(); errReset != nil {
 			return nil, errReset

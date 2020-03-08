@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/binance-chain/tss-lib/ecdsa/signing"
+	bc "github.com/binance-chain/tss-lib/common"
 	"github.com/gogo/protobuf/proto"
 	"github.com/libp2p/go-libp2p-core/peer"
 )
@@ -16,8 +16,8 @@ type Notifier struct {
 	MessageID    string
 	keysignParty []peer.ID
 	confirmLock  *sync.Mutex
-	confirmList  map[peer.ID]*signing.SignatureData
-	resp         chan *signing.SignatureData
+	confirmList  map[peer.ID]*bc.SignatureData
+	resp         chan *bc.SignatureData
 }
 
 // NewNotifier create a new instance of Notifier
@@ -32,15 +32,15 @@ func NewNotifier(messageID string, keysignParty []peer.ID) (*Notifier, error) {
 		MessageID:    messageID,
 		keysignParty: keysignParty,
 		confirmLock:  &sync.Mutex{},
-		confirmList:  make(map[peer.ID]*signing.SignatureData),
-		resp:         make(chan *signing.SignatureData, 1),
+		confirmList:  make(map[peer.ID]*bc.SignatureData),
+		resp:         make(chan *bc.SignatureData, 1),
 	}, nil
 }
 
 // UpdateSignature is to update the signature
 // return value bool , true indicated we already gather all the signature from keysign party, and they are all match
 // false means we are still waiting for more signature from keysign party
-func (n *Notifier) UpdateSignature(remotePeer peer.ID, data *signing.SignatureData) (bool, error) {
+func (n *Notifier) UpdateSignature(remotePeer peer.ID, data *bc.SignatureData) (bool, error) {
 	n.confirmLock.Lock()
 	defer n.confirmLock.Unlock()
 	n.confirmList[remotePeer] = data
@@ -85,6 +85,6 @@ func (n *Notifier) enoughSignature() (bool, error) {
 }
 
 // GetResponseChannel the final signature gathered from keysign party will be returned from the channel
-func (n *Notifier) GetResponseChannel() <-chan *signing.SignatureData {
+func (n *Notifier) GetResponseChannel() <-chan *bc.SignatureData {
 	return n.resp
 }

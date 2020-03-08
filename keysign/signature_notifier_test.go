@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/binance-chain/tss-lib/ecdsa/signing"
+	bc "github.com/binance-chain/tss-lib/common"
 	"github.com/libp2p/go-libp2p-core/peer"
 	tnet "github.com/libp2p/go-libp2p-testing/net"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
@@ -62,7 +62,7 @@ func TestSignatureNotifierHappyPath(t *testing.T) {
 	defer n2.Stop()
 	defer n3.Stop()
 
-	s := &signing.SignatureData{
+	s := &bc.SignatureData{
 		Signature:         []byte(go_tss.RandStringBytesMask(32)),
 		SignatureRecovery: []byte(go_tss.RandStringBytesMask(32)),
 		R:                 []byte(go_tss.RandStringBytesMask(32)),

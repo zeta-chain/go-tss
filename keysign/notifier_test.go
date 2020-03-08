@@ -1,7 +1,7 @@
 package keysign
 
 import (
-	"github.com/binance-chain/tss-lib/ecdsa/signing"
+	bc "github.com/binance-chain/tss-lib/common"
 	"github.com/libp2p/go-libp2p-core/peer"
 	. "gopkg.in/check.v1"
 
@@ -39,7 +39,7 @@ func (NotifierTestSuite) TestNotifierHappyPath(c *C) {
 	n, err := NewNotifier(messageID, peers)
 	c.Assert(err, IsNil)
 	c.Assert(n, NotNil)
-	s := &signing.SignatureData{
+	s := &bc.SignatureData{
 		Signature:         []byte(go_tss.RandStringBytesMask(32)),
 		SignatureRecovery: []byte(go_tss.RandStringBytesMask(32)),
 		R:                 []byte(go_tss.RandStringBytesMask(32)),
@@ -70,14 +70,14 @@ func (NotifierTestSuite) TestNotifierInconsistentSignature(c *C) {
 	n, err := NewNotifier(messageID, peers)
 	c.Assert(err, IsNil)
 	c.Assert(n, NotNil)
-	s := &signing.SignatureData{
+	s := &bc.SignatureData{
 		Signature:         []byte(go_tss.RandStringBytesMask(32)),
 		SignatureRecovery: []byte(go_tss.RandStringBytesMask(32)),
 		R:                 []byte(go_tss.RandStringBytesMask(32)),
 		S:                 []byte(go_tss.RandStringBytesMask(32)),
 		M:                 []byte(go_tss.RandStringBytesMask(32)),
 	}
-	s1 := &signing.SignatureData{
+	s1 := &bc.SignatureData{
 		Signature:         []byte(go_tss.RandStringBytesMask(32)),
 		SignatureRecovery: []byte(go_tss.RandStringBytesMask(32)),
 		R:                 []byte(go_tss.RandStringBytesMask(32)),
