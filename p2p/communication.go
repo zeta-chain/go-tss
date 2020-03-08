@@ -2,13 +2,10 @@ package p2p
 
 import (
 	"context"
-	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/libp2p/go-libp2p"
@@ -32,7 +29,7 @@ var TSSProtocolID protocol.ID = "/p2p/tss"
 const (
 
 	// MaxPayload the maximum payload for a message
-	MaxPayload = 81920 // 80kb
+	MaxPayload = 512000 // 512kb
 	// TimeoutReadWrite maximum time to wait on read and write
 	TimeoutReadWrite = time.Second * 10
 	// TimeoutBroadcast maximum time to wait for message broadcast
@@ -105,30 +102,10 @@ func (c *Communication) broadcastToPeers(peers []peer.ID, msg []byte) {
 	defer func() {
 		c.logger.Debug().Msgf("finished sending message to peer(%v)", peers)
 	}()
-	if len(peers) == 0 {
-		c.logger.Debug().Msgf("the peer list is empty")
-		return
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), TimeoutBroadcast)
-	defer cancel()
-	peerChan, err := c.routingDiscovery.FindPeers(ctx, c.rendezvous)
-	if err != nil {
-		c.logger.Error().Err(err).Msg("fail to find any peers")
-		return
-	}
-	for {
-		select {
-		case <-c.stopChan:
-			return // we need to stop the server
-		case ai, more := <-peerChan:
-			if !more {
-				return
-			}
-			if c.shouldWeWriteToPeer(ai, peers) {
-				if err := c.writeToStream(ai, msg); nil != err {
-					c.logger.Error().Err(err).Msg("fail to write to stream")
-				}
-			}
+
+	for _, p := range peers {
+		if err := c.writeToStream(p, msg); nil != err {
+			c.logger.Error().Err(err).Msg("fail to write to stream")
 		}
 	}
 }
@@ -146,14 +123,14 @@ func (c *Communication) shouldWeWriteToPeer(ai peer.AddrInfo, peers []peer.ID) b
 	return false
 }
 
-func (c *Communication) writeToStream(ai peer.AddrInfo, msg []byte) error {
+func (c *Communication) writeToStream(pID peer.ID, msg []byte) error {
 	// don't send to ourself
-	if ai.ID.String() == c.host.ID().String() {
+	if pID == c.host.ID() {
 		return nil
 	}
-	stream, err := c.connectToOnePeer(ai)
+	stream, err := c.connectToOnePeer(pID)
 	if err != nil {
-		return fmt.Errorf("fail to open stream to peer(%s): %w", ai.ID, err)
+		return fmt.Errorf("fail to open stream to peer(%s): %w", pID, err)
 	}
 	if nil == stream {
 		return nil
@@ -161,32 +138,22 @@ func (c *Communication) writeToStream(ai peer.AddrInfo, msg []byte) error {
 
 	defer func() {
 		if err := stream.Close(); nil != err {
-			c.logger.Error().Err(err).Msgf("fail to reset stream to peer(%s)", ai.ID)
+			c.logger.Error().Err(err).Msgf("fail to reset stream to peer(%s)", pID)
 		}
 	}()
-	c.logger.Debug().Msgf(">>>writing messages to peer(%s)", ai.ID)
-	length := len(msg)
-	buf := make([]byte, LengthHeader)
-	binary.LittleEndian.PutUint32(buf, uint32(length))
-	if err := stream.SetWriteDeadline(time.Now().Add(TimeoutReadWrite)); nil != err {
-		return errors.New("fail to set write deadline")
-	}
-	n, err := stream.Write(buf)
-	if err != nil {
-		c.logger.Error().Err(err).Msgf("fail to write to peer : %s", stream.Conn().RemotePeer().String())
-		return err
-	}
-	if n < LengthHeader {
-		return fmt.Errorf("short write, we would like to write: %d, however we only write: %d", LengthHeader, n)
+	c.logger.Debug().Msgf(">>>writing messages to peer(%s)", pID)
+	length := uint32(len(msg))
+	if err := WriteLength(stream, length); err != nil {
+		return fmt.Errorf("fail to write length:%w", err)
 	}
 	if err := stream.SetWriteDeadline(time.Now().Add(TimeoutReadWrite)); nil != err {
 		return errors.New("fail to set write deadline")
 	}
-	n, err = stream.Write(msg)
+	n, err := stream.Write(msg)
 	if err != nil {
 		return fmt.Errorf("fail to write: %w", err)
 	}
-	if n < length {
+	if uint32(n) < length {
 		return fmt.Errorf("short write, we would like to write: %d, however we only write: %d", length, n)
 	}
 	return nil
@@ -196,80 +163,54 @@ func (c *Communication) readFromStream(stream network.Stream) {
 	peerID := stream.Conn().RemotePeer().String()
 	c.logger.Debug().Msgf("reading from stream of peer: %s", peerID)
 	defer func() {
-		if err := stream.Reset(); nil != err {
+		if err := stream.Close(); nil != err {
 			c.logger.Error().Err(err).Msg("fail to close stream")
 		}
-		c.wg.Done()
-		atomic.AddInt64(&c.streamCount, -1)
 	}()
-	for {
-		select {
-		case <-c.stopChan:
+
+	select {
+	case <-c.stopChan:
+		return
+	default:
+		length, err := ReadLength(stream)
+		if nil != err {
+			c.logger.Error().Err(err).Msg("fail to read length from stream")
 			return
-		default:
-			length := make([]byte, LengthHeader)
-			// set read header timeout
-			if err := stream.SetReadDeadline(time.Now().Add(TimeoutReadWrite)); nil != err {
-				c.logger.Error().Err(err).Msgf("fail to set read header timeout,peerID:%s", peerID)
-				return
-			}
-			n, err := stream.Read(length)
-			if err != nil {
-				if errors.Is(err, io.EOF) {
-					return
-				}
-				c.logger.Error().Err(err).Msgf("fail to read from header from stream,peerID: %s", peerID)
-				return
-			}
-			if n < LengthHeader {
-				c.logger.Error().Msgf("short read, we only read :%d bytes", n)
-				return
-			}
-			l := binary.LittleEndian.Uint32(length)
-			// we are transferring protobuf messages , how big can that be , if it is larger then MaxPayload , then definitely no no...
-			if l > MaxPayload {
-				c.logger.Warn().Msgf("peer:%s trying to send %d bytes payload", peerID, l)
-				return
-			}
-			buf := make([]byte, l)
-			if err := stream.SetReadDeadline(time.Now().Add(TimeoutReadWrite)); nil != err {
-				c.logger.Error().Err(err).Msg("fail to set read deadline")
-			}
-			n, err = stream.Read(buf)
-			if err != nil {
-				c.logger.Error().Err(err).Msgf("fail to read from stream,peerID: %s", peerID)
-				return
-			}
-			if uint32(n) != l {
-				// short reading
-				c.logger.Error().Err(err).Msgf("we are expecting %d bytes , but we only got %d", l, n)
-			}
-			var wrappedMsg WrappedMessage
-			if err := json.Unmarshal(buf, &wrappedMsg); nil != err {
-				c.logger.Error().Err(err).Msg("fail to unmarshal wrapped message bytes")
-				continue
-			}
-			c.logger.Debug().Msgf(">>>>>>>[%s] %s", wrappedMsg.MessageType, string(wrappedMsg.Payload))
-			channel := c.getSubscriber(wrappedMsg.MessageType, wrappedMsg.MsgID)
-			if nil == channel {
-				c.logger.Info().Msgf("no MsgID %s found for this message", wrappedMsg.MsgID)
-				continue
-			}
-			channel <- &Message{
-				PeerID:  stream.Conn().RemotePeer(),
-				Payload: buf,
-			}
 		}
+		c.logger.Debug().Msgf("message from %s,length:%d", peerID, length)
+		if length > MaxPayload {
+			c.logger.Warn().Msgf("peer:%s trying to send %d bytes payload", peerID, length)
+			return
+		}
+		buf, err := ReadPayload(stream, length)
+		if err != nil {
+			c.logger.Error().Err(err).Msgf("fail to read from stream,peerID: %s", peerID)
+			return
+		}
+		var wrappedMsg WrappedMessage
+		if err := json.Unmarshal(buf, &wrappedMsg); nil != err {
+			c.logger.Error().Err(err).Msg("fail to unmarshal wrapped message bytes")
+			return
+		}
+		c.logger.Debug().Msgf(">>>>>>>[%s] %s", wrappedMsg.MessageType, string(wrappedMsg.Payload))
+		channel := c.getSubscriber(wrappedMsg.MessageType, wrappedMsg.MsgID)
+		if nil == channel {
+			c.logger.Info().Msgf("no MsgID %s found for this message", wrappedMsg.MsgID)
+			return
+		}
+		channel <- &Message{
+			PeerID:  stream.Conn().RemotePeer(),
+			Payload: buf,
+		}
+
 	}
 }
 
 func (c *Communication) handleStream(stream network.Stream) {
 	peerID := stream.Conn().RemotePeer().String()
 	c.logger.Debug().Msgf("handle stream from peer: %s", peerID)
-	c.wg.Add(1)
 	// we will read from that stream
-	go c.readFromStream(stream)
-	atomic.AddInt64(&c.streamCount, 1)
+	c.readFromStream(stream)
 }
 
 func (c *Communication) startChannel(privKeyBytes []byte) error {
@@ -316,18 +257,18 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 	return nil
 }
 
-func (c *Communication) connectToOnePeer(ai peer.AddrInfo) (network.Stream, error) {
-	c.logger.Debug().Msgf("peer:%s,current:%s", ai.ID, c.host.ID())
+func (c *Communication) connectToOnePeer(pID peer.ID) (network.Stream, error) {
+	c.logger.Debug().Msgf("peer:%s,current:%s", pID, c.host.ID())
 	// dont connect to itself
-	if ai.ID == c.host.ID() {
+	if pID == c.host.ID() {
 		return nil, nil
 	}
-	c.logger.Debug().Msgf("connect to peer : %s", ai.ID.String())
+	c.logger.Debug().Msgf("connect to peer : %s", pID.String())
 	ctx, cancel := context.WithTimeout(context.Background(), TimeoutConnecting)
 	defer cancel()
-	stream, err := c.host.NewStream(ctx, ai.ID, TSSProtocolID)
+	stream, err := c.host.NewStream(ctx, pID, TSSProtocolID)
 	if err != nil {
-		return nil, fmt.Errorf("fail to create new stream to peer: %s, %w", ai.ID, err)
+		return nil, fmt.Errorf("fail to create new stream to peer: %s, %w", pID, err)
 	}
 	return stream, nil
 }

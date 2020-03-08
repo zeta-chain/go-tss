@@ -4,7 +4,7 @@ go 1.13
 
 require (
 	github.com/binance-chain/go-sdk v1.2.1
-	github.com/binance-chain/tss-lib v1.1.1
+	github.com/binance-chain/tss-lib v1.3.0
 	github.com/btcsuite/btcd v0.20.1-beta
 	github.com/cenkalti/backoff/v4 v4.0.0
 	github.com/cespare/xxhash/v2 v2.1.1 // indirect
