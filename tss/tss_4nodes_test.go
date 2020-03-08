@@ -240,7 +240,7 @@ func cleanUp(c *C, cancels []context.CancelFunc, wg *sync.WaitGroup, partyNum in
 	wg.Wait()
 }
 
-func (t *TssTestSuite) TestHttp4NodesTss(c *C) {
+func (t *main.TssTestSuite) TestHttp4NodesTss(c *C) {
 	_, _, cancels, wg := setupNodeForTest(c, partyNum)
 	defer cleanUp(c, cancels, wg, partyNum)
 	// test key gen.
@@ -267,7 +267,7 @@ func (t *TssTestSuite) TestHttp4NodesTss(c *C) {
 // otherwise, we you start the Tss instance again, the new Tss will not receive all the p2p messages.
 // Following the previous test, we run 4 nodes keygen to check whether the previous tss instance polluted
 // the environment for running the new Tss instances.
-func (t *TssTestSuite) TestHttpRedoKeyGen(c *C) {
+func (t *main.TssTestSuite) TestHttpRedoKeyGen(c *C) {
 	_, _, cancels, wg := setupNodeForTest(c, partyNum)
 	defer cleanUp(c, cancels, wg, partyNum)
 

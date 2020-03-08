@@ -51,7 +51,6 @@ func (b Blame) String() string {
 
 type GeneralConfig struct {
 	TssAddr    string
-	InfoAddr   string
 	Help       bool
 	LogLevel   string
 	Pretty     bool

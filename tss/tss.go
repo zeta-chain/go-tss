@@ -1,11 +1,9 @@
 package tss
 
 import (
-	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"net/http"
 	"sort"
 	"sync"
 	"time"
@@ -17,7 +15,6 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	tcrypto "github.com/tendermint/tendermint/crypto"
-	"golang.org/x/sync/errgroup"
 
 	"gitlab.com/thorchain/tss/go-tss/common"
 	"gitlab.com/thorchain/tss/go-tss/keygen"
@@ -32,8 +29,6 @@ type TssServer struct {
 	conf              common.TssConfig
 	logger            zerolog.Logger
 	Status            common.TssStatus
-	tssHttpServer     *http.Server
-	infoHttpServer    *http.Server
 	p2pCommunication  *p2p.Communication
 	localNodePubKey   string
 	preParams         *bkeygen.LocalPreParams
@@ -113,75 +108,26 @@ func NewTss(
 	return &tssServer, nil
 }
 
-func (t *TssServer) ConfigureHttpServers(tss, info string) {
-	t.tssHttpServer = NewTssHttpServer(tss, t)
-	t.infoHttpServer = NewInfoHttpServer(info, t)
-}
-
-func (t *TssServer) StartHttpServers() error {
-	if t.tssHttpServer == nil || t.infoHttpServer == nil {
-		return nil
-	}
-
-	defer t.wg.Done()
-	ctx := context.Background()
-	g, newCtx := errgroup.WithContext(ctx)
-	g.Go(func() error {
-		err := t.tssHttpServer.ListenAndServe()
-		if err != nil && err != http.ErrServerClosed {
-			return err
-		}
-		return nil
-	})
-	g.Go(func() error {
-		err := t.infoHttpServer.ListenAndServe()
-		if err != nil && err != http.ErrServerClosed {
-			log.Error().Err(err).Msg("Failed to start info HTTP server")
-			return err
-		}
-		return nil
-	})
-	g.Go(func() error {
-		select {
-		case <-t.stopChan:
-		case <-newCtx.Done():
-		}
-		err := StopServer(t.tssHttpServer)
-		err2 := StopServer(t.infoHttpServer)
-		if err != nil || err2 != nil {
-			log.Error().Err(err).Msg("Failed to shutdown the Tss or info server gracefully")
-			return errors.New("error in shutdown gracefully")
-		}
-		return nil
-	})
-	return g.Wait()
-}
-
 // Start Tss server
-func (t *TssServer) Start(ctx context.Context) error {
+func (t *TssServer) Start() error {
 	log.Info().Msg("Starting the HTTP servers")
 	t.Status.Starttime = time.Now()
-	t.wg.Add(1)
-	go func() {
-		<-ctx.Done()
-		close(t.stopChan)
-		// stop the p2p and finish the p2p wait group
-		err := t.p2pCommunication.Stop()
-		if err != nil {
-			t.logger.Error().Msgf("error in shutdown the p2p server")
-		}
-		t.signatureNotifier.Stop()
-		t.partyCoordinator.Stop()
-	}()
 	t.signatureNotifier.Start()
 	go t.p2pCommunication.ProcessBroadcast()
-	err := t.StartHttpServers()
-	if err != nil {
-		return err
-	}
-	t.wg.Wait()
-	log.Info().Msg("The Tss and p2p server has been stopped successfully")
 	return nil
+}
+
+// Stop Tss server
+func (t *TssServer) Stop() {
+	close(t.stopChan)
+	// stop the p2p and finish the p2p wait group
+	err := t.p2pCommunication.Stop()
+	if err != nil {
+		t.logger.Error().Msgf("error in shutdown the p2p server")
+	}
+	t.signatureNotifier.Stop()
+	t.partyCoordinator.Stop()
+	log.Info().Msg("The Tss and p2p server has been stopped successfully")
 }
 
 func (t *TssServer) requestToMsgId(request interface{}) (string, error) {
@@ -237,4 +183,9 @@ func (t *TssServer) joinParty(msgID string, messageToSign []byte, keys []string)
 	}
 	msg, err := t.partyCoordinator.JoinPartyWithRetry(leaderPeerID, joinPartyReq, peerIDs, totalNodes)
 	return msg, leaderPeerID, err
+}
+
+// GetLocalPeerID return the local peer
+func (t *TssServer) GetLocalPeerID() string {
+	return t.p2pCommunication.GetLocalPeerID()
 }

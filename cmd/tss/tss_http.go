@@ -1,35 +1,59 @@
-package tss
+package main
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
+	"sync"
+	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 
 	"gitlab.com/thorchain/tss/go-tss/keygen"
 	"gitlab.com/thorchain/tss/go-tss/keysign"
+	"gitlab.com/thorchain/tss/go-tss/tss"
 )
 
-// Tssport should only listen to the loopback
-func NewTssHttpServer(tssAddr string, t *TssServer) *http.Server {
-	server := &http.Server{
-		Addr:    tssAddr,
-		Handler: t.tssNewHandler(),
+// TssHttpServer provide http endpoint for tss server
+type TssHttpServer struct {
+	logger    zerolog.Logger
+	tssServer *tss.TssServer
+	s         *http.Server
+	wg        *sync.WaitGroup
+}
+
+// NewTssHttpServer should only listen to the loopback
+func NewTssHttpServer(tssAddr string, t *tss.TssServer) *TssHttpServer {
+	hs := &TssHttpServer{
+		logger:    log.With().Str("module", "http").Logger(),
+		tssServer: t,
+		wg:        &sync.WaitGroup{},
 	}
-	return server
+	s := &http.Server{
+		Addr:    tssAddr,
+		Handler: hs.tssNewHandler(),
+	}
+	hs.s = s
+	return hs
 }
 
 // NewHandler registers the API routes and returns a new HTTP handler
-func (t *TssServer) tssNewHandler() http.Handler {
+func (t *TssHttpServer) tssNewHandler() http.Handler {
 	router := mux.NewRouter()
 	router.Handle("/keygen", http.HandlerFunc(t.keygenHandler)).Methods(http.MethodPost)
 	router.Handle("/keysign", http.HandlerFunc(t.keySignHandler)).Methods(http.MethodPost)
 	router.Handle("/nodestatus", http.HandlerFunc(t.getNodeStatusHandler)).Methods(http.MethodGet)
+	router.Handle("/ping", http.HandlerFunc(t.pingHandler)).Methods(http.MethodGet)
+	router.Handle("/p2pid", http.HandlerFunc(t.getP2pIDHandler)).Methods(http.MethodGet)
 	router.Use(logMiddleware())
 	return router
 }
 
-func (t *TssServer) keygenHandler(w http.ResponseWriter, r *http.Request) {
+func (t *TssHttpServer) keygenHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
@@ -48,7 +72,7 @@ func (t *TssServer) keygenHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := t.Keygen(keygenReq)
+	resp, err := t.tssServer.Keygen(keygenReq)
 	if err != nil {
 		t.logger.Error().Err(err).Msg("fail to key sign")
 		w.WriteHeader(http.StatusBadRequest)
@@ -67,7 +91,7 @@ func (t *TssServer) keygenHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (t *TssServer) keySignHandler(w http.ResponseWriter, r *http.Request) {
+func (t *TssHttpServer) keySignHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
@@ -87,7 +111,7 @@ func (t *TssServer) keySignHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	t.logger.Info().Msgf("request:%+v", keySignReq)
-	signResp, err := t.KeySign(keySignReq)
+	signResp, err := t.tssServer.KeySign(keySignReq)
 	if err != nil {
 		t.logger.Error().Err(err).Msg("fail to key sign")
 		w.WriteHeader(http.StatusBadRequest)
@@ -106,14 +130,66 @@ func (t *TssServer) keySignHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (t *TssServer) getNodeStatusHandler(w http.ResponseWriter, _ *http.Request) {
-	buf, err := json.Marshal(t.Status)
+func (t *TssHttpServer) getNodeStatusHandler(w http.ResponseWriter, _ *http.Request) {
+	buf, err := json.Marshal(t.tssServer.Status)
 	if err != nil {
 		t.logger.Error().Err(err).Msg("fail to marshal response to json")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	_, err = w.Write(buf)
+	if err != nil {
+		t.logger.Error().Err(err).Msg("fail to write to response")
+	}
+}
+
+func (t *TssHttpServer) Start() error {
+	if t.s == nil {
+		return errors.New("invalid http server instance")
+	}
+	if err := t.tssServer.Start(); err != nil {
+		return fmt.Errorf("fail to start tss server: %w", err)
+	}
+	if err := t.s.ListenAndServe(); err != nil {
+		if err != http.ErrServerClosed {
+			return fmt.Errorf("fail to start http server: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func logMiddleware() mux.MiddlewareFunc {
+	return func(handler http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			log.Debug().
+				Str("route", r.URL.Path).
+				Str("port", r.URL.Port()).
+				Str("method", r.Method).
+				Msg("HTTP request received")
+
+			handler.ServeHTTP(w, r)
+		})
+	}
+}
+
+func (t *TssHttpServer) Stop() error {
+	c, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	err := t.s.Shutdown(c)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to shutdown the Tss server gracefully")
+	}
+	return err
+}
+
+func (t *TssHttpServer) pingHandler(w http.ResponseWriter, _ *http.Request) {
+	w.WriteHeader(http.StatusOK)
+}
+
+func (t *TssHttpServer) getP2pIDHandler(w http.ResponseWriter, _ *http.Request) {
+	localPeerID := t.tssServer.GetLocalPeerID()
+	_, err := w.Write([]byte(localPeerID))
 	if err != nil {
 		t.logger.Error().Err(err).Msg("fail to write to response")
 	}

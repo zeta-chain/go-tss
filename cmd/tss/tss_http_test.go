@@ -1,4 +1,4 @@
-package tss
+package main
 
 import (
 	"bytes"
@@ -14,6 +14,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"gitlab.com/thorchain/tss/go-tss/common"
+	"gitlab.com/thorchain/tss/go-tss/tss"
 )
 
 func TestPackage(t *testing.T) { TestingT(t) }
@@ -29,15 +30,15 @@ func (t *TssTestSuite) SetUpSuite(c *C) {
 		c.Skip("Skipping, unit tests only")
 	}
 	common.InitLog("info", true, "tss_http_test")
-	t.preParams = getPreparams(c)
+	t.preParams = tss.getPreparams(c)
 }
 
-func setupTssForTest(c *C) *TssServer {
+func setupTssForTest(c *C) *tss.TssServer {
 	conf := common.TssConfig{}
-	preParams := getPreparams(c)
-	priKey, err := GetPriKey(testPriKey)
+	preParams := tss.getPreparams(c)
+	priKey, err := tss.GetPriKey(tss.testPriKey)
 	c.Assert(err, IsNil)
-	tss, err := NewTss(nil, 6668, priKey, "Asgard", "", conf, preParams[0])
+	tss, err := tss.NewTss(nil, 6668, priKey, "Asgard", "", conf, preParams[0])
 	c.Assert(err, IsNil)
 	tss.ConfigureHttpServers(
 		":8080",
@@ -49,9 +50,9 @@ func setupTssForTest(c *C) *TssServer {
 
 func (t *TssTestSuite) TestHttpTssReusePort(c *C) {
 	conf := common.TssConfig{}
-	priKey, err := GetPriKey(testPriKey)
+	priKey, err := tss.GetPriKey(tss.testPriKey)
 	c.Assert(err, IsNil)
-	tss1, err := NewTss(nil, 6660, priKey, "Asgard", "", conf, t.preParams[0])
+	tss1, err := tss.NewTss(nil, 6660, priKey, "Asgard", "", conf, t.preParams[0])
 	c.Assert(err, IsNil)
 	tss1.ConfigureHttpServers(
 		"127.0.0.1:8080",
@@ -69,7 +70,7 @@ func (t *TssTestSuite) TestHttpTssReusePort(c *C) {
 	_, err = retryablehttp.Get("http://127.0.0.1:8081/ping")
 	c.Assert(err, IsNil)
 
-	tss2, err := NewTss(nil, 6661, priKey, "Asgard", "", conf, t.preParams[1])
+	tss2, err := tss.NewTss(nil, 6661, priKey, "Asgard", "", conf, t.preParams[1])
 	c.Assert(err, IsNil)
 	tss2.ConfigureHttpServers(
 		"127.0.0.1:8080",
@@ -85,9 +86,9 @@ func (t *TssTestSuite) TestHttpTssReusePort(c *C) {
 
 func (t *TssTestSuite) TestHttpNewTss(c *C) {
 	conf := common.TssConfig{}
-	priKey, err := GetPriKey(testPriKey)
+	priKey, err := tss.GetPriKey(tss.testPriKey)
 	c.Assert(err, IsNil)
-	tss, err := NewTss(nil, 6668, priKey, "Asgard", "", conf, t.preParams[0])
+	tss, err := tss.NewTss(nil, 6668, priKey, "Asgard", "", conf, t.preParams[0])
 	c.Assert(err, IsNil)
 	tss.ConfigureHttpServers(
 		":12345",
