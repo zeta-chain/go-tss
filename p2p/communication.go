@@ -385,6 +385,7 @@ func (c *Communication) SetSubscribe(topic THORChainTSSMessageType, msgID string
 	}
 	messageIDSubscribers.Subscribe(msgID, channel)
 }
+
 func (c *Communication) getSubscriber(topic THORChainTSSMessageType, msgID string) chan *Message {
 	c.subscriberLocker.Lock()
 	defer c.subscriberLocker.Unlock()
@@ -395,6 +396,7 @@ func (c *Communication) getSubscriber(topic THORChainTSSMessageType, msgID strin
 	}
 	return messageIDSubscribers.GetSubscriber(msgID)
 }
+
 func (c *Communication) CancelSubscribe(topic THORChainTSSMessageType, msgID string) {
 	c.subscriberLocker.Lock()
 	defer c.subscriberLocker.Unlock()

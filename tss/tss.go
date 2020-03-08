@@ -27,6 +27,7 @@ import (
 	"gitlab.com/thorchain/tss/go-tss/storage"
 )
 
+// TssServer is the structure that can provide all keysign and key gen features
 type TssServer struct {
 	conf              common.TssConfig
 	logger            zerolog.Logger
@@ -38,7 +39,6 @@ type TssServer struct {
 	preParams         *bkeygen.LocalPreParams
 	wg                sync.WaitGroup
 	tssKeyGenLocker   *sync.Mutex
-	tssKeySignLocker  *sync.Mutex
 	stopChan          chan struct{}
 	homeBase          string
 	partyCoordinator  *p2p.PartyCoordinator
@@ -104,7 +104,6 @@ func NewTss(
 		localNodePubKey:   pubKey,
 		preParams:         preParams,
 		tssKeyGenLocker:   &sync.Mutex{},
-		tssKeySignLocker:  &sync.Mutex{},
 		stopChan:          make(chan struct{}),
 		partyCoordinator:  pc,
 		stateManager:      stateManager,
@@ -173,7 +172,6 @@ func (t *TssServer) Start(ctx context.Context) error {
 		}
 		t.signatureNotifier.Stop()
 		t.partyCoordinator.Stop()
-
 	}()
 	t.signatureNotifier.Start()
 	go t.p2pCommunication.ProcessBroadcast()
