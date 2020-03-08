@@ -189,3 +189,8 @@ func (t *TssServer) joinParty(msgID string, messageToSign []byte, keys []string)
 func (t *TssServer) GetLocalPeerID() string {
 	return t.p2pCommunication.GetLocalPeerID()
 }
+
+// GetStatus return the TssStatus
+func (t *TssServer) GetStatus() common.TssStatus {
+	return t.Status
+}
