@@ -110,7 +110,7 @@ func NewTss(
 
 // Start Tss server
 func (t *TssServer) Start() error {
-	log.Info().Msg("Starting the HTTP servers")
+	log.Info().Msg("Starting the TSS servers")
 	t.Status.Starttime = time.Now()
 	t.signatureNotifier.Start()
 	go t.p2pCommunication.ProcessBroadcast()
