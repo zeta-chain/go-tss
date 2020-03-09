@@ -139,6 +139,8 @@ func (s *FourNodeTestSuite) TestKeygenAndKeySign(c *C) {
 }
 
 func (s *FourNodeTestSuite) TearDownTest(c *C) {
+	// give a second before we shutdown the network
+	time.Sleep(time.Second)
 	for i := 0; i < partyNum; i++ {
 		s.servers[i].Stop()
 	}
