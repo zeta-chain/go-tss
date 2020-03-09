@@ -72,7 +72,7 @@ func (t *TssHttpServer) keygenHandler(w http.ResponseWriter, r *http.Request) {
 	resp, err := t.tssServer.Keygen(keygenReq)
 	if err != nil {
 		t.logger.Error().Err(err).Msg("fail to key sign")
-		w.WriteHeader(http.StatusBadRequest)
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
@@ -111,7 +111,7 @@ func (t *TssHttpServer) keySignHandler(w http.ResponseWriter, r *http.Request) {
 	signResp, err := t.tssServer.KeySign(keySignReq)
 	if err != nil {
 		t.logger.Error().Err(err).Msg("fail to key sign")
-		w.WriteHeader(http.StatusBadRequest)
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
