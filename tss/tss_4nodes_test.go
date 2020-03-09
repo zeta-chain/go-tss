@@ -15,6 +15,7 @@ import (
 
 	btsskeygen "github.com/binance-chain/tss-lib/ecdsa/keygen"
 	maddr "github.com/multiformats/go-multiaddr"
+	"github.com/rs/zerolog"
 	. "gopkg.in/check.v1"
 
 	"gitlab.com/thorchain/tss/go-tss/common"
@@ -43,7 +44,9 @@ var (
 	}
 )
 
-func TestPackage(t *testing.T) { TestingT(t) }
+func TestPackage(t *testing.T) {
+	TestingT(t)
+}
 
 type FourNodeTestSuite struct {
 	servers       []*TssServer
@@ -56,6 +59,7 @@ var _ = Suite(&FourNodeTestSuite{})
 
 // setup four nodes for test
 func (s *FourNodeTestSuite) SetUpTest(c *C) {
+	zerolog.SetGlobalLevel(zerolog.InfoLevel)
 	common.SetupBech32Prefix()
 	s.ports = []int{
 		16666, 16667, 16668, 16669,
