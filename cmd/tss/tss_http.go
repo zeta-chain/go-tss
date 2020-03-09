@@ -177,6 +177,7 @@ func (t *TssHttpServer) Stop() error {
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to shutdown the Tss server gracefully")
 	}
+	t.tssServer.Stop()
 	return err
 }
 
