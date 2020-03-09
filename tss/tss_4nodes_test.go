@@ -18,6 +18,7 @@ import (
 
 	"gitlab.com/thorchain/tss/go-tss/common"
 	"gitlab.com/thorchain/tss/go-tss/keygen"
+	"gitlab.com/thorchain/tss/go-tss/keysign"
 )
 
 const (
@@ -56,9 +57,9 @@ var _ = Suite(&FourNodeTestSuite{})
 func (s *FourNodeTestSuite) SetUpTest(c *C) {
 	common.SetupBech32Prefix()
 	s.ports = []int{
-		6666, 6667, 6668, 6669,
+		16666, 16667, 16668, 16669,
 	}
-	s.bootstrapPeer = "/ip4/127.0.0.1/tcp/6666/ipfs/16Uiu2HAmACG5DtqmQsHtXg4G2sLS65ttv84e7MrL4kapkjfmhxAp"
+	s.bootstrapPeer = "/ip4/127.0.0.1/tcp/16666/p2p/16Uiu2HAmACG5DtqmQsHtXg4G2sLS65ttv84e7MrL4kapkjfmhxAp"
 	s.preParams = getPreparams(c)
 	s.servers = make([]*TssServer, partyNum)
 	conf := common.TssConfig{
@@ -82,7 +83,7 @@ func (s *FourNodeTestSuite) SetUpTest(c *C) {
 }
 
 // generate a new key
-func (s *FourNodeTestSuite) TestKeygen(c *C) {
+func (s *FourNodeTestSuite) TestKeygenAndKeySign(c *C) {
 	req := keygen.NewRequest(testPubKeys)
 	wg := sync.WaitGroup{}
 	lock := &sync.Mutex{}
@@ -107,6 +108,22 @@ func (s *FourNodeTestSuite) TestKeygen(c *C) {
 			c.Assert(poolPubKey, Equals, item.PubKey)
 		}
 	}
+
+	keysignReq := keysign.NewRequest(poolPubKey, "helloworld", testPubKeys)
+	keysignResult := make(map[int]keysign.Response)
+	for i := 0; i < partyNum; i++ {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			res, err := s.servers[idx].KeySign(keysignReq)
+			c.Assert(err, IsNil)
+			lock.Lock()
+			defer lock.Unlock()
+			keysignResult[idx] = res
+		}(i)
+	}
+	wg.Wait()
+	// make sure we sign
 }
 
 func (s *FourNodeTestSuite) TearDownTest(c *C) {

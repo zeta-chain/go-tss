@@ -37,8 +37,8 @@ func (TssHttpServerTestSuite) TestNewTssHttpServer(c *C) {
 	c.Assert(s.Stop(), IsNil)
 	tssServer.failToStart = true
 	c.Assert(s.Start(), NotNil)
-
 }
+
 func (TssHttpServerTestSuite) TestPingHandler(c *C) {
 	tssServer := &MockTssServer{}
 	s := NewTssHttpServer("127.0.0.1:8080", tssServer)
@@ -47,7 +47,6 @@ func (TssHttpServerTestSuite) TestPingHandler(c *C) {
 	res := httptest.NewRecorder()
 	s.pingHandler(res, req)
 	c.Assert(res.Code, Equals, http.StatusOK)
-
 }
 
 func (TssHttpServerTestSuite) TestGetP2pIDHandler(c *C) {
@@ -59,6 +58,7 @@ func (TssHttpServerTestSuite) TestGetP2pIDHandler(c *C) {
 	s.getP2pIDHandler(res, req)
 	c.Assert(res.Code, Equals, http.StatusOK)
 }
+
 func (TssHttpServerTestSuite) TestGetNodeStatusHandler(c *C) {
 	tssServer := &MockTssServer{}
 	s := NewTssHttpServer("127.0.0.1:8080", tssServer)
@@ -69,8 +69,8 @@ func (TssHttpServerTestSuite) TestGetNodeStatusHandler(c *C) {
 	c.Assert(res.Code, Equals, http.StatusOK)
 	var status common.TssStatus
 	c.Assert(json.Unmarshal(res.Body.Bytes(), &status), IsNil)
-
 }
+
 func (TssHttpServerTestSuite) TestKeygenHandler(c *C) {
 	testCases := []struct {
 		name          string

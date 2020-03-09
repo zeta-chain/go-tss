@@ -7,9 +7,10 @@ type Request struct {
 	SignerPubKeys []string `json:"signer_pub_keys"`
 }
 
-func NewRequst(pk, msg string) Request {
+func NewRequest(pk, msg string, signers []string) Request {
 	return Request{
-		PoolPubKey: pk,
-		Message:    msg,
+		PoolPubKey:    pk,
+		Message:       msg,
+		SignerPubKeys: signers,
 	}
 }

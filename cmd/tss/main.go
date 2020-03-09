@@ -63,7 +63,6 @@ func main() {
 	if err := s.Start(); err != nil {
 		log.Fatal(err)
 	}
-
 }
 
 // parseFlags - Parses the cli flags
