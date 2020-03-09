@@ -67,8 +67,8 @@ func (s *FourNodeTestSuite) SetUpTest(c *C) {
 	s.preParams = getPreparams(c)
 	s.servers = make([]*TssServer, partyNum)
 	conf := common.TssConfig{
-		KeyGenTimeout:   30 * time.Second,
-		KeySignTimeout:  30 * time.Second,
+		KeyGenTimeout:   120 * time.Second,
+		KeySignTimeout:  120 * time.Second,
 		PreParamTimeout: 5 * time.Second,
 	}
 
