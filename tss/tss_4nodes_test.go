@@ -1,6 +1,7 @@
 package tss
 
 import (
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"io/ioutil"
@@ -109,7 +110,7 @@ func (s *FourNodeTestSuite) TestKeygenAndKeySign(c *C) {
 		}
 	}
 
-	keysignReq := keysign.NewRequest(poolPubKey, "helloworld", testPubKeys)
+	keysignReq := keysign.NewRequest(poolPubKey, base64.StdEncoding.EncodeToString([]byte("helloworld")), testPubKeys)
 	keysignResult := make(map[int]keysign.Response)
 	for i := 0; i < partyNum; i++ {
 		wg.Add(1)
@@ -123,6 +124,14 @@ func (s *FourNodeTestSuite) TestKeygenAndKeySign(c *C) {
 		}(i)
 	}
 	wg.Wait()
+	var signature string
+	for _, item := range keysignResult {
+		if len(signature) == 0 {
+			signature = item.S + item.R
+			continue
+		}
+		c.Assert(signature, Equals, item.S+item.R)
+	}
 	// make sure we sign
 }
 
@@ -167,116 +176,3 @@ func getPreparams(c *C) []*btsskeygen.LocalPreParams {
 	}
 	return preParamArray
 }
-
-//
-// func sendTestRequest(c *C, url string, request []byte) []byte {
-// 	var resp *http.Response
-// 	var err error
-// 	if len(request) == 0 {
-// 		resp, err = http.Get(url)
-// 	} else {
-// 		resp, err = http.Post(url, "application/json", bytes.NewBuffer(request))
-// 		if resp.StatusCode != http.StatusOK {
-// 			return nil
-// 		}
-// 	}
-//
-// 	c.Assert(err, IsNil)
-// 	body, err := ioutil.ReadAll(resp.Body)
-// 	c.Assert(err, IsNil)
-// 	return body
-// }
-//
-// func testKeySign(c *C, poolPubKey string, partyNum int) {
-// 	var keySignRespArr []*keysign.Response
-// 	var locker sync.Mutex
-// 	msg := base64.StdEncoding.EncodeToString([]byte("hello"))
-// 	keySignReq := keysign.Request{
-// 		PoolPubKey:    poolPubKey,
-// 		Message:       msg,
-// 		SignerPubKeys: testPubKeys[:],
-// 	}
-// 	request, err := json.Marshal(keySignReq)
-// 	c.Assert(err, IsNil)
-// 	requestGroup := sync.WaitGroup{}
-// 	for i := 0; i < partyNum; i++ {
-// 		requestGroup.Add(1)
-// 		go func(i int, request []byte) {
-// 			defer requestGroup.Done()
-// 			url := fmt.Sprintf("http://127.0.0.1:%d/keysign", baseTssPort+i)
-// 			respByte := sendTestRequest(c, url, request)
-// 			if nil != respByte {
-// 				var tempResp keysign.Response
-// 				err = json.Unmarshal(respByte, &tempResp)
-// 				c.Assert(err, IsNil)
-// 				locker.Lock()
-// 				if len(tempResp.S) > 0 {
-// 					keySignRespArr = append(keySignRespArr, &tempResp)
-// 				}
-// 				locker.Unlock()
-// 			}
-// 		}(i, request)
-// 	}
-// 	requestGroup.Wait()
-// 	// this first node should get the empty result
-//
-// 	for i := 0; i < len(keySignRespArr)-1; i++ {
-// 		// size of the signature should be 44
-// 		c.Assert(keySignRespArr[i].S, HasLen, 44)
-// 		c.Assert(keySignRespArr[i].S, Equals, keySignRespArr[i+1].S)
-// 		c.Assert(keySignRespArr[i].R, Equals, keySignRespArr[i+1].R)
-// 	}
-// }
-//
-// func testKeyGen(c *C, partyNum int) string {
-// 	var keyGenRespArr []*keygen.Response
-// 	var locker sync.Mutex
-// 	keyGenReq := keygen.Request{
-// 		Keys: testPubKeys[:],
-// 	}
-// 	request, err := json.Marshal(keyGenReq)
-// 	c.Assert(err, IsNil)
-// 	requestGroup := sync.WaitGroup{}
-// 	for i := 0; i < partyNum; i++ {
-// 		requestGroup.Add(1)
-// 		go func(i int, request []byte) {
-// 			defer requestGroup.Done()
-// 			url := fmt.Sprintf("http://127.0.0.1:%d/keygen", baseTssPort+i)
-// 			respByte := sendTestRequest(c, url, request)
-// 			var tempResp keygen.Response
-// 			err = json.Unmarshal(respByte, &tempResp)
-// 			c.Assert(err, IsNil)
-// 			locker.Lock()
-// 			keyGenRespArr = append(keyGenRespArr, &tempResp)
-// 			locker.Unlock()
-// 		}(i, request)
-// 	}
-// 	requestGroup.Wait()
-// 	for i := 0; i < partyNum-1; i++ {
-// 		c.Assert(keyGenRespArr[i].PubKey, Equals, keyGenRespArr[i+1].PubKey)
-// 	}
-// 	return keyGenRespArr[0].PubKey
-// }
-//
-// func cleanUp(c *C, cancels []context.CancelFunc, wg *sync.WaitGroup, partyNum int) {
-// 	for i := 0; i < partyNum; i++ {
-// 		cancels[i]()
-// 		directoryPath := path.Join(testFileLocation, strconv.Itoa(i))
-// 		err := os.RemoveAll(directoryPath)
-// 		c.Assert(err, IsNil)
-// 	}
-// 	wg.Wait()
-// }
-//
-// // This test is to test whether p2p has unregister all the resources when Tss instance is terminated.
-// // We need to close the p2p host and unregister the handler before we terminate the Tss
-// // otherwise, we you start the Tss instance again, the new Tss will not receive all the p2p messages.
-// // Following the previous test, we run 4 nodes keygen to check whether the previous tss instance polluted
-// // the environment for running the new Tss instances.
-// func (t *main.TssTestSuite) TestHttpRedoKeyGen(c *C) {
-// 	_, _, cancels, wg := setupNodeForTest(c, partyNum)
-// 	defer cleanUp(c, cancels, wg, partyNum)
-//
-// 	// test key gen.
-// 	testKeyGen(c, partyNum)
-// }
