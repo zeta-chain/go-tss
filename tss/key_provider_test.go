@@ -31,6 +31,10 @@ func TestGetPubKeysFromPeerIDs(t *testing.T) {
 	assert.Equal(t, "thorpub1addwnpepqtctt9l4fddeh0krvdpxmqsxa5z9xsa0ac6frqfhm9fq6c6u5lck5s8fm4n", result[0])
 	assert.Equal(t, "thorpub1addwnpepqga5cupfejfhtw507sh36fvwaekyjt5kwaw0cmgnpku0at2a87qqkp60t43", result[1])
 	t.Logf("%+v", result)
+	input1 := append(input, "whatever")
+	result, err = GetPubKeysFromPeerIDs(input1)
+	assert.NotNil(t, err)
+	assert.Nil(t, result)
 }
 
 func (*KeyProviderTestSuite) TestGetPriKey(c *C) {
