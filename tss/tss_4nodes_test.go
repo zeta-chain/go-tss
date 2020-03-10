@@ -52,13 +52,14 @@ type FourNodeTestSuite struct {
 	ports         []int
 	preParams     []*btsskeygen.LocalPreParams
 	bootstrapPeer string
+	isBlameTest   bool
 }
 
 var _ = Suite(&FourNodeTestSuite{})
 
 // setup four nodes for test
 func (s *FourNodeTestSuite) SetUpTest(c *C) {
-	common.InitLog("debug", true, "four_nodes_test")
+	common.InitLog("info", true, "four_nodes_test")
 	common.SetupBech32Prefix()
 	s.ports = []int{
 		16666, 16667, 16668, 16669,
@@ -138,10 +139,45 @@ func (s *FourNodeTestSuite) TestKeygenAndKeySign(c *C) {
 	// make sure we sign
 }
 
+func (s *FourNodeTestSuite) TestBlame(c *C) {
+	s.isBlameTest = true
+	req := keygen.NewRequest(testPubKeys)
+	wg := sync.WaitGroup{}
+	lock := &sync.Mutex{}
+	keygenResult := make(map[int]keygen.Response)
+	for i := 0; i < partyNum; i++ {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			res, err := s.servers[idx].Keygen(req)
+			c.Assert(err, IsNil)
+			lock.Lock()
+			defer lock.Unlock()
+			keygenResult[idx] = res
+		}(i)
+	}
+	// if we shutdown one server during keygen , he should be blamed
+
+	time.Sleep(time.Millisecond * 100)
+	s.servers[0].Stop()
+	wg.Wait()
+	for _, item := range keygenResult {
+		c.Assert(item.PubKey, Equals, "")
+		c.Assert(item.Status, Equals, common.Fail)
+		c.Assert(item.Blame.FailReason, Equals, common.ErrTssTimeOut.Error())
+		c.Assert(item.Blame.BlameNodes, HasLen, 1)
+		c.Assert(item.Blame.BlameNodes[0], Equals, testPubKeys[0])
+	}
+
+}
+
 func (s *FourNodeTestSuite) TearDownTest(c *C) {
 	// give a second before we shutdown the network
 	time.Sleep(time.Second)
-	for i := 0; i < partyNum; i++ {
+	if !s.isBlameTest {
+		s.servers[0].Stop()
+	}
+	for i := 1; i < partyNum; i++ {
 		s.servers[i].Stop()
 	}
 }
