@@ -114,7 +114,18 @@ func (s *FourNodeTestSuite) TestKeygenAndKeySign(c *C) {
 			c.Assert(poolPubKey, Equals, item.PubKey)
 		}
 	}
-
+	keysignReqWithErr := keysign.NewRequest(poolPubKey, "helloworld", testPubKeys)
+	resp, err := s.servers[0].KeySign(keysignReqWithErr)
+	c.Assert(err, NotNil)
+	c.Assert(resp.S, Equals, "")
+	keysignReqWithErr1 := keysign.NewRequest(poolPubKey, base64.StdEncoding.EncodeToString([]byte("helloworld")), testPubKeys[:1])
+	resp, err = s.servers[0].KeySign(keysignReqWithErr1)
+	c.Assert(err, NotNil)
+	c.Assert(resp.S, Equals, "")
+	keysignReqWithErr2 := keysign.NewRequest(poolPubKey, base64.StdEncoding.EncodeToString([]byte("helloworld")), nil)
+	resp, err = s.servers[0].KeySign(keysignReqWithErr2)
+	c.Assert(err, NotNil)
+	c.Assert(resp.S, Equals, "")
 	keysignReq := keysign.NewRequest(poolPubKey, base64.StdEncoding.EncodeToString([]byte("helloworld")), testPubKeys)
 	keysignResult := make(map[int]keysign.Response)
 	for i := 0; i < partyNum; i++ {
@@ -137,6 +148,7 @@ func (s *FourNodeTestSuite) TestKeygenAndKeySign(c *C) {
 		}
 		c.Assert(signature, Equals, item.S+item.R)
 	}
+
 	// make sure we sign
 }
 
