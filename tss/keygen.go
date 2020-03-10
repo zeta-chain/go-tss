@@ -28,6 +28,7 @@ func (t *TssServer) getBlamePeers(keys []string, onlinePeers []string) (common.B
 		for _, p := range onlinePeers {
 			if strings.EqualFold(peerID.String(), p) {
 				found = true
+				break
 			}
 		}
 		if !found {

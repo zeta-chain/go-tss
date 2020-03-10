@@ -59,6 +59,7 @@ var _ = Suite(&FourNodeTestSuite{})
 
 // setup four nodes for test
 func (s *FourNodeTestSuite) SetUpTest(c *C) {
+	s.isBlameTest = false
 	common.InitLog("info", true, "four_nodes_test")
 	common.SetupBech32Prefix()
 	s.ports = []int{
@@ -137,6 +138,38 @@ func (s *FourNodeTestSuite) TestKeygenAndKeySign(c *C) {
 		c.Assert(signature, Equals, item.S+item.R)
 	}
 	// make sure we sign
+}
+
+func (s *FourNodeTestSuite) TestFailJoinParty(c *C) {
+	// JoinParty should fail if there is a node that suppose to be in the keygen , but we didn't send request in
+	req := keygen.NewRequest(testPubKeys)
+	wg := sync.WaitGroup{}
+	lock := &sync.Mutex{}
+	keygenResult := make(map[int]keygen.Response)
+	// here we skip the first node
+	for i := 1; i < partyNum; i++ {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			res, err := s.servers[idx].Keygen(req)
+			c.Assert(err, NotNil)
+			lock.Lock()
+			defer lock.Unlock()
+			keygenResult[idx] = res
+		}(i)
+	}
+	// if we shutdown one server during keygen , he should be blamed
+
+	wg.Wait()
+	c.Logf("result:%+v", keygenResult)
+	for idx, item := range keygenResult {
+		if idx == 0 {
+			continue
+		}
+		c.Assert(item.PubKey, Equals, "")
+		c.Assert(item.Status, Equals, common.Fail)
+	}
+
 }
 
 func (s *FourNodeTestSuite) TestBlame(c *C) {
