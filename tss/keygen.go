@@ -96,8 +96,9 @@ func (t *TssServer) Keygen(req keygen.Request) (keygen.Response, error) {
 	// as the Tss model runs successfully.
 	k, err := keygenInstance.GenerateNewKey(req)
 	if err != nil {
-		t.logger.Error().Err(err).Msg("err in keygen")
 		atomic.AddUint64(&t.Status.FailedKeyGen, 1)
+		t.logger.Error().Err(err).Msg("err in keygen")
+		return keygen.NewResponse("", "", common.Fail, keygenInstance.GetTssCommonStruct().BlamePeers), err
 	} else {
 		atomic.AddUint64(&t.Status.SucKeyGen, 1)
 	}

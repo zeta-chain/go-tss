@@ -141,6 +141,7 @@ func (s *FourNodeTestSuite) TestKeygenAndKeySign(c *C) {
 
 func (s *FourNodeTestSuite) TestBlame(c *C) {
 	s.isBlameTest = true
+	expectedFailNode := testPubKeys[0]
 	req := keygen.NewRequest(testPubKeys)
 	wg := sync.WaitGroup{}
 	lock := &sync.Mutex{}
@@ -150,7 +151,7 @@ func (s *FourNodeTestSuite) TestBlame(c *C) {
 		go func(idx int) {
 			defer wg.Done()
 			res, err := s.servers[idx].Keygen(req)
-			c.Assert(err, IsNil)
+			c.Assert(err, NotNil)
 			lock.Lock()
 			defer lock.Unlock()
 			keygenResult[idx] = res
@@ -161,12 +162,15 @@ func (s *FourNodeTestSuite) TestBlame(c *C) {
 	time.Sleep(time.Millisecond * 100)
 	s.servers[0].Stop()
 	wg.Wait()
-	for _, item := range keygenResult {
+	c.Logf("result:%+v", keygenResult)
+	for idx, item := range keygenResult {
+		if idx == 0 {
+			continue
+		}
 		c.Assert(item.PubKey, Equals, "")
 		c.Assert(item.Status, Equals, common.Fail)
-		c.Assert(item.Blame.FailReason, Equals, common.ErrTssTimeOut.Error())
 		c.Assert(item.Blame.BlameNodes, HasLen, 1)
-		c.Assert(item.Blame.BlameNodes[0], Equals, testPubKeys[0])
+		c.Assert(item.Blame.BlameNodes[0], Equals, expectedFailNode)
 	}
 
 }
