@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"context"
 	"flag"
 	"fmt"
 	"log"
@@ -60,15 +59,8 @@ func main() {
 	if nil != err {
 		log.Fatal(err)
 	}
-
-	tss.ConfigureHttpServers(
-		generalConf.TssAddr,
-		generalConf.InfoAddr,
-	)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	if err := tss.Start(ctx); nil != err {
+	s := NewTssHttpServer(generalConf.TssAddr, tss)
+	if err := s.Start(); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -77,7 +69,6 @@ func main() {
 func parseFlags() (generalConf common.GeneralConfig, tssConf common.TssConfig, p2pConf p2p.P2PConfig) {
 	// we setup the configure for the general configuration
 	flag.StringVar(&generalConf.TssAddr, "tss-port", "127.0.0.1:8080", "tss port")
-	flag.StringVar(&generalConf.InfoAddr, "info-port", ":8081", "info port")
 	flag.BoolVar(&generalConf.Help, "h", false, "Display Help")
 	flag.StringVar(&generalConf.LogLevel, "loglevel", "info", "Log Level")
 	flag.BoolVar(&generalConf.Pretty, "pretty-log", false, "Enables unstructured prettified logging. This is useful for local debugging")
