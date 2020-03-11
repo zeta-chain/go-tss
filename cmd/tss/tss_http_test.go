@@ -139,6 +139,16 @@ func (TssHttpServerTestSuite) TestKeygenHandler(c *C) {
 }
 
 func (TssHttpServerTestSuite) TestKeysignHandler(c *C) {
+	var normalKeySignRequest string = `{
+    "pool_pub_key": "thorpub1addwnpepqtdklw8tf3anjz7nn5fly3uvq2e67w2apn560s4smmrt9e3x52nt2svmmu3",
+    "message": "helloworld",
+    "signer_pub_keys": [
+        "thorpub1addwnpepqtdklw8tf3anjz7nn5fly3uvq2e67w2apn560s4smmrt9e3x52nt2svmmu3",
+        "thorpub1addwnpepqtspqyy6gk22u37ztra4hq3hdakc0w0k60sfy849mlml2vrpfr0wvm6uz09",
+        "thorpub1addwnpepq2ryyje5zr09lq7gqptjwnxqsy2vcdngvwd6z7yt5yjcnyj8c8cn559xe69",
+        "thorpub1addwnpepqfjcw5l4ay5t00c32mmlky7qrppepxzdlkcwfs2fd5u73qrwna0vzag3y4j"
+    ]
+}`
 	testCases := []struct {
 		name          string
 		reqProvider   func() *http.Request
@@ -167,16 +177,7 @@ func (TssHttpServerTestSuite) TestKeysignHandler(c *C) {
 			name: "fail to keygen should return status internal server error",
 			reqProvider: func() *http.Request {
 				return httptest.NewRequest(http.MethodPost, "/keysign",
-					bytes.NewBufferString(`{
-    "pool_pub_key": "thorpub1addwnpepqtdklw8tf3anjz7nn5fly3uvq2e67w2apn560s4smmrt9e3x52nt2svmmu3",
-    "message": "helloworld",
-    "signer_pub_keys": [
-        "thorpub1addwnpepqtdklw8tf3anjz7nn5fly3uvq2e67w2apn560s4smmrt9e3x52nt2svmmu3",
-        "thorpub1addwnpepqtspqyy6gk22u37ztra4hq3hdakc0w0k60sfy849mlml2vrpfr0wvm6uz09",
-        "thorpub1addwnpepq2ryyje5zr09lq7gqptjwnxqsy2vcdngvwd6z7yt5yjcnyj8c8cn559xe69",
-        "thorpub1addwnpepqfjcw5l4ay5t00c32mmlky7qrppepxzdlkcwfs2fd5u73qrwna0vzag3y4j"
-    ]
-}`))
+					bytes.NewBufferString(normalKeySignRequest))
 			},
 			setter: func(s *MockTssServer) {
 				s.failToKeySign = true
@@ -189,16 +190,7 @@ func (TssHttpServerTestSuite) TestKeysignHandler(c *C) {
 			name: "normal",
 			reqProvider: func() *http.Request {
 				return httptest.NewRequest(http.MethodPost, "/keysign",
-					bytes.NewBufferString(`{
-    "pool_pub_key": "thorpub1addwnpepqtdklw8tf3anjz7nn5fly3uvq2e67w2apn560s4smmrt9e3x52nt2svmmu3",
-    "message": "helloworld",
-    "signer_pub_keys": [
-        "thorpub1addwnpepqtdklw8tf3anjz7nn5fly3uvq2e67w2apn560s4smmrt9e3x52nt2svmmu3",
-        "thorpub1addwnpepqtspqyy6gk22u37ztra4hq3hdakc0w0k60sfy849mlml2vrpfr0wvm6uz09",
-        "thorpub1addwnpepq2ryyje5zr09lq7gqptjwnxqsy2vcdngvwd6z7yt5yjcnyj8c8cn559xe69",
-        "thorpub1addwnpepqfjcw5l4ay5t00c32mmlky7qrppepxzdlkcwfs2fd5u73qrwna0vzag3y4j"
-    ]
-}`))
+					bytes.NewBufferString(normalKeySignRequest))
 			},
 
 			resultChecker: func(c *C, w *httptest.ResponseRecorder) {
