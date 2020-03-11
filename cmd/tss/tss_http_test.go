@@ -72,6 +72,7 @@ func (TssHttpServerTestSuite) TestGetNodeStatusHandler(c *C) {
 }
 
 func (TssHttpServerTestSuite) TestKeygenHandler(c *C) {
+	normalKeygenRequest := `{"keys":["thorpub1addwnpepqtdklw8tf3anjz7nn5fly3uvq2e67w2apn560s4smmrt9e3x52nt2svmmu3", "thorpub1addwnpepqtspqyy6gk22u37ztra4hq3hdakc0w0k60sfy849mlml2vrpfr0wvm6uz09", "thorpub1addwnpepq2ryyje5zr09lq7gqptjwnxqsy2vcdngvwd6z7yt5yjcnyj8c8cn559xe69", "thorpub1addwnpepqfjcw5l4ay5t00c32mmlky7qrppepxzdlkcwfs2fd5u73qrwna0vzag3y4j"]}`
 	testCases := []struct {
 		name          string
 		reqProvider   func() *http.Request
@@ -100,7 +101,7 @@ func (TssHttpServerTestSuite) TestKeygenHandler(c *C) {
 			name: "fail to keygen should return status internal server error",
 			reqProvider: func() *http.Request {
 				return httptest.NewRequest(http.MethodPost, "/keygen",
-					bytes.NewBufferString(`{"keys":["thorpub1addwnpepqtdklw8tf3anjz7nn5fly3uvq2e67w2apn560s4smmrt9e3x52nt2svmmu3", "thorpub1addwnpepqtspqyy6gk22u37ztra4hq3hdakc0w0k60sfy849mlml2vrpfr0wvm6uz09", "thorpub1addwnpepq2ryyje5zr09lq7gqptjwnxqsy2vcdngvwd6z7yt5yjcnyj8c8cn559xe69", "thorpub1addwnpepqfjcw5l4ay5t00c32mmlky7qrppepxzdlkcwfs2fd5u73qrwna0vzag3y4j"]}`))
+					bytes.NewBufferString(normalKeygenRequest))
 			},
 			setter: func(s *MockTssServer) {
 				s.failToKeyGen = true
@@ -113,7 +114,7 @@ func (TssHttpServerTestSuite) TestKeygenHandler(c *C) {
 			name: "normal",
 			reqProvider: func() *http.Request {
 				return httptest.NewRequest(http.MethodPost, "/keygen",
-					bytes.NewBufferString(`{"keys":["thorpub1addwnpepqtdklw8tf3anjz7nn5fly3uvq2e67w2apn560s4smmrt9e3x52nt2svmmu3", "thorpub1addwnpepqtspqyy6gk22u37ztra4hq3hdakc0w0k60sfy849mlml2vrpfr0wvm6uz09", "thorpub1addwnpepq2ryyje5zr09lq7gqptjwnxqsy2vcdngvwd6z7yt5yjcnyj8c8cn559xe69", "thorpub1addwnpepqfjcw5l4ay5t00c32mmlky7qrppepxzdlkcwfs2fd5u73qrwna0vzag3y4j"]}`))
+					bytes.NewBufferString(normalKeygenRequest))
 			},
 
 			resultChecker: func(c *C, w *httptest.ResponseRecorder) {
