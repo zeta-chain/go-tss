@@ -3,6 +3,7 @@ package keygen
 import (
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/binance-chain/tss-lib/crypto"
@@ -97,16 +98,20 @@ func (tKeyGen *TssKeyGen) GenerateNewKey(keygenReq Request) (*crypto.ECPoint, er
 	})
 	tKeyGen.tssCommonStruct.P2PPeers = common.GetPeersID(tKeyGen.tssCommonStruct.PartyIDtoP2PID, tKeyGen.tssCommonStruct.GetLocalPeerID())
 
+	var keyGenWg sync.WaitGroup
+	keyGenWg.Add(2)
 	// start keygen
 	go func() {
+		defer keyGenWg.Done()
 		defer tKeyGen.logger.Info().Msg("keyGenParty finished")
 		if err := keyGenParty.Start(); nil != err {
 			tKeyGen.logger.Error().Err(err).Msg("fail to start keygen party")
 			close(errChan)
 		}
 	}()
-	go tKeyGen.tssCommonStruct.ProcessInboundMessages(tKeyGen.commStopChan)
+	go tKeyGen.tssCommonStruct.ProcessInboundMessages(tKeyGen.commStopChan, &keyGenWg)
 	r, err := tKeyGen.processKeyGen(errChan, outCh, endCh, keyGenLocalStateItem)
+	keyGenWg.Wait()
 	return r, err
 }
 

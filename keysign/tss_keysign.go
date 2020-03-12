@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	bc "github.com/binance-chain/tss-lib/common"
@@ -93,8 +94,11 @@ func (tKeySign *TssKeySign) SignMessage(msgToSign []byte, localStateItem storage
 
 	tKeySign.tssCommonStruct.P2PPeers = common.GetPeersID(tKeySign.tssCommonStruct.PartyIDtoP2PID, tKeySign.tssCommonStruct.GetLocalPeerID())
 
+	var keySignWg sync.WaitGroup
+	keySignWg.Add(2)
 	// start the key sign
 	go func() {
+		defer keySignWg.Done()
 		if err := keySignParty.Start(); nil != err {
 			tKeySign.logger.Error().Err(err).Msg("fail to start key sign party")
 			close(errCh)
@@ -105,11 +109,13 @@ func (tKeySign *TssKeySign) SignMessage(msgToSign []byte, localStateItem storage
 		})
 		tKeySign.logger.Debug().Msg("local party is ready")
 	}()
-	go tKeySign.tssCommonStruct.ProcessInboundMessages(tKeySign.commStopChan)
+	go tKeySign.tssCommonStruct.ProcessInboundMessages(tKeySign.commStopChan, &keySignWg)
 	result, err := tKeySign.processKeySign(errCh, outCh, endCh)
 	if err != nil {
 		return nil, fmt.Errorf("fail to process key sign: %w", err)
 	}
+	keySignWg.Wait()
+
 	tKeySign.logger.Info().Msg("successfully sign the message")
 	return result, nil
 }

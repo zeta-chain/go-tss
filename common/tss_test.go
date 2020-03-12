@@ -31,8 +31,7 @@ func (TssCommonTestSuite) TestTssCommon(c *C) {
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
-		defer wg.Done()
-		tssCommon.ProcessInboundMessages(stopchan)
+		tssCommon.ProcessInboundMessages(stopchan, &wg)
 	}()
 	bi, err := MsgToHashInt([]byte("whatever"))
 	c.Assert(err, IsNil)

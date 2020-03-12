@@ -388,13 +388,28 @@ func (t *TssCommon) processTSSMsg(wireMsg *p2p.WireMessage, msgType p2p.THORChai
 		if err := t.updateLocal(localCacheItem.Msg); nil != err {
 			return fmt.Errorf("fail to update the message to local party: %w", err)
 		}
+		t.logger.Debug().Msgf("remove key: %s", key)
+		t.removeKey(key)
 	}
 	buf, err := json.Marshal(broadcastConfirmMsg)
 	if err != nil {
 		return fmt.Errorf("fail to marshal borad cast confirm message: %w", err)
 	}
 	t.logger.Debug().Msg("broadcast VerMsg to all other parties")
-	peerIDs := t.P2PPeers
+
+	var peerIDs []peer.ID
+	dataOwnerPartyID := wireMsg.Routing.From.Id
+	dataOwnerPeerID, ok := t.PartyIDtoP2PID[dataOwnerPartyID]
+	if !ok {
+		return errors.New("error in find the data owner peerID")
+	}
+	for _, el := range t.P2PPeers {
+		if el == dataOwnerPeerID {
+			continue
+		}
+		peerIDs = append(peerIDs, el)
+	}
+
 	if len(peerIDs) == 0 {
 		t.logger.Error().Err(err).Msg("fail to get any peer ID")
 		return errors.New("fail to get any peer ID")
@@ -472,8 +487,9 @@ func GetTssPubKey(pubKeyPoint *crypto.ECPoint) (string, types.AccAddress, error)
 	return pubKey, addr, err
 }
 
-func (t *TssCommon) ProcessInboundMessages(finishChan chan struct{}) {
+func (t *TssCommon) ProcessInboundMessages(finishChan chan struct{}, wg *sync.WaitGroup) {
 	t.logger.Info().Msg("start processing inbound messages")
+	defer wg.Done()
 	defer t.logger.Info().Msg("stop processing inbound messages")
 	for {
 		select {
