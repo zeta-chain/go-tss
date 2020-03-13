@@ -3,7 +3,6 @@ package p2p
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -30,6 +29,8 @@ const (
 
 	// MaxPayload the maximum payload for a message
 	MaxPayload = 512000 // 512kb
+	// Message Head Size
+	HeadLength = 4
 	// TimeoutReadWrite maximum time to wait on read and write
 	TimeoutReadWrite = time.Second * 10
 	// TimeoutBroadcast maximum time to wait for message broadcast
@@ -142,21 +143,8 @@ func (c *Communication) writeToStream(pID peer.ID, msg []byte) error {
 		}
 	}()
 	c.logger.Debug().Msgf(">>>writing messages to peer(%s)", pID)
-	length := uint32(len(msg))
-	if err := WriteLength(stream, length); err != nil {
-		return fmt.Errorf("fail to write length:%w", err)
-	}
-	if err := stream.SetWriteDeadline(time.Now().Add(TimeoutReadWrite)); nil != err {
-		return errors.New("fail to set write deadline")
-	}
-	n, err := stream.Write(msg)
-	if err != nil {
-		return fmt.Errorf("fail to write: %w", err)
-	}
-	if uint32(n) < length {
-		return fmt.Errorf("short write, we would like to write: %d, however we only write: %d", length, n)
-	}
-	return nil
+
+	return WriteStreamWithBuffer(msg, stream)
 }
 
 func (c *Communication) readFromStream(stream network.Stream) {
@@ -172,23 +160,13 @@ func (c *Communication) readFromStream(stream network.Stream) {
 	case <-c.stopChan:
 		return
 	default:
-		length, err := ReadLength(stream)
-		if nil != err {
-			c.logger.Error().Err(err).Msg("fail to read length from stream")
-			return
-		}
-		c.logger.Debug().Msgf("message from %s,length:%d", peerID, length)
-		if length > MaxPayload {
-			c.logger.Warn().Msgf("peer:%s trying to send %d bytes payload", peerID, length)
-			return
-		}
-		buf, err := ReadPayload(stream, length)
+		dataBuf, err := ReadStreamWithBuffer(stream)
 		if err != nil {
 			c.logger.Error().Err(err).Msgf("fail to read from stream,peerID: %s", peerID)
 			return
 		}
 		var wrappedMsg WrappedMessage
-		if err := json.Unmarshal(buf, &wrappedMsg); nil != err {
+		if err := json.Unmarshal(dataBuf, &wrappedMsg); nil != err {
 			c.logger.Error().Err(err).Msg("fail to unmarshal wrapped message bytes")
 			return
 		}
@@ -200,7 +178,7 @@ func (c *Communication) readFromStream(stream network.Stream) {
 		}
 		channel <- &Message{
 			PeerID:  stream.Conn().RemotePeer(),
-			Payload: buf,
+			Payload: dataBuf,
 		}
 
 	}

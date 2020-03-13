@@ -60,12 +60,8 @@ func (pc *PartyCoordinator) HandleStream(stream network.Stream) {
 	remotePeer := stream.Conn().RemotePeer()
 	logger := pc.logger.With().Str("remote peer", remotePeer.String()).Logger()
 	logger.Debug().Msg("reading from join party request")
-	length, err := ReadLength(stream)
-	if err != nil {
-		logger.Err(err).Msg("fail to read length header from stream")
-		return
-	}
-	payload, err := ReadPayload(stream, length)
+
+	payload, err := ReadStreamWithBuffer(stream)
 	if err != nil {
 		logger.Err(err).Msgf("fail to read payload from stream")
 		return
@@ -276,10 +272,7 @@ func (pc *PartyCoordinator) JoinParty(remotePeer peer.ID, msg *messages.JoinPart
 			pc.logger.Error().Err(err).Msg("fail to close stream")
 		}
 	}()
-	if err := WriteLength(stream, uint32(len(msgBuf))); err != nil {
-		return nil, err
-	}
-	_, err = stream.Write(msgBuf)
+	err = WriteStreamWithBuffer(msgBuf, stream)
 	if err != nil {
 		if errReset := stream.Reset(); errReset != nil {
 			return nil, errReset

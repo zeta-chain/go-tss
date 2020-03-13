@@ -1,8 +1,8 @@
 package p2p
 
 import (
+	"bufio"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -21,67 +21,56 @@ const (
 // the reason being the p2p network , mocknet, mock stream doesn't support SetReadDeadline ,SetWriteDeadline feature
 var ApplyDeadline = true
 
-// ReadLength will read the length from stream
-func ReadLength(stream network.Stream) (uint32, error) {
-	buf := make([]byte, LengthHeader)
-	r := io.LimitReader(stream, LengthHeader)
+func ReadStreamWithBuffer(stream network.Stream) ([]byte, error) {
 	if ApplyDeadline {
-		if err := stream.SetReadDeadline(time.Now().Add(TimeoutReadHeader)); nil != err {
-			if errReset := stream.Reset(); errReset != nil {
-				return 0, errReset
-			}
-			return 0, err
-		}
-	}
-	_, err := r.Read(buf)
-	if err != nil && !errors.Is(err, io.EOF) {
-		if errReset := stream.Reset(); errReset != nil {
-			return 0, errReset
-		}
-		return 0, err
-	}
-	return binary.LittleEndian.Uint32(buf), nil
-}
-
-// ReadPayload from stream
-func ReadPayload(stream network.Stream, length uint32) ([]byte, error) {
-	buf := make([]byte, length)
-	if ApplyDeadline {
-		if err := stream.SetReadDeadline(time.Now().Add(TimeoutReadPayload)); nil != err {
+		if err := stream.SetReadDeadline(time.Now().Add(TimeoutWriteHeader)); nil != err {
 			if errReset := stream.Reset(); errReset != nil {
 				return nil, errReset
 			}
 			return nil, err
 		}
 	}
-	_, err := io.ReadFull(stream, buf)
-	if err != nil && !errors.Is(err, io.EOF) {
-		if errReset := stream.Reset(); errReset != nil {
-			return nil, errReset
-		}
-		return nil, err
+	streamReader := bufio.NewReader(stream)
+	lengthBytes := make([]byte, HeadLength)
+	n, err := io.ReadFull(streamReader, lengthBytes)
+	if n != HeadLength || err != nil {
+		retErr := fmt.Errorf("error in read the message head %w", err)
+		return nil, retErr
 	}
-	return buf, nil
+	length := binary.LittleEndian.Uint32(lengthBytes)
+	dataBuf := make([]byte, length)
+	n, err = io.ReadFull(streamReader, dataBuf)
+	if uint32(n) != length || err != nil {
+		retErr := fmt.Errorf("short read err(%w), we would like to read: %d, however we only read: %d", err, length, n)
+		return nil, retErr
+	}
+	return dataBuf, nil
 }
 
-// WriteLength write the given length as header
-func WriteLength(stream network.Stream, length uint32) error {
-	buf := make([]byte, LengthHeader)
-	binary.LittleEndian.PutUint32(buf, length)
+func WriteStreamWithBuffer(msg []byte, stream network.Stream) error {
+	length := uint32(len(msg))
+	lengthBytes := make([]byte, HeadLength)
+	binary.LittleEndian.PutUint32(lengthBytes, length)
 	if ApplyDeadline {
 		if err := stream.SetWriteDeadline(time.Now().Add(TimeoutWriteHeader)); nil != err {
 			if errReset := stream.Reset(); errReset != nil {
 				return errReset
 			}
-			return fmt.Errorf("fail to write length to stream: %w", err)
+			return err
 		}
 	}
-	_, err := stream.Write(buf)
-	if err != nil {
-		if errReset := stream.Reset(); errReset != nil {
-			return errReset
-		}
-		return fmt.Errorf("fail to write to peer(%s): %w", stream.Conn().RemotePeer().String(), err)
+	streamWrite := bufio.NewWriter(stream)
+	n, err := streamWrite.Write(lengthBytes)
+	if n != HeadLength || err != nil {
+		return fmt.Errorf("fail to write head: %w", err)
+	}
+	n, err = streamWrite.Write(msg)
+	if err != nil{
+		return err
+	}
+	err = streamWrite.Flush()
+	if uint32(n) != length || err != nil {
+		return fmt.Errorf("short write, we would like to write: %d, however we only write: %d", length, n)
 	}
 	return nil
 }

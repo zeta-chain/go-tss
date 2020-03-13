@@ -66,12 +66,7 @@ func (s *SignatureNotifier) handleStream(stream network.Stream) {
 	remotePeer := stream.Conn().RemotePeer()
 	logger := s.logger.With().Str("remote peer", remotePeer.String()).Logger()
 	logger.Debug().Msg("reading signature notifier message")
-	length, err := p2p.ReadLength(stream)
-	if err != nil {
-		logger.Err(err).Msg("fail to read length header from stream")
-		return
-	}
-	payload, err := p2p.ReadPayload(stream, length)
+	payload, err := p2p.ReadStreamWithBuffer(stream)
 	if err != nil {
 		logger.Err(err).Msgf("fail to read payload from stream")
 		return
@@ -160,10 +155,7 @@ func (s *SignatureNotifier) sendOneMsgToPeer(m *signatureItem) error {
 		return fmt.Errorf("fail to marshal Keysign Signature to bytes:%w", err)
 	}
 
-	if err := p2p.WriteLength(stream, uint32(len(ksBuf))); err != nil {
-		return err
-	}
-	_, err = stream.Write(ksBuf)
+	err = p2p.WriteStreamWithBuffer(ksBuf, stream)
 	if err != nil {
 		if errReset := stream.Reset(); errReset != nil {
 			return errReset
