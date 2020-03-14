@@ -97,6 +97,7 @@ func TestReadLength(t *testing.T) {
 				buf := make([]byte, LengthHeader)
 				binary.LittleEndian.PutUint32(buf, 1024)
 				s.Buffer.Write(buf)
+				s.Buffer.Write(bytes.Repeat([]byte("a"), 1024))
 				return s
 			},
 		},
@@ -110,11 +111,12 @@ func TestReadLength(t *testing.T) {
 				buf := make([]byte, LengthHeader)
 				binary.LittleEndian.PutUint32(buf, 1024)
 				s.Buffer.Write(buf)
+				s.Buffer.Write(bytes.Repeat([]byte("a"), 1024))
 				return s
 			},
 		},
 		{
-			name:           "even there are more data in the stream , we should only read header",
+			name:           "read exactly the given length of data",
 			expectedLength: 1024,
 			expectError:    false,
 			streamProvider: func() network.Stream {
@@ -122,7 +124,7 @@ func TestReadLength(t *testing.T) {
 				buf := make([]byte, LengthHeader)
 				binary.LittleEndian.PutUint32(buf, 1024)
 				s.Buffer.Write(buf)
-				s.Buffer.Write([]byte{1, 2})
+				s.Buffer.Write(bytes.Repeat([]byte("a"), 1026))
 				return s
 			},
 		},
@@ -144,7 +146,7 @@ func TestReadLength(t *testing.T) {
 		ApplyDeadline = true
 		t.Run(tc.name, func(st *testing.T) {
 			stream := tc.streamProvider()
-			l, err := ReadLength(stream)
+			l, err := ReadStreamWithBuffer(stream)
 			if tc.expectError && err == nil {
 				st.Errorf("expecting error , however got none")
 				st.FailNow()
@@ -153,7 +155,7 @@ func TestReadLength(t *testing.T) {
 				st.Error(err)
 				st.FailNow()
 			}
-			if !tc.expectError && tc.expectedLength != l {
+			if !tc.expectError && tc.expectedLength != uint32(len(l)) {
 				st.Errorf("expecting length to be %d, however got :%d", tc.expectedLength, l)
 				st.FailNow()
 			}
@@ -173,8 +175,11 @@ func TestReadPayload(t *testing.T) {
 			streamProvider: func() *MockNetworkStream {
 				stream := NewMockNetworkStream()
 				input := []byte("hello world")
-				_ = WriteLength(stream, uint32(len(input)))
-				stream.Buffer.Write(input)
+				err := WriteStreamWithBuffer(input, stream)
+				if err != nil {
+					t.Errorf("fail to write the data to stream")
+					t.FailNow()
+				}
 				return stream
 			},
 			expectedBytes: []byte("hello world"),
@@ -185,12 +190,11 @@ func TestReadPayload(t *testing.T) {
 		ApplyDeadline = true
 		t.Run(tc.name, func(st *testing.T) {
 			stream := tc.streamProvider()
-			l, err := ReadLength(stream)
+			l, err := ReadStreamWithBuffer(stream)
 			if err != nil {
 				st.Errorf("fail to read length:%s", err)
 				st.FailNow()
 			}
-			result, err := ReadPayload(stream, l)
 			if tc.expectError && err == nil {
 				st.Errorf("expecting error , however got none")
 				st.FailNow()
@@ -200,8 +204,8 @@ func TestReadPayload(t *testing.T) {
 				st.FailNow()
 			}
 
-			if !tc.expectError && !bytes.Equal(tc.expectedBytes, result) {
-				st.Errorf("expecting %s, however got :%s", string(tc.expectedBytes), string(result))
+			if !tc.expectError && !bytes.Equal(tc.expectedBytes, l) {
+				st.Errorf("expecting %s, however got :%s", string(tc.expectedBytes), string(l))
 				st.FailNow()
 			}
 		})
