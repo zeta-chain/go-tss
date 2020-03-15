@@ -37,8 +37,8 @@ func NewTssKeyGen(localP2PID string,
 	preParam *bkg.LocalPreParams,
 	keygenCurrent *string,
 	msgID string,
-	stateManager storage.LocalStateManager) TssKeyGen {
-	return TssKeyGen{
+	stateManager storage.LocalStateManager) *TssKeyGen {
+	return &TssKeyGen{
 		logger: log.With().
 			Str("module", "keygen").
 			Str("msgID", msgID).Logger(),
@@ -66,6 +66,7 @@ func (tKeyGen *TssKeyGen) GenerateNewKey(keygenReq Request) (*crypto.ECPoint, er
 	if err != nil {
 		return nil, fmt.Errorf("fail to get keygen parties: %w", err)
 	}
+
 	keyGenLocalStateItem := storage.KeygenLocalState{
 		ParticipantKeys: keygenReq.Keys,
 		LocalPartyKey:   tKeyGen.localNodePubKey,
@@ -97,7 +98,6 @@ func (tKeyGen *TssKeyGen) GenerateNewKey(keygenReq Request) (*crypto.ECPoint, er
 		PartyIDMap: partyIDMap,
 	})
 	tKeyGen.tssCommonStruct.P2PPeers = common.GetPeersID(tKeyGen.tssCommonStruct.PartyIDtoP2PID, tKeyGen.tssCommonStruct.GetLocalPeerID())
-
 	var keyGenWg sync.WaitGroup
 	keyGenWg.Add(2)
 	// start keygen

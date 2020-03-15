@@ -8,6 +8,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/libp2p/go-libp2p-core/peer"
+
 	"gitlab.com/thorchain/tss/go-tss/common"
 	"gitlab.com/thorchain/tss/go-tss/keysign"
 	"gitlab.com/thorchain/tss/go-tss/messages"
@@ -19,10 +21,10 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 		Str("signer pub keys", strings.Join(req.SignerPubKeys, ",")).
 		Str("msg", req.Message).
 		Msg("received keysign request")
-
+	emptyResp := keysign.Response{}
 	msgID, err := t.requestToMsgId(req)
 	if err != nil {
-		return keysign.Response{}, err
+		return emptyResp, err
 	}
 
 	keysignInstance := keysign.NewTssKeySign(
@@ -43,36 +45,39 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 
 	localStateItem, err := t.stateManager.GetLocalState(req.PoolPubKey)
 	if err != nil {
-		return keysign.Response{}, fmt.Errorf("fail to get local keygen state: %w", err)
+		return emptyResp, fmt.Errorf("fail to get local keygen state: %w", err)
 	}
 	msgToSign, err := base64.StdEncoding.DecodeString(req.Message)
 	if err != nil {
-		return keysign.Response{}, fmt.Errorf("fail to decode message(%s): %w", req.Message, err)
+		return emptyResp, fmt.Errorf("fail to decode message(%s): %w", req.Message, err)
 	}
 	if len(req.SignerPubKeys) == 0 {
-		return keysign.Response{}, errors.New("empty signer pub keys")
+		return emptyResp, errors.New("empty signer pub keys")
 	}
 
 	threshold, err := common.GetThreshold(len(localStateItem.ParticipantKeys))
 	if err != nil {
 		t.logger.Error().Err(err).Msg("fail to get the threshold")
-		return keysign.Response{}, errors.New("fail to get threshold")
+		return emptyResp, errors.New("fail to get threshold")
 	}
 	if len(req.SignerPubKeys) <= threshold {
 		t.logger.Error().Msgf("not enough signers, threshold=%d and signers=%d", threshold, len(req.SignerPubKeys))
-		return keysign.Response{}, errors.New("not enough signers")
+		return emptyResp, errors.New("not enough signers")
 	}
 
 	if !t.isPartOfKeysignParty(req.SignerPubKeys) {
 		// local node is not party of the keysign , wait for signature
 		peerIDs, err := GetPeerIDs(req.SignerPubKeys)
 		if err != nil {
-			return keysign.Response{}, fmt.Errorf("fail to convert pub key to peer id: %w", err)
+			return emptyResp, fmt.Errorf("fail to convert pub key to peer id: %w", err)
 		}
 
 		data, err := t.signatureNotifier.WaitForSignature(msgID, peerIDs, 30*time.Second)
 		if err != nil {
-			return keysign.Response{}, fmt.Errorf("fail to get signature:%w", err)
+			return emptyResp, fmt.Errorf("fail to get signature:%w", err)
+		}
+		if len(data.S) == 0 && len(data.R) == 0 {
+			return emptyResp, errors.New("keysign failed")
 		}
 		return keysign.NewResponse(
 			base64.StdEncoding.EncodeToString(data.R),
@@ -81,13 +86,19 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 			common.NoBlame,
 		), nil
 	}
+	// get all the tss nodes that were part of the original key gen
+	signers, err := GetPeerIDs(localStateItem.ParticipantKeys)
+	if err != nil {
+		return emptyResp, fmt.Errorf("fail to convert pub keys to peer id:%w", err)
+	}
+
 	result, leaderPeerID, err := t.joinParty(msgID, msgToSign, req.SignerPubKeys)
 	if err != nil {
 		blame, err := t.getBlamePeers(req.SignerPubKeys, []string{leaderPeerID.String()})
 		if err != nil {
 			t.logger.Err(err).Msg("fail to get peers to blame")
 		}
-
+		t.broadcastKeysignFailure(msgID, signers)
 		return keysign.Response{
 			Status: common.Fail,
 			Blame:  blame,
@@ -99,7 +110,7 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 		if err != nil {
 			t.logger.Err(err).Msg("fail to get peers to blame")
 		}
-
+		t.broadcastKeysignFailure(msgID, signers)
 		return keysign.Response{
 			Status: common.Fail,
 			Blame:  blame,
@@ -112,6 +123,7 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 	if err != nil {
 		t.logger.Error().Err(err).Msg("err in keysign")
 		atomic.AddUint64(&t.Status.FailedKeySign, 1)
+		t.broadcastKeysignFailure(msgID, signers)
 		return keysign.Response{
 			Status: common.Fail,
 			Blame:  keysignInstance.GetTssCommonStruct().BlamePeers,
@@ -119,15 +131,10 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 	}
 
 	atomic.AddUint64(&t.Status.SucKeySign, 1)
-	// get all the tss nodes that were part of the original key gen
-	signers, err := GetPeerIDs(localStateItem.ParticipantKeys)
-	if err != nil {
-		return keysign.Response{}, fmt.Errorf("fail to convert pub keys to peer id:%w", err)
-	}
 
 	// update signature notification
 	if err := t.signatureNotifier.BroadcastSignature(msgID, signatureData, signers); err != nil {
-		return keysign.Response{}, fmt.Errorf("fail to broadcast signature:%w", err)
+		return emptyResp, fmt.Errorf("fail to broadcast signature:%w", err)
 	}
 	return keysign.NewResponse(
 		base64.StdEncoding.EncodeToString(signatureData.R),
@@ -135,6 +142,12 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 		common.Success,
 		common.NoBlame,
 	), nil
+}
+
+func (t *TssServer) broadcastKeysignFailure(messageID string, peers []peer.ID) {
+	if err := t.signatureNotifier.BroadcastFailed(messageID, peers); err != nil {
+		t.logger.Err(err).Msg("fail to broadcast keysign failure")
+	}
 }
 
 func (t *TssServer) isPartOfKeysignParty(parties []string) bool {

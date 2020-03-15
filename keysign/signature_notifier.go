@@ -78,9 +78,11 @@ func (s *SignatureNotifier) handleStream(stream network.Stream) {
 		return
 	}
 	var signature bc.SignatureData
-	if err := proto.Unmarshal(msg.Signature, &signature); err != nil {
-		logger.Error().Err(err).Msg("fail to unmarshal signature data")
-		return
+	if len(msg.Signature) > 0 && msg.KeysignStatus == messages.KeysignSignature_Success {
+		if err := proto.Unmarshal(msg.Signature, &signature); err != nil {
+			logger.Error().Err(err).Msg("fail to unmarshal signature data")
+			return
+		}
 	}
 	s.notifierLock.Lock()
 	defer s.notifierLock.Unlock()
@@ -142,13 +144,18 @@ func (s *SignatureNotifier) sendOneMsgToPeer(m *signatureItem) error {
 			s.logger.Error().Err(err).Msg("fail to close stream")
 		}
 	}()
-	buf, err := proto.Marshal(m.signatureData)
-	if err != nil {
-		return fmt.Errorf("fail to marshal signature data to bytes:%w", err)
-	}
 	ks := &messages.KeysignSignature{
-		ID:        m.messageID,
-		Signature: buf,
+		ID:            m.messageID,
+		KeysignStatus: messages.KeysignSignature_Failed,
+	}
+
+	if m.signatureData != nil {
+		buf, err := proto.Marshal(m.signatureData)
+		if err != nil {
+			return fmt.Errorf("fail to marshal signature data to bytes:%w", err)
+		}
+		ks.Signature = buf
+		ks.KeysignStatus = messages.KeysignSignature_Success
 	}
 	ksBuf, err := proto.Marshal(ks)
 	if err != nil {
@@ -167,6 +174,10 @@ func (s *SignatureNotifier) sendOneMsgToPeer(m *signatureItem) error {
 
 // BroadcastSignature sending the keysign signature to all other peers
 func (s *SignatureNotifier) BroadcastSignature(messageID string, sig *bc.SignatureData, peers []peer.ID) error {
+	return s.broadcastCommon(messageID, sig, peers)
+}
+
+func (s *SignatureNotifier) broadcastCommon(messageID string, sig *bc.SignatureData, peers []peer.ID) error {
 	for _, p := range peers {
 		if p == s.host.ID() {
 			// don't send the signature to itself
@@ -183,6 +194,11 @@ func (s *SignatureNotifier) BroadcastSignature(messageID string, sig *bc.Signatu
 		}
 	}
 	return nil
+}
+
+// BroadcastFailed will send keysign failed message to the nodes that are not in the keysign party
+func (s *SignatureNotifier) BroadcastFailed(messageID string, peers []peer.ID) error {
+	return s.broadcastCommon(messageID, nil, peers)
 }
 
 func (s *SignatureNotifier) addToNotifiers(n *Notifier) {
