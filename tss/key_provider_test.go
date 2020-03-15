@@ -70,6 +70,7 @@ func (KeyProviderTestSuite) TestGetPeerIDs(c *C) {
 	c.Assert(err, NotNil)
 	c.Assert(peers, IsNil)
 }
+
 func (KeyProviderTestSuite) TestGetPeerIDFromPubKey(c *C) {
 	pID, err := GetPeerIDFromPubKey("thorpub1addwnpepqtctt9l4fddeh0krvdpxmqsxa5z9xsa0ac6frqfhm9fq6c6u5lck5s8fm4n")
 	c.Assert(err, IsNil)
