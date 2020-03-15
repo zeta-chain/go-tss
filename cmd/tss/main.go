@@ -17,17 +17,25 @@ import (
 	"gitlab.com/thorchain/tss/go-tss/tss"
 )
 
+var (
+	help       bool
+	logLevel   string
+	pretty     bool
+	baseFolder string
+	tssAddr    string
+)
+
 func main() {
 	// Parse the cli into configuration structs
-	generalConf, tssConf, p2pConf := parseFlags()
-	if generalConf.Help {
+	tssConf, p2pConf := parseFlags()
+	if help {
 		flag.PrintDefaults()
 		return
 	}
 	// Setup logging
 	golog.SetAllLoggers(golog.LevelInfo)
 	_ = golog.SetLogLevel("tss-lib", "INFO")
-	common.InitLog(generalConf.LogLevel, generalConf.Pretty, "tss_service")
+	common.InitLog(logLevel, pretty, "tss_service")
 
 	// Setup Bech32 Prefixes
 	common.SetupBech32Prefix()
@@ -52,27 +60,27 @@ func main() {
 		p2pConf.Port,
 		priKey,
 		p2pConf.RendezvousString,
-		generalConf.BaseFolder,
+		baseFolder,
 		tssConf,
 		nil,
 	)
 	if nil != err {
 		log.Fatal(err)
 	}
-	s := NewTssHttpServer(generalConf.TssAddr, tss)
+	s := NewTssHttpServer(tssAddr, tss)
 	if err := s.Start(); err != nil {
 		log.Fatal(err)
 	}
 }
 
 // parseFlags - Parses the cli flags
-func parseFlags() (generalConf common.GeneralConfig, tssConf common.TssConfig, p2pConf p2p.P2PConfig) {
+func parseFlags() (tssConf common.TssConfig, p2pConf p2p.P2PConfig) {
 	// we setup the configure for the general configuration
-	flag.StringVar(&generalConf.TssAddr, "tss-port", "127.0.0.1:8080", "tss port")
-	flag.BoolVar(&generalConf.Help, "h", false, "Display Help")
-	flag.StringVar(&generalConf.LogLevel, "loglevel", "info", "Log Level")
-	flag.BoolVar(&generalConf.Pretty, "pretty-log", false, "Enables unstructured prettified logging. This is useful for local debugging")
-	flag.StringVar(&generalConf.BaseFolder, "home", "", "home folder to store the keygen state file")
+	flag.StringVar(&tssAddr, "tss-port", "127.0.0.1:8080", "tss port")
+	flag.BoolVar(&help, "h", false, "Display Help")
+	flag.StringVar(&logLevel, "loglevel", "info", "Log Level")
+	flag.BoolVar(&pretty, "pretty-log", false, "Enables unstructured prettified logging. This is useful for local debugging")
+	flag.StringVar(&baseFolder, "home", "", "home folder to store the keygen state file")
 
 	// we setup the Tss parameter configuration
 	flag.DurationVar(&tssConf.KeyGenTimeout, "gentimeout", 30*time.Second, "keygen timeout")

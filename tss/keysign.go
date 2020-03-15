@@ -34,9 +34,9 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 		msgID,
 	)
 
-	keygenMsgChannel := keysignInstance.GetTssKeySignChannels()
-	t.p2pCommunication.SetSubscribe(p2p.TSSKeySignMsg, msgID, keygenMsgChannel)
-	t.p2pCommunication.SetSubscribe(p2p.TSSKeySignVerMsg, msgID, keygenMsgChannel)
+	keySignChannels := keysignInstance.GetTssKeySignChannels()
+	t.p2pCommunication.SetSubscribe(p2p.TSSKeySignMsg, msgID, keySignChannels)
+	t.p2pCommunication.SetSubscribe(p2p.TSSKeySignVerMsg, msgID, keySignChannels)
 
 	defer t.p2pCommunication.CancelSubscribe(p2p.TSSKeySignMsg, msgID)
 	defer t.p2pCommunication.CancelSubscribe(p2p.TSSKeySignVerMsg, msgID)

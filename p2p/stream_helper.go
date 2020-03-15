@@ -65,7 +65,7 @@ func WriteStreamWithBuffer(msg []byte, stream network.Stream) error {
 		return fmt.Errorf("fail to write head: %w", err)
 	}
 	n, err = streamWrite.Write(msg)
-	if err != nil{
+	if err != nil {
 		return err
 	}
 	err = streamWrite.Flush()

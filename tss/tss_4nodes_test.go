@@ -203,7 +203,6 @@ func (s *FourNodeTestSuite) TestFailJoinParty(c *C) {
 		c.Assert(item.PubKey, Equals, "")
 		c.Assert(item.Status, Equals, common.Fail)
 	}
-
 }
 
 func (s *FourNodeTestSuite) TestBlame(c *C) {
@@ -239,7 +238,6 @@ func (s *FourNodeTestSuite) TestBlame(c *C) {
 		c.Assert(item.Blame.BlameNodes, HasLen, 1)
 		c.Assert(item.Blame.BlameNodes[0], Equals, expectedFailNode)
 	}
-
 }
 
 func (s *FourNodeTestSuite) TearDownTest(c *C) {
