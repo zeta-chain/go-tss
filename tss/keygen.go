@@ -41,9 +41,7 @@ func (t *TssServer) getBlamePeers(keys []string, onlinePeers []string) (common.B
 func (t *TssServer) Keygen(req keygen.Request) (keygen.Response, error) {
 	t.tssKeyGenLocker.Lock()
 	defer t.tssKeyGenLocker.Unlock()
-
 	status := common.Success
-
 	msgID, err := t.requestToMsgId(req)
 	if err != nil {
 		return keygen.Response{}, err

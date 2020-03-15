@@ -2,6 +2,12 @@ syntax = "proto3";
 package messages;
 
 message KeysignSignature {
+    enum Status {
+        Unknown = 0;
+        Success = 1;
+        Failed = 2;
+    }
     string ID = 1; // the unique message id
     bytes Signature = 2;
+    Status KeysignStatus = 3;
 }
