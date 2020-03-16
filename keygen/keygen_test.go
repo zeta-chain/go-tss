@@ -58,12 +58,12 @@ func (s *TssKeygenTestSuite) SetUpSuite(c *C) {
 // SetUpTest set up environment for test key gen
 func (s *TssKeygenTestSuite) SetUpTest(c *C) {
 	ports := []int{
-		16666, 16667, 16668, 16669,
+		18666, 18667, 18668, 18669,
 	}
 	s.partyNum = 4
 	s.comms = make([]*p2p.Communication, s.partyNum)
 	s.stateMgrs = make([]storage.LocalStateManager, s.partyNum)
-	bootstrapPeer := "/ip4/127.0.0.1/tcp/16666/p2p/16Uiu2HAm4TmEzUqy3q3Dv7HvdoSboHk5sFj2FH3npiN5vDbJC6gh"
+	bootstrapPeer := "/ip4/127.0.0.1/tcp/18666/p2p/16Uiu2HAm4TmEzUqy3q3Dv7HvdoSboHk5sFj2FH3npiN5vDbJC6gh"
 	multiAddr, err := maddr.NewMultiaddr(bootstrapPeer)
 	c.Assert(err, IsNil)
 	s.preParams = getPreparams(c)
