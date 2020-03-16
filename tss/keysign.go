@@ -75,7 +75,7 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 		if err != nil {
 			return emptyResp, fmt.Errorf("fail to get signature:%w", err)
 		}
-		if len(data.S) == 0 && len(data.R) == 0 {
+		if data == nil || (len(data.S) == 0 && len(data.R) == 0) {
 			return emptyResp, errors.New("keysign failed")
 		}
 		return keysign.NewResponse(
