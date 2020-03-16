@@ -60,7 +60,7 @@ func NewTssCommon(peerID string, broadcastChannel chan *p2p.BroadcastMsgChan, co
 		broadcastChannel:    broadcastChannel,
 		TssMsg:              make(chan *p2p.Message),
 		P2PPeers:            nil,
-		BlamePeers:          NewBlame(),
+		BlamePeers:          Blame{},
 		msgID:               msgID,
 	}
 }

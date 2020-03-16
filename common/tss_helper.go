@@ -296,15 +296,3 @@ func (t *TssCommon) getHashCheckBlamePeers(localCacheItem *LocalCacheItem, hashC
 		return nil, errors.New("unknown case")
 	}
 }
-
-func NewBlame() Blame {
-	return Blame{
-		FailReason: "",
-		BlameNodes: make([]string, 0),
-	}
-}
-
-func (b *Blame) SetBlame(reason string, nodes []string) {
-	b.FailReason = reason
-	b.BlameNodes = append(b.BlameNodes, nodes...)
-}

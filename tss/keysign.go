@@ -94,23 +94,29 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 
 	result, leaderPeerID, err := t.joinParty(msgID, msgToSign, req.SignerPubKeys)
 	if err != nil {
-		blame, err := t.getBlamePeers(req.SignerPubKeys, []string{leaderPeerID.String()})
+		// just blame the leader node
+		pKey, err := GetPubKeyFromPeerID(leaderPeerID.String())
 		if err != nil {
-			t.logger.Err(err).Msg("fail to get peers to blame")
+			t.logger.Error().Err(err).Msg("fail to extract pub key from peer ID")
 		}
 		t.broadcastKeysignFailure(msgID, signers)
 		return keysign.Response{
 			Status: common.Fail,
-			Blame:  blame,
+			Blame:  common.NewBlame(common.BlameTssTimeout, []string{pKey}),
 		}, fmt.Errorf("fail to form keysign party: %s", result.Type)
 	}
 	if result.Type != messages.JoinPartyResponse_Success {
-		blamePeers := append(result.PeerIDs, leaderPeerID.String())
-		blame, err := t.getBlamePeers(req.SignerPubKeys, blamePeers)
+		pKey, err := GetPubKeyFromPeerID(leaderPeerID.String())
+		if err != nil {
+			t.logger.Error().Err(err).Msg("fail to extract pub key from peer ID")
+		}
+		blame, err := t.getBlamePeers(req.SignerPubKeys, result.PeerIDs)
 		if err != nil {
 			t.logger.Err(err).Msg("fail to get peers to blame")
 		}
 		t.broadcastKeysignFailure(msgID, signers)
+		// make sure we blame the leader as well
+		blame.AddBlameNodes(pKey)
 		return keysign.Response{
 			Status: common.Fail,
 			Blame:  blame,

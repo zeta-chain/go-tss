@@ -57,27 +57,32 @@ func GetPeerIDs(pubkeys []string) ([]peer.ID, error) {
 func GetPubKeysFromPeerIDs(peers []string) ([]string, error) {
 	var result []string
 	for _, item := range peers {
-		peerID, err := peer.Decode(item)
+		pKey, err := GetPubKeyFromPeerID(item)
 		if err != nil {
-			return nil, fmt.Errorf("fail to decode peer id: %w", err)
+			return nil, fmt.Errorf("fail to get pubkey from peerID: %w", err)
 		}
-		pk, err := peerID.ExtractPublicKey()
-		if err != nil {
-			return nil, fmt.Errorf("fail to extract pub key from peer id: %w", err)
-		}
-		rawBytes, err := pk.Raw()
-		if err != nil {
-			return nil, fmt.Errorf("faail to get pub key raw bytes: %w", err)
-		}
-		var pubkey secp256k1.PubKeySecp256k1
-		copy(pubkey[:], rawBytes)
-		accPubKey, err := sdk.Bech32ifyAccPub(pubkey)
-		if err != nil {
-			return nil, fmt.Errorf("fail to bechfy account pub key: %w", err)
-		}
-		result = append(result, accPubKey)
+		result = append(result, pKey)
 	}
 	return result, nil
+}
+
+// GetPubKeyFromPeerID extract the pub key from PeerID
+func GetPubKeyFromPeerID(pID string) (string, error) {
+	peerID, err := peer.Decode(pID)
+	if err != nil {
+		return "", fmt.Errorf("fail to decode peer id: %w", err)
+	}
+	pk, err := peerID.ExtractPublicKey()
+	if err != nil {
+		return "", fmt.Errorf("fail to extract pub key from peer id: %w", err)
+	}
+	rawBytes, err := pk.Raw()
+	if err != nil {
+		return "", fmt.Errorf("faail to get pub key raw bytes: %w", err)
+	}
+	var pubkey secp256k1.PubKeySecp256k1
+	copy(pubkey[:], rawBytes)
+	return sdk.Bech32ifyAccPub(pubkey)
 }
 
 func GetPriKey(priKeyString string) (tcrypto.PrivKey, error) {

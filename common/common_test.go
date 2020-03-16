@@ -224,7 +224,7 @@ func setupProcessVerMsgEnv(c *C, keyPool []string, partyNum int) (*TssCommon, []
 func (t *TssTestSuite) testDropMsgOwner(c *C, tssCommonStruct *TssCommon, senderID *btss.PartyID, peerPartiesID []*btss.PartyID) {
 	// clean up the blamepeer list for each test
 	defer func() {
-		tssCommonStruct.BlamePeers = NewBlame()
+		tssCommonStruct.BlamePeers = NoBlame
 	}()
 	testMsg := "testDropMsgOwner"
 	roundInfo := "round testDropMsgOwner"
@@ -281,7 +281,7 @@ func (t *TssTestSuite) testVerMsgAndUpdate(c *C, tssCommonStruct *TssCommon, sen
 func (t *TssTestSuite) testVerMsgWrongHash(c *C, tssCommonStruct *TssCommon, senderID *btss.PartyID, peerParties []*btss.PartyID, testParties TestParties, senderMsg *p2p.WrappedMessage, peerMsgMap map[int]*p2p.WrappedMessage, msgKey string, blameOwner bool) {
 	// clean up the blamepeer list for each test
 	defer func() {
-		tssCommonStruct.BlamePeers = NewBlame()
+		tssCommonStruct.BlamePeers = NoBlame
 	}()
 
 	err := tssCommonStruct.ProcessOneMessage(senderMsg, senderID.Id)
