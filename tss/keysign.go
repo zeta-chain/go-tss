@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strings"
 	"sync/atomic"
-	"time"
 
 	"github.com/libp2p/go-libp2p-core/peer"
 
@@ -72,7 +71,7 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 			return emptyResp, fmt.Errorf("fail to convert pub key to peer id: %w", err)
 		}
 
-		data, err := t.signatureNotifier.WaitForSignature(msgID, peerIDs, 30*time.Second)
+		data, err := t.signatureNotifier.WaitForSignature(msgID, peerIDs, t.conf.KeySignTimeout)
 		if err != nil {
 			return emptyResp, fmt.Errorf("fail to get signature:%w", err)
 		}
