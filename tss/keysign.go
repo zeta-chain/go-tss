@@ -71,7 +71,8 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 			return emptyResp, fmt.Errorf("fail to convert pub key to peer id: %w", err)
 		}
 
-		data, err := t.signatureNotifier.WaitForSignature(msgID, peerIDs, t.conf.KeySignTimeout)
+		// TSS keysign include both form party and keysign itself, thus we wait twice of the timeout
+		data, err := t.signatureNotifier.WaitForSignature(msgID, peerIDs, t.conf.KeySignTimeout*2)
 		if err != nil {
 			return emptyResp, fmt.Errorf("fail to get signature:%w", err)
 		}

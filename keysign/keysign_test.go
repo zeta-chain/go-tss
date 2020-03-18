@@ -45,6 +45,7 @@ type MockLocalStateManager struct {
 func (m *MockLocalStateManager) SaveLocalState(state storage.KeygenLocalState) error {
 	return nil
 }
+
 func (m *MockLocalStateManager) GetLocalState(pubKey string) (storage.KeygenLocalState, error) {
 	buf, err := ioutil.ReadFile(m.file)
 	if err != nil {

@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"sync"
 	"testing"
+	"time"
 
 	tnet "github.com/libp2p/go-libp2p-testing/net"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
@@ -54,9 +55,10 @@ func TestNewPartyCoordinator(t *testing.T) {
 	if err := mn.ConnectAllButSelf(); err != nil {
 		t.Error(err)
 	}
-	pc1 := NewPartyCoordinator(h1)
-	pc2 := NewPartyCoordinator(h2)
-	pc3 := NewPartyCoordinator(h3)
+	timeout := time.Second * 120
+	pc1 := NewPartyCoordinator(h1, timeout)
+	pc2 := NewPartyCoordinator(h2, timeout)
+	pc3 := NewPartyCoordinator(h3, timeout)
 
 	defer pc1.Stop()
 	defer pc2.Stop()
@@ -185,9 +187,10 @@ func TestNewPartyCoordinatorWithTimeout(t *testing.T) {
 	if err := mn.ConnectAllButSelf(); err != nil {
 		t.Error(err)
 	}
-	pc1 := NewPartyCoordinator(h1)
-	pc2 := NewPartyCoordinator(h2)
-	pc3 := NewPartyCoordinator(h3)
+	timeout := time.Second * 120
+	pc1 := NewPartyCoordinator(h1, timeout)
+	pc2 := NewPartyCoordinator(h2, timeout)
+	pc3 := NewPartyCoordinator(h3, timeout)
 
 	defer pc1.Stop()
 	defer pc2.Stop()
@@ -268,7 +271,8 @@ func TestGetPeerIDs(t *testing.T) {
 		t.Fatal(err)
 	}
 	p1 := h1.ID()
-	pc := NewPartyCoordinator(h1)
+	timeout := time.Second * 120
+	pc := NewPartyCoordinator(h1, timeout)
 	r, err := pc.getPeerIDs([]string{})
 	assert.Nil(t, err)
 	assert.Len(t, r, 0)

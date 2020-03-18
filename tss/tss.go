@@ -83,7 +83,7 @@ func NewTss(
 	if err := comm.Start(priKeyRawBytes); nil != err {
 		return nil, fmt.Errorf("fail to start p2p network: %w", err)
 	}
-	pc := p2p.NewPartyCoordinator(comm.GetHost())
+	pc := p2p.NewPartyCoordinator(comm.GetHost(), conf.KeySignTimeout)
 	stateManager, err := storage.NewFileStateMgr(baseFolder)
 	if err != nil {
 		return nil, fmt.Errorf("fail to create file state manager")
