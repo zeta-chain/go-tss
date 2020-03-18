@@ -20,24 +20,24 @@ import (
 	"gitlab.com/thorchain/tss/go-tss/messages"
 )
 
-const WaitForPartyGatheringTimeout time.Duration = time.Minute
-
 type PartyCoordinator struct {
 	logger       zerolog.Logger
 	host         host.Host
 	ceremonyLock *sync.Mutex
 	ceremonies   map[string]*Ceremony
 	stopChan     chan struct{}
+	timeout      time.Duration
 }
 
 // NewPartyCoordinator create a new instance of PartyCoordinator
-func NewPartyCoordinator(host host.Host) *PartyCoordinator {
+func NewPartyCoordinator(host host.Host, timeout time.Duration) *PartyCoordinator {
 	pc := &PartyCoordinator{
 		logger:       log.With().Str("module", "party_coordinator").Logger(),
 		host:         host,
 		ceremonyLock: &sync.Mutex{},
 		ceremonies:   make(map[string]*Ceremony),
 		stopChan:     make(chan struct{}),
+		timeout:      timeout,
 	}
 	host.SetStreamHandler(joinPartyProtocol, pc.HandleStream)
 	return pc
@@ -103,7 +103,7 @@ func (pc *PartyCoordinator) processJoinPartyRequest(remotePeer peer.ID, msg *mes
 		select {
 		case r := <-joinParty.Resp:
 			return r, nil
-		case <-time.After(WaitForPartyGatheringTimeout):
+		case <-time.After(pc.timeout):
 			// TODO make this timeout dynamic based on the threshold
 			result, parties := pc.onJoinPartyTimeout(joinParty)
 			if !result {
@@ -299,7 +299,7 @@ func (pc *PartyCoordinator) JoinParty(remotePeer peer.ID, msg *messages.JoinPart
 // JoinPartyWithRetry this method provide the functionality to join party with retry and backoff
 func (pc *PartyCoordinator) JoinPartyWithRetry(remotePeer peer.ID, msg *messages.JoinPartyRequest, peers []string, threshold int32) (*messages.JoinPartyResponse, error) {
 	bf := backoff.NewExponentialBackOff()
-	bf.MaxElapsedTime = WaitForPartyGatheringTimeout
+	bf.MaxElapsedTime = pc.timeout
 	resp := &messages.JoinPartyResponse{
 		Type: messages.JoinPartyResponse_Unknown,
 	}
