@@ -6,8 +6,10 @@ import (
 )
 
 const (
-	BlameHashCheck  = "hash check failed"
-	BlameTssTimeout = "Tss timeout"
+	BlameHashCheck      = "hash check failed"
+	BlameTssTimeout     = "Tss timeout"
+	BlameTssSync        = "signers fail to sync before keygen/keysign"
+	BlameTssCoordinator = "signers fail to sync with coordinator"
 )
 
 var (

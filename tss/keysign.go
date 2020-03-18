@@ -102,7 +102,7 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 		t.broadcastKeysignFailure(msgID, signers)
 		return keysign.Response{
 			Status: common.Fail,
-			Blame:  common.NewBlame(common.BlameTssTimeout, []string{pKey}),
+			Blame:  common.NewBlame(common.BlameTssCoordinator, []string{pKey}),
 		}, fmt.Errorf("fail to form keysign party: %s", result.Type)
 	}
 	if result.Type != messages.JoinPartyResponse_Success {
@@ -110,7 +110,7 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 		if err != nil {
 			t.logger.Error().Err(err).Msg("fail to extract pub key from peer ID")
 		}
-		blame, err := t.getBlamePeers(req.SignerPubKeys, result.PeerIDs)
+		blame, err := t.getBlamePeers(req.SignerPubKeys, result.PeerIDs, common.BlameTssSync)
 		if err != nil {
 			t.logger.Err(err).Msg("fail to get peers to blame")
 		}
