@@ -15,9 +15,9 @@ import (
 // keys is the node pub key of the nodes that are supposed to be online
 // onlinePeers is a slice of peer id that actually online
 // this method is to find out the gap
-func (t *TssServer) getBlamePeers(keys []string, onlinePeers []string) (common.Blame, error) {
+func (t *TssServer) getBlamePeers(keys, onlinePeers []string, reason string) (common.Blame, error) {
 	blame := common.Blame{
-		FailReason: common.BlameTssTimeout,
+		FailReason: reason,
 	}
 	for _, item := range keys {
 		found := false
@@ -73,7 +73,7 @@ func (t *TssServer) Keygen(req keygen.Request) (keygen.Response, error) {
 		}
 		return keygen.Response{
 			Status: common.Fail,
-			Blame:  common.NewBlame(common.BlameTssTimeout, []string{pKey}),
+			Blame:  common.NewBlame(common.BlameTssCoordinator, []string{pKey}),
 		}, fmt.Errorf("fail to form keygen party: %s", result.Type)
 	}
 
@@ -82,7 +82,7 @@ func (t *TssServer) Keygen(req keygen.Request) (keygen.Response, error) {
 		if err != nil {
 			t.logger.Error().Err(err).Msg("fail to extract pub key from peer ID")
 		}
-		blame, err := t.getBlamePeers(req.Keys, result.PeerIDs)
+		blame, err := t.getBlamePeers(req.Keys, result.PeerIDs, common.BlameTssSync)
 		if err != nil {
 			t.logger.Err(err).Msg("fail to get peers to blame")
 		}
