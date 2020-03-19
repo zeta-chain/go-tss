@@ -11,19 +11,20 @@ import (
 )
 
 const (
-	LengthHeader       = 4 // LengthHeader represent how many bytes we used as header
-	TimeoutReadHeader  = time.Second
-	TimeoutReadPayload = time.Second * 2
-	TimeoutWriteHeader = time.Second
+	LengthHeader        = 4 // LengthHeader represent how many bytes we used as header
+	TimeoutReadPayload  = time.Second * 2
+	TimeoutWritePayload = time.Second * 2
+	MaxPayload          = 512000 // 512kb
 )
 
 // applyDeadline will be true , and only disable it when we are doing test
 // the reason being the p2p network , mocknet, mock stream doesn't support SetReadDeadline ,SetWriteDeadline feature
 var ApplyDeadline = true
 
+// ReadStreamWithBuffer read data from the given stream
 func ReadStreamWithBuffer(stream network.Stream) ([]byte, error) {
 	if ApplyDeadline {
-		if err := stream.SetReadDeadline(time.Now().Add(TimeoutWriteHeader)); nil != err {
+		if err := stream.SetReadDeadline(time.Now().Add(TimeoutReadPayload)); nil != err {
 			if errReset := stream.Reset(); errReset != nil {
 				return nil, errReset
 			}
@@ -31,28 +32,33 @@ func ReadStreamWithBuffer(stream network.Stream) ([]byte, error) {
 		}
 	}
 	streamReader := bufio.NewReader(stream)
-	lengthBytes := make([]byte, HeadLength)
+	lengthBytes := make([]byte, LengthHeader)
 	n, err := io.ReadFull(streamReader, lengthBytes)
-	if n != HeadLength || err != nil {
-		retErr := fmt.Errorf("error in read the message head %w", err)
-		return nil, retErr
+	if n != LengthHeader || err != nil {
+		return nil, fmt.Errorf("error in read the message head %w", err)
 	}
 	length := binary.LittleEndian.Uint32(lengthBytes)
+	if length > MaxPayload {
+		if errReset := stream.Reset(); errReset != nil {
+			return nil, fmt.Errorf("fail to reset stream: %w", err)
+		}
+		return nil, fmt.Errorf("payload length:%d exceed max payload length:%d", length, MaxPayload)
+	}
 	dataBuf := make([]byte, length)
 	n, err = io.ReadFull(streamReader, dataBuf)
 	if uint32(n) != length || err != nil {
-		retErr := fmt.Errorf("short read err(%w), we would like to read: %d, however we only read: %d", err, length, n)
-		return nil, retErr
+		return nil, fmt.Errorf("short read err(%w), we would like to read: %d, however we only read: %d", err, length, n)
 	}
 	return dataBuf, nil
 }
 
+// WriteStreamWithBuffer write the message to stream
 func WriteStreamWithBuffer(msg []byte, stream network.Stream) error {
 	length := uint32(len(msg))
-	lengthBytes := make([]byte, HeadLength)
+	lengthBytes := make([]byte, LengthHeader)
 	binary.LittleEndian.PutUint32(lengthBytes, length)
 	if ApplyDeadline {
-		if err := stream.SetWriteDeadline(time.Now().Add(TimeoutWriteHeader)); nil != err {
+		if err := stream.SetWriteDeadline(time.Now().Add(TimeoutWritePayload)); nil != err {
 			if errReset := stream.Reset(); errReset != nil {
 				return errReset
 			}
@@ -61,7 +67,7 @@ func WriteStreamWithBuffer(msg []byte, stream network.Stream) error {
 	}
 	streamWrite := bufio.NewWriter(stream)
 	n, err := streamWrite.Write(lengthBytes)
-	if n != HeadLength || err != nil {
+	if n != LengthHeader || err != nil {
 		return fmt.Errorf("fail to write head: %w", err)
 	}
 	n, err = streamWrite.Write(msg)

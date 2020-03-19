@@ -26,15 +26,6 @@ var joinPartyProtocol protocol.ID = "/p2p/join-party"
 var TSSProtocolID protocol.ID = "/p2p/tss"
 
 const (
-
-	// MaxPayload the maximum payload for a message
-	MaxPayload = 512000 // 512kb
-	// Message Head Size
-	HeadLength = 4
-	// TimeoutReadWrite maximum time to wait on read and write
-	TimeoutReadWrite = time.Second * 10
-	// TimeoutBroadcast maximum time to wait for message broadcast
-	TimeoutBroadcast = time.Minute * 5
 	// TimeoutConnecting maximum time for wait for peers to connect
 	TimeoutConnecting = time.Minute * 1
 )
