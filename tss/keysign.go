@@ -65,14 +65,8 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 	}
 
 	if !t.isPartOfKeysignParty(req.SignerPubKeys) {
-		// local node is not party of the keysign , wait for signature
-		peerIDs, err := GetPeerIDs(req.SignerPubKeys)
-		if err != nil {
-			return emptyResp, fmt.Errorf("fail to convert pub key to peer id: %w", err)
-		}
-
 		// TSS keysign include both form party and keysign itself, thus we wait twice of the timeout
-		data, err := t.signatureNotifier.WaitForSignature(msgID, peerIDs, t.conf.KeySignTimeout*2)
+		data, err := t.signatureNotifier.WaitForSignature(msgID, msgToSign, req.PoolPubKey, t.conf.KeySignTimeout*2)
 		if err != nil {
 			return emptyResp, fmt.Errorf("fail to get signature:%w", err)
 		}

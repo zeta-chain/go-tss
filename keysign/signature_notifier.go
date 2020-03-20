@@ -91,10 +91,9 @@ func (s *SignatureNotifier) handleStream(stream network.Stream) {
 		logger.Debug().Msgf("notifier for message id(%s) not exist", msg.ID)
 		return
 	}
-	finished, err := n.UpdateSignature(remotePeer, &signature)
+	finished, err := n.ProcessSignature(&signature)
 	if err != nil {
 		logger.Error().Err(err).Msg("fail to update local signature data")
-		delete(s.notifiers, msg.ID)
 		return
 	}
 	if finished {
@@ -204,18 +203,18 @@ func (s *SignatureNotifier) BroadcastFailed(messageID string, peers []peer.ID) e
 func (s *SignatureNotifier) addToNotifiers(n *Notifier) {
 	s.notifierLock.Lock()
 	defer s.notifierLock.Unlock()
-	s.notifiers[n.MessageID] = n
+	s.notifiers[n.messageID] = n
 }
 
 func (s *SignatureNotifier) removeNotifier(n *Notifier) {
 	s.notifierLock.Lock()
 	defer s.notifierLock.Unlock()
-	delete(s.notifiers, n.MessageID)
+	delete(s.notifiers, n.messageID)
 }
 
 // WaitForSignature wait until keysign finished and signature is available
-func (s *SignatureNotifier) WaitForSignature(messageID string, peers []peer.ID, timeout time.Duration) (*bc.SignatureData, error) {
-	n, err := NewNotifier(messageID, peers)
+func (s *SignatureNotifier) WaitForSignature(messageID string, message []byte, poolPubKey string, timeout time.Duration) (*bc.SignatureData, error) {
+	n, err := NewNotifier(messageID, message, poolPubKey)
 	if err != nil {
 		return nil, fmt.Errorf("fail to create notifier")
 	}

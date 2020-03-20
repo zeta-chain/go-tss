@@ -2,6 +2,8 @@ package keysign
 
 import (
 	"context"
+	"encoding/json"
+	"io/ioutil"
 	"sync"
 	"testing"
 	"time"
@@ -12,11 +14,15 @@ import (
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
 	"github.com/stretchr/testify/assert"
 
-	"gitlab.com/thorchain/tss/go-tss"
+	"gitlab.com/thorchain/tss/go-tss/common"
 	"gitlab.com/thorchain/tss/go-tss/p2p"
 )
 
 func TestSignatureNotifierHappyPath(t *testing.T) {
+	poolPubKey := `thorpub1addwnpepqv6xp3fmm47dfuzglywqvpv8fdjv55zxte4a26tslcezns5czv586u2fw33`
+	messageToSign := "helloworld-test"
+	messageID, err := common.MsgToHashString([]byte(messageToSign))
+	assert.Nil(t, err)
 	p2p.ApplyDeadline = false
 	id1 := tnet.RandIdentityOrFatal(t)
 	id2 := tnet.RandIdentityOrFatal(t)
@@ -61,29 +67,25 @@ func TestSignatureNotifierHappyPath(t *testing.T) {
 	defer n1.Stop()
 	defer n2.Stop()
 	defer n3.Stop()
-
-	s := &bc.SignatureData{
-		Signature:         []byte(go_tss.RandStringBytesMask(32)),
-		SignatureRecovery: []byte(go_tss.RandStringBytesMask(32)),
-		R:                 []byte(go_tss.RandStringBytesMask(32)),
-		S:                 []byte(go_tss.RandStringBytesMask(32)),
-		M:                 []byte(go_tss.RandStringBytesMask(32)),
-	}
-	messageID := go_tss.RandStringBytesMask(24)
+	sigFile := "../test_data/signature_notify/sig1.json"
+	content, err := ioutil.ReadFile(sigFile)
+	assert.Nil(t, err)
+	assert.NotNil(t, content)
+	var signature bc.SignatureData
+	err = json.Unmarshal(content, &signature)
+	assert.Nil(t, err)
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		sig, err := n1.WaitForSignature(messageID, []peer.ID{
-			p2, p3,
-		}, time.Second*30)
+		sig, err := n1.WaitForSignature(messageID, []byte(messageToSign), poolPubKey, time.Second*30)
 		assert.Nil(t, err)
 		assert.NotNil(t, sig)
 	}()
-	assert.Nil(t, n2.BroadcastSignature(messageID, s, []peer.ID{
+	assert.Nil(t, n2.BroadcastSignature(messageID, &signature, []peer.ID{
 		p1, p3,
 	}))
-	assert.Nil(t, n3.BroadcastSignature(messageID, s, []peer.ID{
+	assert.Nil(t, n3.BroadcastSignature(messageID, &signature, []peer.ID{
 		p1, p2,
 	}))
 	wg.Wait()
