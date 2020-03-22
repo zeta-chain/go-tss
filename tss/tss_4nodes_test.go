@@ -60,7 +60,7 @@ var _ = Suite(&FourNodeTestSuite{})
 // setup four nodes for test
 func (s *FourNodeTestSuite) SetUpTest(c *C) {
 	s.isBlameTest = false
-	common.InitLog("info", true, "four_nodes_test")
+	common.InitLog("debug", true, "four_nodes_test")
 	common.SetupBech32Prefix()
 	s.ports = []int{
 		16666, 16667, 16668, 16669,
@@ -69,8 +69,8 @@ func (s *FourNodeTestSuite) SetUpTest(c *C) {
 	s.preParams = getPreparams(c)
 	s.servers = make([]*TssServer, partyNum)
 	conf := common.TssConfig{
-		KeyGenTimeout:   120 * time.Second,
-		KeySignTimeout:  120 * time.Second,
+		KeyGenTimeout:   60 * time.Second,
+		KeySignTimeout:  60 * time.Second,
 		PreParamTimeout: 5 * time.Second,
 	}
 

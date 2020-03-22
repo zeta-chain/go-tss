@@ -124,8 +124,8 @@ func (s *TssKeysisgnTestSuite) TestSignMessage(c *C) {
 	lock := &sync.Mutex{}
 	keysignResult := make(map[int]*bc.SignatureData)
 	conf := common.TssConfig{
-		KeyGenTimeout:   120 * time.Second,
-		KeySignTimeout:  120 * time.Second,
+		KeyGenTimeout:   60 * time.Second,
+		KeySignTimeout:  60 * time.Second,
 		PreParamTimeout: 5 * time.Second,
 	}
 
@@ -134,12 +134,11 @@ func (s *TssKeysisgnTestSuite) TestSignMessage(c *C) {
 		go func(idx int) {
 			defer wg.Done()
 			comm := s.comms[idx]
-			var currentKeySign string
 			stopChan := make(chan struct{})
 			keysignIns := NewTssKeySign(comm.GetLocalPeerID(),
 				conf,
 				comm.BroadcastMsgChan,
-				stopChan, &currentKeySign, messageID)
+				stopChan, messageID)
 			keysignMsgChannel := keysignIns.GetTssKeySignChannels()
 			comm.SetSubscribe(p2p.TSSKeySignMsg, messageID, keysignMsgChannel)
 			comm.SetSubscribe(p2p.TSSKeySignVerMsg, messageID, keysignMsgChannel)

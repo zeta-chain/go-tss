@@ -125,8 +125,8 @@ func (s *TssKeygenTestSuite) TestGenerateNewKey(c *C) {
 	messageID, err := common.MsgToHashString([]byte(strings.Join(req.Keys, "")))
 	c.Assert(err, IsNil)
 	conf := common.TssConfig{
-		KeyGenTimeout:   120 * time.Second,
-		KeySignTimeout:  120 * time.Second,
+		KeyGenTimeout:   60 * time.Second,
+		KeySignTimeout:  60 * time.Second,
 		PreParamTimeout: 5 * time.Second,
 	}
 	wg := sync.WaitGroup{}
