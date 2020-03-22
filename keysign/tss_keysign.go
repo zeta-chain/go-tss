@@ -25,7 +25,6 @@ type TssKeySign struct {
 	stopChan        chan struct{} // channel to indicate whether we should stop
 	syncMsg         chan *p2p.Message
 	localParty      *btss.PartyID
-	keySignCurrent  *string
 	commStopChan    chan struct{}
 }
 
@@ -33,7 +32,6 @@ func NewTssKeySign(localP2PID string,
 	conf common.TssConfig,
 	broadcastChan chan *p2p.BroadcastMsgChan,
 	stopChan chan struct{},
-	keySignCurrent *string,
 	msgID string) *TssKeySign {
 	logItems := []string{"keySign", msgID}
 	return &TssKeySign{
@@ -41,7 +39,6 @@ func NewTssKeySign(localP2PID string,
 		tssCommonStruct: common.NewTssCommon(localP2PID, broadcastChan, conf, msgID),
 		stopChan:        stopChan,
 		localParty:      nil,
-		keySignCurrent:  keySignCurrent,
 		commStopChan:    make(chan struct{}),
 	}
 }
@@ -147,9 +144,6 @@ func (tKeySign *TssKeySign) processKeySign(errChan chan struct{}, outCh <-chan b
 			return nil, common.ErrTssTimeOut
 		case msg := <-outCh:
 			tKeySign.logger.Debug().Msgf(">>>>>>>>>>key sign msg: %s", msg.String())
-			// for the sake of performance, we do not lock the status update
-			// we report a rough status of current round
-			*tKeySign.keySignCurrent = msg.Type()
 			err := tKeySign.tssCommonStruct.ProcessOutCh(msg, p2p.TSSKeySignMsg)
 			if err != nil {
 				return nil, err
