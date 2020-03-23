@@ -12,6 +12,7 @@ import (
 	bcrypto "github.com/binance-chain/tss-lib/crypto"
 
 	"gitlab.com/thorchain/tss/go-tss"
+	"gitlab.com/thorchain/tss/go-tss/messages"
 	"gitlab.com/thorchain/tss/go-tss/p2p"
 )
 
@@ -24,7 +25,7 @@ func (TssCommonTestSuite) TestTssCommon(c *C) {
 	c.Assert(err, IsNil)
 	peerID, err := go_tss.GetPeerIDFromSecp256PubKey(pk.(secp256k1.PubKeySecp256k1))
 	c.Assert(err, IsNil)
-	broadcastChannel := make(chan *p2p.BroadcastMsgChan)
+	broadcastChannel := make(chan *messages.BroadcastMsgChan)
 	tssCommon := NewTssCommon(peerID.String(), broadcastChannel, TssConfig{}, "message-id")
 	c.Assert(tssCommon, NotNil)
 	stopchan := make(chan struct{})

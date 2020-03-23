@@ -16,7 +16,7 @@ import (
 	"github.com/tendermint/tendermint/crypto/secp256k1"
 	. "gopkg.in/check.v1"
 
-	"gitlab.com/thorchain/tss/go-tss/p2p"
+	"gitlab.com/thorchain/tss/go-tss/messages"
 )
 
 var (
@@ -121,11 +121,11 @@ func (t *TssTestSuite) TestTssProcessOutCh(c *C) {
 	msg := btss.NewMessageWrapper(messageRouting, testContent)
 	tssMsg := btss.NewMessage(messageRouting, testContent, msg)
 	tssCommonStruct := NewTssCommon("", nil, conf, "test")
-	err = tssCommonStruct.ProcessOutCh(tssMsg, p2p.TSSKeyGenMsg)
+	err = tssCommonStruct.ProcessOutCh(tssMsg, messages.TSSKeyGenMsg)
 	c.Assert(err, IsNil)
 }
 
-func fabricateTssMsg(c *C, partyID *btss.PartyID, roundInfo, msg string) *p2p.WrappedMessage {
+func fabricateTssMsg(c *C, partyID *btss.PartyID, roundInfo, msg string) *messages.WrappedMessage {
 	routingInfo := btss.MessageRouting{
 		From:                    partyID,
 		To:                      nil,
@@ -133,30 +133,30 @@ func fabricateTssMsg(c *C, partyID *btss.PartyID, roundInfo, msg string) *p2p.Wr
 		IsToOldCommittee:        false,
 		IsToOldAndNewCommittees: false,
 	}
-	wiredMessage := p2p.WireMessage{
+	wiredMessage := messages.WireMessage{
 		Routing:   &routingInfo,
 		RoundInfo: roundInfo,
 		Message:   []byte(msg),
 	}
 	marshaledMsg, err := json.Marshal(wiredMessage)
 	c.Assert(err, IsNil)
-	wrappedMsg := p2p.WrappedMessage{
-		MessageType: p2p.TSSKeyGenMsg,
+	wrappedMsg := messages.WrappedMessage{
+		MessageType: messages.TSSKeyGenMsg,
 		Payload:     marshaledMsg,
 	}
 	return &wrappedMsg
 }
 
-func fabricateVerMsg(c *C, hash, hashKey string) *p2p.WrappedMessage {
-	broadcastConfirmMsg := &p2p.BroadcastConfirmMessage{
+func fabricateVerMsg(c *C, hash, hashKey string) *messages.WrappedMessage {
+	broadcastConfirmMsg := &messages.BroadcastConfirmMessage{
 		P2PID: "",
 		Key:   hashKey,
 		Hash:  hash,
 	}
 	marshaledMsg, err := json.Marshal(broadcastConfirmMsg)
 	c.Assert(err, IsNil)
-	wrappedMsg := p2p.WrappedMessage{
-		MessageType: p2p.TSSKeyGenVerMsg,
+	wrappedMsg := messages.WrappedMessage{
+		MessageType: messages.TSSKeyGenVerMsg,
 		Payload:     marshaledMsg,
 	}
 	return &wrappedMsg
@@ -278,7 +278,7 @@ func (t *TssTestSuite) testVerMsgAndUpdate(c *C, tssCommonStruct *TssCommon, sen
 	c.Assert(tssCommonStruct.ProcessOneMessage(wrappedVerMsg, tssCommonStruct.PartyIDtoP2PID[partiesID[2].Id].String()), ErrorMatches, "fail to update the message to local party: fail to set bytes to local party: task , party <nil>, round -1: proto: can't skip unknown wire type 4")
 }
 
-func (t *TssTestSuite) testVerMsgWrongHash(c *C, tssCommonStruct *TssCommon, senderID *btss.PartyID, peerParties []*btss.PartyID, testParties TestParties, senderMsg *p2p.WrappedMessage, peerMsgMap map[int]*p2p.WrappedMessage, msgKey string, blameOwner bool) {
+func (t *TssTestSuite) testVerMsgWrongHash(c *C, tssCommonStruct *TssCommon, senderID *btss.PartyID, peerParties []*btss.PartyID, testParties TestParties, senderMsg *messages.WrappedMessage, peerMsgMap map[int]*messages.WrappedMessage, msgKey string, blameOwner bool) {
 	// clean up the blamepeer list for each test
 	defer func() {
 		tssCommonStruct.BlamePeers = NoBlame
@@ -332,8 +332,8 @@ func (t *TssTestSuite) TestProcessVerMessage(c *C) {
 	t.testVerMsgAndUpdate(c, tssCommonStruct, peerPartiesID[0], partiesID)
 }
 
-func constructMsg(c *C, senderID *btss.PartyID, testParties TestParties, modifiedHash []string, roundInfo, modifiedOwnerMsg string) (*p2p.WrappedMessage, map[int]*p2p.WrappedMessage, string) {
-	wrappedMsgMap := make(map[int]*p2p.WrappedMessage)
+func constructMsg(c *C, senderID *btss.PartyID, testParties TestParties, modifiedHash []string, roundInfo, modifiedOwnerMsg string) (*messages.WrappedMessage, map[int]*messages.WrappedMessage, string) {
+	wrappedMsgMap := make(map[int]*messages.WrappedMessage)
 	testMsg := "testVerMsgWrongHash"
 	msgHash, err := BytesToHashString([]byte(testMsg))
 	c.Assert(err, IsNil)

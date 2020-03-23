@@ -8,7 +8,6 @@ import (
 	"gitlab.com/thorchain/tss/go-tss/common"
 	"gitlab.com/thorchain/tss/go-tss/keygen"
 	"gitlab.com/thorchain/tss/go-tss/messages"
-	"gitlab.com/thorchain/tss/go-tss/p2p"
 )
 
 // getBlamePeers is to find out which node to blame
@@ -59,11 +58,11 @@ func (t *TssServer) Keygen(req keygen.Request) (keygen.Response, error) {
 		t.stateManager)
 
 	keygenMsgChannel := keygenInstance.GetTssKeyGenChannels()
-	t.p2pCommunication.SetSubscribe(p2p.TSSKeyGenMsg, msgID, keygenMsgChannel)
-	t.p2pCommunication.SetSubscribe(p2p.TSSKeyGenVerMsg, msgID, keygenMsgChannel)
+	t.p2pCommunication.SetSubscribe(messages.TSSKeyGenMsg, msgID, keygenMsgChannel)
+	t.p2pCommunication.SetSubscribe(messages.TSSKeyGenVerMsg, msgID, keygenMsgChannel)
 
-	defer t.p2pCommunication.CancelSubscribe(p2p.TSSKeyGenMsg, msgID)
-	defer t.p2pCommunication.CancelSubscribe(p2p.TSSKeyGenVerMsg, msgID)
+	defer t.p2pCommunication.CancelSubscribe(messages.TSSKeyGenMsg, msgID)
+	defer t.p2pCommunication.CancelSubscribe(messages.TSSKeyGenVerMsg, msgID)
 	result, leaderPeerID, err := t.joinParty(msgID, []byte(strings.Join(req.Keys, ",")), req.Keys)
 	if err != nil {
 		// just blame the leader node

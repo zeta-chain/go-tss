@@ -15,6 +15,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"gitlab.com/thorchain/tss/go-tss/common"
+	"gitlab.com/thorchain/tss/go-tss/messages"
 	"gitlab.com/thorchain/tss/go-tss/p2p"
 	"gitlab.com/thorchain/tss/go-tss/storage"
 )
@@ -30,7 +31,7 @@ type TssKeySign struct {
 
 func NewTssKeySign(localP2PID string,
 	conf common.TssConfig,
-	broadcastChan chan *p2p.BroadcastMsgChan,
+	broadcastChan chan *messages.BroadcastMsgChan,
 	stopChan chan struct{},
 	msgID string) *TssKeySign {
 	logItems := []string{"keySign", msgID}
@@ -144,7 +145,7 @@ func (tKeySign *TssKeySign) processKeySign(errChan chan struct{}, outCh <-chan b
 			return nil, common.ErrTssTimeOut
 		case msg := <-outCh:
 			tKeySign.logger.Debug().Msgf(">>>>>>>>>>key sign msg: %s", msg.String())
-			err := tKeySign.tssCommonStruct.ProcessOutCh(msg, p2p.TSSKeySignMsg)
+			err := tKeySign.tssCommonStruct.ProcessOutCh(msg, messages.TSSKeySignMsg)
 			if err != nil {
 				return nil, err
 			}
@@ -157,7 +158,6 @@ func (tKeySign *TssKeySign) processKeySign(errChan chan struct{}, outCh <-chan b
 }
 
 func (tKeySign *TssKeySign) WriteKeySignResult(w http.ResponseWriter, R, S string, status common.Status) {
-
 	signResp := Response{
 		R:      R,
 		S:      S,

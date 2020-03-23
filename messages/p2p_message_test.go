@@ -1,11 +1,14 @@
-package p2p
+package messages
 
 import (
 	"math/big"
+	"testing"
 
 	btss "github.com/binance-chain/tss-lib/tss"
 	. "gopkg.in/check.v1"
 )
+
+func TestPackage(t *testing.T) { TestingT(t) }
 
 type THORChainTSSMessageTypeSuite struct{}
 

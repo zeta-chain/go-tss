@@ -9,8 +9,8 @@ import (
 // A new type we need for writing a custom flag parser
 type addrList []maddr.Multiaddr
 
-// P2PConfig is configuration for P2P
-type P2PConfig struct {
+// Config is configuration for P2P
+type Config struct {
 	RendezvousString string
 	Port             int
 	BootstrapPeers   addrList
@@ -18,11 +18,11 @@ type P2PConfig struct {
 
 // String implement fmt.Stringer
 func (al *addrList) String() string {
-	strs := make([]string, len(*al))
+	addresses := make([]string, len(*al))
 	for i, addr := range *al {
-		strs[i] = addr.String()
+		addresses[i] = addr.String()
 	}
-	return strings.Join(strs, ",")
+	return strings.Join(addresses, ",")
 }
 
 // Set add the given value to addList

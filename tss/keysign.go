@@ -12,7 +12,6 @@ import (
 	"gitlab.com/thorchain/tss/go-tss/common"
 	"gitlab.com/thorchain/tss/go-tss/keysign"
 	"gitlab.com/thorchain/tss/go-tss/messages"
-	"gitlab.com/thorchain/tss/go-tss/p2p"
 )
 
 func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
@@ -35,11 +34,11 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 	)
 
 	keySignChannels := keysignInstance.GetTssKeySignChannels()
-	t.p2pCommunication.SetSubscribe(p2p.TSSKeySignMsg, msgID, keySignChannels)
-	t.p2pCommunication.SetSubscribe(p2p.TSSKeySignVerMsg, msgID, keySignChannels)
+	t.p2pCommunication.SetSubscribe(messages.TSSKeySignMsg, msgID, keySignChannels)
+	t.p2pCommunication.SetSubscribe(messages.TSSKeySignVerMsg, msgID, keySignChannels)
 
-	defer t.p2pCommunication.CancelSubscribe(p2p.TSSKeySignMsg, msgID)
-	defer t.p2pCommunication.CancelSubscribe(p2p.TSSKeySignVerMsg, msgID)
+	defer t.p2pCommunication.CancelSubscribe(messages.TSSKeySignMsg, msgID)
+	defer t.p2pCommunication.CancelSubscribe(messages.TSSKeySignVerMsg, msgID)
 
 	localStateItem, err := t.stateManager.GetLocalState(req.PoolPubKey)
 	if err != nil {
