@@ -3,18 +3,18 @@ package common
 import (
 	"sync"
 
-	"gitlab.com/thorchain/tss/go-tss/p2p"
+	"gitlab.com/thorchain/tss/go-tss/messages"
 )
 
 // LocalCacheItem used to cache the unconfirmed broadcast message
 type LocalCacheItem struct {
-	Msg           *p2p.WireMessage
+	Msg           *messages.WireMessage
 	Hash          string
 	lock          *sync.Mutex
 	ConfirmedList map[string]string
 }
 
-func NewLocalCacheItem(msg *p2p.WireMessage, hash string) *LocalCacheItem {
+func NewLocalCacheItem(msg *messages.WireMessage, hash string) *LocalCacheItem {
 	return &LocalCacheItem{
 		Msg:           msg,
 		Hash:          hash,

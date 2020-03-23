@@ -18,6 +18,8 @@ import (
 	maddr "github.com/multiformats/go-multiaddr"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+
+	"gitlab.com/thorchain/tss/go-tss/messages"
 )
 
 var joinPartyProtocol protocol.ID = "/p2p/join-party"
@@ -46,10 +48,10 @@ type Communication struct {
 	routingDiscovery *discovery.RoutingDiscovery
 	wg               *sync.WaitGroup
 	stopChan         chan struct{} // channel to indicate whether we should stop
-	subscribers      map[THORChainTSSMessageType]*MessageIDSubscriber
+	subscribers      map[messages.THORChainTSSMessageType]*MessageIDSubscriber
 	subscriberLocker *sync.Mutex
 	streamCount      int64
-	BroadcastMsgChan chan *BroadcastMsgChan
+	BroadcastMsgChan chan *messages.BroadcastMsgChan
 }
 
 // NewCommunication create a new instance of Communication
@@ -65,10 +67,10 @@ func NewCommunication(rendezvous string, bootstrapPeers []maddr.Multiaddr, port 
 		listenAddr:       addr,
 		wg:               &sync.WaitGroup{},
 		stopChan:         make(chan struct{}),
-		subscribers:      make(map[THORChainTSSMessageType]*MessageIDSubscriber),
+		subscribers:      make(map[messages.THORChainTSSMessageType]*MessageIDSubscriber),
 		subscriberLocker: &sync.Mutex{},
 		streamCount:      0,
-		BroadcastMsgChan: make(chan *BroadcastMsgChan, 1024),
+		BroadcastMsgChan: make(chan *messages.BroadcastMsgChan, 1024),
 	}, nil
 }
 
@@ -156,7 +158,7 @@ func (c *Communication) readFromStream(stream network.Stream) {
 			c.logger.Error().Err(err).Msgf("fail to read from stream,peerID: %s", peerID)
 			return
 		}
-		var wrappedMsg WrappedMessage
+		var wrappedMsg messages.WrappedMessage
 		if err := json.Unmarshal(dataBuf, &wrappedMsg); nil != err {
 			c.logger.Error().Err(err).Msg("fail to unmarshal wrapped message bytes")
 			return
@@ -284,7 +286,7 @@ func (c *Communication) Stop() error {
 	return nil
 }
 
-func (c *Communication) SetSubscribe(topic THORChainTSSMessageType, msgID string, channel chan *Message) {
+func (c *Communication) SetSubscribe(topic messages.THORChainTSSMessageType, msgID string, channel chan *Message) {
 	c.subscriberLocker.Lock()
 	defer c.subscriberLocker.Unlock()
 
@@ -296,7 +298,7 @@ func (c *Communication) SetSubscribe(topic THORChainTSSMessageType, msgID string
 	messageIDSubscribers.Subscribe(msgID, channel)
 }
 
-func (c *Communication) getSubscriber(topic THORChainTSSMessageType, msgID string) chan *Message {
+func (c *Communication) getSubscriber(topic messages.THORChainTSSMessageType, msgID string) chan *Message {
 	c.subscriberLocker.Lock()
 	defer c.subscriberLocker.Unlock()
 	messageIDSubscribers, ok := c.subscribers[topic]
@@ -307,7 +309,7 @@ func (c *Communication) getSubscriber(topic THORChainTSSMessageType, msgID strin
 	return messageIDSubscribers.GetSubscriber(msgID)
 }
 
-func (c *Communication) CancelSubscribe(topic THORChainTSSMessageType, msgID string) {
+func (c *Communication) CancelSubscribe(topic messages.THORChainTSSMessageType, msgID string) {
 	c.subscriberLocker.Lock()
 	defer c.subscriberLocker.Unlock()
 

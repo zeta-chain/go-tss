@@ -20,6 +20,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"gitlab.com/thorchain/tss/go-tss/common"
+	"gitlab.com/thorchain/tss/go-tss/messages"
 	"gitlab.com/thorchain/tss/go-tss/p2p"
 	"gitlab.com/thorchain/tss/go-tss/storage"
 )
@@ -152,11 +153,11 @@ func (s *TssKeygenTestSuite) TestGenerateNewKey(c *C) {
 				s.stateMgrs[idx])
 			c.Assert(keygenInstance, NotNil)
 			keygenMsgChannel := keygenInstance.GetTssKeyGenChannels()
-			comm.SetSubscribe(p2p.TSSKeyGenMsg, messageID, keygenMsgChannel)
-			comm.SetSubscribe(p2p.TSSKeyGenVerMsg, messageID, keygenMsgChannel)
+			comm.SetSubscribe(messages.TSSKeyGenMsg, messageID, keygenMsgChannel)
+			comm.SetSubscribe(messages.TSSKeyGenVerMsg, messageID, keygenMsgChannel)
 
-			defer comm.CancelSubscribe(p2p.TSSKeyGenMsg, messageID)
-			defer comm.CancelSubscribe(p2p.TSSKeyGenVerMsg, messageID)
+			defer comm.CancelSubscribe(messages.TSSKeyGenMsg, messageID)
+			defer comm.CancelSubscribe(messages.TSSKeyGenVerMsg, messageID)
 			sig, err := keygenInstance.GenerateNewKey(req)
 			c.Assert(err, IsNil)
 			lock.Lock()

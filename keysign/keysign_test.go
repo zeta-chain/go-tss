@@ -15,6 +15,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"gitlab.com/thorchain/tss/go-tss/common"
+	"gitlab.com/thorchain/tss/go-tss/messages"
 	"gitlab.com/thorchain/tss/go-tss/p2p"
 	"gitlab.com/thorchain/tss/go-tss/storage"
 )
@@ -140,11 +141,11 @@ func (s *TssKeysisgnTestSuite) TestSignMessage(c *C) {
 				comm.BroadcastMsgChan,
 				stopChan, messageID)
 			keysignMsgChannel := keysignIns.GetTssKeySignChannels()
-			comm.SetSubscribe(p2p.TSSKeySignMsg, messageID, keysignMsgChannel)
-			comm.SetSubscribe(p2p.TSSKeySignVerMsg, messageID, keysignMsgChannel)
+			comm.SetSubscribe(messages.TSSKeySignMsg, messageID, keysignMsgChannel)
+			comm.SetSubscribe(messages.TSSKeySignVerMsg, messageID, keysignMsgChannel)
 
-			defer comm.CancelSubscribe(p2p.TSSKeySignMsg, messageID)
-			defer comm.CancelSubscribe(p2p.TSSKeySignVerMsg, messageID)
+			defer comm.CancelSubscribe(messages.TSSKeySignMsg, messageID)
+			defer comm.CancelSubscribe(messages.TSSKeySignVerMsg, messageID)
 			localState, err := s.stateMgrs[idx].GetLocalState(req.PoolPubKey)
 			c.Assert(err, IsNil)
 			sig, err := keysignIns.SignMessage([]byte(req.Message), localState, req.SignerPubKeys)

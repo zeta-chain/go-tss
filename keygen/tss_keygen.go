@@ -13,6 +13,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"gitlab.com/thorchain/tss/go-tss/common"
+	"gitlab.com/thorchain/tss/go-tss/messages"
 	"gitlab.com/thorchain/tss/go-tss/p2p"
 	"gitlab.com/thorchain/tss/go-tss/storage"
 )
@@ -32,7 +33,7 @@ type TssKeyGen struct {
 func NewTssKeyGen(localP2PID string,
 	conf common.TssConfig,
 	localNodePubKey string,
-	broadcastChan chan *p2p.BroadcastMsgChan,
+	broadcastChan chan *messages.BroadcastMsgChan,
 	stopChan chan struct{},
 	preParam *bkg.LocalPreParams,
 	keygenCurrent *string,
@@ -153,7 +154,7 @@ func (tKeyGen *TssKeyGen) processKeyGen(errChan chan struct{},
 			// for the sake of performance, we do not lock the status update
 			// we report a rough status of current round
 			*tKeyGen.keygenCurrent = msg.Type()
-			err := tKeyGen.tssCommonStruct.ProcessOutCh(msg, p2p.TSSKeyGenMsg)
+			err := tKeyGen.tssCommonStruct.ProcessOutCh(msg, messages.TSSKeyGenMsg)
 			if err != nil {
 				return nil, err
 			}
