@@ -54,7 +54,7 @@ func TestNewPartyCoordinator(t *testing.T) {
 	if err := mn.ConnectAllButSelf(); err != nil {
 		t.Error(err)
 	}
-	timeout := time.Second * 120
+	timeout := time.Second * 5
 	pc1 := NewPartyCoordinator(h1, timeout)
 	pc2 := NewPartyCoordinator(h2, timeout)
 	pc3 := NewPartyCoordinator(h3, timeout)
@@ -186,7 +186,7 @@ func TestNewPartyCoordinatorWithTimeout(t *testing.T) {
 	if err := mn.ConnectAllButSelf(); err != nil {
 		t.Error(err)
 	}
-	timeout := time.Second * 120
+	timeout := time.Second * 5
 	pc1 := NewPartyCoordinator(h1, timeout)
 	pc2 := NewPartyCoordinator(h2, timeout)
 	pc3 := NewPartyCoordinator(h3, timeout)
@@ -253,7 +253,7 @@ func TestGetPeerIDs(t *testing.T) {
 		t.Fatal(err)
 	}
 	p1 := h1.ID()
-	timeout := time.Second * 120
+	timeout := time.Second * 5
 	pc := NewPartyCoordinator(h1, timeout)
 	r, err := pc.getPeerIDs([]string{})
 	assert.Nil(t, err)

@@ -70,13 +70,18 @@ func (t *TssServer) Keygen(req keygen.Request) (keygen.Response, error) {
 		if err != nil {
 			t.logger.Error().Err(err).Msg("fail to extract pub key from peer ID")
 		}
+		// log the error and then suppress it , thus we could return appropriate blame to client
+		if result != nil {
+			t.logger.Error().Err(err).Msgf("fail to form keygen party: %s", result.Type)
+		}
 		return keygen.Response{
 			Status: common.Fail,
 			Blame:  common.NewBlame(common.BlameTssCoordinator, []string{pKey}),
-		}, fmt.Errorf("fail to form keygen party: %s", result.Type)
+		}, nil
 	}
 
 	if result.Type != messages.JoinPartyResponse_Success {
+		t.logger.Info().Msgf("online peers: %+v", result.PeerIDs)
 		pKey, err := GetPubKeyFromPeerID(leaderPeerID.String())
 		if err != nil {
 			t.logger.Error().Err(err).Msg("fail to extract pub key from peer ID")
@@ -86,10 +91,11 @@ func (t *TssServer) Keygen(req keygen.Request) (keygen.Response, error) {
 			t.logger.Err(err).Msg("fail to get peers to blame")
 		}
 		blame.AddBlameNodes(pKey)
+		t.logger.Error().Err(err).Msgf("fail to form keygen party:%s", result.Type)
 		return keygen.Response{
 			Status: common.Fail,
 			Blame:  blame,
-		}, fmt.Errorf("fail to form keygen party: %s", result.Type)
+		}, nil
 	}
 	t.logger.Info().Msg("keygen party formed")
 	// the statistic of keygen only care about Tss it self, even if the

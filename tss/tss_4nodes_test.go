@@ -186,7 +186,7 @@ func (s *FourNodeTestSuite) TestFailJoinParty(c *C) {
 		go func(idx int) {
 			defer wg.Done()
 			res, err := s.servers[idx].Keygen(req)
-			c.Assert(err, NotNil)
+			c.Assert(err, IsNil)
 			lock.Lock()
 			defer lock.Unlock()
 			keygenResult[idx] = res
