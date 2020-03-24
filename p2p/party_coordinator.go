@@ -83,7 +83,8 @@ func (pc *PartyCoordinator) HandleStream(stream network.Stream) {
 
 func (pc *PartyCoordinator) processJoinPartyRequest(remotePeer peer.ID, msg *messages.JoinPartyRequest) (*messages.JoinPartyResponse, error) {
 	joinParty := NewJoinParty(msg, remotePeer)
-	if err := pc.onJoinParty(joinParty); err != nil {
+	c, err := pc.onJoinParty(joinParty)
+	if err != nil {
 		if errors.Is(err, errLeaderNotReady) {
 			// leader node doesn't have request yet, so don't know how to handle the join party request
 			return &messages.JoinPartyResponse{
@@ -99,21 +100,25 @@ func (pc *PartyCoordinator) processJoinPartyRequest(remotePeer peer.ID, msg *mes
 		}
 		pc.logger.Error().Err(err).Msg("fail to join party")
 	}
-	for {
-		select {
-		case r := <-joinParty.Resp:
-			return r, nil
-		case <-time.After(pc.timeout):
-			// TODO make this timeout dynamic based on the threshold
-			result, parties := pc.onJoinPartyTimeout(joinParty)
-			if !result {
-				return &messages.JoinPartyResponse{
-					ID:      msg.ID,
-					Type:    messages.JoinPartyResponse_Timeout,
-					PeerIDs: parties,
-				}, nil
-			}
-		}
+	if c == nil {
+		// it only happen when the node was request to exit gracefully
+		return &messages.JoinPartyResponse{
+			ID:   msg.ID,
+			Type: messages.JoinPartyResponse_Unknown,
+		}, nil
+	}
+
+	select {
+	case r := <-joinParty.Resp:
+		return r, nil
+	case onlinePeers := <-c.TimeoutChan:
+		// make sure the ceremony get removed when there is timeout
+		defer pc.ensureRemoveCeremony(msg.ID)
+		return &messages.JoinPartyResponse{
+			ID:      msg.ID,
+			Type:    messages.JoinPartyResponse_Timeout,
+			PeerIDs: onlinePeers,
+		}, nil
 	}
 }
 
@@ -140,7 +145,7 @@ var (
 )
 
 // onJoinParty is a call back function
-func (pc *PartyCoordinator) onJoinParty(joinParty *JoinParty) error {
+func (pc *PartyCoordinator) onJoinParty(joinParty *JoinParty) (*Ceremony, error) {
 	pc.logger.Info().
 		Str("ID", joinParty.Msg.ID).
 		Str("remote peer", joinParty.Peer.String()).
@@ -149,17 +154,19 @@ func (pc *PartyCoordinator) onJoinParty(joinParty *JoinParty) error {
 	defer pc.ceremonyLock.Unlock()
 	c, ok := pc.ceremonies[joinParty.Msg.ID]
 	if !ok {
-		return errLeaderNotReady
+		return nil, errLeaderNotReady
 	}
 	if !c.ValidPeer(joinParty.Peer) {
-		return errUnknownPeer
+		return nil, errUnknownPeer
+	}
+	if c.IsPartyExist(joinParty.Peer) {
+		return nil, errUnknownPeer
 	}
 	c.JoinPartyRequests = append(c.JoinPartyRequests, joinParty)
 	if !c.IsReady() {
 		// Ceremony is not ready , still waiting for more party to join
-		return nil
+		return c, nil
 	}
-
 	resp := &messages.JoinPartyResponse{
 		ID:      c.ID,
 		Type:    messages.JoinPartyResponse_Success,
@@ -169,51 +176,18 @@ func (pc *PartyCoordinator) onJoinParty(joinParty *JoinParty) error {
 	for _, item := range c.JoinPartyRequests {
 		select {
 		case <-pc.stopChan: // receive request to exit
-			return nil
+			return nil, nil
 		case item.Resp <- resp:
 		}
 	}
 	delete(pc.ceremonies, c.ID)
-	return nil
+	return c, nil
 }
 
-// onJoinPartyTimeout this method is to deal with the follow scenario
-// the join party request had been waiting for a while(WaitForPartyGatheringTimeout)
-// but it doesn't get enough nodes to start the ceremony , thus it trying to withdraw it's request
-// the first bool return value indicate whether it should give up sending the timeout resp back to client
-// usually that means a timeout and success has almost step on each other's foot, it should give up timeout , because the
-// success resp is already there
-func (pc *PartyCoordinator) onJoinPartyTimeout(joinParty *JoinParty) (bool, []string) {
-	pc.logger.Info().
-		Str("ID", joinParty.Msg.ID).
-		Str("remote peer", joinParty.Peer.String()).
-		Msgf("join party timeout")
+func (pc *PartyCoordinator) ensureRemoveCeremony(messageID string) {
 	pc.ceremonyLock.Lock()
 	defer pc.ceremonyLock.Unlock()
-	c, ok := pc.ceremonies[joinParty.Msg.ID]
-	if !ok {
-		return false, nil
-	}
-	// it could be timeout / finish almost happen at the same time, we give up timeout
-	if c.Status == Finished {
-		return true, c.GetParties()
-	}
-	// remove this party as they sick of waiting
-	idxToDelete := -1
-	for idx, p := range c.JoinPartyRequests {
-		if p.Peer == joinParty.Peer {
-			idxToDelete = idx
-		}
-	}
-	// withdraw request
-	if idxToDelete != -1 {
-		c.JoinPartyRequests = append(c.JoinPartyRequests[:idxToDelete], c.JoinPartyRequests[idxToDelete+1:]...)
-	}
-	// no one is waiting , let's remove the ceremony
-	if len(c.JoinPartyRequests) == 0 {
-		delete(pc.ceremonies, joinParty.Msg.ID)
-	}
-	return false, c.GetParties()
+	delete(pc.ceremonies, messageID)
 }
 
 func (pc *PartyCoordinator) createCeremony(messageID string, peers []string, threshold int32) {
@@ -223,14 +197,7 @@ func (pc *PartyCoordinator) createCeremony(messageID string, peers []string, thr
 	if err != nil {
 		pc.logger.Error().Err(err).Msg("fail to parse peer id")
 	}
-	ceremony := &Ceremony{
-		ID:                messageID,
-		Threshold:         uint32(threshold),
-		JoinPartyRequests: []*JoinParty{},
-		Status:            GatheringParties,
-		Peers:             pIDs,
-	}
-	pc.ceremonies[messageID] = ceremony
+	pc.ceremonies[messageID] = NewCeremony(messageID, uint32(threshold), pIDs, pc.timeout)
 }
 
 func (pc *PartyCoordinator) getPeerIDs(ids []string) ([]peer.ID, error) {
@@ -278,6 +245,14 @@ func (pc *PartyCoordinator) JoinParty(remotePeer peer.ID, msg *messages.JoinPart
 			return nil, errReset
 		}
 		return nil, fmt.Errorf("fail to write message to stream:%w", err)
+	}
+	// because the test stream doesn't support deadline
+	if ApplyDeadline {
+		// set a read deadline here , in case the coordinator doesn't timeout appropriately , and keep client hanging there
+		timeout := pc.timeout + time.Second
+		if err := stream.SetReadDeadline(time.Now().Add(timeout)); err != nil {
+			return nil, fmt.Errorf("fail to set read deadline")
+		}
 	}
 	// read response
 	respBuf, err := ioutil.ReadAll(stream)

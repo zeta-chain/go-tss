@@ -93,10 +93,13 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 			t.logger.Error().Err(err).Msg("fail to extract pub key from peer ID")
 		}
 		t.broadcastKeysignFailure(msgID, signers)
+		if result != nil {
+			t.logger.Error().Err(err).Msgf("fail to form keygen party-x: %s", result.Type)
+		}
 		return keysign.Response{
 			Status: common.Fail,
 			Blame:  common.NewBlame(common.BlameTssCoordinator, []string{pKey}),
-		}, fmt.Errorf("fail to form keysign party: %s", result.Type)
+		}, nil
 	}
 	if result.Type != messages.JoinPartyResponse_Success {
 		pKey, err := GetPubKeyFromPeerID(leaderPeerID.String())
@@ -110,10 +113,11 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 		t.broadcastKeysignFailure(msgID, signers)
 		// make sure we blame the leader as well
 		blame.AddBlameNodes(pKey)
+		t.logger.Error().Err(err).Msgf("fail to form keysign party:%s", result.Type)
 		return keysign.Response{
 			Status: common.Fail,
 			Blame:  blame,
-		}, fmt.Errorf("fail to form keysign party: %s", result.Type)
+		}, nil
 	}
 
 	signatureData, err := keysignInstance.SignMessage(msgToSign, localStateItem, req.SignerPubKeys)
