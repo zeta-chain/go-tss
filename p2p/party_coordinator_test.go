@@ -2,10 +2,13 @@ package p2p
 
 import (
 	"context"
+	"math/rand"
+	"sort"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/libp2p/go-libp2p-core/host"
 	tnet "github.com/libp2p/go-libp2p-testing/net"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
 	"github.com/stretchr/testify/assert"
@@ -14,230 +17,118 @@ import (
 	"gitlab.com/thorchain/tss/go-tss/messages"
 )
 
-func TestNewPartyCoordinator(t *testing.T) {
-	ApplyDeadline = false
-	id1 := tnet.RandIdentityOrFatal(t)
-	id2 := tnet.RandIdentityOrFatal(t)
-	id3 := tnet.RandIdentityOrFatal(t)
-	id4 := tnet.RandIdentityOrFatal(t)
+func setupHosts(t *testing.T, n int) []host.Host {
 	mn := mocknet.New(context.Background())
-	// add peers to mock net
+	var hosts []host.Host
+	for i := 0; i < n; i++ {
 
-	a1 := tnet.RandLocalTCPAddress()
-	a2 := tnet.RandLocalTCPAddress()
-	a3 := tnet.RandLocalTCPAddress()
-	a4 := tnet.RandLocalTCPAddress()
+		id := tnet.RandIdentityOrFatal(t)
+		a := tnet.RandLocalTCPAddress()
+		h, err := mn.AddPeer(id.PrivateKey(), a)
+		if err != nil {
+			t.Fatal(err)
+		}
+		hosts = append(hosts, h)
+	}
 
-	h1, err := mn.AddPeer(id1.PrivateKey(), a1)
-	if err != nil {
-		t.Fatal(err)
-	}
-	p1 := h1.ID()
-	h2, err := mn.AddPeer(id2.PrivateKey(), a2)
-	if err != nil {
-		t.Fatal(err)
-	}
-	p2 := h2.ID()
-	h3, err := mn.AddPeer(id3.PrivateKey(), a3)
-	if err != nil {
-		t.Fatal(err)
-	}
-	p3 := h3.ID()
-	h4, err := mn.AddPeer(id4.PrivateKey(), a4)
-	if err != nil {
-		t.Fatal(err)
-	}
-	p4 := h4.ID()
 	if err := mn.LinkAll(); err != nil {
 		t.Error(err)
 	}
 	if err := mn.ConnectAllButSelf(); err != nil {
 		t.Error(err)
 	}
-	timeout := time.Second * 5
-	pc1 := NewPartyCoordinator(h1, timeout)
-	pc2 := NewPartyCoordinator(h2, timeout)
-	pc3 := NewPartyCoordinator(h3, timeout)
-
-	defer pc1.Stop()
-	defer pc2.Stop()
-	defer pc3.Stop()
-
-	msgID := go_tss.RandStringBytesMask(64)
-	threshold := int32(3)
-	peers := []string{
-		p1.String(), p2.String(), p3.String(),
-	}
-	joinPartyReq := messages.JoinPartyRequest{
-		ID: msgID,
-	}
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		resp, err := pc1.JoinParty(p1, &joinPartyReq, peers, threshold)
-		if err != nil {
-			t.Error(err)
-		}
-		t.Log(resp)
-	}()
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		resp, err := pc2.JoinParty(p1, &joinPartyReq, peers, threshold)
-		if err != nil {
-			t.Error(err)
-		}
-		t.Log(resp)
-	}()
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		resp, err := pc3.JoinParty(p1, &joinPartyReq, peers, threshold)
-		if err != nil {
-			t.Error(err)
-		}
-
-		t.Log(resp)
-	}()
-	wg.Wait()
-
-	msgID1 := go_tss.RandStringBytesMask(64)
-	threshold = int32(3)
-	peers = []string{
-		p1.String(), p2.String(), p4.String(),
-	}
-	joinPartyReq1 := messages.JoinPartyRequest{
-		ID: msgID1,
-	}
-	wg = sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		resp, err := pc1.JoinParty(p1, &joinPartyReq1, peers, threshold)
-		if err != nil {
-			t.Error(err)
-		}
-		if resp.Type != messages.JoinPartyResponse_Timeout {
-			t.Errorf("expect response type to be timeout , however we got:%s", resp.Type)
-		}
-
-		t.Log(resp)
-	}()
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		resp, err := pc2.JoinParty(p1, &joinPartyReq1, peers, threshold)
-		if err != nil {
-			t.Error(err)
-		}
-		if resp.Type != messages.JoinPartyResponse_Timeout {
-			t.Errorf("expect response type to be timeout , however we got:%s", resp.Type)
-		}
-
-		t.Log(resp)
-	}()
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		resp, err := pc3.JoinParty(p1, &joinPartyReq1, peers, threshold)
-		if err != nil {
-			t.Error(err)
-		}
-		if resp.Type != messages.JoinPartyResponse_UnknownPeer {
-			t.Errorf("expect unknown peer, however we got:%s", resp.Type)
-		}
-		t.Log(resp)
-	}()
-	wg.Wait()
-	// if peer is not party of the party it should fail
+	return hosts
 }
 
-func TestNewPartyCoordinatorWithTimeout(t *testing.T) {
+func TestNewPartyCoordinator(t *testing.T) {
 	ApplyDeadline = false
-	id1 := tnet.RandIdentityOrFatal(t)
-	id2 := tnet.RandIdentityOrFatal(t)
-	id3 := tnet.RandIdentityOrFatal(t)
-	mn := mocknet.New(context.Background())
-	// add peers to mock net
+	hosts := setupHosts(t, 4)
+	var pcs []PartyCoordinator
+	var peers []string
 
-	a1 := tnet.RandLocalTCPAddress()
-	a2 := tnet.RandLocalTCPAddress()
-	a3 := tnet.RandLocalTCPAddress()
+	timeout := time.Second * 10
+	for _, el := range hosts {
+		pcs = append(pcs, *NewPartyCoordinator(el, timeout))
+		peers = append(peers, el.ID().String())
+	}
 
-	h1, err := mn.AddPeer(id1.PrivateKey(), a1)
-	if err != nil {
-		t.Fatal(err)
-	}
-	p1 := h1.ID()
-	h2, err := mn.AddPeer(id2.PrivateKey(), a2)
-	if err != nil {
-		t.Fatal(err)
-	}
-	p2 := h2.ID()
-	h3, err := mn.AddPeer(id3.PrivateKey(), a3)
-	if err != nil {
-		t.Fatal(err)
-	}
-	p3 := h3.ID()
-	if err := mn.LinkAll(); err != nil {
-		t.Error(err)
-	}
-	if err := mn.ConnectAllButSelf(); err != nil {
-		t.Error(err)
-	}
-	timeout := time.Second * 5
-	pc1 := NewPartyCoordinator(h1, timeout)
-	pc2 := NewPartyCoordinator(h2, timeout)
-	pc3 := NewPartyCoordinator(h3, timeout)
-
-	defer pc1.Stop()
-	defer pc2.Stop()
-	defer pc3.Stop()
+	defer func() {
+		for _, el := range pcs {
+			el.Stop()
+		}
+	}()
 
 	msgID := go_tss.RandStringBytesMask(64)
-	threshold := int32(4)
-	peers := []string{p1.String(), p2.String(), p3.String()}
 	joinPartyReq := messages.JoinPartyRequest{
 		ID: msgID,
 	}
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		resp, err := pc1.JoinPartyWithRetry(p1, &joinPartyReq, peers, threshold)
-		if err != nil {
-			t.Error(err)
+
+	for _, el := range pcs {
+		wg.Add(1)
+
+		go func(coordinator PartyCoordinator) {
+			defer wg.Done()
+			// we simulate different nodes join at different time
+			time.Sleep(time.Second * time.Duration(rand.Int()%10))
+			onlinePeers, err := coordinator.JoinPartyWithRetry(&joinPartyReq, peers)
+			if err != nil {
+				t.Error(err)
+			}
+			assert.Nil(t, err)
+			assert.Len(t, onlinePeers, 4)
+		}(el)
+	}
+
+	wg.Wait()
+}
+
+func TestNewPartyCoordinatorTimeOut(t *testing.T) {
+	ApplyDeadline = false
+	timeout := time.Second
+	hosts := setupHosts(t, 4)
+	var pcs []*PartyCoordinator
+	var peers []string
+	for _, el := range hosts {
+		pcs = append(pcs, NewPartyCoordinator(el, timeout))
+	}
+	sort.Slice(pcs, func(i, j int) bool {
+		return pcs[i].host.ID().String() > pcs[j].host.ID().String()
+	})
+	for _, el := range pcs {
+		peers = append(peers, el.host.ID().String())
+	}
+
+	defer func() {
+		for _, el := range pcs {
+			el.Stop()
 		}
-		if resp.Type != messages.JoinPartyResponse_Timeout {
-			t.Errorf("expect response type to be timeout , however we got:%s", resp.Type)
-		}
-		t.Log(resp)
 	}()
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		resp, err := pc2.JoinPartyWithRetry(p1, &joinPartyReq, peers, threshold)
-		if err != nil {
-			t.Error(err)
-		}
-		if resp.Type != messages.JoinPartyResponse_Timeout {
-			t.Errorf("expect response type to be timeout , however we got:%s", resp.Type)
-		}
-		t.Log(resp)
-	}()
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		resp, err := pc3.JoinPartyWithRetry(p1, &joinPartyReq, peers, threshold)
-		if err != nil {
-			t.Error(err)
-		}
-		if resp.Type != messages.JoinPartyResponse_Timeout {
-			t.Errorf("expect response type to be timeout , however we got:%s", resp.Type)
-		}
-		t.Log(resp)
-	}()
+
+	msgID := go_tss.RandStringBytesMask(64)
+
+	joinPartyReq := messages.JoinPartyRequest{
+		ID: msgID,
+	}
+	wg := sync.WaitGroup{}
+
+	for _, el := range pcs[:2] {
+		wg.Add(1)
+		go func(coordinator *PartyCoordinator) {
+			defer wg.Done()
+			onlinePeers, err := coordinator.JoinPartyWithRetry(&joinPartyReq, peers)
+			assert.Errorf(t, err, errJoinPartyTimeout.Error())
+			var onlinePeersStr []string
+			for _, el := range onlinePeers {
+				onlinePeersStr = append(onlinePeersStr, el.String())
+			}
+			sort.Strings(onlinePeersStr)
+			expected := peers[:2]
+			sort.Strings(expected)
+			assert.EqualValues(t, onlinePeersStr, expected)
+		}(el)
+	}
+
 	wg.Wait()
 }
 
