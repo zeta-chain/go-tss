@@ -3,6 +3,7 @@ package p2p
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/libp2p/go-libp2p-core/protocol"
 	discovery "github.com/libp2p/go-libp2p-discovery"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
+ "github.com/libp2p/go-libp2p/p2p/protocol/ping"
 	maddr "github.com/multiformats/go-multiaddr"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -45,7 +47,6 @@ type Communication struct {
 	logger           zerolog.Logger
 	listenAddr       maddr.Multiaddr
 	host             host.Host
-	routingDiscovery *discovery.RoutingDiscovery
 	wg               *sync.WaitGroup
 	stopChan         chan struct{} // channel to indicate whether we should stop
 	subscribers      map[messages.THORChainTSSMessageType]*MessageIDSubscriber
@@ -184,6 +185,39 @@ func (c *Communication) handleStream(stream network.Stream) {
 	c.readFromStream(stream)
 }
 
+func (c *Communication) bootStrapConnectivityCheck() error {
+	if len(c.bootstrapPeers) == 0 {
+		c.logger.Info().Msg("we do not have the bootstrap node set, quit the connectivity check")
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+	defer cancel()
+
+	for _, el := range c.bootstrapPeers {
+		peer, err := peer.AddrInfoFromP2pAddr(el)
+		if err != nil {
+			c.logger.Error().Err(err).Msg("error in decode the bootstrap node, skip it")
+			continue
+		}
+
+		outChan := ping.Ping(ctx, c.host, peer.ID)
+
+		for {
+			ret, ok := <-outChan
+			if !ok {
+				break
+			}
+			if ret.Error == nil {
+				c.logger.Info().Msgf("connect to peer %v with RTT %v\n", peer.ID, ret.RTT)
+				return nil
+			}
+		}
+	}
+
+	c.logger.Error().Msg("fail to connect to any bootstrap node")
+	return errors.New("the node cannot connect to any bootstrap node")
+}
+
 func (c *Communication) startChannel(privKeyBytes []byte) error {
 	ctx := context.Background()
 	p2pPriKey, err := crypto.UnmarshalSecp256k1PrivateKey(privKeyBytes)
@@ -222,9 +256,13 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 
 	routingDiscovery := discovery.NewRoutingDiscovery(kademliaDHT)
 	discovery.Advertise(ctx, routingDiscovery, c.rendezvous)
-	c.routingDiscovery = routingDiscovery
-	c.logger.Info().Msg("Successfully announced!")
 
+	err = c.bootStrapConnectivityCheck()
+	if err != nil {
+		return err
+	}
+
+	c.logger.Info().Msg("Successfully announced!")
 	return nil
 }
 

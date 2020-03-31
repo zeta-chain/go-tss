@@ -1,16 +1,21 @@
 package p2p
 
 import (
-	. "gopkg.in/check.v1"
+	"crypto/rand"
+	"encoding/base64"
+	"github.com/libp2p/go-libp2p-core/peer"
+	maddr "github.com/multiformats/go-multiaddr"
 
+	"github.com/libp2p/go-libp2p-core/crypto"
 	"gitlab.com/thorchain/tss/go-tss/messages"
+	. "gopkg.in/check.v1"
 )
 
 type CommunicationTestSuite struct{}
 
 var _ = Suite(&CommunicationTestSuite{})
 
-func (CommunicationTestSuite) TestCommunication(c *C) {
+func (CommunicationTestSuite) TestBasicCommunication(c *C) {
 	comm, err := NewCommunication("rendezvous", nil, 6668)
 	c.Assert(err, IsNil)
 	c.Assert(comm, NotNil)
@@ -20,4 +25,48 @@ func (CommunicationTestSuite) TestCommunication(c *C) {
 	comm.CancelSubscribe(messages.TSSKeyGenMsg, "hello")
 	comm.CancelSubscribe(messages.TSSKeyGenMsg, "whatever")
 	comm.CancelSubscribe(messages.TSSKeySignMsg, "asdsdf")
+}
+
+func (CommunicationTestSuite) TestEstablishP2pCommunication(c *C) {
+
+	bootstrapPeer := "/ip4/127.0.0.1/tcp/2220/p2p/16Uiu2HAm4TmEzUqy3q3Dv7HvdoSboHk5sFj2FH3npiN5vDbJC6gh"
+	bootstrapPrivKey := "6LABmWB4iXqkqOJ9H0YFEA2CSSx6bA7XAKGyI/TDtas="
+	validMultiAddr, err := maddr.NewMultiaddr(bootstrapPeer)
+	c.Assert(err, IsNil)
+	privKey, err := base64.StdEncoding.DecodeString(bootstrapPrivKey)
+	c.Assert(err, IsNil)
+	comm, err := NewCommunication("commTest", nil, 2220)
+	c.Assert(err, IsNil)
+	c.Assert(comm.Start(privKey), IsNil)
+	defer comm.Stop()
+	sk1, _, err := crypto.GenerateSecp256k1Key(rand.Reader)
+	sk1raw, _ := sk1.Raw()
+	c.Assert(err, IsNil)
+	comm2, err := NewCommunication("commTest", []maddr.Multiaddr{validMultiAddr}, 2221)
+	c.Assert(err, IsNil)
+	err = comm2.Start(sk1raw)
+	c.Assert(err, IsNil)
+	defer comm2.Stop()
+
+	//we connect to an invalid peer and see
+	sk2, _, err := crypto.GenerateSecp256k1Key(rand.Reader)
+	c.Assert(err, IsNil)
+	id, err := peer.IDFromPrivateKey(sk2)
+	c.Assert(err, IsNil)
+	invalidAddr := "/ip4/127.0.0.1/tcp/2220/p2p/" + id.String()
+	invalidMultiAddr, err := maddr.NewMultiaddr(invalidAddr)
+
+	comm3, err := NewCommunication("commTest", []maddr.Multiaddr{invalidMultiAddr}, 2222)
+	c.Assert(err, IsNil)
+	err = comm3.Start(sk1raw)
+	c.Assert(err, ErrorMatches, "the node cannot connect to any bootstrap node")
+	defer comm3.Stop()
+
+	//we connect to one invalid and one valid address
+	comm4, err := NewCommunication("commTest", []maddr.Multiaddr{invalidMultiAddr, validMultiAddr}, 2223)
+	c.Assert(err, IsNil)
+	err = comm4.Start(sk1raw)
+	c.Assert(err, IsNil)
+	defer comm4.Stop()
+
 }

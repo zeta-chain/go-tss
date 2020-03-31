@@ -60,7 +60,7 @@ var _ = Suite(&FourNodeTestSuite{})
 // setup four nodes for test
 func (s *FourNodeTestSuite) SetUpTest(c *C) {
 	s.isBlameTest = false
-	common.InitLog("debug", true, "four_nodes_test")
+	common.InitLog("info", true, "four_nodes_test")
 	common.SetupBech32Prefix()
 	s.ports = []int{
 		16666, 16667, 16668, 16669,
