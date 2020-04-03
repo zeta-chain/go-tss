@@ -23,6 +23,8 @@ unit_tests:
 lint_code:
   image: golangci/golangci-lint
   stage: test
+  before_script:
+    - go get mvdan.cc/gofumpt
   script:
     - golangci-lint run -v
 
