@@ -22,7 +22,6 @@ lint-pre:
 	@test -z "$(shell gofumpt -l .)"
 	@gofumpt -l cmd common keygen keysign messages p2p storage tss # for display
 	@test -z "$(shell gofumpt -l cmd common keygen keysign messages p2p storage tss)" # cause error
-
 	@go mod verify
 
 lint: lint-pre
