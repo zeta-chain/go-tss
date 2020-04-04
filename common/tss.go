@@ -46,6 +46,7 @@ type TssCommon struct {
 	P2PPeers            []peer.ID // most of tss message are broadcast, we store the peers ID to avoid iterating
 	BlamePeers          Blame
 	msgID               string
+	lastUnicastPeer     map[string][]peer.ID
 }
 
 func NewTssCommon(peerID string, broadcastChannel chan *messages.BroadcastMsgChan, conf TssConfig, msgID string) *TssCommon {
@@ -63,6 +64,7 @@ func NewTssCommon(peerID string, broadcastChannel chan *messages.BroadcastMsgCha
 		P2PPeers:            nil,
 		BlamePeers:          Blame{},
 		msgID:               msgID,
+		lastUnicastPeer:     make(map[string][]peer.ID),
 	}
 }
 
@@ -164,6 +166,22 @@ func (t *TssCommon) updateLocal(wireMsg *messages.WireMessage) error {
 	if !ok {
 		return fmt.Errorf("get message from unknown party %s", partyID.Id)
 	}
+
+	dataOwnerPeerID, ok := t.PartyIDtoP2PID[wireMsg.Routing.From.Id]
+	if !ok {
+		t.logger.Error().Msg("fail to find the peer ID of this party")
+		return errors.New("fail to find the peer")
+	}
+	//here we log down this peer
+	l, ok := t.lastUnicastPeer[wireMsg.RoundInfo]
+	if !ok {
+		peerList := []peer.ID{dataOwnerPeerID}
+		t.lastUnicastPeer[wireMsg.RoundInfo] = peerList
+	} else {
+		l = append(l, dataOwnerPeerID)
+		t.lastUnicastPeer[wireMsg.RoundInfo] = l
+	}
+
 	if _, err := partyInfo.Party.UpdateFromBytes(wireMsg.Message, partyID, wireMsg.Routing.IsBroadcast); nil != err {
 		return fmt.Errorf("fail to set bytes to local party: %w", err)
 	}
@@ -348,6 +366,38 @@ func (t *TssCommon) processVerMsg(broadcastConfirmMsg *messages.BroadcastConfirm
 	return nil
 }
 
+func (t *TssCommon) broadcastHashToPeers(key, msgHash string, peerIDs []peer.ID, msgType messages.THORChainTSSMessageType) error {
+
+	if len(peerIDs) == 0 {
+		t.logger.Error().Msg("fail to get any peer ID")
+		return errors.New("fail to get any peer ID")
+	}
+
+	broadcastConfirmMsg := &messages.BroadcastConfirmMessage{
+		// P2PID will be filled up by the receiver.
+		P2PID: "",
+		Key:   key,
+		Hash:  msgHash,
+	}
+	buf, err := json.Marshal(broadcastConfirmMsg)
+	if err != nil {
+		return fmt.Errorf("fail to marshal borad cast confirm message: %w", err)
+	}
+	t.logger.Debug().Msg("broadcast VerMsg to all other parties")
+
+	p2pWrappedMSg := messages.WrappedMessage{
+		MessageType: msgType,
+		MsgID:       t.msgID,
+		Payload:     buf,
+	}
+	t.renderToP2P(&messages.BroadcastMsgChan{
+		WrappedMessage: p2pWrappedMSg,
+		PeersID:        peerIDs,
+	})
+
+	return nil
+}
+
 // processTSSMsg
 func (t *TssCommon) processTSSMsg(wireMsg *messages.WireMessage, msgType messages.THORChainTSSMessageType) error {
 	t.logger.Debug().Msg("process wire message")
@@ -364,12 +414,7 @@ func (t *TssCommon) processTSSMsg(wireMsg *messages.WireMessage, msgType message
 	}
 	partyInfo := t.getPartyInfo()
 	key := wireMsg.GetCacheKey()
-	// P2PID will be filled up by the receiver.
-	broadcastConfirmMsg := &messages.BroadcastConfirmMessage{
-		P2PID: "",
-		Key:   key,
-		Hash:  msgHash,
-	}
+
 	localCacheItem := t.TryGetLocalCacheItem(key)
 	if nil == localCacheItem {
 		t.logger.Debug().Msgf("++%s doesn't exist yet,add a new one", key)
@@ -392,12 +437,6 @@ func (t *TssCommon) processTSSMsg(wireMsg *messages.WireMessage, msgType message
 		t.logger.Debug().Msgf("remove key: %s", key)
 		t.removeKey(key)
 	}
-	buf, err := json.Marshal(broadcastConfirmMsg)
-	if err != nil {
-		return fmt.Errorf("fail to marshal borad cast confirm message: %w", err)
-	}
-	t.logger.Debug().Msg("broadcast VerMsg to all other parties")
-
 	var peerIDs []peer.ID
 	dataOwnerPartyID := wireMsg.Routing.From.Id
 	dataOwnerPeerID, ok := t.PartyIDtoP2PID[dataOwnerPartyID]
@@ -410,22 +449,12 @@ func (t *TssCommon) processTSSMsg(wireMsg *messages.WireMessage, msgType message
 		}
 		peerIDs = append(peerIDs, el)
 	}
-
-	if len(peerIDs) == 0 {
-		t.logger.Error().Err(err).Msg("fail to get any peer ID")
-		return errors.New("fail to get any peer ID")
+	msgVerType := getBroadcastMessageType(msgType)
+	err = t.broadcastHashToPeers(key, msgHash, peerIDs, msgVerType)
+	if err != nil {
+		t.logger.Error().Err(err).Msg("fail to broadcast the hash to peers")
+		return err
 	}
-
-	p2prappedMSg := messages.WrappedMessage{
-		MessageType: getBroadcastMessageType(msgType),
-		MsgID:       t.msgID,
-		Payload:     buf,
-	}
-
-	t.renderToP2P(&messages.BroadcastMsgChan{
-		WrappedMessage: p2prappedMSg,
-		PeersID:        peerIDs,
-	})
 	return nil
 }
 

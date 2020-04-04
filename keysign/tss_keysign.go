@@ -27,13 +27,13 @@ type TssKeySign struct {
 	syncMsg         chan *p2p.Message
 	localParty      *btss.PartyID
 	commStopChan    chan struct{}
+	lastMsg         btss.Message
 }
 
 func NewTssKeySign(localP2PID string,
 	conf common.TssConfig,
 	broadcastChan chan *messages.BroadcastMsgChan,
-	stopChan chan struct{},
-	msgID string) *TssKeySign {
+	stopChan chan struct{}, msgID string) *TssKeySign {
 	logItems := []string{"keySign", msgID}
 	return &TssKeySign{
 		logger:          log.With().Strs("module", logItems).Logger(),
@@ -41,6 +41,7 @@ func NewTssKeySign(localP2PID string,
 		stopChan:        stopChan,
 		localParty:      nil,
 		commStopChan:    make(chan struct{}),
+		lastMsg:         nil,
 	}
 }
 
@@ -91,7 +92,6 @@ func (tKeySign *TssKeySign) SignMessage(msgToSign []byte, localStateItem storage
 	})
 
 	tKeySign.tssCommonStruct.P2PPeers = common.GetPeersID(tKeySign.tssCommonStruct.PartyIDtoP2PID, tKeySign.tssCommonStruct.GetLocalPeerID())
-
 	var keySignWg sync.WaitGroup
 	keySignWg.Add(2)
 	// start the key sign
@@ -134,17 +134,26 @@ func (tKeySign *TssKeySign) processKeySign(errChan chan struct{}, outCh <-chan b
 			// we bail out after KeySignTimeoutSeconds
 			tKeySign.logger.Error().Msgf("fail to sign message with %s", tssConf.KeySignTimeout.String())
 			tssCommonStruct := tKeySign.GetTssCommonStruct()
-			localCachedItems := tssCommonStruct.TryGetAllLocalCached()
-			blamePeers, err := tssCommonStruct.TssTimeoutBlame(localCachedItems)
-			if err != nil {
-				tKeySign.logger.Error().Err(err).Msg("fail to get the blamed peers")
-				tssCommonStruct.BlamePeers.SetBlame(common.BlameTssTimeout, nil)
-				return nil, fmt.Errorf("fail to get the blamed peers %w", common.ErrTssTimeOut)
+			lastMsg := tKeySign.lastMsg
+
+			var blamePeers []string
+			var err error
+			if lastMsg.IsBroadcast() == false {
+				blamePeers, err = tssCommonStruct.GetUnicastBlame(lastMsg.Type())
+				if err != nil {
+					tKeySign.logger.Error().Err(err).Msg("error in get unicast blame")
+				}
+			} else {
+				blamePeers, err = tssCommonStruct.GetBroadcastBlame(lastMsg.Type())
+				if err != nil {
+					tKeySign.logger.Error().Err(err).Msg("error in get broadcast blame")
+				}
 			}
 			tssCommonStruct.BlamePeers.SetBlame(common.BlameTssTimeout, blamePeers)
 			return nil, common.ErrTssTimeOut
 		case msg := <-outCh:
 			tKeySign.logger.Debug().Msgf(">>>>>>>>>>key sign msg: %s", msg.String())
+			tKeySign.lastMsg = msg
 			err := tKeySign.tssCommonStruct.ProcessOutCh(msg, messages.TSSKeySignMsg)
 			if err != nil {
 				return nil, err

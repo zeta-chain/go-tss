@@ -25,9 +25,9 @@ type TssKeyGen struct {
 	tssCommonStruct *common.TssCommon
 	stopChan        chan struct{} // channel to indicate whether we should stop
 	localParty      *btss.PartyID
-	keygenCurrent   *string
 	stateManager    storage.LocalStateManager
 	commStopChan    chan struct{}
+	lastMsg         btss.Message
 }
 
 func NewTssKeyGen(localP2PID string,
@@ -36,7 +36,6 @@ func NewTssKeyGen(localP2PID string,
 	broadcastChan chan *messages.BroadcastMsgChan,
 	stopChan chan struct{},
 	preParam *bkg.LocalPreParams,
-	keygenCurrent *string,
 	msgID string,
 	stateManager storage.LocalStateManager) *TssKeyGen {
 	return &TssKeyGen{
@@ -48,9 +47,9 @@ func NewTssKeyGen(localP2PID string,
 		tssCommonStruct: common.NewTssCommon(localP2PID, broadcastChan, conf, msgID),
 		stopChan:        stopChan,
 		localParty:      nil,
-		keygenCurrent:   keygenCurrent,
 		stateManager:    stateManager,
 		commStopChan:    make(chan struct{}),
+		lastMsg:         nil,
 	}
 }
 
@@ -128,24 +127,31 @@ func (tKeyGen *TssKeyGen) processKeyGen(errChan chan struct{},
 		select {
 		case <-errChan: // when keyGenParty return
 			tKeyGen.logger.Error().Msg("key gen failed")
-			close(tKeyGen.tssCommonStruct.TssMsg)
 			return nil, errors.New("error channel closed fail to start local party")
 
 		case <-tKeyGen.stopChan: // when TSS processor receive signal to quit
-			close(tKeyGen.tssCommonStruct.TssMsg)
 			return nil, errors.New("received exit signal")
 
 		case <-time.After(tssConf.KeyGenTimeout):
 			// we bail out after KeyGenTimeoutSeconds
 			tKeyGen.logger.Error().Msgf("fail to generate message with %s", tssConf.KeyGenTimeout.String())
 			tssCommonStruct := tKeyGen.GetTssCommonStruct()
-			localCachedItems := tssCommonStruct.TryGetAllLocalCached()
-			blamePeers, err := tssCommonStruct.TssTimeoutBlame(localCachedItems)
-			if err != nil {
-				tKeyGen.logger.Error().Err(err).Msg("fail to get the blamed peers")
-				tssCommonStruct.BlamePeers.SetBlame(common.BlameTssTimeout, nil)
-				return nil, fmt.Errorf("fail to get the blamed peers %w", common.ErrTssTimeOut)
+
+			lastMsg := tKeyGen.lastMsg
+			var blamePeers []string
+			var err error
+			if lastMsg.IsBroadcast() == false {
+				blamePeers, err = tssCommonStruct.GetUnicastBlame(lastMsg.Type())
+				if err != nil {
+					tKeyGen.logger.Error().Err(err).Msg("error in get unicast blame")
+				}
+			} else {
+				blamePeers, err = tssCommonStruct.GetBroadcastBlame(lastMsg.Type())
+				if err != nil {
+					tKeyGen.logger.Error().Err(err).Msg("error in get broadcast blame")
+				}
 			}
+
 			tssCommonStruct.BlamePeers.SetBlame(common.BlameTssTimeout, blamePeers)
 			return nil, common.ErrTssTimeOut
 
@@ -153,7 +159,7 @@ func (tKeyGen *TssKeyGen) processKeyGen(errChan chan struct{},
 			tKeyGen.logger.Debug().Msgf(">>>>>>>>>>msg: %s", msg.String())
 			// for the sake of performance, we do not lock the status update
 			// we report a rough status of current round
-			*tKeyGen.keygenCurrent = msg.Type()
+			tKeyGen.lastMsg = msg
 			err := tKeyGen.tssCommonStruct.ProcessOutCh(msg, messages.TSSKeyGenMsg)
 			if err != nil {
 				return nil, err
