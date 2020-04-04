@@ -4,7 +4,7 @@ go 1.13
 
 require (
 	github.com/binance-chain/go-sdk v1.2.1
-	github.com/binance-chain/tss-lib v1.3.0
+	github.com/binance-chain/tss-lib v1.3.1
 	github.com/btcsuite/btcd v0.20.1-beta
 	github.com/cenkalti/backoff/v4 v4.0.0
 	github.com/cespare/xxhash/v2 v2.1.1 // indirect
@@ -12,7 +12,6 @@ require (
 	github.com/gogo/protobuf v1.3.1
 	github.com/golang/protobuf v1.3.2
 	github.com/gorilla/mux v1.7.3
-	github.com/hashicorp/go-retryablehttp v0.6.1
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/ipfs/go-log v1.0.2
 	github.com/jackpal/go-nat-pmp v1.0.2 // indirect
@@ -40,7 +39,6 @@ require (
 	golang.org/x/crypto v0.0.0-20200221231518-2aa609cf4a9d // indirect
 	golang.org/x/lint v0.0.0-20200130185559-910be7a94367 // indirect
 	golang.org/x/net v0.0.0-20200222125558-5a598a2470a0 // indirect
-	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
 	golang.org/x/sys v0.0.0-20200223170610-d5e6a3e2c0ae // indirect
 	golang.org/x/tools v0.0.0-20200221224223-e1da425f72fd // indirect
 	google.golang.org/genproto v0.0.0-20191206224255-0243a4be9c8f // indirect
