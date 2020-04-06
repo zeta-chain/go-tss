@@ -3,6 +3,7 @@ package p2p
 import (
 	"crypto/rand"
 	"encoding/base64"
+
 	"github.com/libp2p/go-libp2p-core/peer"
 	maddr "github.com/multiformats/go-multiaddr"
 
@@ -28,7 +29,6 @@ func (CommunicationTestSuite) TestBasicCommunication(c *C) {
 }
 
 func (CommunicationTestSuite) TestEstablishP2pCommunication(c *C) {
-
 	bootstrapPeer := "/ip4/127.0.0.1/tcp/2220/p2p/16Uiu2HAm4TmEzUqy3q3Dv7HvdoSboHk5sFj2FH3npiN5vDbJC6gh"
 	bootstrapPrivKey := "6LABmWB4iXqkqOJ9H0YFEA2CSSx6bA7XAKGyI/TDtas="
 	validMultiAddr, err := maddr.NewMultiaddr(bootstrapPeer)
@@ -48,7 +48,7 @@ func (CommunicationTestSuite) TestEstablishP2pCommunication(c *C) {
 	c.Assert(err, IsNil)
 	defer comm2.Stop()
 
-	//we connect to an invalid peer and see
+	// we connect to an invalid peer and see
 	sk2, _, err := crypto.GenerateSecp256k1Key(rand.Reader)
 	c.Assert(err, IsNil)
 	id, err := peer.IDFromPrivateKey(sk2)
@@ -62,11 +62,10 @@ func (CommunicationTestSuite) TestEstablishP2pCommunication(c *C) {
 	c.Assert(err, ErrorMatches, "the node cannot connect to any bootstrap node")
 	defer comm3.Stop()
 
-	//we connect to one invalid and one valid address
+	// we connect to one invalid and one valid address
 	comm4, err := NewCommunication("commTest", []maddr.Multiaddr{invalidMultiAddr, validMultiAddr}, 2223)
 	c.Assert(err, IsNil)
 	err = comm4.Start(sk1raw)
 	c.Assert(err, IsNil)
 	defer comm4.Stop()
-
 }

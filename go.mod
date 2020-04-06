@@ -20,7 +20,7 @@ require (
 	github.com/libp2p/go-libp2p-discovery v0.2.0
 	github.com/libp2p/go-libp2p-kad-dht v0.3.0
 	github.com/libp2p/go-libp2p-testing v0.1.1
-	github.com/libp2p/go-yamux v1.2.4
+	github.com/libp2p/go-yamux v1.2.4 // indirect
 	github.com/mattn/go-isatty v0.0.12 // indirect
 	github.com/multiformats/go-multiaddr v0.2.0
 	github.com/pkg/errors v0.9.1 // indirect
