@@ -84,39 +84,28 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 		return emptyResp, fmt.Errorf("fail to convert pub keys to peer id:%w", err)
 	}
 
-	result, leaderPeerID, err := t.joinParty(msgID, msgToSign, req.SignerPubKeys)
+	onlinePeers, err := t.joinParty(msgID, req.SignerPubKeys)
 	if err != nil {
-		// just blame the leader node
-		pKey, err := GetPubKeyFromPeerID(leaderPeerID.String())
-		if err != nil {
-			t.logger.Error().Err(err).Msg("fail to extract pub key from peer ID")
+		if onlinePeers == nil {
+			t.logger.Error().Err(err).Msg("error before we start join party")
+			t.broadcastKeysignFailure(msgID, signers)
+			return keysign.Response{
+				Status: common.Fail,
+				Blame:  common.NewBlame(common.BlameInternalError, []string{}),
+			}, nil
 		}
-		t.broadcastKeysignFailure(msgID, signers)
-		if result != nil {
-			t.logger.Error().Err(err).Msgf("fail to form keygen party-x: %s", result.Type)
-		}
-		return keysign.Response{
-			Status: common.Fail,
-			Blame:  common.NewBlame(common.BlameTssCoordinator, []string{pKey}),
-		}, nil
-	}
-	if result.Type != messages.JoinPartyResponse_Success {
-		pKey, err := GetPubKeyFromPeerID(leaderPeerID.String())
-		if err != nil {
-			t.logger.Error().Err(err).Msg("fail to extract pub key from peer ID")
-		}
-		blame, err := t.getBlamePeers(req.SignerPubKeys, result.PeerIDs, common.BlameTssSync)
+		blame, err := t.getBlamePeers(req.SignerPubKeys, onlinePeers, common.BlameTssSync)
 		if err != nil {
 			t.logger.Err(err).Msg("fail to get peers to blame")
 		}
 		t.broadcastKeysignFailure(msgID, signers)
 		// make sure we blame the leader as well
-		blame.AddBlameNodes(pKey)
-		t.logger.Error().Err(err).Msgf("fail to form keysign party:%s", result.Type)
+		t.logger.Error().Err(err).Msgf("fail to form keysign party with online:%v", onlinePeers)
 		return keysign.Response{
 			Status: common.Fail,
 			Blame:  blame,
 		}, nil
+
 	}
 
 	signatureData, err := keysignInstance.SignMessage(msgToSign, localStateItem, req.SignerPubKeys)

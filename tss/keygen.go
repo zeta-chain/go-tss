@@ -2,9 +2,9 @@ package tss
 
 import (
 	"fmt"
-	"strings"
 	"sync/atomic"
 
+	"github.com/libp2p/go-libp2p-core/peer"
 	"gitlab.com/thorchain/tss/go-tss/common"
 	"gitlab.com/thorchain/tss/go-tss/keygen"
 	"gitlab.com/thorchain/tss/go-tss/messages"
@@ -14,7 +14,7 @@ import (
 // keys is the node pub key of the nodes that are supposed to be online
 // onlinePeers is a slice of peer id that actually online
 // this method is to find out the gap
-func (t *TssServer) getBlamePeers(keys, onlinePeers []string, reason string) (common.Blame, error) {
+func (t *TssServer) getBlamePeers(keys []string, onlinePeers []peer.ID, reason string) (common.Blame, error) {
 	blame := common.Blame{
 		FailReason: reason,
 	}
@@ -25,7 +25,7 @@ func (t *TssServer) getBlamePeers(keys, onlinePeers []string, reason string) (co
 			return blame, fmt.Errorf("fail to get peer id from pub key")
 		}
 		for _, p := range onlinePeers {
-			if strings.EqualFold(peerID.String(), p) {
+			if p == peerID {
 				found = true
 				break
 			}
@@ -63,40 +63,28 @@ func (t *TssServer) Keygen(req keygen.Request) (keygen.Response, error) {
 
 	defer t.p2pCommunication.CancelSubscribe(messages.TSSKeyGenMsg, msgID)
 	defer t.p2pCommunication.CancelSubscribe(messages.TSSKeyGenVerMsg, msgID)
-	result, leaderPeerID, err := t.joinParty(msgID, []byte(strings.Join(req.Keys, ",")), req.Keys)
+	onlinePeers, err := t.joinParty(msgID, req.Keys)
 	if err != nil {
-		// just blame the leader node
-		pKey, err := GetPubKeyFromPeerID(leaderPeerID.String())
-		if err != nil {
-			t.logger.Error().Err(err).Msg("fail to extract pub key from peer ID")
+		if onlinePeers == nil {
+			t.logger.Error().Err(err).Msg("error before we start join party")
+			return keygen.Response{
+				Status: common.Fail,
+				Blame:  common.NewBlame(common.BlameInternalError, []string{}),
+			}, nil
 		}
-		// log the error and then suppress it , thus we could return appropriate blame to client
-		if result != nil {
-			t.logger.Error().Err(err).Msgf("fail to form keygen party: %s", result.Type)
-		}
-		return keygen.Response{
-			Status: common.Fail,
-			Blame:  common.NewBlame(common.BlameTssCoordinator, []string{pKey}),
-		}, nil
-	}
-
-	if result.Type != messages.JoinPartyResponse_Success {
-		t.logger.Info().Msgf("online peers: %+v", result.PeerIDs)
-		pKey, err := GetPubKeyFromPeerID(leaderPeerID.String())
-		if err != nil {
-			t.logger.Error().Err(err).Msg("fail to extract pub key from peer ID")
-		}
-		blame, err := t.getBlamePeers(req.Keys, result.PeerIDs, common.BlameTssSync)
+		blame, err := t.getBlamePeers(req.Keys, onlinePeers, common.BlameTssSync)
 		if err != nil {
 			t.logger.Err(err).Msg("fail to get peers to blame")
 		}
-		blame.AddBlameNodes(pKey)
-		t.logger.Error().Err(err).Msgf("fail to form keygen party:%s", result.Type)
+		// make sure we blame the leader as well
+		t.logger.Error().Err(err).Msgf("fail to form keysign party with online:%v", onlinePeers)
 		return keygen.Response{
 			Status: common.Fail,
 			Blame:  blame,
 		}, nil
+
 	}
+
 	t.logger.Info().Msg("keygen party formed")
 	// the statistic of keygen only care about Tss it self, even if the
 	// following http response aborts, it still counted as a successful keygen

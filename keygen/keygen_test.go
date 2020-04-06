@@ -168,16 +168,13 @@ func (s *TssKeygenTestSuite) TestGenerateNewKey(c *C) {
 	wg.Wait()
 }
 
-func (s *TssKeygenTestSuite) TestSignMessage(c *C) {
+func (s *TssKeygenTestSuite) TestGenerateKeyWithError(c *C) {
 	req := Request{
 		Keys: testPubKeys[:],
 	}
 	conf := common.TssConfig{}
 	stateManager := &storage.MockLocalStateManager{}
 	keyGenInstance := NewTssKeyGen("", conf, "", nil, nil, nil, nil, "test", stateManager)
-	signatureData, err := keyGenInstance.GenerateNewKey(req)
-	c.Assert(err, NotNil)
-	c.Assert(signatureData, IsNil)
 	generatedKey, err := keyGenInstance.GenerateNewKey(req)
 	c.Assert(err, NotNil)
 	c.Assert(generatedKey, IsNil)
