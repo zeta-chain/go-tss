@@ -192,7 +192,6 @@ func (t *TssTestSuite) testVerMsgDuplication(c *C, tssCommonStruct *TssCommon, s
 }
 
 func setupProcessVerMsgEnv(c *C, keyPool []string, partyNum int) (*TssCommon, []*btss.PartyID, []*btss.PartyID) {
-	ByPassGeneratePreParam = true
 	conf := TssConfig{}
 	// keySignInstance := keysign.NewTssKeySign("", "", conf, sk, nil, nil, nil)
 	tssCommonStruct := NewTssCommon("", nil, conf, "test")

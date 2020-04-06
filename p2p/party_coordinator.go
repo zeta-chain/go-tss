@@ -18,9 +18,7 @@ import (
 	"gitlab.com/thorchain/tss/go-tss/messages"
 )
 
-var (
-	errJoinPartyTimeout = errors.New("fail to join party, timeout")
-)
+var errJoinPartyTimeout = errors.New("fail to join party, timeout")
 
 type PartyCoordinator struct {
 	logger             zerolog.Logger

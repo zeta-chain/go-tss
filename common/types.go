@@ -13,10 +13,9 @@ const (
 )
 
 var (
-	ByPassGeneratePreParam = false
-	ErrHashFromOwner       = errors.New("hashcheck error from data owner")
-	ErrHashFromPeer        = errors.New("hashcheck error from peer")
-	ErrTssTimeOut          = errors.New("error Tss Timeout")
+	ErrHashFromOwner = errors.New("hashcheck error from data owner")
+	ErrHashFromPeer  = errors.New("hashcheck error from peer")
+	ErrTssTimeOut    = errors.New("error Tss Timeout")
 )
 
 type TssConfig struct {
