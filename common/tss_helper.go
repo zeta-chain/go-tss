@@ -206,18 +206,25 @@ func (t *TssCommon) GetBlamePubKeysLists(peer []string) ([]string, []string, err
 // the confirmed list to find out the absent node(s) that fail to send the
 // hash of the message. The node who receive the broadcast message must send
 // the VerMsg otherwise, we blame them
-func (t *TssCommon) TssTimeoutBlame(localCachedItems []*LocalCacheItem) ([]string, error) {
+func (t *TssCommon) TssTimeoutBlame(localCachedItems []*LocalCacheItem, lastMessageType string) ([]string, error) {
 	var sumStandbyPeers []string
 	for _, el := range localCachedItems {
-		if len(t.P2PPeers) == el.TotalConfirmParty() {
+		if el.Msg == nil {
 			continue
 		}
-		sumStandbyPeers = append(sumStandbyPeers, el.GetPeers()...)
+		// we only process the last message, cause we stopped by the last message, if we still process
+		// the previous localCachedItem, it must be send from the malicious node.
+		if el.Msg.RoundInfo == lastMessageType {
+			if len(t.P2PPeers) == el.TotalConfirmParty() {
+				return nil, nil
+			}
+			sumStandbyPeers = append(sumStandbyPeers, el.GetPeers()...)
+		}
 	}
-
 	_, blamePubKeys, err := t.GetBlamePubKeysLists(sumStandbyPeers)
 	if err != nil {
 		t.logger.Error().Err(err).Msg("error in get blame parties pubkey")
+		return nil, err
 	}
 
 	return blamePubKeys, nil
@@ -295,4 +302,38 @@ func (t *TssCommon) getHashCheckBlamePeers(localCacheItem *LocalCacheItem, hashC
 	default:
 		return nil, errors.New("unknown case")
 	}
+}
+
+func (t *TssCommon) GetUnicastBlame(msgType string) ([]string, error) {
+	peersID, ok := t.lastUnicastPeer[msgType]
+	if !ok {
+		t.logger.Error().Msg("fail to get the blamed peers")
+		return nil, fmt.Errorf("fail to get the blamed peers %w", ErrTssTimeOut)
+	}
+	// use map to rule out the peer duplication
+	peersMap := make(map[string]bool)
+	for _, el := range peersID {
+		peersMap[el.String()] = true
+	}
+	var onlinePeers []string
+	for key, _ := range peersMap {
+		onlinePeers = append(onlinePeers, key)
+	}
+	_, blamePeers, err := t.GetBlamePubKeysLists(onlinePeers)
+	if err != nil {
+		t.logger.Error().Err(err).Msg("fail to get the blamed peers")
+		return nil, fmt.Errorf("fail to get the blamed peers %w", ErrTssTimeOut)
+	}
+	return blamePeers, nil
+}
+
+func (t *TssCommon) GetBroadcastBlame(lastMessageType string) ([]string, error) {
+
+	localCachedItems := t.TryGetAllLocalCached()
+	blamePeers, err := t.TssTimeoutBlame(localCachedItems, lastMessageType)
+	if err != nil {
+		t.logger.Error().Err(err).Msg("fail to get the blamed peers")
+		return nil, fmt.Errorf("fail to get the blamed peers %w", ErrTssTimeOut)
+	}
+	return blamePeers, nil
 }

@@ -40,8 +40,4 @@ type TssStatus struct {
 	// FailedKeySign indicates how many times we run keysign unsuccessfully(the invalid http request is not counted as
 	// the failure of keysign)
 	FailedKeySign uint64 `json:"failed_keysign"`
-	// CurrKeygen indicates the which keygen round we are in
-	CurrKeyGen string `json:"current_keygen"`
-	// CurrKeySign indicates the which keysign round we are in
-	CurrKeySign string `json:"current_keysign"`
 }

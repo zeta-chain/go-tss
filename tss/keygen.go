@@ -53,7 +53,6 @@ func (t *TssServer) Keygen(req keygen.Request) (keygen.Response, error) {
 		t.p2pCommunication.BroadcastMsgChan,
 		t.stopChan,
 		t.preParams,
-		&t.Status.CurrKeyGen,
 		msgID,
 		t.stateManager)
 

@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"sort"
+	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -22,10 +24,10 @@ import (
 
 var (
 	testPubKeys = []string{
-		"thorpub1addwnpepq2ryyje5zr09lq7gqptjwnxqsy2vcdngvwd6z7yt5yjcnyj8c8cn559xe69",
-		"thorpub1addwnpepqfjcw5l4ay5t00c32mmlky7qrppepxzdlkcwfs2fd5u73qrwna0vzag3y4j",
-		"thorpub1addwnpepqtdklw8tf3anjz7nn5fly3uvq2e67w2apn560s4smmrt9e3x52nt2svmmu3",
-		"thorpub1addwnpepqtspqyy6gk22u37ztra4hq3hdakc0w0k60sfy849mlml2vrpfr0wvm6uz09",
+		"thorpub1addwnpepq2ryyje5zr09lq7gqptjwnxqsy2vcdngvwd6z7yt5yjcnyj8c8cn559xe69", // peerID is 16Uiu2HAm4TmEzUqy3q3Dv7HvdoSboHk5sFj2FH3npiN5vDbJC6gh
+		"thorpub1addwnpepqfjcw5l4ay5t00c32mmlky7qrppepxzdlkcwfs2fd5u73qrwna0vzag3y4j", // peerID is 16Uiu2HAm2FzqoUdS6Y9Esg2EaGcAG5rVe1r6BFNnmmQr2H3bqafa
+		"thorpub1addwnpepqtdklw8tf3anjz7nn5fly3uvq2e67w2apn560s4smmrt9e3x52nt2svmmu3", // peerID is 16Uiu2HAmACG5DtqmQsHtXg4G2sLS65ttv84e7MrL4kapkjfmhxAp
+		"thorpub1addwnpepqtspqyy6gk22u37ztra4hq3hdakc0w0k60sfy849mlml2vrpfr0wvm6uz09", // peerID is 16Uiu2HAmAWKWf5vnpiAhfdSQebTbbB3Bg35qtyG7Hr4ce23VFA8V
 	}
 	testPriKeyArr = []string{
 		"6LABmWB4iXqkqOJ9H0YFEA2CSSx6bA7XAKGyI/TDtas=",
@@ -164,6 +166,80 @@ func (s *TssKeysisgnTestSuite) TestSignMessage(c *C) {
 		}
 		c.Assert(signature, Equals, string(item.S)+string(item.R))
 	}
+}
+
+func observeAndStop(c *C, tssKeySign *TssKeySign, stopChan chan struct{}) {
+
+	for {
+		select {
+		case <-stopChan:
+			return
+		case <-time.After(time.Millisecond * 10):
+			if tssKeySign.lastMsg == nil {
+				continue
+			}
+			a := tssKeySign.lastMsg.Type()
+			if len(a) > 0 {
+				index2 := strings.Index(a, "Message")
+				index1 := strings.Index(a, "SignRound")
+				round := a[index1+len("SignRound") : index2]
+				roundD, err := strconv.Atoi(round)
+				c.Assert(err, IsNil)
+				if roundD > 1 {
+					close(tssKeySign.stopChan)
+				}
+			}
+		}
+	}
+}
+
+func (s *TssKeysisgnTestSuite) TestSignMessageWithStop(c *C) {
+	if testing.Short() {
+		c.Skip("skip the test")
+		return
+	}
+	sort.Strings(testPubKeys)
+	req := NewRequest("thorpub1addwnpepqv6xp3fmm47dfuzglywqvpv8fdjv55zxte4a26tslcezns5czv586u2fw33", "helloworld-test111", testPubKeys)
+	messageID, err := common.MsgToHashString([]byte(req.Message))
+	c.Assert(err, IsNil)
+	wg := sync.WaitGroup{}
+	conf := common.TssConfig{
+		KeyGenTimeout:   10 * time.Second,
+		KeySignTimeout:  10 * time.Second,
+		PreParamTimeout: 5 * time.Second,
+	}
+
+	for i := 0; i < s.partyNum; i++ {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			comm := s.comms[idx]
+			stopChan := make(chan struct{})
+			keysignIns := NewTssKeySign(comm.GetLocalPeerID(),
+				conf,
+				comm.BroadcastMsgChan,
+				stopChan, messageID)
+			keysignMsgChannel := keysignIns.GetTssKeySignChannels()
+			comm.SetSubscribe(messages.TSSKeySignMsg, messageID, keysignMsgChannel)
+			comm.SetSubscribe(messages.TSSKeySignVerMsg, messageID, keysignMsgChannel)
+			defer comm.CancelSubscribe(messages.TSSKeySignMsg, messageID)
+			defer comm.CancelSubscribe(messages.TSSKeySignVerMsg, messageID)
+			localState, err := s.stateMgrs[idx].GetLocalState(req.PoolPubKey)
+			c.Assert(err, IsNil)
+			if idx == 1 {
+				go observeAndStop(c, keysignIns, stopChan)
+			}
+			_, err = keysignIns.SignMessage([]byte(req.Message), localState, req.SignerPubKeys)
+			c.Assert(err, NotNil)
+			// we skip the node 1 as we force it to stop
+			if idx != 1 {
+				blames := keysignIns.GetTssCommonStruct().BlamePeers.BlameNodes
+				c.Assert(blames, HasLen, 1)
+				c.Assert(blames[0], Equals, testPubKeys[1])
+			}
+		}(i)
+	}
+	wg.Wait()
 }
 
 func (s *TssKeysisgnTestSuite) TearDownTest(c *C) {
