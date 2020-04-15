@@ -1,4 +1,4 @@
-package tss
+package conversion
 
 import (
 	"encoding/base64"
@@ -100,7 +100,7 @@ func GetPriKey(priKeyString string) (tcrypto.PrivKey, error) {
 	return priKey, nil
 }
 
-func getPriKeyRawBytes(priKey tcrypto.PrivKey) ([]byte, error) {
+func GetPriKeyRawBytes(priKey tcrypto.PrivKey) ([]byte, error) {
 	var keyBytesArray [32]byte
 	pk, ok := priKey.(secp256k1.PrivKeySecp256k1)
 	if !ok {

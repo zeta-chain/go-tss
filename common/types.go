@@ -1,21 +1,7 @@
 package common
 
 import (
-	"errors"
 	"time"
-)
-
-const (
-	BlameHashCheck     = "hash check failed"
-	BlameTssTimeout    = "Tss timeout"
-	BlameTssSync       = "signers fail to sync before keygen/keysign"
-	BlameInternalError = "fail to start the join party "
-)
-
-var (
-	ErrHashFromOwner = errors.New("hashcheck error from data owner")
-	ErrHashFromPeer  = errors.New("hashcheck error from peer")
-	ErrTssTimeOut    = errors.New("error Tss Timeout")
 )
 
 type TssConfig struct {

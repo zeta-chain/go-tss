@@ -199,6 +199,9 @@ func (pc *PartyCoordinator) JoinPartyWithRetry(msg *messages.JoinPartyRequest, p
 	wg.Wait()
 	onlinePeers, _ := peerGroup.getPeersStatus()
 	pc.sendRequestToAll(msg, onlinePeers)
+	// we assume the maximum p2p network delay as 5 seconds
+	time.Sleep(time.Second * 5)
+	onlinePeers, _ = peerGroup.getPeersStatus()
 	// we always set ourselves as online
 	onlinePeers = append(onlinePeers, pc.host.ID())
 	if len(onlinePeers) == len(peers) {

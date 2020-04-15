@@ -1,0 +1,198 @@
+package conversion
+
+import (
+	"sort"
+	"testing"
+
+	sdk "github.com/cosmos/cosmos-sdk/types"
+	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/tendermint/tendermint/crypto/secp256k1"
+	. "gopkg.in/check.v1"
+)
+
+var (
+	testPubKeys = [...]string{"thorpub1addwnpepqtdklw8tf3anjz7nn5fly3uvq2e67w2apn560s4smmrt9e3x52nt2svmmu3", "thorpub1addwnpepqtspqyy6gk22u37ztra4hq3hdakc0w0k60sfy849mlml2vrpfr0wvm6uz09", "thorpub1addwnpepq2ryyje5zr09lq7gqptjwnxqsy2vcdngvwd6z7yt5yjcnyj8c8cn559xe69", "thorpub1addwnpepqfjcw5l4ay5t00c32mmlky7qrppepxzdlkcwfs2fd5u73qrwna0vzag3y4j"}
+	testPeers   = []string{
+		"16Uiu2HAm4TmEzUqy3q3Dv7HvdoSboHk5sFj2FH3npiN5vDbJC6gh",
+		"16Uiu2HAm2FzqoUdS6Y9Esg2EaGcAG5rVe1r6BFNnmmQr2H3bqafa",
+		"16Uiu2HAmACG5DtqmQsHtXg4G2sLS65ttv84e7MrL4kapkjfmhxAp",
+		"16Uiu2HAmAWKWf5vnpiAhfdSQebTbbB3Bg35qtyG7Hr4ce23VFA8V",
+	}
+)
+
+type ConversionTestSuite struct {
+	testPubKeys []string
+	localPeerID peer.ID
+}
+
+var _ = Suite(&ConversionTestSuite{})
+
+func (p *ConversionTestSuite) SetUpTest(c *C) {
+	var err error
+	SetupBech32Prefix()
+	p.testPubKeys = testPubKeys[:]
+	sort.Strings(p.testPubKeys)
+	p.localPeerID, err = peer.Decode("16Uiu2HAm4TmEzUqy3q3Dv7HvdoSboHk5sFj2FH3npiN5vDbJC6gh")
+	c.Assert(err, IsNil)
+}
+func TestPackage(t *testing.T) { TestingT(t) }
+
+func (p *ConversionTestSuite) TestAccPubKeysFromPartyIDs(c *C) {
+	partiesID, _, err := GetParties(p.testPubKeys, p.testPubKeys[0])
+	c.Assert(err, IsNil)
+	partyIDMap := SetupPartyIDMap(partiesID)
+	var keys []string
+	for k := range partyIDMap {
+		keys = append(keys, k)
+	}
+
+	got, err := AccPubKeysFromPartyIDs(keys, partyIDMap)
+	c.Assert(err, IsNil)
+	sort.Strings(got)
+	c.Assert(got, DeepEquals, p.testPubKeys)
+	got, err = AccPubKeysFromPartyIDs(nil, partyIDMap)
+	c.Assert(err, Equals, nil)
+	c.Assert(len(got), Equals, 0)
+}
+
+func (p *ConversionTestSuite) TestGetParties(c *C) {
+	partiesID, localParty, err := GetParties(p.testPubKeys, p.testPubKeys[0])
+	c.Assert(err, IsNil)
+	var pk secp256k1.PubKeySecp256k1
+	copy(pk[:], localParty.Key)
+	got, err := sdk.Bech32ifyAccPub(pk)
+	c.Assert(err, IsNil)
+	c.Assert(got, Equals, p.testPubKeys[0])
+	var gotKeys []string
+	for _, val := range partiesID {
+		var pk secp256k1.PubKeySecp256k1
+		copy(pk[:], val.Key)
+		got, err := sdk.Bech32ifyAccPub(pk)
+		c.Assert(err, IsNil)
+		gotKeys = append(gotKeys, got)
+	}
+	sort.Strings(gotKeys)
+	c.Assert(gotKeys, DeepEquals, p.testPubKeys)
+
+	_, _, err = GetParties(p.testPubKeys, "")
+	c.Assert(err, NotNil)
+	_, _, err = GetParties(p.testPubKeys, "12")
+	c.Assert(err, NotNil)
+	_, _, err = GetParties(nil, "12")
+	c.Assert(err, NotNil)
+}
+
+//
+func (p *ConversionTestSuite) TestGetPeerIDFromPartyID(c *C) {
+	_, localParty, err := GetParties(p.testPubKeys, p.testPubKeys[0])
+	c.Assert(err, IsNil)
+	peerID, err := GetPeerIDFromPartyID(localParty)
+	c.Assert(err, IsNil)
+	c.Assert(peerID, Equals, p.localPeerID)
+	_, err = GetPeerIDFromPartyID(nil)
+	c.Assert(err, NotNil)
+	localParty.Index = -1
+	_, err = GetPeerIDFromPartyID(localParty)
+	c.Assert(err, NotNil)
+}
+
+func (p *ConversionTestSuite) TestGetPeerIDFromSecp256PubKey(c *C) {
+	_, localParty, err := GetParties(p.testPubKeys, p.testPubKeys[0])
+	c.Assert(err, IsNil)
+	var pk secp256k1.PubKeySecp256k1
+	copy(pk[:], localParty.Key)
+	got, err := GetPeerIDFromSecp256PubKey(pk)
+	c.Assert(err, IsNil)
+	c.Assert(got, Equals, p.localPeerID)
+	var testKey secp256k1.PubKeySecp256k1
+	_, err = GetPeerIDFromSecp256PubKey(testKey)
+	c.Assert(err, NotNil)
+	testKey[1] = 'a'
+	_, err = GetPeerIDFromSecp256PubKey(testKey)
+	c.Assert(err, NotNil)
+}
+
+func (p *ConversionTestSuite) TestGetPeersID(c *C) {
+	localTestPubKeys := testPubKeys[:]
+	sort.Strings(localTestPubKeys)
+	partiesID, _, err := GetParties(p.testPubKeys, p.testPubKeys[0])
+	c.Assert(err, IsNil)
+	partyIDMap := SetupPartyIDMap(partiesID)
+	partyIDtoP2PID := make(map[string]peer.ID)
+	err = SetupIDMaps(partyIDMap, partyIDtoP2PID)
+	retPeers := GetPeersID(partyIDtoP2PID, p.localPeerID.String())
+	var expectedPeers []string
+	var gotPeers []string
+	counter := 0
+	for _, el := range testPeers {
+		if el == p.localPeerID.String() {
+			continue
+		}
+		expectedPeers = append(expectedPeers, el)
+		gotPeers = append(gotPeers, retPeers[counter].String())
+		counter++
+	}
+	sort.Strings(expectedPeers)
+	sort.Strings(gotPeers)
+	c.Assert(gotPeers, DeepEquals, expectedPeers)
+
+	retPeers = GetPeersID(partyIDtoP2PID, "123")
+	c.Assert(len(retPeers), Equals, 4)
+	retPeers = GetPeersID(nil, "123")
+	c.Assert(len(retPeers), Equals, 0)
+}
+
+func (p *ConversionTestSuite) TestPartyIDtoPubKey(c *C) {
+	_, localParty, err := GetParties(p.testPubKeys, p.testPubKeys[0])
+	c.Assert(err, IsNil)
+	got, err := PartyIDtoPubKey(localParty)
+	c.Assert(got, Equals, p.testPubKeys[0])
+	_, err = PartyIDtoPubKey(nil)
+	c.Assert(err, NotNil)
+	localParty.Index = -1
+	_, err = PartyIDtoPubKey(nil)
+	c.Assert(err, NotNil)
+}
+
+func (p *ConversionTestSuite) TestSetupIDMaps(c *C) {
+	localTestPubKeys := testPubKeys[:]
+	sort.Strings(localTestPubKeys)
+	partiesID, _, err := GetParties(p.testPubKeys, p.testPubKeys[0])
+	c.Assert(err, IsNil)
+	partyIDMap := SetupPartyIDMap(partiesID)
+	partyIDtoP2PID := make(map[string]peer.ID)
+	err = SetupIDMaps(partyIDMap, partyIDtoP2PID)
+	c.Assert(err, IsNil)
+	var got []string
+
+	for _, val := range partyIDtoP2PID {
+		got = append(got, val.String())
+	}
+	sort.Strings(got)
+	sort.Strings(testPeers)
+	c.Assert(got, DeepEquals, testPeers)
+	emptyPartyIDtoP2PID := make(map[string]peer.ID)
+	SetupIDMaps(nil, emptyPartyIDtoP2PID)
+	c.Assert(emptyPartyIDtoP2PID, HasLen, 0)
+}
+
+func (p *ConversionTestSuite) TestSetupPartyIDMap(c *C) {
+	localTestPubKeys := testPubKeys[:]
+	sort.Strings(localTestPubKeys)
+	partiesID, _, err := GetParties(p.testPubKeys, p.testPubKeys[0])
+	c.Assert(err, IsNil)
+	partyIDMap := SetupPartyIDMap(partiesID)
+	var pubKeys []string
+	for _, el := range partyIDMap {
+		var pk secp256k1.PubKeySecp256k1
+		copy(pk[:], el.Key)
+		got, err := sdk.Bech32ifyAccPub(pk)
+		c.Assert(err, IsNil)
+		pubKeys = append(pubKeys, got)
+	}
+	sort.Strings(pubKeys)
+	c.Assert(p.testPubKeys, DeepEquals, pubKeys)
+
+	ret := SetupPartyIDMap(nil)
+	c.Assert(ret, HasLen, 0)
+}

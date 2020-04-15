@@ -19,6 +19,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"gitlab.com/thorchain/tss/go-tss/common"
+	"gitlab.com/thorchain/tss/go-tss/conversion"
 	"gitlab.com/thorchain/tss/go-tss/keygen"
 	"gitlab.com/thorchain/tss/go-tss/keysign"
 )
@@ -62,7 +63,7 @@ var _ = Suite(&FourNodeTestSuite{})
 func (s *FourNodeTestSuite) SetUpTest(c *C) {
 	s.isBlameTest = false
 	common.InitLog("info", true, "four_nodes_test")
-	common.SetupBech32Prefix()
+	conversion.SetupBech32Prefix()
 	s.ports = []int{
 		16666, 16667, 16668, 16669,
 	}
@@ -199,7 +200,6 @@ func (s *FourNodeTestSuite) TestFailJoinParty(c *C) {
 			keygenResult[idx] = res
 		}(i)
 	}
-	// if we shutdown one server during keygen , he should be blamed
 
 	wg.Wait()
 	c.Logf("result:%+v", keygenResult)
@@ -209,6 +209,9 @@ func (s *FourNodeTestSuite) TestFailJoinParty(c *C) {
 		}
 		c.Assert(item.PubKey, Equals, "")
 		c.Assert(item.Status, Equals, common.Fail)
+		c.Assert(item.Blame.BlameNodes, HasLen, 1)
+		expectedFailNode := "thorpub1addwnpepqtdklw8tf3anjz7nn5fly3uvq2e67w2apn560s4smmrt9e3x52nt2svmmu3"
+		c.Assert(item.Blame.BlameNodes[0].Pubkey, Equals, expectedFailNode)
 	}
 }
 
@@ -243,7 +246,7 @@ func (s *FourNodeTestSuite) TestBlame(c *C) {
 		c.Assert(item.PubKey, Equals, "")
 		c.Assert(item.Status, Equals, common.Fail)
 		c.Assert(item.Blame.BlameNodes, HasLen, 1)
-		c.Assert(item.Blame.BlameNodes[0], Equals, expectedFailNode)
+		c.Assert(item.Blame.BlameNodes[0].Pubkey, Equals, expectedFailNode)
 	}
 }
 
@@ -259,7 +262,7 @@ func (s *FourNodeTestSuite) TearDownTest(c *C) {
 }
 
 func (s *FourNodeTestSuite) getTssServer(c *C, index int, conf common.TssConfig, bootstrap string) *TssServer {
-	priKey, err := GetPriKey(testPriKeyArr[index])
+	priKey, err := conversion.GetPriKey(testPriKeyArr[index])
 	c.Assert(err, IsNil)
 	baseHome := path.Join(os.TempDir(), strconv.Itoa(index))
 	if _, err := os.Stat(baseHome); os.IsNotExist(err) {

@@ -13,7 +13,7 @@ import (
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
 	"github.com/stretchr/testify/assert"
 
-	"gitlab.com/thorchain/tss/go-tss"
+	"gitlab.com/thorchain/tss/go-tss/conversion"
 	"gitlab.com/thorchain/tss/go-tss/messages"
 )
 
@@ -58,7 +58,7 @@ func TestNewPartyCoordinator(t *testing.T) {
 		}
 	}()
 
-	msgID := go_tss.RandStringBytesMask(64)
+	msgID := conversion.RandStringBytesMask(64)
 	joinPartyReq := messages.JoinPartyRequest{
 		ID: msgID,
 	}
@@ -105,7 +105,7 @@ func TestNewPartyCoordinatorTimeOut(t *testing.T) {
 		}
 	}()
 
-	msgID := go_tss.RandStringBytesMask(64)
+	msgID := conversion.RandStringBytesMask(64)
 
 	joinPartyReq := messages.JoinPartyRequest{
 		ID: msgID,
