@@ -1,6 +1,7 @@
 package tss
 
 import (
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -88,6 +89,12 @@ func (s *FourNodeTestSuite) SetUpTest(c *C) {
 	}
 }
 
+func hash(payload []byte) []byte {
+	h := sha256.New()
+	h.Write(payload)
+	return h.Sum(nil)
+}
+
 // generate a new key
 func (s *FourNodeTestSuite) TestKeygenAndKeySign(c *C) {
 	req := keygen.NewRequest(testPubKeys)
@@ -118,15 +125,15 @@ func (s *FourNodeTestSuite) TestKeygenAndKeySign(c *C) {
 	resp, err := s.servers[0].KeySign(keysignReqWithErr)
 	c.Assert(err, NotNil)
 	c.Assert(resp.S, Equals, "")
-	keysignReqWithErr1 := keysign.NewRequest(poolPubKey, base64.StdEncoding.EncodeToString([]byte("helloworld")), testPubKeys[:1])
+	keysignReqWithErr1 := keysign.NewRequest(poolPubKey, base64.StdEncoding.EncodeToString(hash([]byte("helloworld"))), testPubKeys[:1])
 	resp, err = s.servers[0].KeySign(keysignReqWithErr1)
 	c.Assert(err, NotNil)
 	c.Assert(resp.S, Equals, "")
-	keysignReqWithErr2 := keysign.NewRequest(poolPubKey, base64.StdEncoding.EncodeToString([]byte("helloworld")), nil)
+	keysignReqWithErr2 := keysign.NewRequest(poolPubKey, base64.StdEncoding.EncodeToString(hash([]byte("helloworld"))), nil)
 	resp, err = s.servers[0].KeySign(keysignReqWithErr2)
 	c.Assert(err, NotNil)
 	c.Assert(resp.S, Equals, "")
-	keysignReq := keysign.NewRequest(poolPubKey, base64.StdEncoding.EncodeToString([]byte("helloworld")), testPubKeys)
+	keysignReq := keysign.NewRequest(poolPubKey, base64.StdEncoding.EncodeToString(hash([]byte("helloworld"))), testPubKeys)
 	keysignResult := make(map[int]keysign.Response)
 	for i := 0; i < partyNum; i++ {
 		wg.Add(1)
@@ -148,8 +155,8 @@ func (s *FourNodeTestSuite) TestKeygenAndKeySign(c *C) {
 		}
 		c.Assert(signature, Equals, item.S+item.R)
 	}
-
-	keysignReq = keysign.NewRequest(poolPubKey, base64.StdEncoding.EncodeToString([]byte("helloworld+xyz")), testPubKeys[:3])
+	payload := base64.StdEncoding.EncodeToString(hash([]byte("helloworld+xyz")))
+	keysignReq = keysign.NewRequest(poolPubKey, payload, testPubKeys[:3])
 	keysignResult1 := make(map[int]keysign.Response)
 	for i := 0; i < partyNum; i++ {
 		wg.Add(1)

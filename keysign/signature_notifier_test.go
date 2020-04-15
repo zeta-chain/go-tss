@@ -2,6 +2,7 @@ package keysign
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"io/ioutil"
 	"sync"
@@ -19,9 +20,11 @@ import (
 )
 
 func TestSignatureNotifierHappyPath(t *testing.T) {
-	poolPubKey := `thorpub1addwnpepqv6xp3fmm47dfuzglywqvpv8fdjv55zxte4a26tslcezns5czv586u2fw33`
-	messageToSign := "helloworld-test"
-	messageID, err := common.MsgToHashString([]byte(messageToSign))
+	poolPubKey := `thorpub1addwnpepq0ul3xt882a6nm6m7uhxj4tk2n82zyu647dyevcs5yumuadn4uamqx7neak`
+	messageToSign := "yhEwrxWuNBGnPT/L7PNnVWg7gFWNzCYTV+GuX3tKRH8="
+	buf, err := base64.StdEncoding.DecodeString(messageToSign)
+	assert.Nil(t, err)
+	messageID, err := common.MsgToHashString(buf)
 	assert.Nil(t, err)
 	p2p.ApplyDeadline = false
 	id1 := tnet.RandIdentityOrFatal(t)
@@ -78,7 +81,7 @@ func TestSignatureNotifierHappyPath(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		sig, err := n1.WaitForSignature(messageID, []byte(messageToSign), poolPubKey, time.Second*30)
+		sig, err := n1.WaitForSignature(messageID, buf, poolPubKey, time.Second*30)
 		assert.Nil(t, err)
 		assert.NotNil(t, sig)
 	}()

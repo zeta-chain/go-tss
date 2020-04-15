@@ -1,6 +1,7 @@
 package keysign
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"io/ioutil"
 
@@ -40,11 +41,13 @@ func (NotifierTestSuite) TestNewNotifier(c *C) {
 }
 
 func (NotifierTestSuite) TestNotifierHappyPath(c *C) {
-	messageToSign := "helloworld-test"
-	messageID, err := common.MsgToHashString([]byte(messageToSign))
+	messageToSign := "yhEwrxWuNBGnPT/L7PNnVWg7gFWNzCYTV+GuX3tKRH8="
+	buf, err := base64.StdEncoding.DecodeString(messageToSign)
 	c.Assert(err, IsNil)
-	poolPubKey := `thorpub1addwnpepqv6xp3fmm47dfuzglywqvpv8fdjv55zxte4a26tslcezns5czv586u2fw33`
-	n, err := NewNotifier(messageID, []byte(messageToSign), poolPubKey)
+	messageID, err := common.MsgToHashString(buf)
+	c.Assert(err, IsNil)
+	poolPubKey := `thorpub1addwnpepq0ul3xt882a6nm6m7uhxj4tk2n82zyu647dyevcs5yumuadn4uamqx7neak`
+	n, err := NewNotifier(messageID, buf, poolPubKey)
 	c.Assert(err, IsNil)
 	c.Assert(n, NotNil)
 	sigFile := "../test_data/signature_notify/sig1.json"

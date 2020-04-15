@@ -172,7 +172,7 @@ func (t *TssCommon) updateLocal(wireMsg *messages.WireMessage) error {
 		t.logger.Error().Msg("fail to find the peer ID of this party")
 		return errors.New("fail to find the peer")
 	}
-	//here we log down this peer
+	// here we log down this peer
 	l, ok := t.lastUnicastPeer[wireMsg.RoundInfo]
 	if !ok {
 		peerList := []peer.ID{dataOwnerPeerID}
@@ -367,7 +367,6 @@ func (t *TssCommon) processVerMsg(broadcastConfirmMsg *messages.BroadcastConfirm
 }
 
 func (t *TssCommon) broadcastHashToPeers(key, msgHash string, peerIDs []peer.ID, msgType messages.THORChainTSSMessageType) error {
-
 	if len(peerIDs) == 0 {
 		t.logger.Error().Msg("fail to get any peer ID")
 		return errors.New("fail to get any peer ID")

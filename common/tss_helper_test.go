@@ -13,15 +13,16 @@ type tssHelpSuite struct {
 	tssCommon *TssCommon
 }
 
-var testPeers = []string{"16Uiu2HAm4TmEzUqy3q3Dv7HvdoSboHk5sFj2FH3npiN5vDbJC6gh",
+var testPeers = []string{
+	"16Uiu2HAm4TmEzUqy3q3Dv7HvdoSboHk5sFj2FH3npiN5vDbJC6gh",
 	"16Uiu2HAm2FzqoUdS6Y9Esg2EaGcAG5rVe1r6BFNnmmQr2H3bqafa",
 	"16Uiu2HAmACG5DtqmQsHtXg4G2sLS65ttv84e7MrL4kapkjfmhxAp",
-	"16Uiu2HAmAWKWf5vnpiAhfdSQebTbbB3Bg35qtyG7Hr4ce23VFA8V"}
+	"16Uiu2HAmAWKWf5vnpiAhfdSQebTbbB3Bg35qtyG7Hr4ce23VFA8V",
+}
 
 var _ = Suite(&tssHelpSuite{})
 
 func (t *tssHelpSuite) SetUpTest(c *C) {
-
 	broadcast := make(chan *messages.BroadcastMsgChan)
 	conf := TssConfig{}
 	tssCommon := NewTssCommon("123", broadcast, conf, "testID")
@@ -46,17 +47,14 @@ func (t *tssHelpSuite) SetUpTest(c *C) {
 		PartyIDMap: partyIDMap,
 	})
 	t.tssCommon = tssCommon
-
 }
 
 func (t *tssHelpSuite) TestGetUnicastBlame(c *C) {
-
 	blame, err := t.tssCommon.GetUnicastBlame("testTypeWrong")
 	c.Assert(err, NotNil)
 	blame, err = t.tssCommon.GetUnicastBlame("testType")
 	c.Assert(err, IsNil)
 	c.Assert(blame[0], Equals, testPubKeys[3])
-
 }
 
 func (t *tssHelpSuite) TestBroadcastBlame(c *C) {
@@ -79,5 +77,4 @@ func (t *tssHelpSuite) TestBroadcastBlame(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(blames, HasLen, 1)
 	c.Assert(blames[0], Equals, testPubKeys[3])
-
 }

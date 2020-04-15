@@ -205,7 +205,6 @@ func (s *TssKeygenTestSuite) TestGenerateNewKeyWithStop(c *C) {
 					time.Sleep(time.Millisecond * 200)
 					close(keygenInstance.stopChan)
 				}()
-
 			}
 			_, err := keygenInstance.GenerateNewKey(req)
 			c.Assert(err, NotNil)
