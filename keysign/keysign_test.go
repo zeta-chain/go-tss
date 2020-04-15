@@ -169,7 +169,6 @@ func (s *TssKeysisgnTestSuite) TestSignMessage(c *C) {
 }
 
 func observeAndStop(c *C, tssKeySign *TssKeySign, stopChan chan struct{}) {
-
 	for {
 		select {
 		case <-stopChan:

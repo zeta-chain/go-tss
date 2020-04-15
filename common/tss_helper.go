@@ -12,11 +12,11 @@ import (
 	"os"
 
 	btss "github.com/binance-chain/tss-lib/tss"
+	"github.com/btcsuite/btcd/btcec"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	"github.com/tendermint/btcd/btcec"
 	"github.com/tendermint/tendermint/crypto/secp256k1"
 )
 
@@ -71,12 +71,7 @@ func SetupIDMaps(parties map[string]*btss.PartyID, partyIDtoP2PID map[string]pee
 }
 
 func MsgToHashInt(msg []byte) (*big.Int, error) {
-	h := sha256.New()
-	_, err := h.Write(msg)
-	if err != nil {
-		return nil, fmt.Errorf("fail to caculate sha256 hash: %w", err)
-	}
-	return hashToInt(h.Sum(nil), btcec.S256()), nil
+	return hashToInt(msg, btcec.S256()), nil
 }
 
 func MsgToHashString(msg []byte) (string, error) {
@@ -328,7 +323,6 @@ func (t *TssCommon) GetUnicastBlame(msgType string) ([]string, error) {
 }
 
 func (t *TssCommon) GetBroadcastBlame(lastMessageType string) ([]string, error) {
-
 	localCachedItems := t.TryGetAllLocalCached()
 	blamePeers, err := t.TssTimeoutBlame(localCachedItems, lastMessageType)
 	if err != nil {
