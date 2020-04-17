@@ -309,7 +309,12 @@ func (c *Communication) connectToBootstrapPeers() error {
 
 // Start will start the communication
 func (c *Communication) Start(priKeyBytes []byte) error {
-	return c.startChannel(priKeyBytes)
+	err := c.startChannel(priKeyBytes)
+	if err == nil {
+		c.wg.Add(1)
+		go c.ProcessBroadcast()
+	}
+	return err
 }
 
 // Stop communication
@@ -367,7 +372,6 @@ func (c *Communication) CancelSubscribe(topic messages.THORChainTSSMessageType, 
 
 func (c *Communication) ProcessBroadcast() {
 	c.logger.Info().Msg("start to process broadcast message channel")
-	c.wg.Add(1)
 	defer c.logger.Info().Msg("stop process broadcast message channel")
 	defer c.wg.Done()
 	for {

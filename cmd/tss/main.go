@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/binance-chain/go-sdk/common/types"
@@ -68,9 +70,16 @@ func main() {
 		log.Fatal(err)
 	}
 	s := NewTssHttpServer(tssAddr, tss)
-	if err := s.Start(); err != nil {
-		log.Fatal(err)
-	}
+	go func() {
+		if err := s.Start(); err != nil {
+			fmt.Println(err)
+		}
+	}()
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
+	<-ch
+	fmt.Println("stop ")
+	fmt.Println(s.Stop())
 }
 
 // parseFlags - Parses the cli flags
