@@ -95,14 +95,12 @@ func (s *TssKeysisgnTestSuite) SetUpTest(c *C) {
 			comm, err := p2p.NewCommunication("asgard", nil, ports[i])
 			c.Assert(err, IsNil)
 			c.Assert(comm.Start(buf), IsNil)
-			go comm.ProcessBroadcast()
 			s.comms[i] = comm
 			continue
 		}
 		comm, err := p2p.NewCommunication("asgard", []maddr.Multiaddr{multiAddr}, ports[i])
 		c.Assert(err, IsNil)
 		c.Assert(comm.Start(buf), IsNil)
-		go comm.ProcessBroadcast()
 		s.comms[i] = comm
 	}
 
