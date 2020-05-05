@@ -140,7 +140,7 @@ func (tKeyGen *TssKeyGen) processKeyGen(errChan chan struct{},
 			lastMsg := tKeyGen.lastMsg
 			var blamePeers []string
 			var err error
-			if lastMsg.IsBroadcast() == false {
+			if !lastMsg.IsBroadcast() {
 				blamePeers, err = tssCommonStruct.GetUnicastBlame(lastMsg.Type())
 				if err != nil {
 					tKeyGen.logger.Error().Err(err).Msg("error in get unicast blame")

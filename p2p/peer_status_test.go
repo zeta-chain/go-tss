@@ -13,7 +13,6 @@ import (
 func Test(t *testing.T) { TestingT(t) }
 
 type PeerStatusTestSuite struct {
-	peerStatus PeerStatus
 }
 
 var _ = Suite(&PeerStatusTestSuite{})
@@ -59,7 +58,7 @@ func (s *PeerStatusTestSuite) TestPeerStatus(c *C) {
 	c.Assert(ret, Equals, false)
 
 	unknownPeer := generateRandomPeers(c, 1)
-	ret, err = peerStatus.updatePeer(unknownPeer[0])
+	_, err = peerStatus.updatePeer(unknownPeer[0])
 	c.Assert(err, ErrorMatches, "key not found")
 
 	ret, err = peerStatus.updatePeer(peers[3])
