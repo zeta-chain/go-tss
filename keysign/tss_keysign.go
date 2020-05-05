@@ -24,7 +24,6 @@ type TssKeySign struct {
 	logger          zerolog.Logger
 	tssCommonStruct *common.TssCommon
 	stopChan        chan struct{} // channel to indicate whether we should stop
-	syncMsg         chan *p2p.Message
 	localParty      *btss.PartyID
 	commStopChan    chan struct{}
 	lastMsg         btss.Message
@@ -138,7 +137,7 @@ func (tKeySign *TssKeySign) processKeySign(errChan chan struct{}, outCh <-chan b
 
 			var blamePeers []string
 			var err error
-			if lastMsg.IsBroadcast() == false {
+			if !lastMsg.IsBroadcast() {
 				blamePeers, err = tssCommonStruct.GetUnicastBlame(lastMsg.Type())
 				if err != nil {
 					tKeySign.logger.Error().Err(err).Msg("error in get unicast blame")

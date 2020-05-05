@@ -31,10 +31,7 @@ func NewPeerStatus(peerNodes []peer.ID, myPeerID peer.ID) *PeerStatus {
 
 func (ps *PeerStatus) getCoordinationStatus() bool {
 	_, offline := ps.getPeersStatus()
-	if len(offline) == 0 {
-		return true
-	}
-	return false
+	return len(offline) == 0
 }
 
 func (ps *PeerStatus) getPeersStatus() ([]peer.ID, []peer.ID) {

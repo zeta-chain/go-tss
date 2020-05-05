@@ -32,10 +32,8 @@ type TssServer struct {
 	p2pCommunication  *p2p.Communication
 	localNodePubKey   string
 	preParams         *bkeygen.LocalPreParams
-	wg                sync.WaitGroup
 	tssKeyGenLocker   *sync.Mutex
 	stopChan          chan struct{}
-	homeBase          string
 	partyCoordinator  *p2p.PartyCoordinator
 	stateManager      storage.LocalStateManager
 	signatureNotifier *keysign.SignatureNotifier

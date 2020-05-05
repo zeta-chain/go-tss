@@ -55,7 +55,7 @@ func (CommunicationTestSuite) TestEstablishP2pCommunication(c *C) {
 	c.Assert(err, IsNil)
 	invalidAddr := "/ip4/127.0.0.1/tcp/2220/p2p/" + id.String()
 	invalidMultiAddr, err := maddr.NewMultiaddr(invalidAddr)
-
+	c.Assert(err, IsNil)
 	comm3, err := NewCommunication("commTest", []maddr.Multiaddr{invalidMultiAddr}, 2222)
 	c.Assert(err, IsNil)
 	err = comm3.Start(sk1raw)

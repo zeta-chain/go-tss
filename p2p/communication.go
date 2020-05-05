@@ -105,19 +105,6 @@ func (c *Communication) broadcastToPeers(peers []peer.ID, msg []byte) {
 	}
 }
 
-func (c *Communication) shouldWeWriteToPeer(ai peer.AddrInfo, peers []peer.ID) bool {
-	if len(peers) == 0 {
-		// broadcast to everyone
-		return true
-	}
-	for _, p := range peers {
-		if ai.ID.String() == p.String() {
-			return true
-		}
-	}
-	return false
-}
-
 func (c *Communication) writeToStream(pID peer.ID, msg []byte) error {
 	// don't send to ourself
 	if pID == c.host.ID() {
