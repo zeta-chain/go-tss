@@ -8,8 +8,8 @@ import (
 	bc "github.com/binance-chain/tss-lib/common"
 	. "gopkg.in/check.v1"
 
-	"gitlab.com/thorchain/tss/go-tss"
 	"gitlab.com/thorchain/tss/go-tss/common"
+	"gitlab.com/thorchain/tss/go-tss/conversion"
 )
 
 type NotifierTestSuite struct{}
@@ -17,11 +17,11 @@ type NotifierTestSuite struct{}
 var _ = Suite(&NotifierTestSuite{})
 
 func (*NotifierTestSuite) SetUpSuite(c *C) {
-	common.SetupBech32Prefix()
+	conversion.SetupBech32Prefix()
 }
 
 func (NotifierTestSuite) TestNewNotifier(c *C) {
-	poolPubKey := go_tss.GetRandomPubKey()
+	poolPubKey := conversion.GetRandomPubKey()
 	n, err := NewNotifier("", []byte("hello"), poolPubKey)
 	c.Assert(err, NotNil)
 	c.Assert(n, IsNil)

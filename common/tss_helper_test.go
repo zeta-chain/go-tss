@@ -1,11 +1,12 @@
 package common
 
 import (
-	bkg "github.com/binance-chain/tss-lib/ecdsa/keygen"
-	btss "github.com/binance-chain/tss-lib/tss"
+	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/tendermint/tendermint/crypto/secp256k1"
 	. "gopkg.in/check.v1"
 
+	"gitlab.com/thorchain/tss/go-tss/conversion"
 	"gitlab.com/thorchain/tss/go-tss/messages"
 )
 
@@ -13,68 +14,79 @@ type tssHelpSuite struct {
 	tssCommon *TssCommon
 }
 
-var testPeers = []string{
-	"16Uiu2HAm4TmEzUqy3q3Dv7HvdoSboHk5sFj2FH3npiN5vDbJC6gh",
-	"16Uiu2HAm2FzqoUdS6Y9Esg2EaGcAG5rVe1r6BFNnmmQr2H3bqafa",
-	"16Uiu2HAmACG5DtqmQsHtXg4G2sLS65ttv84e7MrL4kapkjfmhxAp",
-	"16Uiu2HAmAWKWf5vnpiAhfdSQebTbbB3Bg35qtyG7Hr4ce23VFA8V",
-}
-
 var _ = Suite(&tssHelpSuite{})
 
-func (t *tssHelpSuite) SetUpTest(c *C) {
-	broadcast := make(chan *messages.BroadcastMsgChan)
-	conf := TssConfig{}
-	tssCommon := NewTssCommon("123", broadcast, conf, "testID")
-	p1, err := peer.Decode(testPeers[0])
-	c.Assert(err, IsNil)
-	p2, err := peer.Decode(testPeers[1])
-	c.Assert(err, IsNil)
-	p3, err := peer.Decode(testPeers[2])
-	c.Assert(err, IsNil)
-	tssCommon.lastUnicastPeer["testType"] = []peer.ID{p1, p2, p3}
-
-	partiesID, localPartyID, err := GetParties(testPubKeys[:], testPubKeys[0])
-	partyIDMap := SetupPartyIDMap(partiesID)
-	err = SetupIDMaps(partyIDMap, tssCommon.PartyIDtoP2PID)
-	outCh := make(chan btss.Message, len(partiesID))
-	endCh := make(chan bkg.LocalPartySaveData, len(partiesID))
-	ctx := btss.NewPeerContext(partiesID)
-	params := btss.NewParameters(ctx, localPartyID, len(partiesID), 3)
-	keyGenParty := bkg.NewLocalParty(params, outCh, endCh)
-	tssCommon.SetPartyInfo(&PartyInfo{
-		Party:      keyGenParty,
-		PartyIDMap: partyIDMap,
-	})
-	t.tssCommon = tssCommon
-}
-
-func (t *tssHelpSuite) TestGetUnicastBlame(c *C) {
-	blame, err := t.tssCommon.GetUnicastBlame("testTypeWrong")
+func (t *tssHelpSuite) TestGetHashToBroadcast(c *C) {
+	testMap := make(map[string]string)
+	val, freq, err := getHighestFreq(testMap)
 	c.Assert(err, NotNil)
-	blame, err = t.tssCommon.GetUnicastBlame("testType")
+	val, freq, err = getHighestFreq(nil)
+	c.Assert(err, NotNil)
+	testMap["1"] = "aa"
+	testMap["2"] = "aa"
+	testMap["3"] = "aa"
+	testMap["4"] = "ab"
+	testMap["5"] = "bb"
+	testMap["6"] = "bb"
+	testMap["7"] = "bc"
+	testMap["8"] = "cd"
+	val, freq, err = getHighestFreq(testMap)
 	c.Assert(err, IsNil)
-	c.Assert(blame[0], Equals, testPubKeys[3])
+	c.Assert(val, Equals, "aa")
+	c.Assert(freq, Equals, 3)
 }
 
-func (t *tssHelpSuite) TestBroadcastBlame(c *C) {
-	c1 := NewLocalCacheItem(nil, "hash123")
-	t.tssCommon.unConfirmedMessages["round1"] = c1
-	blames, err := t.tssCommon.GetBroadcastBlame("round1")
+func (t *tssHelpSuite) TestMsgSignAndVerification(c *C) {
+	msg := []byte("hello")
+	msgID := "123"
+	sk := secp256k1.GenPrivKey()
+	sig, err := generateSignature(msg, msgID, sk)
 	c.Assert(err, IsNil)
-	c.Assert(blames, HasLen, 3)
+	ret := verifySignature(sk.PubKey(), msg, sig, msgID)
+	c.Assert(ret, Equals, true)
+}
 
-	msg := messages.WireMessage{
-		Routing:   nil,
-		RoundInfo: "round2",
-		Message:   nil,
-	}
-	c2 := NewLocalCacheItem(&msg, "hash123")
-	c2.ConfirmedList[testPeers[0]] = "123"
-	c2.ConfirmedList[testPeers[1]] = "123"
-	t.tssCommon.unConfirmedMessages["round2fromnode1"] = c2
-	blames, err = t.tssCommon.GetBroadcastBlame("round2")
+func (t *tssHelpSuite) TestMsgToHashString(c *C) {
+	out, err := MsgToHashString([]byte("hello"))
 	c.Assert(err, IsNil)
-	c.Assert(blames, HasLen, 1)
-	c.Assert(blames[0], Equals, testPubKeys[3])
+	c.Assert(out, Equals, "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824")
+	_, err = MsgToHashString(nil)
+	c.Assert(err, NotNil)
+}
+
+func (t *tssHelpSuite) TestTssCommon_NotifyTaskDone(c *C) {
+	conversion.SetupBech32Prefix()
+	pk, err := sdk.GetAccPubKeyBech32("thorpub1addwnpepqtdklw8tf3anjz7nn5fly3uvq2e67w2apn560s4smmrt9e3x52nt2svmmu3")
+	c.Assert(err, IsNil)
+	peerID, err := conversion.GetPeerIDFromSecp256PubKey(pk.(secp256k1.PubKeySecp256k1))
+	c.Assert(err, IsNil)
+	sk := secp256k1.GenPrivKey()
+	tssCommon := NewTssCommon(peerID.String(), nil, TssConfig{}, "message-id", sk)
+	err = tssCommon.NotifyTaskDone()
+	c.Assert(err, IsNil)
+}
+
+func (t *tssHelpSuite) TestTssCommon_processRequestMsgFromPeer(c *C) {
+	pk, err := sdk.GetAccPubKeyBech32("thorpub1addwnpepqtdklw8tf3anjz7nn5fly3uvq2e67w2apn560s4smmrt9e3x52nt2svmmu3")
+	c.Assert(err, IsNil)
+	peerID, err := conversion.GetPeerIDFromSecp256PubKey(pk.(secp256k1.PubKeySecp256k1))
+	c.Assert(err, IsNil)
+	sk := secp256k1.GenPrivKey()
+	testPeer, err := peer.Decode("16Uiu2HAm2FzqoUdS6Y9Esg2EaGcAG5rVe1r6BFNnmmQr2H3bqafa")
+	c.Assert(err, IsNil)
+	tssCommon := NewTssCommon(peerID.String(), nil, TssConfig{}, "message-id", sk)
+	err = tssCommon.processRequestMsgFromPeer([]peer.ID{testPeer}, nil, true)
+	c.Assert(err, IsNil)
+	err = tssCommon.processRequestMsgFromPeer([]peer.ID{testPeer}, nil, false)
+	c.Assert(err, NotNil)
+	msg := messages.TssControl{
+		ReqHash:     "",
+		ReqKey:      "test",
+		RequestType: 0,
+		Msg:         nil,
+	}
+
+	tssCommon.blameMgr.GetRoundMgr().Set("test", nil)
+	err = tssCommon.processRequestMsgFromPeer([]peer.ID{testPeer}, &msg, false)
+	c.Assert(err, IsNil)
 }

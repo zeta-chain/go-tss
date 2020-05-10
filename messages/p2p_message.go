@@ -19,6 +19,10 @@ const (
 	TSSKeyGenVerMsg
 	// TSSKeySignVerMsg is the message we create to make sure every party receive the same broadcast message
 	TSSKeySignVerMsg
+	// TSSControlMsg is the message we create to exchange Tss share
+	TSSControlMsg
+	// TSSTaskDone is the message of Tss process notification
+	TSSTaskDone
 	// Unknown is the message indicates the undefined message type
 	Unknown
 )
@@ -64,9 +68,21 @@ type WireMessage struct {
 	Routing   *btss.MessageRouting `json:"routing"`
 	RoundInfo string               `json:"round_info"`
 	Message   []byte               `json:"message"`
+	Sig       []byte               `json:"signature"`
 }
 
 // GetCacheKey return the key we used to cache it locally
 func (m *WireMessage) GetCacheKey() string {
 	return fmt.Sprintf("%s-%s", m.Routing.From.Id, m.RoundInfo)
+}
+
+type TssControl struct {
+	ReqHash     string                  `json:"reqest_hash"`
+	ReqKey      string                  `json:"request_key"`
+	RequestType THORChainTSSMessageType `json:"request_type"`
+	Msg         *WireMessage            `json:"message_body"`
+}
+
+type TssTaskNotifier struct {
+	TaskDone bool `json:"task_done"`
 }

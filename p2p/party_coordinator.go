@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cenkalti/backoff/v4"
 	"github.com/gogo/protobuf/proto"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
@@ -170,13 +169,20 @@ func (pc *PartyCoordinator) JoinPartyWithRetry(msg *messages.JoinPartyRequest, p
 	}
 	defer pc.removePeerGroup(msg.ID)
 	_, offline := peerGroup.getPeersStatus()
-	bf := backoff.NewExponentialBackOff()
-	bf.MaxElapsedTime = pc.timeout
 	var wg sync.WaitGroup
+	done := make(chan struct{})
 	wg.Add(1)
 	go func() {
-		defer wg.Done()
-		pc.sendRequestToAll(msg, offline)
+		wg.Done()
+		for {
+			select {
+			case <-done:
+				return
+			default:
+				pc.sendRequestToAll(msg, offline)
+			}
+			time.Sleep(time.Second)
+		}
 	}()
 	// this is the total time TSS will wait for the party to form
 	wg.Add(1)
@@ -187,10 +193,12 @@ func (pc *PartyCoordinator) JoinPartyWithRetry(msg *messages.JoinPartyRequest, p
 			case <-peerGroup.newFound:
 				pc.logger.Info().Msg("we have found the new peer")
 				if peerGroup.getCoordinationStatus() {
+					close(done)
 					return
 				}
 			case <-time.After(pc.timeout):
 				// timeout
+				close(done)
 				return
 			}
 		}
