@@ -78,13 +78,6 @@ func (t *TssCommon) renderToP2P(broadcastMsg *messages.BroadcastMsgChan) {
 	t.broadcastChannel <- broadcastMsg
 }
 
-func (t *TssCommon) sendMsg(message messages.WrappedMessage, peerIDs []peer.ID) {
-	t.renderToP2P(&messages.BroadcastMsgChan{
-		WrappedMessage: message,
-		PeersID:        peerIDs,
-	})
-}
-
 // GetConf get current configuration for Tss
 func (t *TssCommon) GetConf() TssConfig {
 	return t.conf

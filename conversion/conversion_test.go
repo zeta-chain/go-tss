@@ -120,6 +120,7 @@ func (p *ConversionTestSuite) TestGetPeersID(c *C) {
 	partyIDMap := SetupPartyIDMap(partiesID)
 	partyIDtoP2PID := make(map[string]peer.ID)
 	err = SetupIDMaps(partyIDMap, partyIDtoP2PID)
+	c.Assert(err, IsNil)
 	retPeers := GetPeersID(partyIDtoP2PID, p.localPeerID.String())
 	var expectedPeers []string
 	var gotPeers []string
@@ -146,6 +147,7 @@ func (p *ConversionTestSuite) TestPartyIDtoPubKey(c *C) {
 	_, localParty, err := GetParties(p.testPubKeys, p.testPubKeys[0])
 	c.Assert(err, IsNil)
 	got, err := PartyIDtoPubKey(localParty)
+	c.Assert(err, IsNil)
 	c.Assert(got, Equals, p.testPubKeys[0])
 	_, err = PartyIDtoPubKey(nil)
 	c.Assert(err, NotNil)

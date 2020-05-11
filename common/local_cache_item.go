@@ -41,7 +41,7 @@ func (l *LocalCacheItem) GetPeers() []string {
 	peers := make([]string, 0, len(l.ConfirmedList))
 	l.lock.Lock()
 	defer l.lock.Unlock()
-	for peer, _ := range l.ConfirmedList {
+	for peer := range l.ConfirmedList {
 		peers = append(peers, peer)
 	}
 	return peers

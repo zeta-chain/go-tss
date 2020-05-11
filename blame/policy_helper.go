@@ -38,7 +38,7 @@ func (m *Manager) getBlamePubKeysNotInList(peers []string) ([]string, error) {
 				break
 			}
 		}
-		if found == false {
+		if !found {
 			partiesNotInList = append(partiesNotInList, partyID)
 		}
 	}

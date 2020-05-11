@@ -10,17 +10,15 @@ import (
 	"gitlab.com/thorchain/tss/go-tss/messages"
 )
 
-type tssHelpSuite struct {
-	tssCommon *TssCommon
-}
+type tssHelpSuite struct{}
 
 var _ = Suite(&tssHelpSuite{})
 
 func (t *tssHelpSuite) TestGetHashToBroadcast(c *C) {
 	testMap := make(map[string]string)
-	val, freq, err := getHighestFreq(testMap)
+	_, _, err := getHighestFreq(testMap)
 	c.Assert(err, NotNil)
-	val, freq, err = getHighestFreq(nil)
+	_, _, err = getHighestFreq(nil)
 	c.Assert(err, NotNil)
 	testMap["1"] = "aa"
 	testMap["2"] = "aa"
@@ -30,7 +28,7 @@ func (t *tssHelpSuite) TestGetHashToBroadcast(c *C) {
 	testMap["6"] = "bb"
 	testMap["7"] = "bc"
 	testMap["8"] = "cd"
-	val, freq, err = getHighestFreq(testMap)
+	val, freq, err := getHighestFreq(testMap)
 	c.Assert(err, IsNil)
 	c.Assert(val, Equals, "aa")
 	c.Assert(freq, Equals, 3)

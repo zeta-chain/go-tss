@@ -30,7 +30,6 @@ type TssKeySign struct {
 	localParty      *btss.PartyID
 	commStopChan    chan struct{}
 	lastMsg         btss.Message
-	privateKey      tcrypto.PrivKey
 }
 
 func NewTssKeySign(localP2PID string,
@@ -158,7 +157,7 @@ func (tKeySign *TssKeySign) processKeySign(errChan chan struct{}, outCh <-chan b
 					tKeySign.logger.Error().Err(err).Msg("error in get unicast blame")
 				}
 			} else {
-				if tssCommonStruct.GetBlameMgr().GetBlame().AlreadyBlame() == false {
+				if !tssCommonStruct.GetBlameMgr().GetBlame().AlreadyBlame() {
 					blameNodes, err = tssCommonStruct.GetBlameMgr().GetBroadcastBlame(lastMsg.Type())
 					if err != nil {
 						tKeySign.logger.Error().Err(err).Msg("error in get broadcast blame")
