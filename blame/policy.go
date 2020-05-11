@@ -79,7 +79,7 @@ func (m *Manager) GetUnicastBlame(msgType string) ([]Node, error) {
 		peersMap[el.String()] = true
 	}
 	var onlinePeers []string
-	for key, _ := range peersMap {
+	for key := range peersMap {
 		onlinePeers = append(onlinePeers, key)
 	}
 	_, blamePeers, err := m.GetBlamePubKeysLists(onlinePeers)
@@ -106,11 +106,6 @@ func (m *Manager) GetBroadcastBlame(lastMessageType string) ([]Node, error) {
 		blameNodes = append(blameNodes, NewNode(el, nil, nil))
 	}
 	return blameNodes, nil
-}
-
-func (m *Manager) getLastUnicastPeers(key string) ([]peer.ID, bool) {
-	ret, ok := m.lastUnicastPeer[key]
-	return ret, ok
 }
 
 // this blame blames the node who provide the wrong share
