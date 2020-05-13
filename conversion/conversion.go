@@ -13,6 +13,8 @@ import (
 	crypto2 "github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/tendermint/tendermint/crypto/secp256k1"
+
+	"gitlab.com/thorchain/tss/go-tss/messages"
 )
 
 // GetPeerIDFromSecp256PubKey convert the given pubkey into a peer.ID
@@ -124,4 +126,17 @@ func GetParties(keys []string, localPartyKey string) ([]*btss.PartyID, *btss.Par
 
 	partiesID := btss.SortPartyIDs(unSortedPartiesID)
 	return partiesID, localPartyID, nil
+}
+
+func GetKeyGenUicast() string {
+	return messages.KEYGEN2aUnicast
+}
+
+func GetPreviousKeySignUicast(current string) string {
+	switch current {
+	case messages.KEYSIGN1b:
+		return messages.KEYSIGN1aUnicast
+	default:
+		return messages.KEYSIGN2Unicast
+	}
 }
