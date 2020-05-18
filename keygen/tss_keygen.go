@@ -160,21 +160,18 @@ func (tKeyGen *TssKeyGen) processKeyGen(errChan chan struct{},
 				tKeyGen.logger.Error().Msg("fail to start the keygen, the last produced message of this node is none")
 				return nil, errors.New("timeout before shared message is generated")
 			}
-			var blameNodes []blame.Node
-			var err error
-			if !lastMsg.IsBroadcast() {
-				blameNodes, err = blameMgr.GetUnicastBlame(lastMsg.Type())
-				if err != nil {
-					tKeyGen.logger.Error().Err(err).Msg("error in get unicast blame")
-				}
-			} else {
-				blameNodes, err = blameMgr.GetBroadcastBlame(lastMsg.Type())
-				if err != nil {
-					tKeyGen.logger.Error().Err(err).Msg("error in get broadcast blame")
-				}
+			unicastMsgType := conversion.GetKeyGenUicast()
+			blameNodesUnicast, err := blameMgr.GetUnicastBlame(unicastMsgType)
+			if err != nil {
+				tKeyGen.logger.Error().Err(err).Msg("error in get unicast blame")
 			}
+			blameMgr.GetBlame().SetBlame(blame.TssTimeout, blameNodesUnicast)
+			blameNodesBroadcast, err := blameMgr.GetBroadcastBlame(lastMsg.Type())
+			if err != nil {
+				tKeyGen.logger.Error().Err(err).Msg("error in get broadcast blame")
+			}
+			blameMgr.GetBlame().AddBlameNodes(blameNodesBroadcast...)
 
-			blameMgr.GetBlame().SetBlame(blame.TssTimeout, blameNodes)
 			return nil, blame.ErrTssTimeOut
 
 		case msg := <-outCh:

@@ -20,7 +20,9 @@ func (m *Manager) tssTimeoutBlame(lastMessageType string, partyIDMap map[string]
 		}
 	}
 	standbyNodes := m.roundMgr.GetByRound(lastMessageType)
-
+	if len(standbyNodes) == 0 {
+		return nil, nil
+	}
 	s := make([]interface{}, len(standbyNodes))
 	for i, v := range standbyNodes {
 		s[i] = v
@@ -67,17 +69,20 @@ func (m *Manager) NodeSyncBlame(keys []string, onlinePeers []peer.ID) (Blame, er
 }
 
 // this blame blames the node who cause the timeout in unicast message
-func (m *Manager) GetUnicastBlame(msgType string) ([]Node, error) {
-	peersID, ok := m.lastUnicastPeer[msgType]
-	if !ok {
-		m.logger.Error().Msg("fail to get the blamed peers")
-		return nil, fmt.Errorf("fail to get the blamed peers %w", ErrTssTimeOut)
+func (m *Manager) GetUnicastBlame(lastMsgType string) ([]Node, error) {
+	if len(m.lastUnicastPeer) == 0 {
+		m.logger.Debug().Msg("we do not have any unicast message received yet")
+		return nil, nil
 	}
-	// use map to rule out the peer duplication
 	peersMap := make(map[string]bool)
+	peersID, ok := m.lastUnicastPeer[lastMsgType]
+	if !ok {
+		return nil, fmt.Errorf("fail to find peers of the given msg type %w", ErrTssTimeOut)
+	}
 	for _, el := range peersID {
 		peersMap[el.String()] = true
 	}
+
 	var onlinePeers []string
 	for key := range peersMap {
 		onlinePeers = append(onlinePeers, key)
