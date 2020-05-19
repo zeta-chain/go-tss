@@ -209,6 +209,10 @@ func (t *TssCommon) ProcessOneMessage(wrappedMsg *messages.WrappedMessage, peerI
 			return nil
 		}
 		if wireMsg.TaskDone {
+			// if we have already logged this node, we return to avoid close of a close channel
+			if t.finishedPeers[peerID] {
+				return fmt.Errorf("duplicated notification from peer %s ignored", peerID)
+			}
 			t.finishedPeers[peerID] = true
 			if len(t.finishedPeers) == len(t.partyInfo.PartyIDMap)-1 {
 				t.logger.Info().Msg("we get the confirm of the nodes that generate the signature")

@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	btss "github.com/binance-chain/tss-lib/tss"
+
 	"github.com/rs/zerolog/log"
 
 	"gitlab.com/thorchain/tss/go-tss/conversion"
@@ -376,4 +378,33 @@ func (s *TssKeysisgnTestSuite) TearDownTest(c *C) {
 	for _, item := range s.comms {
 		c.Assert(item.Stop(), IsNil)
 	}
+}
+
+func (s *TssKeysisgnTestSuite) TestCloseKeySignnotifyChannel(c *C) {
+	conf := common.TssConfig{}
+	keySignInstance := NewTssKeySign("", conf, nil, nil, "test", s.nodePrivKeys[0])
+
+	taskDone := messages.TssTaskNotifier{TaskDone: true}
+	taskDoneBytes, err := json.Marshal(taskDone)
+	c.Assert(err, IsNil)
+
+	msg := &messages.WrappedMessage{
+		MessageType: messages.TSSTaskDone,
+		MsgID:       "test",
+		Payload:     taskDoneBytes,
+	}
+	partyIdMap := make(map[string]*btss.PartyID)
+	partyIdMap["1"] = nil
+	partyIdMap["2"] = nil
+	fakePartyInfo := &common.PartyInfo{
+		Party:      nil,
+		PartyIDMap: partyIdMap,
+	}
+	keySignInstance.tssCommonStruct.SetPartyInfo(fakePartyInfo)
+	err = keySignInstance.tssCommonStruct.ProcessOneMessage(msg, "node1")
+	c.Assert(err, IsNil)
+	err = keySignInstance.tssCommonStruct.ProcessOneMessage(msg, "node2")
+	c.Assert(err, IsNil)
+	err = keySignInstance.tssCommonStruct.ProcessOneMessage(msg, "node1")
+	c.Assert(err, ErrorMatches, "duplicated notification from peer node1 ignored")
 }
