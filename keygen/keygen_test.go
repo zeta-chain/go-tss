@@ -20,6 +20,7 @@ import (
 	"github.com/tendermint/tendermint/crypto/secp256k1"
 
 	btsskeygen "github.com/binance-chain/tss-lib/ecdsa/keygen"
+	btss "github.com/binance-chain/tss-lib/tss"
 	maddr "github.com/multiformats/go-multiaddr"
 	. "gopkg.in/check.v1"
 
@@ -274,4 +275,34 @@ func (s *TssKeygenTestSuite) TestKeyGenWithError(c *C) {
 	generatedKey, err := keyGenInstance.GenerateNewKey(req)
 	c.Assert(err, NotNil)
 	c.Assert(generatedKey, IsNil)
+}
+
+func (s *TssKeygenTestSuite) TestCloseKeyGennotifyChannel(c *C) {
+	conf := common.TssConfig{}
+	stateManager := &storage.MockLocalStateManager{}
+	keyGenInstance := NewTssKeyGen("", conf, "", nil, nil, nil, "test", stateManager, s.nodePrivKeys[0])
+
+	taskDone := messages.TssTaskNotifier{TaskDone: true}
+	taskDoneBytes, err := json.Marshal(taskDone)
+	c.Assert(err, IsNil)
+
+	msg := &messages.WrappedMessage{
+		MessageType: messages.TSSTaskDone,
+		MsgID:       "test",
+		Payload:     taskDoneBytes,
+	}
+	partyIdMap := make(map[string]*btss.PartyID)
+	partyIdMap["1"] = nil
+	partyIdMap["2"] = nil
+	fakePartyInfo := &common.PartyInfo{
+		Party:      nil,
+		PartyIDMap: partyIdMap,
+	}
+	keyGenInstance.tssCommonStruct.SetPartyInfo(fakePartyInfo)
+	err = keyGenInstance.tssCommonStruct.ProcessOneMessage(msg, "node1")
+	c.Assert(err, IsNil)
+	err = keyGenInstance.tssCommonStruct.ProcessOneMessage(msg, "node2")
+	c.Assert(err, IsNil)
+	err = keyGenInstance.tssCommonStruct.ProcessOneMessage(msg, "node1")
+	c.Assert(err, ErrorMatches, "duplicated notification from peer node1 ignored")
 }
