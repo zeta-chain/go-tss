@@ -15,7 +15,7 @@ import (
 
 // GetPeerIDFromPubKey get the peer.ID from bech32 format node pub key
 func GetPeerIDFromPubKey(pubkey string) (peer.ID, error) {
-	pk, err := sdk.GetAccPubKeyBech32(pubkey)
+	pk, err := sdk.GetPubKeyFromBech32(sdk.Bech32PubKeyTypeAccPub, pubkey)
 	if err != nil {
 		return "", fmt.Errorf("fail to parse account pub key(%s): %w", pubkey, err)
 	}
@@ -82,7 +82,7 @@ func GetPubKeyFromPeerID(pID string) (string, error) {
 	}
 	var pubkey secp256k1.PubKeySecp256k1
 	copy(pubkey[:], rawBytes)
-	return sdk.Bech32ifyAccPub(pubkey)
+	return sdk.Bech32ifyPubKey(sdk.Bech32PubKeyTypeAccPub, pubkey)
 }
 
 func GetPriKey(priKeyString string) (tcrypto.PrivKey, error) {

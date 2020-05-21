@@ -12,7 +12,7 @@ import (
 // GetRandomPubKey for test
 func GetRandomPubKey() string {
 	_, pubKey, _ := atypes.KeyTestPubAddr()
-	bech32PubKey, _ := sdk.Bech32ifyAccPub(pubKey)
+	bech32PubKey, _ := sdk.Bech32ifyPubKey(sdk.Bech32PubKeyTypeAccPub, pubKey)
 	return bech32PubKey
 }
 
