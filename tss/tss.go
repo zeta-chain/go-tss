@@ -51,7 +51,7 @@ func NewTss(
 	conf common.TssConfig,
 	preParams *bkeygen.LocalPreParams,
 ) (*TssServer, error) {
-	pubKey, err := sdk.Bech32ifyAccPub(priKey.PubKey())
+	pubKey, err := sdk.Bech32ifyPubKey(sdk.Bech32PubKeyTypeAccPub, priKey.PubKey())
 	if err != nil {
 		return nil, fmt.Errorf("fail to genearte the key: %w", err)
 	}

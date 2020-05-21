@@ -60,14 +60,14 @@ func (p *ConversionTestSuite) TestGetParties(c *C) {
 	c.Assert(err, IsNil)
 	var pk secp256k1.PubKeySecp256k1
 	copy(pk[:], localParty.Key)
-	got, err := sdk.Bech32ifyAccPub(pk)
+	got, err := sdk.Bech32ifyPubKey(sdk.Bech32PubKeyTypeAccPub, pk)
 	c.Assert(err, IsNil)
 	c.Assert(got, Equals, p.testPubKeys[0])
 	var gotKeys []string
 	for _, val := range partiesID {
 		var pk secp256k1.PubKeySecp256k1
 		copy(pk[:], val.Key)
-		got, err := sdk.Bech32ifyAccPub(pk)
+		got, err := sdk.Bech32ifyPubKey(sdk.Bech32PubKeyTypeAccPub, pk)
 		c.Assert(err, IsNil)
 		gotKeys = append(gotKeys, got)
 	}
@@ -188,7 +188,7 @@ func (p *ConversionTestSuite) TestSetupPartyIDMap(c *C) {
 	for _, el := range partyIDMap {
 		var pk secp256k1.PubKeySecp256k1
 		copy(pk[:], el.Key)
-		got, err := sdk.Bech32ifyAccPub(pk)
+		got, err := sdk.Bech32ifyPubKey(sdk.Bech32PubKeyTypeAccPub, pk)
 		c.Assert(err, IsNil)
 		pubKeys = append(pubKeys, got)
 	}

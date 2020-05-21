@@ -625,7 +625,7 @@ func GetTssPubKey(pubKeyPoint *bcrypto.ECPoint) (string, types.AccAddress, error
 	}
 	var pubKeyCompressed secp256k1.PubKeySecp256k1
 	copy(pubKeyCompressed[:], tssPubKey.SerializeCompressed())
-	pubKey, err := sdk.Bech32ifyAccPub(pubKeyCompressed)
+	pubKey, err := sdk.Bech32ifyPubKey(sdk.Bech32PubKeyTypeAccPub, pubKeyCompressed)
 	addr := types.AccAddress(pubKeyCompressed.Address().Bytes())
 	return pubKey, addr, err
 }

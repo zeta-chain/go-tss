@@ -8,9 +8,10 @@ require (
 	github.com/btcsuite/btcd v0.20.1-beta
 	github.com/cenkalti/backoff/v4 v4.0.0
 	github.com/cespare/xxhash/v2 v2.1.1 // indirect
-	github.com/cosmos/cosmos-sdk v0.37.4
+	github.com/cosmos/cosmos-sdk v0.38.3
+	github.com/deckarep/golang-set v1.7.1
 	github.com/gogo/protobuf v1.3.1
-	github.com/golang/protobuf v1.3.2
+	github.com/golang/protobuf v1.3.4
 	github.com/gorilla/mux v1.7.3
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/ipfs/go-log v1.0.2
@@ -24,14 +25,13 @@ require (
 	github.com/mattn/go-isatty v0.0.12 // indirect
 	github.com/multiformats/go-multiaddr v0.2.0
 	github.com/pkg/errors v0.9.1 // indirect
-	github.com/prometheus/client_golang v1.2.1 // indirect
-	github.com/prometheus/client_model v0.0.0-20191202183732-d1d2010b5bee // indirect
 	github.com/prometheus/procfs v0.0.8 // indirect
 	github.com/rs/zerolog v1.17.2
-	github.com/stretchr/testify v1.4.0
+	github.com/stretchr/testify v1.5.1
+	github.com/stumble/gorocksdb v0.0.3 // indirect
 	github.com/tendermint/btcd v0.1.1
 	github.com/tendermint/go-amino v0.15.1 // indirect
-	github.com/tendermint/tendermint v0.32.7
+	github.com/tendermint/tendermint v0.33.3
 	go.opencensus.io v0.22.3 // indirect
 	go.uber.org/atomic v1.5.1 // indirect
 	go.uber.org/multierr v1.4.0 // indirect
@@ -43,6 +43,7 @@ require (
 	golang.org/x/tools v0.0.0-20200221224223-e1da425f72fd // indirect
 	google.golang.org/genproto v0.0.0-20191206224255-0243a4be9c8f // indirect
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15
-	gopkg.in/yaml.v2 v2.2.7 // indirect
 	honnef.co/go/tools v0.0.1-2020.1.3 // indirect
 )
+
+replace github.com/binance-chain/go-sdk => gitlab.com/thorchain/binance-sdk v1.2.2
