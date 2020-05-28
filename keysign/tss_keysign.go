@@ -151,13 +151,21 @@ func (tKeySign *TssKeySign) processKeySign(errChan chan struct{}, outCh <-chan b
 				if err != nil {
 					tKeySign.logger.Error().Err(err).Msg("error in get unicast blame")
 				}
-				blameMgr.GetBlame().SetBlame(blame.TssTimeout, blameNodesUnicast)
+				if len(blameNodesUnicast) > 0 {
+					blameMgr.GetBlame().SetBlame(blame.TssTimeout, blameNodesUnicast, "true")
+				} else {
+					blameMgr.GetBlame().SetBlame(blame.TssTimeout, blameNodesUnicast, "false")
+				}
 			} else {
 				blameNodesUnicast, err := blameMgr.GetUnicastBlame(conversion.GetPreviousKeySignUicast(lastMsg.Type()))
 				if err != nil {
 					tKeySign.logger.Error().Err(err).Msg("error in get unicast blame")
 				}
-				blameMgr.GetBlame().SetBlame(blame.TssTimeout, blameNodesUnicast)
+				if len(blameNodesUnicast) > 0 {
+					blameMgr.GetBlame().SetBlame(blame.TssTimeout, blameNodesUnicast, "true")
+				} else {
+					blameMgr.GetBlame().SetBlame(blame.TssTimeout, blameNodesUnicast, "false")
+				}
 			}
 			blameNodesBroadcast, err := blameMgr.GetBroadcastBlame(lastMsg.Type())
 			if err != nil {

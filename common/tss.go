@@ -122,6 +122,10 @@ func BytesToHashString(msg []byte) (string, error) {
 
 // updateLocal will apply the wireMsg to local keygen/keysign party
 func (t *TssCommon) updateLocal(wireMsg *messages.WireMessage) error {
+	unicast := "true"
+	if wireMsg.Routing.IsBroadcast {
+		unicast = "false"
+	}
 	if wireMsg == nil || wireMsg.Routing == nil || wireMsg.Routing.From == nil {
 		t.logger.Warn().Msg("wire msg is nil")
 		return errors.New("invalid wireMsg")
@@ -148,13 +152,13 @@ func (t *TssCommon) updateLocal(wireMsg *messages.WireMessage) error {
 		blamePk, errBlame := t.blameMgr.TssWrongShareBlame(wireMsg)
 		if errBlame != nil {
 			t.logger.Error().Err(err).Msgf("error in get the blame nodes")
-			t.blameMgr.GetBlame().SetBlame(blame.HashCheckFail, nil)
+			t.blameMgr.GetBlame().SetBlame(blame.HashCheckFail, nil, unicast)
 			return fmt.Errorf("error in getting the blame nodes ")
 		}
 		// This error indicates the share is wrong, we include this signature to prove that
 		// this incorrect share is from the share owner.
 		blameNode := blame.NewNode(blamePk, wireMsg.Message, wireMsg.Sig)
-		t.blameMgr.GetBlame().SetBlame(blame.HashCheckFail, []blame.Node{blameNode})
+		t.blameMgr.GetBlame().SetBlame(blame.HashCheckFail, []blame.Node{blameNode}, unicast)
 		return fmt.Errorf("fail to set bytes to local party: %w", err)
 	}
 	return nil
@@ -342,6 +346,10 @@ func (t *TssCommon) ProcessOutCh(msg btss.Message, msgType messages.THORChainTSS
 }
 
 func (t *TssCommon) applyShare(localCacheItem *LocalCacheItem, threshold int, key string, msgType messages.THORChainTSSMessageType) error {
+	unicast := "true"
+	if localCacheItem.Msg.Routing.IsBroadcast {
+		unicast = "false"
+	}
 	err := t.hashCheck(localCacheItem, threshold)
 	if err != nil {
 		if errors.Is(err, blame.ErrNotEnoughPeer) {
@@ -355,11 +363,11 @@ func (t *TssCommon) applyShare(localCacheItem *LocalCacheItem, threshold int, ke
 		blamePk, err := t.blameMgr.TssWrongShareBlame(localCacheItem.Msg)
 		if err != nil {
 			t.logger.Error().Err(err).Msgf("error in get the blame nodes")
-			t.blameMgr.GetBlame().SetBlame(blame.HashCheckFail, nil)
+			t.blameMgr.GetBlame().SetBlame(blame.HashCheckFail, nil, unicast)
 			return fmt.Errorf("error in getting the blame nodes %w", blame.ErrHashCheck)
 		}
 		blameNode := blame.NewNode(blamePk, localCacheItem.Msg.Message, localCacheItem.Msg.Sig)
-		t.blameMgr.GetBlame().SetBlame(blame.HashCheckFail, []blame.Node{blameNode})
+		t.blameMgr.GetBlame().SetBlame(blame.HashCheckFail, []blame.Node{blameNode}, unicast)
 		return blame.ErrHashCheck
 	}
 

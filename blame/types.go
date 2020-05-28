@@ -31,11 +31,12 @@ type PartyInfo struct {
 type Node struct {
 	Pubkey         string `json:"pubkey"`
 	BlameData      []byte `json:"data"`
-	BlameSignature []byte `json:"signature"`
+	BlameSignature []byte `json:"signature,omitempty"`
 }
 
 // Blame is used to store the blame nodes and the fail reason
 type Blame struct {
 	FailReason string `json:"fail_reason"`
+	IsUnicast  string `json:"is_broadcast"`
 	BlameNodes []Node `json:"blame_peers,omitempty"`
 }
