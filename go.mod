@@ -6,14 +6,11 @@ require (
 	github.com/binance-chain/go-sdk v1.2.1
 	github.com/binance-chain/tss-lib v1.3.1
 	github.com/btcsuite/btcd v0.20.1-beta
-	github.com/cenkalti/backoff/v4 v4.0.0
-	github.com/cespare/xxhash/v2 v2.1.1 // indirect
 	github.com/cosmos/cosmos-sdk v0.38.3
 	github.com/deckarep/golang-set v1.7.1
 	github.com/gogo/protobuf v1.3.1
 	github.com/golang/protobuf v1.3.4
 	github.com/gorilla/mux v1.7.3
-	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/ipfs/go-log v1.0.2
 	github.com/jackpal/go-nat-pmp v1.0.2 // indirect
 	github.com/libp2p/go-libp2p v0.5.2
@@ -22,15 +19,10 @@ require (
 	github.com/libp2p/go-libp2p-kad-dht v0.3.0
 	github.com/libp2p/go-libp2p-testing v0.1.1
 	github.com/libp2p/go-yamux v1.2.4 // indirect
-	github.com/mattn/go-isatty v0.0.12 // indirect
 	github.com/multiformats/go-multiaddr v0.2.0
-	github.com/pkg/errors v0.9.1 // indirect
-	github.com/prometheus/procfs v0.0.8 // indirect
 	github.com/rs/zerolog v1.17.2
 	github.com/stretchr/testify v1.5.1
-	github.com/stumble/gorocksdb v0.0.3 // indirect
 	github.com/tendermint/btcd v0.1.1
-	github.com/tendermint/go-amino v0.15.1 // indirect
 	github.com/tendermint/tendermint v0.33.3
 	go.opencensus.io v0.22.3 // indirect
 	go.uber.org/atomic v1.5.1 // indirect

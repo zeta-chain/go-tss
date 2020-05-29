@@ -1,6 +1,8 @@
 package conversion
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"math/big"
@@ -139,4 +141,13 @@ func GetPreviousKeySignUicast(current string) string {
 	default:
 		return messages.KEYSIGN2Unicast
 	}
+}
+
+func BytesToHashString(msg []byte) (string, error) {
+	h := sha256.New()
+	_, err := h.Write(msg)
+	if err != nil {
+		return "", fmt.Errorf("fail to caculate sha256 hash: %w", err)
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
 }

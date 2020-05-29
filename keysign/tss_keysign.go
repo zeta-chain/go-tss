@@ -152,9 +152,9 @@ func (tKeySign *TssKeySign) processKeySign(errChan chan struct{}, outCh <-chan b
 					tKeySign.logger.Error().Err(err).Msg("error in get unicast blame")
 				}
 				if len(blameNodesUnicast) > 0 {
-					blameMgr.GetBlame().SetBlame(blame.TssTimeout, blameNodesUnicast, "true")
+					blameMgr.GetBlame().SetBlame(blame.TssTimeout, blameNodesUnicast, true)
 				} else {
-					blameMgr.GetBlame().SetBlame(blame.TssTimeout, blameNodesUnicast, "false")
+					blameMgr.GetBlame().SetBlame(blame.TssTimeout, blameNodesUnicast, false)
 				}
 			} else {
 				blameNodesUnicast, err := blameMgr.GetUnicastBlame(conversion.GetPreviousKeySignUicast(lastMsg.Type()))
@@ -162,9 +162,9 @@ func (tKeySign *TssKeySign) processKeySign(errChan chan struct{}, outCh <-chan b
 					tKeySign.logger.Error().Err(err).Msg("error in get unicast blame")
 				}
 				if len(blameNodesUnicast) > 0 {
-					blameMgr.GetBlame().SetBlame(blame.TssTimeout, blameNodesUnicast, "true")
+					blameMgr.GetBlame().SetBlame(blame.TssTimeout, blameNodesUnicast, true)
 				} else {
-					blameMgr.GetBlame().SetBlame(blame.TssTimeout, blameNodesUnicast, "false")
+					blameMgr.GetBlame().SetBlame(blame.TssTimeout, blameNodesUnicast, false)
 				}
 			}
 			blameNodesBroadcast, err := blameMgr.GetBroadcastBlame(lastMsg.Type())

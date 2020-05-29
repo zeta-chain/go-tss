@@ -166,9 +166,9 @@ func (tKeyGen *TssKeyGen) processKeyGen(errChan chan struct{},
 				tKeyGen.logger.Error().Err(err).Msg("error in get unicast blame")
 			}
 			if len(blameNodesUnicast) > 0 {
-				blameMgr.GetBlame().SetBlame(blame.TssTimeout, blameNodesUnicast, "true")
+				blameMgr.GetBlame().SetBlame(blame.TssTimeout, blameNodesUnicast, true)
 			} else {
-				blameMgr.GetBlame().SetBlame(blame.TssTimeout, blameNodesUnicast, "false")
+				blameMgr.GetBlame().SetBlame(blame.TssTimeout, blameNodesUnicast, false)
 			}
 			blameNodesBroadcast, err := blameMgr.GetBroadcastBlame(lastMsg.Type())
 			if err != nil {

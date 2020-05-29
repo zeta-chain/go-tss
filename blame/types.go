@@ -37,6 +37,6 @@ type Node struct {
 // Blame is used to store the blame nodes and the fail reason
 type Blame struct {
 	FailReason string `json:"fail_reason"`
-	IsUnicast  string `json:"is_broadcast"`
+	IsUnicast  bool   `json:"is_broadcast"`
 	BlameNodes []Node `json:"blame_peers,omitempty"`
 }
