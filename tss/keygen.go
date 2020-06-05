@@ -5,6 +5,7 @@ import (
 
 	"gitlab.com/thorchain/tss/go-tss/blame"
 	"gitlab.com/thorchain/tss/go-tss/common"
+	"gitlab.com/thorchain/tss/go-tss/conversion"
 	"gitlab.com/thorchain/tss/go-tss/keygen"
 	"gitlab.com/thorchain/tss/go-tss/messages"
 )
@@ -78,7 +79,7 @@ func (t *TssServer) Keygen(req keygen.Request) (keygen.Response, error) {
 		atomic.AddUint64(&t.Status.SucKeyGen, 1)
 	}
 
-	newPubKey, addr, err := common.GetTssPubKey(k)
+	newPubKey, addr, err := conversion.GetTssPubKey(k)
 	if err != nil {
 		t.logger.Error().Err(err).Msg("fail to generate the new Tss key")
 		status = common.Fail

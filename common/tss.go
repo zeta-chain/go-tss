@@ -6,11 +6,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/binance-chain/go-sdk/common/types"
-	bcrypto "github.com/binance-chain/tss-lib/crypto"
 	btss "github.com/binance-chain/tss-lib/tss"
-	"github.com/btcsuite/btcd/btcec"
-	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -636,22 +632,6 @@ func (t *TssCommon) removeKey(key string) {
 	t.unConfirmedMsgLock.Lock()
 	defer t.unConfirmedMsgLock.Unlock()
 	delete(t.unConfirmedMessages, key)
-}
-
-func GetTssPubKey(pubKeyPoint *bcrypto.ECPoint) (string, types.AccAddress, error) {
-	if pubKeyPoint == nil {
-		return "", types.AccAddress{}, errors.New("invalid points")
-	}
-	tssPubKey := btcec.PublicKey{
-		Curve: btcec.S256(),
-		X:     pubKeyPoint.X(),
-		Y:     pubKeyPoint.Y(),
-	}
-	var pubKeyCompressed secp256k1.PubKeySecp256k1
-	copy(pubKeyCompressed[:], tssPubKey.SerializeCompressed())
-	pubKey, err := sdk.Bech32ifyPubKey(sdk.Bech32PubKeyTypeAccPub, pubKeyCompressed)
-	addr := types.AccAddress(pubKeyCompressed.Address().Bytes())
-	return pubKey, addr, err
 }
 
 func (t *TssCommon) ProcessInboundMessages(finishChan chan struct{}, wg *sync.WaitGroup) {
