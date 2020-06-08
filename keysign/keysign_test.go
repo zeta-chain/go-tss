@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	btss "github.com/binance-chain/tss-lib/tss"
+	"github.com/libp2p/go-libp2p-peerstore/addr"
 
 	"github.com/rs/zerolog/log"
 
@@ -80,6 +82,14 @@ func (m *MockLocalStateManager) GetLocalState(pubKey string) (storage.KeygenLoca
 		return storage.KeygenLocalState{}, err
 	}
 	return state, nil
+}
+
+func (s *MockLocalStateManager) SaveAddressBook(address map[peer.ID]addr.AddrList) error {
+	return nil
+}
+
+func (s *MockLocalStateManager) RetrieveP2PAddresses() (addr.AddrList, error) {
+	return nil, os.ErrNotExist
 }
 
 type TssKeysisgnTestSuite struct {
@@ -180,7 +190,7 @@ func (s *TssKeysisgnTestSuite) TestSignMessage(c *C) {
 				conf,
 				comm.BroadcastMsgChan,
 				stopChan, messageID,
-				s.nodePrivKeys[idx])
+				s.nodePrivKeys[idx], s.comms[idx], s.stateMgrs[idx])
 			keysignMsgChannel := keysignIns.GetTssKeySignChannels()
 
 			comm.SetSubscribe(messages.TSSKeySignMsg, messageID, keysignMsgChannel)
@@ -262,7 +272,7 @@ func (s *TssKeysisgnTestSuite) TestSignMessageWithStop(c *C) {
 				conf,
 				comm.BroadcastMsgChan,
 				stopChan, messageID,
-				s.nodePrivKeys[idx])
+				s.nodePrivKeys[idx], s.comms[idx], s.stateMgrs[idx])
 			keysignMsgChannel := keysignIns.GetTssKeySignChannels()
 
 			comm.SetSubscribe(messages.TSSKeySignMsg, messageID, keysignMsgChannel)
@@ -343,7 +353,7 @@ func (s *TssKeysisgnTestSuite) TestSignMessageRejectOnePeer(c *C) {
 			keysignIns := NewTssKeySign(comm.GetLocalPeerID(),
 				conf,
 				comm.BroadcastMsgChan,
-				stopChan, messageID, s.nodePrivKeys[idx])
+				stopChan, messageID, s.nodePrivKeys[idx], s.comms[idx], s.stateMgrs[idx])
 			keysignMsgChannel := keysignIns.GetTssKeySignChannels()
 
 			comm.SetSubscribe(messages.TSSKeySignMsg, messageID, keysignMsgChannel)
@@ -382,7 +392,7 @@ func (s *TssKeysisgnTestSuite) TearDownTest(c *C) {
 
 func (s *TssKeysisgnTestSuite) TestCloseKeySignnotifyChannel(c *C) {
 	conf := common.TssConfig{}
-	keySignInstance := NewTssKeySign("", conf, nil, nil, "test", s.nodePrivKeys[0])
+	keySignInstance := NewTssKeySign("", conf, nil, nil, "test", s.nodePrivKeys[0], s.comms[0], s.stateMgrs[0])
 
 	taskDone := messages.TssTaskNotifier{TaskDone: true}
 	taskDoneBytes, err := json.Marshal(taskDone)

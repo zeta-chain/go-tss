@@ -34,6 +34,8 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 		t.stopChan,
 		msgID,
 		t.privateKey,
+		t.p2pCommunication,
+		t.stateManager,
 	)
 
 	keySignChannels := keysignInstance.GetTssKeySignChannels()

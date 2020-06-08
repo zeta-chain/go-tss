@@ -30,6 +30,7 @@ type TssKeyGen struct {
 	localParty      *btss.PartyID
 	stateManager    storage.LocalStateManager
 	commStopChan    chan struct{}
+	p2pComm         *p2p.Communication
 }
 
 func NewTssKeyGen(localP2PID string,
@@ -40,7 +41,8 @@ func NewTssKeyGen(localP2PID string,
 	preParam *bkg.LocalPreParams,
 	msgID string,
 	stateManager storage.LocalStateManager,
-	privateKey tcrypto.PrivKey) *TssKeyGen {
+	privateKey tcrypto.PrivKey,
+	p2pComm *p2p.Communication) *TssKeyGen {
 	return &TssKeyGen{
 		logger: log.With().
 			Str("module", "keygen").
@@ -52,6 +54,7 @@ func NewTssKeyGen(localP2PID string,
 		localParty:      nil,
 		stateManager:    stateManager,
 		commStopChan:    make(chan struct{}),
+		p2pComm:         p2pComm,
 	}
 }
 
@@ -202,7 +205,10 @@ func (tKeyGen *TssKeyGen) processKeyGen(errChan chan struct{},
 			if err := tKeyGen.stateManager.SaveLocalState(keyGenLocalStateItem); err != nil {
 				return nil, fmt.Errorf("fail to save keygen result to storage: %w", err)
 			}
-
+			address := tKeyGen.p2pComm.ExportPeerAddress()
+			if err := tKeyGen.stateManager.SaveAddressBook(address); err != nil {
+				tKeyGen.logger.Error().Err(err).Msg("fail to save the peer addresses")
+			}
 			return msg.ECDSAPub, nil
 		}
 	}

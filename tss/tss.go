@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"os"
 	"sort"
 	"sync"
 	"time"
@@ -11,7 +12,7 @@ import (
 	bkeygen "github.com/binance-chain/tss-lib/ecdsa/keygen"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/libp2p/go-libp2p-core/peer"
-	maddr "github.com/multiformats/go-multiaddr"
+	"github.com/libp2p/go-libp2p-peerstore/addr"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	tcrypto "github.com/tendermint/tendermint/crypto"
@@ -43,7 +44,7 @@ type TssServer struct {
 
 // NewTss create a new instance of Tss
 func NewTss(
-	bootstrapPeers []maddr.Multiaddr,
+	cmdBootstrapPeers addr.AddrList,
 	p2pPort int,
 	priKey tcrypto.PrivKey,
 	rendezvous,
@@ -56,11 +57,27 @@ func NewTss(
 		return nil, fmt.Errorf("fail to genearte the key: %w", err)
 	}
 
+	stateManager, err := storage.NewFileStateMgr(baseFolder)
+	if err != nil {
+		return nil, fmt.Errorf("fail to create file state manager")
+	}
+
+	var bootstrapPeers addr.AddrList
+	savedPeers, err := stateManager.RetrieveP2PAddresses()
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			bootstrapPeers = cmdBootstrapPeers
+		} else {
+			return nil, fmt.Errorf("fail to load address book %w", err)
+		}
+	} else {
+		bootstrapPeers = savedPeers
+		bootstrapPeers = append(bootstrapPeers, cmdBootstrapPeers...)
+	}
 	comm, err := p2p.NewCommunication(rendezvous, bootstrapPeers, p2pPort)
 	if err != nil {
 		return nil, fmt.Errorf("fail to create communication layer: %w", err)
 	}
-
 	// When using the keygen party it is recommended that you pre-compute the
 	// "safe primes" and Paillier secret beforehand because this can take some
 	// time.
@@ -84,10 +101,6 @@ func NewTss(
 		return nil, fmt.Errorf("fail to start p2p network: %w", err)
 	}
 	pc := p2p.NewPartyCoordinator(comm.GetHost(), conf.KeySignTimeout)
-	stateManager, err := storage.NewFileStateMgr(baseFolder)
-	if err != nil {
-		return nil, fmt.Errorf("fail to create file state manager")
-	}
 	sn := keysign.NewSignatureNotifier(comm.GetHost())
 	tssServer := TssServer{
 		conf:   conf,

@@ -17,6 +17,7 @@ require (
 	github.com/libp2p/go-libp2p-core v0.3.1
 	github.com/libp2p/go-libp2p-discovery v0.2.0
 	github.com/libp2p/go-libp2p-kad-dht v0.3.0
+	github.com/libp2p/go-libp2p-peerstore v0.1.4
 	github.com/libp2p/go-libp2p-testing v0.1.1
 	github.com/libp2p/go-yamux v1.2.4 // indirect
 	github.com/multiformats/go-multiaddr v0.2.0
@@ -24,6 +25,7 @@ require (
 	github.com/stretchr/testify v1.5.1
 	github.com/tendermint/btcd v0.1.1
 	github.com/tendermint/tendermint v0.33.3
+	github.com/zondax/ledger-go v0.11.0 // indirect
 	go.opencensus.io v0.22.3 // indirect
 	go.uber.org/atomic v1.5.1 // indirect
 	go.uber.org/multierr v1.4.0 // indirect
