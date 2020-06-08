@@ -3,6 +3,7 @@ package blame
 import (
 	"bytes"
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -37,14 +38,15 @@ func (b *Blame) IsEmpty() bool {
 // String implement fmt.Stringer
 func (b Blame) String() string {
 	sb := strings.Builder{}
-	sb.WriteString("reason:" + b.FailReason + "\n")
+	sb.WriteString("reason:" + b.FailReason + " is_broadcast:" + strconv.FormatBool(b.IsUnicast) + "\n")
 	sb.WriteString(fmt.Sprintf("nodes:%+v\n", b.BlameNodes))
 	return sb.String()
 }
 
 // SetBlame update the field values of Blame
-func (b *Blame) SetBlame(reason string, nodes []Node) {
+func (b *Blame) SetBlame(reason string, nodes []Node, isUnicast bool) {
 	b.FailReason = reason
+	b.IsUnicast = isUnicast
 	b.BlameNodes = append(b.BlameNodes, nodes...)
 }
 

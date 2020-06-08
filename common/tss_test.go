@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"testing"
@@ -215,7 +216,7 @@ func setupProcessVerMsgEnv(c *C, privKey tcrypto.PrivKey, keyPool []string, part
 func (t *TssTestSuite) testDropMsgOwner(c *C, privKey tcrypto.PrivKey, tssCommonStruct *TssCommon, senderID *btss.PartyID, peerPartiesID []*btss.PartyID) {
 	testMsg := "testDropMsgOwner"
 	roundInfo := "round testDropMsgOwner"
-	msgHash, err := BytesToHashString([]byte(testMsg))
+	msgHash, err := conversion.BytesToHashString([]byte(testMsg))
 	c.Assert(err, IsNil)
 	msgKey := fmt.Sprintf("%s-%s", senderID.Id, roundInfo)
 	senderMsg := fabricateTssMsg(c, privKey, senderID, roundInfo, testMsg, "123", messages.TSSKeyGenMsg)
@@ -251,7 +252,7 @@ func (t *TssTestSuite) testDropMsgOwner(c *C, privKey tcrypto.PrivKey, tssCommon
 	c.Assert(found, Equals, true)
 }
 
-func (t *TssTestSuite) testProcessControlMsg(c *C, tssCommonStruct *TssCommon, senderID *btss.PartyID, partiesID []*btss.PartyID) {
+func (t *TssTestSuite) testProcessControlMsg(c *C, tssCommonStruct *TssCommon) {
 	controlMsg := messages.TssControl{
 		ReqHash:     "testHash",
 		ReqKey:      "testKey",
@@ -325,7 +326,7 @@ func (t *TssTestSuite) testProcessTaskDone(c *C, tssCommonStruct *TssCommon) {
 func (t *TssTestSuite) testVerMsgAndUpdateFromPeer(c *C, tssCommonStruct *TssCommon, senderID *btss.PartyID, partiesID []*btss.PartyID) {
 	testMsg := "testVerMsgAndUpdate2"
 	roundInfo := "round testVerMsgAndUpdate2"
-	msgHash, err := BytesToHashString([]byte(testMsg))
+	msgHash, err := conversion.BytesToHashString([]byte(testMsg))
 	c.Assert(err, IsNil)
 	msgKey := fmt.Sprintf("%s-%s", senderID.Id, roundInfo)
 	// we send the verify message from the the same sender, Tss should only accept the first verify message
@@ -343,7 +344,7 @@ func (t *TssTestSuite) testVerMsgAndUpdateFromPeer(c *C, tssCommonStruct *TssCom
 func (t *TssTestSuite) testVerMsgAndUpdate(c *C, tssCommonStruct *TssCommon, senderID *btss.PartyID, partiesID []*btss.PartyID) {
 	testMsg := "testVerMsgAndUpdate"
 	roundInfo := "round testVerMsgAndUpdate"
-	msgHash, err := BytesToHashString([]byte(testMsg))
+	msgHash, err := conversion.BytesToHashString([]byte(testMsg))
 	c.Assert(err, IsNil)
 	msgKey := fmt.Sprintf("%s-%s", senderID.Id, roundInfo)
 	wrappedMsg := fabricateTssMsg(c, t.privKey, senderID, roundInfo, testMsg, "123", messages.TSSKeyGenMsg)
@@ -379,7 +380,7 @@ func (t *TssTestSuite) TestProcessVerMessage(c *C) {
 	t.testVerMsgAndUpdateFromPeer(c, tssCommonStruct, sender, partiesID)
 	t.testDropMsgOwner(c, t.privKey, tssCommonStruct, sender, peerPartiesID)
 	t.testVerMsgAndUpdate(c, tssCommonStruct, sender, partiesID)
-	t.testProcessControlMsg(c, tssCommonStruct, sender, partiesID)
+	t.testProcessControlMsg(c, tssCommonStruct)
 	t.testProcessTaskDone(c, tssCommonStruct)
 }
 
@@ -429,4 +430,33 @@ func (t *TssTestSuite) TestGetTssPubKey(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(pk, Equals, "thorpub1addwnpepq2dwek9hkrlxjxadrlmy9fr42gqyq6029q0hked46l3u6a9fxqel6tma5eu")
 	c.Assert(addr.String(), Equals, "bnb17l7cyxqzg4xymnl0alrhqwja276s3rns4256c2")
+}
+
+func (t *TssTestSuite) TestProcessInvalidMsgBlame(c *C) {
+	tssCommonStruct, peerPartiesID, partiesID := setupProcessVerMsgEnv(c, t.privKey, testBlamePubKeys, 4)
+	sender := findSender(partiesID)
+
+	testMsg := "testVerMsgDuplication"
+	roundInfo := "round testMessage"
+	tssCommonStruct.msgID = "123"
+	wrappedMsg := fabricateTssMsg(c, t.privKey, sender, roundInfo, testMsg, tssCommonStruct.msgID, messages.TSSKeyGenMsg)
+
+	var wiredMsg messages.WireMessage
+	err := json.Unmarshal(wrappedMsg.Payload, &wiredMsg)
+	c.Assert(err, IsNil)
+	culprits := peerPartiesID[:3]
+	for _, el := range culprits[:2] {
+		key := fmt.Sprintf("%s-%s", el.Id, roundInfo)
+		tssCommonStruct.blameMgr.GetRoundMgr().Set(key, &wiredMsg)
+	}
+
+	fakeErr := btss.NewError(errors.New("test error"), "test task", 1, nil, culprits...)
+	tssCommonStruct.processInvalidMsgBlame(&wiredMsg, fakeErr)
+	blameResult := tssCommonStruct.GetBlameMgr().GetBlame()
+	c.Assert(blameResult.BlameNodes, HasLen, 3)
+	for _, el := range blameResult.BlameNodes[:2] {
+		c.Assert(el.BlameData, DeepEquals, []byte(testMsg))
+	}
+	// for the last one, since we do not store the msg before hand, it should return no record of this party
+	c.Assert(blameResult.BlameNodes[2].BlameData, HasLen, 0)
 }

@@ -1,8 +1,6 @@
 package common
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -20,6 +18,7 @@ import (
 	"github.com/tendermint/tendermint/crypto/secp256k1"
 
 	"gitlab.com/thorchain/tss/go-tss/blame"
+	"gitlab.com/thorchain/tss/go-tss/conversion"
 	"gitlab.com/thorchain/tss/go-tss/messages"
 	"gitlab.com/thorchain/tss/go-tss/p2p"
 )
@@ -111,13 +110,44 @@ func (t *TssCommon) SetLocalPeerID(peerID string) {
 	t.localPeerID = peerID
 }
 
-func BytesToHashString(msg []byte) (string, error) {
-	h := sha256.New()
-	_, err := h.Write(msg)
-	if err != nil {
-		return "", fmt.Errorf("fail to caculate sha256 hash: %w", err)
+func (t *TssCommon) processInvalidMsgBlame(wireMsg *messages.WireMessage, err *btss.Error) error {
+	// now we get the culprits ID, invalid message and signature the culprits sent
+	var culpritsID []string
+	var invalidMsgs []*messages.WireMessage
+	unicast := true
+	if wireMsg.Routing.IsBroadcast {
+		unicast = false
 	}
-	return hex.EncodeToString(h.Sum(nil)), nil
+	for _, el := range err.Culprits() {
+		culpritsID = append(culpritsID, el.Id)
+		key := fmt.Sprintf("%s-%s", el.Id, wireMsg.RoundInfo)
+		storedMsg := t.blameMgr.GetRoundMgr().Get(key)
+		invalidMsgs = append(invalidMsgs, storedMsg)
+	}
+	pubkeys, errBlame := conversion.AccPubKeysFromPartyIDs(culpritsID, t.partyInfo.PartyIDMap)
+	if errBlame != nil {
+		t.logger.Error().Err(err.Cause()).Msgf("error in get the blame nodes")
+		t.blameMgr.GetBlame().SetBlame(blame.HashCheckFail, nil, unicast)
+		return fmt.Errorf("error in getting the blame nodes")
+	}
+	// This error indicates the share is wrong, we include this signature to prove that
+	// this incorrect share is from the share owner.
+	var blameNodes []blame.Node
+	var msgBody, sig []byte
+	for i, pk := range pubkeys {
+		invalidMsg := invalidMsgs[i]
+		if invalidMsg == nil {
+			t.logger.Error().Msg("we cannot find the record of this curlprit, set it as blank")
+			msgBody = []byte{}
+			sig = []byte{}
+		} else {
+			msgBody = invalidMsg.Message
+			sig = invalidMsg.Sig
+		}
+		blameNodes = append(blameNodes, blame.NewNode(pk, msgBody, sig))
+	}
+	t.blameMgr.GetBlame().SetBlame(blame.HashCheckFail, blameNodes, unicast)
+	return fmt.Errorf("fail to set bytes to local party: %w", err)
 }
 
 // updateLocal will apply the wireMsg to local keygen/keysign party
@@ -145,17 +175,7 @@ func (t *TssCommon) updateLocal(wireMsg *messages.WireMessage) error {
 		t.blameMgr.SetLastUnicastPeer(dataOwnerPeerID, wireMsg.RoundInfo)
 	}
 	if _, err := partyInfo.Party.UpdateFromBytes(wireMsg.Message, partyID, wireMsg.Routing.IsBroadcast); nil != err {
-		blamePk, errBlame := t.blameMgr.TssWrongShareBlame(wireMsg)
-		if errBlame != nil {
-			t.logger.Error().Err(err).Msgf("error in get the blame nodes")
-			t.blameMgr.GetBlame().SetBlame(blame.HashCheckFail, nil)
-			return fmt.Errorf("error in getting the blame nodes ")
-		}
-		// This error indicates the share is wrong, we include this signature to prove that
-		// this incorrect share is from the share owner.
-		blameNode := blame.NewNode(blamePk, wireMsg.Message, wireMsg.Sig)
-		t.blameMgr.GetBlame().SetBlame(blame.HashCheckFail, []blame.Node{blameNode})
-		return fmt.Errorf("fail to set bytes to local party: %w", err)
+		return t.processInvalidMsgBlame(wireMsg, err)
 	}
 	return nil
 }
@@ -342,6 +362,10 @@ func (t *TssCommon) ProcessOutCh(msg btss.Message, msgType messages.THORChainTSS
 }
 
 func (t *TssCommon) applyShare(localCacheItem *LocalCacheItem, threshold int, key string, msgType messages.THORChainTSSMessageType) error {
+	unicast := true
+	if localCacheItem.Msg.Routing.IsBroadcast {
+		unicast = false
+	}
 	err := t.hashCheck(localCacheItem, threshold)
 	if err != nil {
 		if errors.Is(err, blame.ErrNotEnoughPeer) {
@@ -355,18 +379,18 @@ func (t *TssCommon) applyShare(localCacheItem *LocalCacheItem, threshold int, ke
 		blamePk, err := t.blameMgr.TssWrongShareBlame(localCacheItem.Msg)
 		if err != nil {
 			t.logger.Error().Err(err).Msgf("error in get the blame nodes")
-			t.blameMgr.GetBlame().SetBlame(blame.HashCheckFail, nil)
+			t.blameMgr.GetBlame().SetBlame(blame.HashCheckFail, nil, unicast)
 			return fmt.Errorf("error in getting the blame nodes %w", blame.ErrHashCheck)
 		}
 		blameNode := blame.NewNode(blamePk, localCacheItem.Msg.Message, localCacheItem.Msg.Sig)
-		t.blameMgr.GetBlame().SetBlame(blame.HashCheckFail, []blame.Node{blameNode})
+		t.blameMgr.GetBlame().SetBlame(blame.HashCheckFail, []blame.Node{blameNode}, unicast)
 		return blame.ErrHashCheck
 	}
 
+	t.blameMgr.GetRoundMgr().Set(key, localCacheItem.Msg)
 	if err := t.updateLocal(localCacheItem.Msg); nil != err {
 		return fmt.Errorf("fail to update the message to local party: %w", err)
 	}
-	t.blameMgr.GetRoundMgr().Set(key, localCacheItem.Msg)
 	t.logger.Debug().Msgf("remove key: %s", key)
 	// the information had been confirmed by all party , we don't need it anymore
 	t.removeKey(key)
@@ -492,7 +516,7 @@ func (t *TssCommon) receiverBroadcastHashToPeers(wireMsg *messages.WireMessage, 
 	}
 	msgVerType := getBroadcastMessageType(msgType)
 	key := wireMsg.GetCacheKey()
-	msgHash, err := BytesToHashString(wireMsg.Message)
+	msgHash, err := conversion.BytesToHashString(wireMsg.Message)
 	if err != nil {
 		return fmt.Errorf("fail to calculate hash of the wire message: %w", err)
 	}
@@ -544,7 +568,7 @@ func (t *TssCommon) processTSSMsg(wireMsg *messages.WireMessage, msgType message
 
 	partyInfo := t.getPartyInfo()
 	key := wireMsg.GetCacheKey()
-	msgHash, err := BytesToHashString(wireMsg.Message)
+	msgHash, err := conversion.BytesToHashString(wireMsg.Message)
 	if err != nil {
 		return fmt.Errorf("fail to calculate hash of the wire message: %w", err)
 	}
