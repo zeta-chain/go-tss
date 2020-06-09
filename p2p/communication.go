@@ -246,7 +246,6 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 
 	routingDiscovery := discovery.NewRoutingDiscovery(kademliaDHT)
 	discovery.Advertise(ctx, routingDiscovery, c.rendezvous)
-
 	err = c.bootStrapConnectivityCheck()
 	if err != nil {
 		return err

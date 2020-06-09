@@ -29,12 +29,14 @@ type TssKeySign struct {
 	stopChan        chan struct{} // channel to indicate whether we should stop
 	localParty      *btss.PartyID
 	commStopChan    chan struct{}
+	p2pComm         *p2p.Communication
+	stateManager    storage.LocalStateManager
 }
 
 func NewTssKeySign(localP2PID string,
 	conf common.TssConfig,
 	broadcastChan chan *messages.BroadcastMsgChan,
-	stopChan chan struct{}, msgID string, privKey tcrypto.PrivKey) *TssKeySign {
+	stopChan chan struct{}, msgID string, privKey tcrypto.PrivKey, p2pComm *p2p.Communication, stateManager storage.LocalStateManager) *TssKeySign {
 	logItems := []string{"keySign", msgID}
 	return &TssKeySign{
 		logger:          log.With().Strs("module", logItems).Logger(),
@@ -42,6 +44,8 @@ func NewTssKeySign(localP2PID string,
 		stopChan:        stopChan,
 		localParty:      nil,
 		commStopChan:    make(chan struct{}),
+		p2pComm:         p2pComm,
+		stateManager:    stateManager,
 	}
 }
 
@@ -186,6 +190,10 @@ func (tKeySign *TssKeySign) processKeySign(errChan chan struct{}, outCh <-chan b
 			err := tKeySign.tssCommonStruct.NotifyTaskDone()
 			if err != nil {
 				tKeySign.logger.Error().Err(err).Msg("fail to broadcast the keysign done")
+			}
+			address := tKeySign.p2pComm.ExportPeerAddress()
+			if err := tKeySign.stateManager.SaveAddressBook(address); err != nil {
+				tKeySign.logger.Error().Err(err).Msg("fail to save the peer addresses")
 			}
 			return &msg, nil
 		}
