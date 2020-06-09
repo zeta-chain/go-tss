@@ -1,9 +1,12 @@
-.PHONY: install build test test-watch lint 
+.PHONY: install build test test-watch lint tools
 
 all: lint build
 
 clear:
 	clear
+
+tools:
+	go install ./tools/tss-recovery
 
 install: go.sum
 	go install ./cmd/tss
