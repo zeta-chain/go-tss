@@ -9,6 +9,9 @@ import (
 	"sort"
 	"strconv"
 
+	"github.com/binance-chain/go-sdk/common/types"
+	"github.com/binance-chain/tss-lib/crypto"
+	"github.com/btcsuite/btcd/btcec"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	btss "github.com/binance-chain/tss-lib/tss"
@@ -141,6 +144,28 @@ func GetPreviousKeySignUicast(current string) string {
 	default:
 		return messages.KEYSIGN2Unicast
 	}
+}
+
+func isOnCurve(x, y *big.Int) bool {
+	curve := btcec.S256()
+	return curve.IsOnCurve(x, y)
+}
+
+func GetTssPubKey(pubKeyPoint *crypto.ECPoint) (string, types.AccAddress, error) {
+	// we check whether the point is on curve according to Kudelski report
+	if pubKeyPoint == nil || !isOnCurve(pubKeyPoint.X(), pubKeyPoint.Y()) {
+		return "", types.AccAddress{}, errors.New("invalid points")
+	}
+	tssPubKey := btcec.PublicKey{
+		Curve: btcec.S256(),
+		X:     pubKeyPoint.X(),
+		Y:     pubKeyPoint.Y(),
+	}
+	var pubKeyCompressed secp256k1.PubKeySecp256k1
+	copy(pubKeyCompressed[:], tssPubKey.SerializeCompressed())
+	pubKey, err := sdk.Bech32ifyPubKey(sdk.Bech32PubKeyTypeAccPub, pubKeyCompressed)
+	addr := types.AccAddress(pubKeyCompressed.Address().Bytes())
+	return pubKey, addr, err
 }
 
 func BytesToHashString(msg []byte) (string, error) {

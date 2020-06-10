@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	bcrypto "github.com/binance-chain/tss-lib/crypto"
 	btsskeygen "github.com/binance-chain/tss-lib/ecdsa/keygen"
 	btss "github.com/binance-chain/tss-lib/tss"
 	sdk "github.com/cosmos/cosmos-sdk/types"
@@ -416,20 +415,6 @@ func (t *TssTestSuite) TestTssCommon(c *C) {
 	tssCommon.TssMsg <- pMsg
 	close(stopchan)
 	wg.Wait()
-}
-
-func (t *TssTestSuite) TestGetTssPubKey(c *C) {
-	pk, addr, err := GetTssPubKey(nil)
-	c.Assert(err, NotNil)
-	c.Assert(pk, Equals, "")
-	c.Assert(addr.Bytes(), HasLen, 0)
-	conversion.SetupBech32Prefix()
-	var p bcrypto.ECPoint
-	c.Assert(json.Unmarshal([]byte(`{"Coords":[70074650318631491136896111706876206496089700125696166275258483716815143842813,72125378038650252881868972131323661098816214918201601489154946637636730727892]}`), &p), IsNil)
-	pk, addr, err = GetTssPubKey(&p)
-	c.Assert(err, IsNil)
-	c.Assert(pk, Equals, "thorpub1addwnpepq2dwek9hkrlxjxadrlmy9fr42gqyq6029q0hked46l3u6a9fxqel6tma5eu")
-	c.Assert(addr.String(), Equals, "bnb17l7cyxqzg4xymnl0alrhqwja276s3rns4256c2")
 }
 
 func (t *TssTestSuite) TestProcessInvalidMsgBlame(c *C) {

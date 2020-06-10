@@ -196,7 +196,7 @@ func (tKeyGen *TssKeyGen) processKeyGen(errChan chan struct{},
 			if err != nil {
 				tKeyGen.logger.Error().Err(err).Msg("fail to broadcast the keysign done")
 			}
-			pubKey, _, err := common.GetTssPubKey(msg.ECDSAPub)
+			pubKey, _, err := conversion.GetTssPubKey(msg.ECDSAPub)
 			if err != nil {
 				return nil, fmt.Errorf("fail to get thorchain pubkey: %w", err)
 			}
