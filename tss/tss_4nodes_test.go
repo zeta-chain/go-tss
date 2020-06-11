@@ -76,20 +76,21 @@ func (s *FourNodeTestSuite) SetUpTest(c *C) {
 		PreParamTimeout: 5 * time.Second,
 	}
 
+	var wg sync.WaitGroup
 	for i := 0; i < partyNum; i++ {
-		if i == 0 {
-			// we need remove the seed file of the bootstrap node,otherwise, it try to connect to
-			// the peers from the last test and will fail as others have not been spin up yet.
-			file := path.Join(os.TempDir(), strconv.Itoa(0))
-			file = path.Join(file, "address_book.seed")
-			os.RemoveAll(file)
-			s.servers[i] = s.getTssServer(c, i, conf, "")
-		} else {
-			s.servers[i] = s.getTssServer(c, i, conf, s.bootstrapPeer)
-		}
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			if idx == 0 {
+				s.servers[idx] = s.getTssServer(c, idx, conf, "")
+			} else {
+				s.servers[idx] = s.getTssServer(c, idx, conf, s.bootstrapPeer)
+			}
+		}(i)
+
 		time.Sleep(time.Second)
 	}
-
+	wg.Wait()
 	for i := 0; i < partyNum; i++ {
 		c.Assert(s.servers[i].Start(), IsNil)
 	}
@@ -260,13 +261,9 @@ func (s *FourNodeTestSuite) TearDownTest(c *C) {
 	time.Sleep(time.Second)
 	if !s.isBlameTest {
 		s.servers[0].Stop()
-		filesPath := path.Join(os.TempDir(), strconv.Itoa(0))
-		os.RemoveAll(filesPath)
 	}
 	for i := 1; i < partyNum; i++ {
 		s.servers[i].Stop()
-		filesPath := path.Join(os.TempDir(), strconv.Itoa(i))
-		os.RemoveAll(filesPath)
 	}
 }
 

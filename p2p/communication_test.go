@@ -59,7 +59,7 @@ func (CommunicationTestSuite) TestEstablishP2pCommunication(c *C) {
 	comm3, err := NewCommunication("commTest", []maddr.Multiaddr{invalidMultiAddr}, 2222)
 	c.Assert(err, IsNil)
 	err = comm3.Start(sk1raw)
-	c.Assert(err, ErrorMatches, "the node cannot connect to any bootstrap node")
+	c.Assert(err, ErrorMatches, "fail to connect to bootstrap peer: fail to connect to any peer")
 	defer comm3.Stop()
 
 	// we connect to one invalid and one valid address

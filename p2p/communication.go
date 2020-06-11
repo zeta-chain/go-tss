@@ -238,12 +238,22 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 	if err = kademliaDHT.Bootstrap(ctx); err != nil {
 		return fmt.Errorf("fail to bootstrap DHT: %w", err)
 	}
-	if err := c.connectToBootstrapPeers(); nil != err {
-		return fmt.Errorf("fail to connect to bootstrap peer: %w", err)
+
+	var connectionErr error
+	for i := 0; i < 5; i++ {
+		connectionErr = c.connectToBootstrapPeers()
+		if connectionErr == nil {
+			break
+		}
+		c.logger.Info().Msg("cannot connect to any bootstrap node, retry in 5 seconds")
+		time.Sleep(time.Second * 5)
 	}
+	if connectionErr != nil {
+		return fmt.Errorf("fail to connect to bootstrap peer: %w", connectionErr)
+	}
+
 	// We use a rendezvous point "meet me here" to announce our location.
 	// This is like telling your friends to meet you at the Eiffel Tower.
-
 	routingDiscovery := discovery.NewRoutingDiscovery(kademliaDHT)
 	discovery.Advertise(ctx, routingDiscovery, c.rendezvous)
 	err = c.bootStrapConnectivityCheck()
@@ -274,26 +284,38 @@ func (c *Communication) connectToOnePeer(pID peer.ID) (network.Stream, error) {
 func (c *Communication) connectToBootstrapPeers() error {
 	// Let's connect to the bootstrap nodes first. They will tell us about the
 	// other nodes in the network.
+	if len(c.bootstrapPeers) == 0 {
+		c.logger.Info().Msg("no bootstrap node set, we skip the connection")
+		return nil
+	}
 	var wg sync.WaitGroup
+	connRet := make(chan bool, len(c.bootstrapPeers))
 	for _, peerAddr := range c.bootstrapPeers {
 		pi, err := peer.AddrInfoFromP2pAddr(peerAddr)
 		if err != nil {
 			return fmt.Errorf("fail to add peer: %w", err)
 		}
 		wg.Add(1)
-		go func() {
+		go func(connRet chan bool) {
 			defer wg.Done()
 			ctx, cancel := context.WithTimeout(context.Background(), TimeoutConnecting)
 			defer cancel()
 			if err := c.host.Connect(ctx, *pi); err != nil {
-				c.logger.Error().Err(err)
+				c.logger.Error().Err(err).Msgf("fail to connect to %s", pi.String())
+				connRet <- false
 				return
 			}
+			connRet <- true
 			c.logger.Info().Msgf("Connection established with bootstrap node: %s", *pi)
-		}()
+		}(connRet)
 	}
 	wg.Wait()
-	return nil
+	for i := 0; i < len(c.bootstrapPeers); i++ {
+		if <-connRet {
+			return nil
+		}
+	}
+	return errors.New("fail to connect to any peer")
 }
 
 // Start will start the communication
