@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/btcsuite/btcd/btcec"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -108,4 +109,17 @@ func GetPriKeyRawBytes(priKey tcrypto.PrivKey) ([]byte, error) {
 	}
 	copy(keyBytesArray[:], pk[:])
 	return keyBytesArray[:], nil
+}
+
+func CheckKeyOnCurve(pk string) (bool, error) {
+	pubKey, err := sdk.GetPubKeyFromBech32(sdk.Bech32PubKeyTypeAccPub, pk)
+	if err != nil {
+		return false, fmt.Errorf("fail to parse pub key(%s): %w", pk, err)
+	}
+	rawPk := pubKey.(secp256k1.PubKeySecp256k1)
+	bPk, err := btcec.ParsePubKey(rawPk[:], btcec.S256())
+	if err != nil {
+		return false, err
+	}
+	return isOnCurve(bPk.X, bPk.Y), nil
 }

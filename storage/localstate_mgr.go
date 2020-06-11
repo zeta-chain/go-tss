@@ -15,6 +15,8 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-peerstore/addr"
 	ma "github.com/multiformats/go-multiaddr"
+
+	"gitlab.com/thorchain/tss/go-tss/conversion"
 )
 
 // KeygenLocalState is a structure used to represent the data we saved locally for different keygen
@@ -56,12 +58,20 @@ func NewFileStateMgr(folder string) (*FileStateMgr, error) {
 	}, nil
 }
 
-func (fsm *FileStateMgr) getFilePathName(pubKey string) string {
+func (fsm *FileStateMgr) getFilePathName(pubKey string) (string, error) {
+	ret, err := conversion.CheckKeyOnCurve(pubKey)
+	if err != nil {
+		return "", err
+	}
+	if !ret {
+		return "", errors.New("invalid pubkey for file name")
+	}
+
 	localFileName := fmt.Sprintf("localstate-%s.json", pubKey)
 	if len(fsm.folder) > 0 {
-		return filepath.Join(fsm.folder, localFileName)
+		return filepath.Join(fsm.folder, localFileName), nil
 	}
-	return localFileName
+	return localFileName, nil
 }
 
 // SaveLocalState save the local state to file
@@ -70,7 +80,10 @@ func (fsm *FileStateMgr) SaveLocalState(state KeygenLocalState) error {
 	if err != nil {
 		return fmt.Errorf("fail to marshal KeygenLocalState to json: %w", err)
 	}
-	filePathName := fsm.getFilePathName(state.PubKey)
+	filePathName, err := fsm.getFilePathName(state.PubKey)
+	if err != nil {
+		return err
+	}
 	return ioutil.WriteFile(filePathName, buf, 0655)
 }
 
@@ -79,7 +92,10 @@ func (fsm *FileStateMgr) GetLocalState(pubKey string) (KeygenLocalState, error) 
 	if len(pubKey) == 0 {
 		return KeygenLocalState{}, errors.New("pub key is empty")
 	}
-	filePathName := fsm.getFilePathName(pubKey)
+	filePathName, err := fsm.getFilePathName(pubKey)
+	if err != nil {
+		return KeygenLocalState{}, err
+	}
 	if _, err := os.Stat(filePathName); os.IsNotExist(err) {
 		return KeygenLocalState{}, err
 	}
