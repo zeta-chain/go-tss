@@ -1,6 +1,7 @@
 package keysign
 
 import (
+	"crypto/ecdsa"
 	"errors"
 	"fmt"
 	"math/big"
@@ -48,39 +49,12 @@ func (n *Notifier) verifySignature(data *bc.SignatureData) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("fail to get pubkey from bech32 pubkey string(%s):%w", n.poolPubKey, err)
 	}
-
-	sig, err := btcec.ParseSignature(n.getSignatureBytes(data), btcec.S256())
-	if err != nil {
-		return false, fmt.Errorf("fail to parse signature: %w", err)
-	}
 	pk := pubKey.(secp256k1.PubKeySecp256k1)
 	pub, err := btcec.ParsePubKey(pk[:], btcec.S256())
 	if err != nil {
-		return false, fmt.Errorf("fail to parse pubkey: %w", err)
+		return false, err
 	}
-	return sig.Verify(n.message, pub), nil
-}
-
-func (n *Notifier) getSignatureBytes(data *bc.SignatureData) []byte {
-	R := new(big.Int).SetBytes(data.R)
-	S := new(big.Int).SetBytes(data.S)
-	N := btcec.S256().N
-	halfOrder := new(big.Int).Rsh(N, 1)
-	// see: https://github.com/ethereum/go-ethereum/blob/f9401ae011ddf7f8d2d95020b7446c17f8d98dc1/crypto/signature_nocgo.go#L90-L93
-	if S.Cmp(halfOrder) == 1 {
-		S.Sub(N, S)
-	}
-
-	// Serialize signature to R || S.
-	// R, S are padded to 32 bytes respectively.
-	rBytes := R.Bytes()
-	sBytes := S.Bytes()
-
-	sigBytes := make([]byte, 64)
-	// 0 pad the byte arrays from the left if they aren't big enough.
-	copy(sigBytes[32-len(rBytes):32], rBytes)
-	copy(sigBytes[64-len(sBytes):64], sBytes)
-	return sigBytes
+	return ecdsa.Verify(pub.ToECDSA(), n.message, new(big.Int).SetBytes(data.R), new(big.Int).SetBytes(data.S)), nil
 }
 
 // ProcessSignature is to verify whether the signature is valid
