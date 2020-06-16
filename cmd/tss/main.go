@@ -67,6 +67,7 @@ func main() {
 		baseFolder,
 		tssConf,
 		nil,
+		p2pConf.ExternalIP,
 	)
 	if nil != err {
 		log.Fatal(err)
@@ -102,6 +103,7 @@ func parseFlags() (tssConf common.TssConfig, p2pConf p2p.Config) {
 	flag.StringVar(&p2pConf.RendezvousString, "rendezvous", "Asgard",
 		"Unique string to identify group of nodes. Share this with your friends to let them connect with you")
 	flag.IntVar(&p2pConf.Port, "p2p-port", 6668, "listening port local")
+	flag.StringVar(&p2pConf.ExternalIP, "external-ip", "", "external IP of this node")
 	flag.Var(&p2pConf.BootstrapPeers, "peer", "Adds a peer multiaddress to the bootstrap list")
 	flag.Parse()
 	return

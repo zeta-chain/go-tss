@@ -53,13 +53,21 @@ type Communication struct {
 	subscriberLocker *sync.Mutex
 	streamCount      int64
 	BroadcastMsgChan chan *messages.BroadcastMsgChan
+	externalAddr     maddr.Multiaddr
 }
 
 // NewCommunication create a new instance of Communication
-func NewCommunication(rendezvous string, bootstrapPeers []maddr.Multiaddr, port int) (*Communication, error) {
+func NewCommunication(rendezvous string, bootstrapPeers []maddr.Multiaddr, port int, externalIP string) (*Communication, error) {
 	addr, err := maddr.NewMultiaddr(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", port))
 	if err != nil {
 		return nil, fmt.Errorf("fail to create listen addr: %w", err)
+	}
+	var externalAddr maddr.Multiaddr = nil
+	if len(externalIP) != 0 {
+		externalAddr, err = maddr.NewMultiaddr(fmt.Sprintf("/ip4/%s/tcp/%d", externalIP, port))
+		if err != nil {
+			return nil, fmt.Errorf("fail to create listen with given external IP: %w", err)
+		}
 	}
 	return &Communication{
 		rendezvous:       rendezvous,
@@ -72,6 +80,7 @@ func NewCommunication(rendezvous string, bootstrapPeers []maddr.Multiaddr, port 
 		subscriberLocker: &sync.Mutex{},
 		streamCount:      0,
 		BroadcastMsgChan: make(chan *messages.BroadcastMsgChan, 1024),
+		externalAddr:     externalAddr,
 	}, nil
 }
 
@@ -216,9 +225,17 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 		return err
 	}
 
+	addressFactory := func(addrs []maddr.Multiaddr) []maddr.Multiaddr {
+		if c.externalAddr != nil {
+			addrs = append(addrs, c.externalAddr)
+		}
+		return addrs
+	}
+
 	h, err := libp2p.New(ctx,
 		libp2p.ListenAddrs([]maddr.Multiaddr{c.listenAddr}...),
 		libp2p.Identity(p2pPriKey),
+		libp2p.AddrsFactory(addressFactory),
 	)
 	if err != nil {
 		return fmt.Errorf("fail to create p2p host: %w", err)
