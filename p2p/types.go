@@ -14,6 +14,7 @@ type Config struct {
 	RendezvousString string
 	Port             int
 	BootstrapPeers   addrList
+	ExternalIP       string
 }
 
 // String implement fmt.Stringer

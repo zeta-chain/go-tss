@@ -51,6 +51,7 @@ func NewTss(
 	baseFolder string,
 	conf common.TssConfig,
 	preParams *bkeygen.LocalPreParams,
+	externalIP string,
 ) (*TssServer, error) {
 	pubKey, err := sdk.Bech32ifyPubKey(sdk.Bech32PubKeyTypeAccPub, priKey.PubKey())
 	if err != nil {
@@ -74,7 +75,7 @@ func NewTss(
 		bootstrapPeers = savedPeers
 		bootstrapPeers = append(bootstrapPeers, cmdBootstrapPeers...)
 	}
-	comm, err := p2p.NewCommunication(rendezvous, bootstrapPeers, p2pPort)
+	comm, err := p2p.NewCommunication(rendezvous, bootstrapPeers, p2pPort, externalIP)
 	if err != nil {
 		return nil, fmt.Errorf("fail to create communication layer: %w", err)
 	}
