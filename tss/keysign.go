@@ -73,7 +73,7 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 
 	if !t.isPartOfKeysignParty(req.SignerPubKeys) {
 		// TSS keysign include both form party and keysign itself, thus we wait twice of the timeout
-		data, err := t.signatureNotifier.WaitForSignature(msgID, msgToSign, req.PoolPubKey, t.conf.KeySignTimeout*2)
+		data, err := t.signatureNotifier.WaitForSignature(msgID, msgToSign, req.PoolPubKey, t.conf.KeySignTimeout)
 		if err != nil {
 			return emptyResp, fmt.Errorf("fail to get signature:%w", err)
 		}

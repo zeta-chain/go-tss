@@ -7,7 +7,6 @@ require (
 	github.com/binance-chain/tss-lib v1.3.1
 	github.com/btcsuite/btcd v0.20.1-beta
 	github.com/cosmos/cosmos-sdk v0.38.3
-	github.com/cosmos/go-bip39 v0.0.0-20180819234021-555e2067c45d
 	github.com/deckarep/golang-set v1.7.1
 	github.com/decred/dcrd/dcrec/secp256k1 v1.0.3
 	github.com/gogo/protobuf v1.3.1
@@ -27,7 +26,6 @@ require (
 	github.com/stretchr/testify v1.5.1
 	github.com/tendermint/btcd v0.1.1
 	github.com/tendermint/tendermint v0.33.3
-	github.com/zondax/ledger-go v0.11.0 // indirect
 	go.opencensus.io v0.22.3 // indirect
 	go.uber.org/atomic v1.5.1 // indirect
 	go.uber.org/multierr v1.4.0 // indirect
