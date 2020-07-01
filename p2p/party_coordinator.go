@@ -140,12 +140,35 @@ func (pc *PartyCoordinator) sendRequestToPeer(msg *messages.JoinPartyRequest, re
 	if err != nil {
 		return fmt.Errorf("fail to marshal msg to bytes: %w", err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*4)
 	defer cancel()
-	stream, err := pc.host.NewStream(ctx, remotePeer, joinPartyProtocol)
-	if err != nil {
-		return fmt.Errorf("fail to create stream to peer(%s):%w", remotePeer, err)
+	var stream network.Stream
+	var streamError error
+	streamGetChan := make(chan struct{})
+	go func() {
+		defer close(streamGetChan)
+
+		pc.logger.Info().Msgf("try to open stream to (%s) ", remotePeer)
+		stream, err = pc.host.NewStream(ctx, remotePeer, joinPartyProtocol)
+		if err != nil {
+			streamError = fmt.Errorf("fail to create stream to peer(%s):%w", remotePeer, err)
+		}
+	}()
+
+	select {
+	case <-streamGetChan:
+		if streamError != nil {
+			pc.logger.Error().Err(streamError).Msg("fail to open stream")
+			return streamError
+		}
+	case <-ctx.Done():
+		pc.logger.Error().Err(ctx.Err()).Msg("fail to open stream with context timeout")
+		// we reset the whole connection of this peer
+		err := pc.host.Network().ClosePeer(remotePeer)
+		pc.logger.Error().Err(err).Msgf("fail to clolse the connection to peer %s", remotePeer.String())
+		return ctx.Err()
 	}
+
 	defer func() {
 		if err := stream.Close(); err != nil {
 			pc.logger.Error().Err(err).Msg("fail to close stream")
