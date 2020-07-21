@@ -150,13 +150,12 @@ func (pc *PartyCoordinator) sendRequestToPeer(msg *messages.JoinPartyRequest, re
 	go func() {
 		defer close(streamGetChan)
 
-		pc.logger.Info().Msgf("try to open stream to (%s) ", remotePeer)
+		pc.logger.Debug().Msgf("try to open stream to (%s) ", remotePeer)
 		stream, err = pc.host.NewStream(ctx, remotePeer, joinPartyProtocol)
 		if err != nil {
 			streamError = fmt.Errorf("fail to create stream to peer(%s):%w", remotePeer, err)
 		}
 	}()
-
 	select {
 	case <-streamGetChan:
 		if streamError != nil {
@@ -165,9 +164,6 @@ func (pc *PartyCoordinator) sendRequestToPeer(msg *messages.JoinPartyRequest, re
 		}
 	case <-ctx.Done():
 		pc.logger.Error().Err(ctx.Err()).Msg("fail to open stream with context timeout")
-		// we reset the whole connection of this peer
-		err := pc.host.Network().ClosePeer(remotePeer)
-		pc.logger.Error().Err(err).Msgf("fail to close the connection to peer %s", remotePeer.String())
 		return ctx.Err()
 	}
 
@@ -177,7 +173,7 @@ func (pc *PartyCoordinator) sendRequestToPeer(msg *messages.JoinPartyRequest, re
 			pc.logger.Error().Err(err).Msg("fail to close stream")
 		}
 	}()
-	pc.logger.Info().Msgf("open stream to (%s) successfully", remotePeer)
+	pc.logger.Debug().Msgf("open stream to (%s) successfully", remotePeer)
 
 	err = WriteStreamWithBuffer(msgBuf, stream)
 	if err != nil {
@@ -221,7 +217,7 @@ func (pc *PartyCoordinator) JoinPartyWithRetry(msg *messages.JoinPartyRequest, p
 		for {
 			select {
 			case <-peerGroup.newFound:
-				pc.logger.Info().Msg("we have found the new peer")
+				pc.logger.Debug().Msg("we have found the new peer")
 				if peerGroup.getCoordinationStatus() {
 					close(done)
 					return
