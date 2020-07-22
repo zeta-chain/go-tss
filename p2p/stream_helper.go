@@ -40,10 +40,12 @@ func NewStreamMgr() *StreamMgr {
 
 func (sm *StreamMgr) ReleaseStream(msgID string) {
 	sm.streamLocker.RLock()
-	entries, ok := sm.unusedStreams[msgID]
+	usedStreams, okStream := sm.unusedStreams[msgID]
+	unknownStreams, okUnknown := sm.unusedStreams["UNKNOWN"]
 	sm.streamLocker.RUnlock()
-	if ok {
-		for _, el := range entries {
+	streams := append(usedStreams, unknownStreams...)
+	if okStream || okUnknown {
+		for _, el := range streams {
 			err := el.Reset()
 			if err != nil {
 				sm.logger.Error().Err(err).Msg("fail to reset the stream,skip it")
@@ -89,9 +91,6 @@ func ReadStreamWithBuffer(stream network.Stream) ([]byte, error) {
 	}
 	length := binary.LittleEndian.Uint32(lengthBytes)
 	if length > MaxPayload {
-		if errReset := stream.Reset(); errReset != nil {
-			return nil, fmt.Errorf("fail to reset stream: %w", err)
-		}
 		return nil, fmt.Errorf("payload length:%d exceed max payload length:%d", length, MaxPayload)
 	}
 	dataBuf := make([]byte, length)

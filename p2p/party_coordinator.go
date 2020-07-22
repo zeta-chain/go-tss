@@ -57,24 +57,22 @@ func (pc *PartyCoordinator) Stop() {
 
 // HandleStream handle party coordinate stream
 func (pc *PartyCoordinator) HandleStream(stream network.Stream) {
-	defer func() {
-		if err := stream.Reset(); err != nil {
-			pc.logger.Err(err).Msg("fail to close the stream")
-		}
-	}()
 	remotePeer := stream.Conn().RemotePeer()
 	logger := pc.logger.With().Str("remote peer", remotePeer.String()).Logger()
 	logger.Debug().Msg("reading from join party request")
 	payload, err := ReadStreamWithBuffer(stream)
 	if err != nil {
 		logger.Err(err).Msgf("fail to read payload from stream")
+		pc.streamMgr.AddStream("UNKNOWN", stream)
 		return
 	}
 	var msg messages.JoinPartyRequest
 	if err := proto.Unmarshal(payload, &msg); err != nil {
 		logger.Err(err).Msg("fail to unmarshal join party request")
+		pc.streamMgr.AddStream("UNKNOWN", stream)
 		return
 	}
+	pc.streamMgr.AddStream(msg.ID, stream)
 	pc.joinPartyGroupLock.Lock()
 	peerGroup, ok := pc.peersGroup[msg.ID]
 	pc.joinPartyGroupLock.Unlock()
@@ -177,12 +175,8 @@ func (pc *PartyCoordinator) sendRequestToPeer(msg *messages.JoinPartyRequest, re
 
 	err = WriteStreamWithBuffer(msgBuf, stream)
 	if err != nil {
-		if errReset := stream.Reset(); errReset != nil {
-			return errReset
-		}
 		return fmt.Errorf("fail to write message to stream:%w", err)
 	}
-
 	return nil
 }
 

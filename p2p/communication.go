@@ -111,11 +111,17 @@ func (c *Communication) broadcastToPeers(peers []peer.ID, msg []byte, msgID stri
 	defer func() {
 		c.logger.Debug().Msgf("finished sending message to peer(%v)", peers)
 	}()
+	var wgSend sync.WaitGroup
+	wgSend.Add(len(peers))
 	for _, p := range peers {
-		if err := c.writeToStream(p, msg, msgID); nil != err {
-			c.logger.Error().Err(err).Msg("fail to write to stream")
-		}
+		go func(p peer.ID) {
+			defer wgSend.Done()
+			if err := c.writeToStream(p, msg, msgID); nil != err {
+				c.logger.Error().Err(err).Msg("fail to write to stream")
+			}
+		}(p)
 	}
+	wgSend.Wait()
 }
 
 func (c *Communication) writeToStream(pID peer.ID, msg []byte, msgID string) error {
@@ -133,9 +139,6 @@ func (c *Communication) writeToStream(pID peer.ID, msg []byte, msgID string) err
 
 	defer func() {
 		c.streamMgr.AddStream(msgID, stream)
-		if err := stream.Close(); nil != err {
-			c.logger.Error().Err(err).Msgf("fail to reset stream to peer(%s)", pID)
-		}
 	}()
 	c.logger.Debug().Msgf(">>>writing messages to peer(%s)", pID)
 
@@ -145,11 +148,6 @@ func (c *Communication) writeToStream(pID peer.ID, msg []byte, msgID string) err
 func (c *Communication) readFromStream(stream network.Stream) {
 	peerID := stream.Conn().RemotePeer().String()
 	c.logger.Debug().Msgf("reading from stream of peer: %s", peerID)
-	defer func() {
-		if err := stream.Reset(); nil != err {
-			c.logger.Error().Err(err).Msg("fail to close stream")
-		}
-	}()
 
 	select {
 	case <-c.stopChan:
@@ -158,14 +156,17 @@ func (c *Communication) readFromStream(stream network.Stream) {
 		dataBuf, err := ReadStreamWithBuffer(stream)
 		if err != nil {
 			c.logger.Error().Err(err).Msgf("fail to read from stream,peerID: %s", peerID)
+			c.streamMgr.AddStream("UNKNOWN", stream)
 			return
 		}
 		var wrappedMsg messages.WrappedMessage
 		if err := json.Unmarshal(dataBuf, &wrappedMsg); nil != err {
 			c.logger.Error().Err(err).Msg("fail to unmarshal wrapped message bytes")
+			c.streamMgr.AddStream("UNKNOWN", stream)
 			return
 		}
 		c.logger.Debug().Msgf(">>>>>>>[%s] %s", wrappedMsg.MessageType, string(wrappedMsg.Payload))
+		c.streamMgr.AddStream(wrappedMsg.MsgID, stream)
 		channel := c.getSubscriber(wrappedMsg.MessageType, wrappedMsg.MsgID)
 		if nil == channel {
 			c.logger.Debug().Msgf("no MsgID %s found for this message", wrappedMsg.MsgID)
