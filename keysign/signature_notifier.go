@@ -60,25 +60,23 @@ func NewSignatureNotifier(host host.Host) *SignatureNotifier {
 
 // HandleStream handle signature notify stream
 func (s *SignatureNotifier) handleStream(stream network.Stream) {
-	defer func() {
-		if err := stream.Reset(); err != nil {
-			s.logger.Err(err).Msg("fail to close the stream")
-		}
-	}()
 	remotePeer := stream.Conn().RemotePeer()
 	logger := s.logger.With().Str("remote peer", remotePeer.String()).Logger()
 	logger.Debug().Msg("reading signature notifier message")
 	payload, err := p2p.ReadStreamWithBuffer(stream)
 	if err != nil {
 		logger.Err(err).Msgf("fail to read payload from stream")
+		s.streamMgr.AddStream("UNKNOWN", stream)
 		return
 	}
 	_ = payload
 	var msg messages.KeysignSignature
 	if err := proto.Unmarshal(payload, &msg); err != nil {
 		logger.Err(err).Msg("fail to unmarshal join party request")
+		s.streamMgr.AddStream("UNKNOWN", stream)
 		return
 	}
+	s.streamMgr.AddStream(msg.ID, stream)
 	var signature bc.SignatureData
 	if len(msg.Signature) > 0 && msg.KeysignStatus == messages.KeysignSignature_Success {
 		if err := proto.Unmarshal(msg.Signature, &signature); err != nil {
@@ -142,9 +140,6 @@ func (s *SignatureNotifier) sendOneMsgToPeer(m *signatureItem) error {
 	s.logger.Debug().Msgf("open stream to (%s) successfully", m.peerID)
 	defer func() {
 		s.streamMgr.AddStream(m.messageID, stream)
-		if err := stream.Close(); err != nil {
-			s.logger.Error().Err(err).Msg("fail to close stream")
-		}
 	}()
 	ks := &messages.KeysignSignature{
 		ID:            m.messageID,
@@ -166,9 +161,6 @@ func (s *SignatureNotifier) sendOneMsgToPeer(m *signatureItem) error {
 
 	err = p2p.WriteStreamWithBuffer(ksBuf, stream)
 	if err != nil {
-		if errReset := stream.Reset(); errReset != nil {
-			return errReset
-		}
 		return fmt.Errorf("fail to write message to stream:%w", err)
 	}
 	return nil
