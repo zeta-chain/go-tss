@@ -159,6 +159,10 @@ func (tKeyGen *TssKeyGen) processKeyGen(errChan chan struct{},
 			// we bail out after KeyGenTimeoutSeconds
 			tKeyGen.logger.Error().Msgf("fail to generate message with %s", tssConf.KeyGenTimeout.String())
 			lastMsg := blameMgr.GetLastMsg()
+			failReason := blameMgr.GetBlame().FailReason
+			if failReason == "" {
+				failReason = blame.TssTimeout
+			}
 			if lastMsg == nil {
 				tKeyGen.logger.Error().Msg("fail to start the keygen, the last produced message of this node is none")
 				return nil, errors.New("timeout before shared message is generated")
@@ -167,10 +171,13 @@ func (tKeyGen *TssKeyGen) processKeyGen(errChan chan struct{},
 			if err != nil {
 				tKeyGen.logger.Error().Err(err).Msg("error in get unicast blame")
 			}
-			if len(blameNodesUnicast) > 0 {
-				blameMgr.GetBlame().SetBlame(blame.TssTimeout, blameNodesUnicast, true)
-			} else {
-				blameMgr.GetBlame().SetBlame(blame.TssTimeout, blameNodesUnicast, false)
+			threshold, err := common.GetThreshold(len(tKeyGen.tssCommonStruct.P2PPeers) + 1)
+			if err != nil {
+				tKeyGen.logger.Error().Err(err).Msg("error in get the threshold to generate blame")
+			}
+
+			if len(blameNodesUnicast) > 0 && len(blameNodesUnicast) <= threshold {
+				blameMgr.GetBlame().SetBlame(failReason, blameNodesUnicast, lastMsg.IsBroadcast())
 			}
 			blameNodesBroadcast, err := blameMgr.GetBroadcastBlame(lastMsg.Type())
 			if err != nil {
