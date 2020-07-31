@@ -122,7 +122,6 @@ func NewTss(
 func (t *TssServer) Start() error {
 	log.Info().Msg("Starting the TSS servers")
 	t.Status.Starttime = time.Now()
-	t.signatureNotifier.Start()
 	return nil
 }
 
@@ -134,7 +133,6 @@ func (t *TssServer) Stop() {
 	if err != nil {
 		t.logger.Error().Msgf("error in shutdown the p2p server")
 	}
-	t.signatureNotifier.Stop()
 	t.partyCoordinator.Stop()
 	log.Info().Msg("The Tss and p2p server has been stopped successfully")
 }
