@@ -2,7 +2,6 @@ package keysign
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -20,8 +19,6 @@ import (
 	"gitlab.com/thorchain/tss/go-tss/p2p"
 )
 
-const signatureNotifiers = 10
-
 var signatureNotifierProtocol protocol.ID = "/p2p/signatureNotifier"
 
 type signatureItem struct {
@@ -34,11 +31,9 @@ type signatureItem struct {
 type SignatureNotifier struct {
 	logger       zerolog.Logger
 	host         host.Host
-	stopChan     chan struct{}
 	notifierLock *sync.Mutex
 	notifiers    map[string]*Notifier
 	messages     chan *signatureItem
-	wg           *sync.WaitGroup
 	streamMgr    *p2p.StreamMgr
 }
 
@@ -49,9 +44,7 @@ func NewSignatureNotifier(host host.Host) *SignatureNotifier {
 		host:         host,
 		notifierLock: &sync.Mutex{},
 		notifiers:    make(map[string]*Notifier),
-		stopChan:     make(chan struct{}),
 		messages:     make(chan *signatureItem),
-		wg:           &sync.WaitGroup{},
 		streamMgr:    p2p.NewStreamMgr(),
 	}
 	host.SetStreamHandler(signatureNotifierProtocol, s.handleStream)
@@ -101,35 +94,6 @@ func (s *SignatureNotifier) handleStream(stream network.Stream) {
 	}
 }
 
-func (s *SignatureNotifier) Start() {
-	for i := 0; i < signatureNotifiers; i++ {
-		s.wg.Add(1)
-		go s.sendMessageToPeer()
-	}
-}
-
-// Stop the signature notifier
-func (s *SignatureNotifier) Stop() {
-	close(s.stopChan)
-	s.wg.Wait()
-}
-
-func (s *SignatureNotifier) sendMessageToPeer() {
-	s.logger.Debug().Msg("start to send message to peers")
-	defer s.logger.Debug().Msg("stop send message to peers")
-	defer s.wg.Done()
-	for {
-		select {
-		case <-s.stopChan:
-			return
-		case msg := <-s.messages:
-			if err := s.sendOneMsgToPeer(msg); err != nil {
-				s.logger.Error().Err(err).Msgf("fail to send message(%s) to peer:%s", msg.messageID, msg.peerID)
-			}
-		}
-	}
-}
-
 func (s *SignatureNotifier) sendOneMsgToPeer(m *signatureItem) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
@@ -172,21 +136,27 @@ func (s *SignatureNotifier) BroadcastSignature(messageID string, sig *bc.Signatu
 }
 
 func (s *SignatureNotifier) broadcastCommon(messageID string, sig *bc.SignatureData, peers []peer.ID) error {
+	wg := sync.WaitGroup{}
 	for _, p := range peers {
 		if p == s.host.ID() {
 			// don't send the signature to itself
 			continue
 		}
-		select {
-		case s.messages <- &signatureItem{
+		signature := &signatureItem{
 			messageID:     messageID,
 			peerID:        p,
 			signatureData: sig,
-		}:
-		case <-s.stopChan:
-			return nil
 		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			err := s.sendOneMsgToPeer(signature)
+			if err != nil {
+				s.logger.Error().Err(err).Msgf("fail to send signature to peer %s", signature.peerID.String())
+			}
+		}()
 	}
+	wg.Wait()
 	return nil
 }
 
@@ -219,8 +189,6 @@ func (s *SignatureNotifier) WaitForSignature(messageID string, message []byte, p
 	select {
 	case d := <-n.GetResponseChannel():
 		return d, nil
-	case <-s.stopChan:
-		return nil, errors.New("request to exit")
 	case <-time.After(timeout):
 		return nil, fmt.Errorf("timeout: didn't receive signature after %s", timeout)
 	}
