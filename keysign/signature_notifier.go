@@ -62,7 +62,11 @@ func (s *SignatureNotifier) handleStream(stream network.Stream) {
 		s.streamMgr.AddStream("UNKNOWN", stream)
 		return
 	}
-	_ = payload
+	// we tell the sender we have received the message
+	err = p2p.WriteStreamWithBuffer([]byte("done"), stream)
+	if err != nil {
+		logger.Error().Err(err).Msgf("fail to write the reply to peer: %s", remotePeer)
+	}
 	var msg messages.KeysignSignature
 	if err := proto.Unmarshal(payload, &msg); err != nil {
 		logger.Err(err).Msg("fail to unmarshal join party request")
@@ -127,7 +131,13 @@ func (s *SignatureNotifier) sendOneMsgToPeer(m *signatureItem) error {
 	if err != nil {
 		return fmt.Errorf("fail to write message to stream:%w", err)
 	}
-	return nil
+	// we wait for 1 second to allow the receive notify us
+	if err := stream.SetReadDeadline(time.Now().Add(time.Second * 1)); nil != err {
+		return err
+	}
+	ret := make([]byte, 8)
+	_, err = stream.Read(ret)
+	return err
 }
 
 // BroadcastSignature sending the keysign signature to all other peers
