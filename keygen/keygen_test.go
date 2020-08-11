@@ -92,6 +92,14 @@ func (s *TssKeygenTestSuite) SetUpSuite(c *C) {
 	}
 }
 
+func (s *TssKeygenTestSuite) TearDownSuite(c *C) {
+	for i, _ := range s.comms {
+		tempFilePath := path.Join(os.TempDir(), strconv.Itoa(i))
+		err := os.RemoveAll(tempFilePath)
+		c.Assert(err, IsNil)
+	}
+}
+
 // SetUpTest set up environment for test key gen
 func (s *TssKeygenTestSuite) SetUpTest(c *C) {
 	ports := []int{

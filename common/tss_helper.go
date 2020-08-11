@@ -14,7 +14,10 @@ import (
 	"os"
 	"sort"
 	"strconv"
+	"strings"
 
+	"github.com/binance-chain/tss-lib/ecdsa/keygen"
+	"github.com/binance-chain/tss-lib/ecdsa/signing"
 	btss "github.com/binance-chain/tss-lib/tss"
 	"github.com/btcsuite/btcd/btcec"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -131,6 +134,83 @@ func getHighestFreq(confirmedList map[string]string) (string, int, error) {
 		return "", 0, err
 	}
 	return sFreq[0][0], freqInt, nil
+}
+
+func GetMsgRound(wireMsg *messages.WireMessage, partyID *btss.PartyID) (string, error) {
+	parsedMsg, err := btss.ParseWireMessage(wireMsg.Message, partyID, wireMsg.Routing.IsBroadcast)
+	if err != nil {
+		return "", err
+	}
+	switch parsedMsg.Content().(type) {
+	case *keygen.KGRound1Message:
+		return "0," + messages.KEYGEN1, nil
+
+	case *keygen.KGRound2Message1:
+		return "1," + messages.KEYGEN2aUnicast, nil
+
+	case *keygen.KGRound2Message2:
+		return "2," + messages.KEYGEN2b, nil
+
+	case *keygen.KGRound3Message:
+		return "3," + messages.KEYGEN3, nil
+
+	case *signing.SignRound1Message1:
+		return "0," + messages.KEYSIGN1aUnicast, nil
+
+	case *signing.SignRound1Message2:
+		return "1," + messages.KEYSIGN1b, nil
+
+	case *signing.SignRound2Message:
+		return "2," + messages.KEYSIGN2Unicast, nil
+
+	case *signing.SignRound3Message:
+		return "3," + messages.KEYSIGN3, nil
+
+	case *signing.SignRound4Message:
+		return "4," + messages.KEYSIGN4, nil
+
+	case *signing.SignRound5Message:
+		return "5," + messages.KEYSIGN5, nil
+
+	case *signing.SignRound6Message:
+		return "6," + messages.KEYSIGN6, nil
+
+	case *signing.SignRound7Message:
+		return "7," + messages.KEYSIGN7, nil
+
+	case *signing.SignRound8Message:
+		return "8," + messages.KEYSIGN8, nil
+
+	case *signing.SignRound9Message:
+		return "9," + messages.KEYSIGN9, nil
+
+	default:
+		return "", nil
+	}
+}
+
+// due to the nature of tss, we may find the invalid share of the previous round only
+// when we get the shares from the peers in the current round. So, when we identify
+// an error in this round, we check whether the previous round is the unicast
+func checkUnicast(round string) (bool, error) {
+	out := strings.Split(round, ",")
+	index, errAtoi := strconv.Atoi(out[0])
+	if errAtoi != nil {
+		return false, fmt.Errorf("error in get the round index")
+	}
+	isKeyGen := strings.Contains(out[1], "KGR")
+	// keygen unicast blame
+	if isKeyGen {
+		if index == 1 || index == 2 {
+			return true, nil
+		}
+		return false, nil
+	}
+	// keysign unicast blame
+	if index < 5 {
+		return true, nil
+	}
+	return false, nil
 }
 
 func (t *TssCommon) NotifyTaskDone() error {
