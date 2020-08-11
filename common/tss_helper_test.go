@@ -1,6 +1,14 @@
 package common
 
 import (
+	"bytes"
+	"encoding/json"
+	"io/ioutil"
+	"math/big"
+	"path"
+	"strconv"
+
+	btss "github.com/binance-chain/tss-lib/tss"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/tendermint/tendermint/crypto/secp256k1"
@@ -86,5 +94,79 @@ func (t *tssHelpSuite) TestTssCommon_processRequestMsgFromPeer(c *C) {
 
 	tssCommon.blameMgr.GetRoundMgr().Set("test", nil)
 	err = tssCommon.processRequestMsgFromPeer([]peer.ID{testPeer}, &msg, false)
+	c.Assert(err, IsNil)
+}
+
+func (t *tssHelpSuite) TestGetMsgRound(c *C) {
+	fileNameKeyGen := "sharesKeygen0"
+	fileNameKeySign := "sharesKeysign0"
+	filePathKeyGen := path.Join("../test_data/tss_keygen_shares", fileNameKeyGen)
+	dataKeyGen, err := ioutil.ReadFile(filePathKeyGen)
+	c.Assert(err, IsNil)
+	filePathKeySign := path.Join("../test_data/tss_keysign_shares", fileNameKeySign)
+	dataKeySign, err := ioutil.ReadFile(filePathKeySign)
+	sharesRawKeyGen := bytes.Split(dataKeyGen, []byte("\n"))
+	sharesRawKeySign := bytes.Split(dataKeySign, []byte("\n"))
+	var sharesKeyGen []*messages.WireMessage
+	var sharesKeySign []*messages.WireMessage
+	for _, el := range sharesRawKeyGen {
+		var msg messages.WireMessage
+		json.Unmarshal(el, &msg)
+		sharesKeyGen = append(sharesKeyGen, &msg)
+	}
+
+	for _, el := range sharesRawKeySign {
+		var msg messages.WireMessage
+		json.Unmarshal(el, &msg)
+		sharesKeySign = append(sharesKeySign, &msg)
+	}
+	messagesKeygen := []string{
+		messages.KEYGEN1,
+		messages.KEYGEN2aUnicast,
+		messages.KEYGEN2b,
+		messages.KEYGEN3,
+	}
+	//
+	messagesKeysign := []string{
+		messages.KEYSIGN1aUnicast,
+		messages.KEYSIGN1b,
+		messages.KEYSIGN2Unicast,
+		messages.KEYSIGN3,
+		messages.KEYSIGN4,
+		messages.KEYSIGN5,
+		messages.KEYSIGN6,
+		messages.KEYSIGN7,
+		messages.KEYSIGN8,
+		messages.KEYSIGN9,
+	}
+	mockParty := btss.NewPartyID("12", "22", big.NewInt(2))
+	j := 0
+	for i := 0; i < len(messagesKeygen); i++ {
+		ret, err := GetMsgRound(sharesKeyGen[j], mockParty)
+		c.Assert(err, IsNil)
+		index := strconv.Itoa(i) + ","
+		c.Assert(ret, Equals, index+messagesKeygen[i])
+		// we skip the unicast
+		if j == 1 {
+			j += 5
+		} else {
+			j += 1
+		}
+	}
+	j = 0
+	for i := 0; i < len(messagesKeysign); i++ {
+		ret, err := GetMsgRound(sharesKeySign[j], mockParty)
+		c.Assert(err, IsNil)
+		index := strconv.Itoa(i) + ","
+		c.Assert(ret, Equals, index+messagesKeysign[i])
+		// we skip the unicast
+		if j == 0 || j == 5 {
+			j += 5
+		} else {
+			j += 1
+		}
+	}
+	ret, err := GetMsgRound(sharesKeyGen[1], mockParty)
+	c.Assert(ret, Equals, "1,"+messages.KEYGEN2aUnicast)
 	c.Assert(err, IsNil)
 }

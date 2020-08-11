@@ -3,6 +3,8 @@ package blame
 import (
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 
 	btss "github.com/binance-chain/tss-lib/tss"
 	mapset "github.com/deckarep/golang-set"
@@ -126,4 +128,47 @@ func (m *Manager) TssWrongShareBlame(wiredMsg *messages.WireMessage) (string, er
 		return "", err
 	}
 	return pk, nil
+}
+
+// this blame blames the node fail to send the shares to the node
+func (m *Manager) TssMissingShareBlame(rounds int) ([]Node, error) {
+	cachedShares := make([][]string, rounds)
+	m.acceptedShares.Range(func(key, value interface{}) bool {
+		data := value.([]string)
+		out := strings.Split(key.(string), ",")
+		index, err := strconv.Atoi(out[0])
+		if err != nil {
+			m.logger.Warn().Msg("fail to get the index of these shares")
+			return true
+		}
+		cachedShares[index] = data
+		return true
+	})
+	var peers []string
+	// we search from the first round to find the missing
+	for _, el := range cachedShares {
+		if len(el)+1 == len(m.PartyIDtoP2PID) {
+			continue
+		}
+		// we add our own id to avoid blame ourselves
+		el = append(el, m.partyInfo.Party.PartyID().Id)
+		for _, pid := range el {
+			peers = append(peers, m.PartyIDtoP2PID[pid].String())
+		}
+		break
+	}
+	blamePubKeys, err := m.getBlamePubKeysNotInList(peers)
+	if err != nil {
+		return nil, err
+	}
+	var blameNodes []Node
+	for _, el := range blamePubKeys {
+		node := Node{
+			el,
+			nil,
+			nil,
+		}
+		blameNodes = append(blameNodes, node)
+	}
+	return blameNodes, nil
 }

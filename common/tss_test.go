@@ -358,9 +358,9 @@ func (t *TssTestSuite) testVerMsgAndUpdate(c *C, tssCommonStruct *TssCommon, sen
 	wrappedVerMsg := fabricateVerMsg(c, msgHash, msgKey)
 	err = tssCommonStruct.ProcessOneMessage(wrappedVerMsg, tssCommonStruct.PartyIDtoP2PID[partiesID[1].Id].String())
 	c.Assert(err, NotNil)
-	// workaround: the rest of this message may weirdly contain a \u00a0 char, so we just match the start
-	if !strings.Contains(err.Error(), "fail to update the message to local party: fail to set bytes to local party: task , party <nil>, round -1: proto") {
-		c.Fatalf("error \"%s\" did not match the expected one", err)
+	// workaround: when we hit this error, in this test, it indicates we accept the share.
+	if !strings.Contains(err.Error(), "fail to update the message to local party: proto:") {
+		c.Fatalf("error \"%v\" did not match the expected one", err.Error())
 	}
 }
 
