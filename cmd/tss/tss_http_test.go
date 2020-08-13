@@ -107,7 +107,7 @@ func (TssHttpServerTestSuite) TestKeygenHandler(c *C) {
 				s.failToKeyGen = true
 			},
 			resultChecker: func(c *C, w *httptest.ResponseRecorder) {
-				c.Assert(w.Code, Equals, http.StatusInternalServerError)
+				c.Assert(w.Code, Equals, http.StatusOK)
 			},
 		},
 		{
