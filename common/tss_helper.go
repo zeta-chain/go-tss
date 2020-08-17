@@ -25,6 +25,7 @@ import (
 	"github.com/rs/zerolog/log"
 	tcrypto "github.com/tendermint/tendermint/crypto"
 
+	"gitlab.com/thorchain/tss/go-tss/blame"
 	"gitlab.com/thorchain/tss/go-tss/messages"
 )
 
@@ -136,81 +137,116 @@ func getHighestFreq(confirmedList map[string]string) (string, int, error) {
 	return sFreq[0][0], freqInt, nil
 }
 
-func GetMsgRound(wireMsg *messages.WireMessage, partyID *btss.PartyID) (string, error) {
+func GetMsgRound(wireMsg *messages.WireMessage, partyID *btss.PartyID) (blame.RoundInfo, error) {
 	parsedMsg, err := btss.ParseWireMessage(wireMsg.Message, partyID, wireMsg.Routing.IsBroadcast)
 	if err != nil {
-		return "", err
+		return blame.RoundInfo{}, err
 	}
 	switch parsedMsg.Content().(type) {
 	case *keygen.KGRound1Message:
-		return "0," + messages.KEYGEN1, nil
+		return blame.RoundInfo{
+			Index:    0,
+			RoundMsg: messages.KEYGEN1,
+		}, nil
 
 	case *keygen.KGRound2Message1:
-		return "1," + messages.KEYGEN2aUnicast, nil
+		return blame.RoundInfo{
+			Index:    1,
+			RoundMsg: messages.KEYGEN2aUnicast,
+		}, nil
 
 	case *keygen.KGRound2Message2:
-		return "2," + messages.KEYGEN2b, nil
+		return blame.RoundInfo{
+			Index:    2,
+			RoundMsg: messages.KEYGEN2b,
+		}, nil
 
 	case *keygen.KGRound3Message:
-		return "3," + messages.KEYGEN3, nil
+		return blame.RoundInfo{
+			Index:    3,
+			RoundMsg: messages.KEYGEN3,
+		}, nil
 
 	case *signing.SignRound1Message1:
-		return "0," + messages.KEYSIGN1aUnicast, nil
+		return blame.RoundInfo{
+			Index:    0,
+			RoundMsg: messages.KEYSIGN1aUnicast,
+		}, nil
 
 	case *signing.SignRound1Message2:
-		return "1," + messages.KEYSIGN1b, nil
+		return blame.RoundInfo{
+			Index:    1,
+			RoundMsg: messages.KEYSIGN1b,
+		}, nil
 
 	case *signing.SignRound2Message:
-		return "2," + messages.KEYSIGN2Unicast, nil
+		return blame.RoundInfo{
+			Index:    2,
+			RoundMsg: messages.KEYSIGN2Unicast,
+		}, nil
 
 	case *signing.SignRound3Message:
-		return "3," + messages.KEYSIGN3, nil
+		return blame.RoundInfo{
+			Index:    3,
+			RoundMsg: messages.KEYSIGN3,
+		}, nil
 
 	case *signing.SignRound4Message:
-		return "4," + messages.KEYSIGN4, nil
+		return blame.RoundInfo{
+			Index:    4,
+			RoundMsg: messages.KEYSIGN4,
+		}, nil
 
 	case *signing.SignRound5Message:
-		return "5," + messages.KEYSIGN5, nil
+		return blame.RoundInfo{
+			Index:    5,
+			RoundMsg: messages.KEYSIGN5,
+		}, nil
 
 	case *signing.SignRound6Message:
-		return "6," + messages.KEYSIGN6, nil
+		return blame.RoundInfo{
+			Index:    6,
+			RoundMsg: messages.KEYSIGN6,
+		}, nil
 
 	case *signing.SignRound7Message:
-		return "7," + messages.KEYSIGN7, nil
-
+		return blame.RoundInfo{
+			Index:    7,
+			RoundMsg: messages.KEYSIGN7,
+		}, nil
 	case *signing.SignRound8Message:
-		return "8," + messages.KEYSIGN8, nil
-
+		return blame.RoundInfo{
+			Index:    8,
+			RoundMsg: messages.KEYSIGN8,
+		}, nil
 	case *signing.SignRound9Message:
-		return "9," + messages.KEYSIGN9, nil
-
+		return blame.RoundInfo{
+			Index:    9,
+			RoundMsg: messages.KEYSIGN9,
+		}, nil
 	default:
-		return "", nil
+		return blame.RoundInfo{}, errors.New("unknown round")
 	}
 }
 
 // due to the nature of tss, we may find the invalid share of the previous round only
 // when we get the shares from the peers in the current round. So, when we identify
 // an error in this round, we check whether the previous round is the unicast
-func checkUnicast(round string) (bool, error) {
-	out := strings.Split(round, ",")
-	index, errAtoi := strconv.Atoi(out[0])
-	if errAtoi != nil {
-		return false, fmt.Errorf("error in get the round index")
-	}
-	isKeyGen := strings.Contains(out[1], "KGR")
+func checkUnicast(round blame.RoundInfo) bool {
+	index := round.Index
+	isKeyGen := strings.Contains(round.RoundMsg, "KGR")
 	// keygen unicast blame
 	if isKeyGen {
 		if index == 1 || index == 2 {
-			return true, nil
+			return true
 		}
-		return false, nil
+		return false
 	}
 	// keysign unicast blame
 	if index < 5 {
-		return true, nil
+		return true
 	}
-	return false, nil
+	return false
 }
 
 func (t *TssCommon) NotifyTaskDone() error {

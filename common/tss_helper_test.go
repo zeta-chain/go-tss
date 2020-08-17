@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"math/big"
 	"path"
-	"strconv"
 
 	btss "github.com/binance-chain/tss-lib/tss"
 	sdk "github.com/cosmos/cosmos-sdk/types"
@@ -14,6 +13,7 @@ import (
 	"github.com/tendermint/tendermint/crypto/secp256k1"
 	. "gopkg.in/check.v1"
 
+	"gitlab.com/thorchain/tss/go-tss/blame"
 	"gitlab.com/thorchain/tss/go-tss/conversion"
 	"gitlab.com/thorchain/tss/go-tss/messages"
 )
@@ -145,8 +145,11 @@ func (t *tssHelpSuite) TestGetMsgRound(c *C) {
 	for i := 0; i < len(messagesKeygen); i++ {
 		ret, err := GetMsgRound(sharesKeyGen[j], mockParty)
 		c.Assert(err, IsNil)
-		index := strconv.Itoa(i) + ","
-		c.Assert(ret, Equals, index+messagesKeygen[i])
+		expectedRound := blame.RoundInfo{
+			Index:    i,
+			RoundMsg: messagesKeygen[i],
+		}
+		c.Assert(ret, Equals, expectedRound)
 		// we skip the unicast
 		if j == 1 {
 			j += 5
@@ -158,8 +161,11 @@ func (t *tssHelpSuite) TestGetMsgRound(c *C) {
 	for i := 0; i < len(messagesKeysign); i++ {
 		ret, err := GetMsgRound(sharesKeySign[j], mockParty)
 		c.Assert(err, IsNil)
-		index := strconv.Itoa(i) + ","
-		c.Assert(ret, Equals, index+messagesKeysign[i])
+		expectedRound := blame.RoundInfo{
+			Index:    i,
+			RoundMsg: messagesKeysign[i],
+		}
+		c.Assert(ret, Equals, expectedRound)
 		// we skip the unicast
 		if j == 0 || j == 5 {
 			j += 5
@@ -168,6 +174,6 @@ func (t *tssHelpSuite) TestGetMsgRound(c *C) {
 		}
 	}
 	ret, err := GetMsgRound(sharesKeyGen[1], mockParty)
-	c.Assert(ret, Equals, "1,"+messages.KEYGEN2aUnicast)
+	c.Assert(ret, Equals, blame.RoundInfo{Index: 1, RoundMsg: messages.KEYGEN2aUnicast})
 	c.Assert(err, IsNil)
 }
