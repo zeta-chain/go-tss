@@ -42,6 +42,7 @@ type TssCommon struct {
 	taskDone            chan struct{}
 	blameMgr            *blame.Manager
 	finishedPeers       map[string]bool
+	culprits            []*btss.PartyID
 }
 
 func NewTssCommon(peerID string, broadcastChannel chan *messages.BroadcastMsgChan, conf TssConfig, msgID string, privKey tcrypto.PrivKey) *TssCommon {
@@ -62,6 +63,7 @@ func NewTssCommon(peerID string, broadcastChannel chan *messages.BroadcastMsgCha
 		taskDone:            make(chan struct{}),
 		blameMgr:            blame.NewBlameManager(),
 		finishedPeers:       make(map[string]bool),
+		culprits:            []*btss.PartyID{},
 	}
 }
 
@@ -106,14 +108,12 @@ func (t *TssCommon) SetLocalPeerID(peerID string) {
 	t.localPeerID = peerID
 }
 
-func (t *TssCommon) processInvalidMsgBlame(wireMsg *messages.WireMessage, err *btss.Error) error {
+func (t *TssCommon) processInvalidMsgBlame(wireMsg *messages.WireMessage, round blame.RoundInfo, err *btss.Error) error {
 	// now we get the culprits ID, invalid message and signature the culprits sent
 	var culpritsID []string
 	var invalidMsgs []*messages.WireMessage
-	unicast := true
-	if wireMsg.Routing.IsBroadcast {
-		unicast = false
-	}
+	unicast := checkUnicast(round)
+	t.culprits = append(t.culprits, err.Culprits()...)
 	for _, el := range err.Culprits() {
 		culpritsID = append(culpritsID, el.Id)
 		key := fmt.Sprintf("%s-%s", el.Id, wireMsg.RoundInfo)
@@ -123,7 +123,7 @@ func (t *TssCommon) processInvalidMsgBlame(wireMsg *messages.WireMessage, err *b
 	pubkeys, errBlame := conversion.AccPubKeysFromPartyIDs(culpritsID, t.partyInfo.PartyIDMap)
 	if errBlame != nil {
 		t.logger.Error().Err(err.Cause()).Msgf("error in get the blame nodes")
-		t.blameMgr.GetBlame().SetBlame(blame.HashCheckFail, nil, unicast)
+		t.blameMgr.GetBlame().SetBlame(blame.TssBrokenMsg, nil, unicast)
 		return fmt.Errorf("error in getting the blame nodes")
 	}
 	// This error indicates the share is wrong, we include this signature to prove that
@@ -142,7 +142,7 @@ func (t *TssCommon) processInvalidMsgBlame(wireMsg *messages.WireMessage, err *b
 		}
 		blameNodes = append(blameNodes, blame.NewNode(pk, msgBody, sig))
 	}
-	t.blameMgr.GetBlame().SetBlame(blame.HashCheckFail, blameNodes, unicast)
+	t.blameMgr.GetBlame().SetBlame(blame.TssBrokenMsg, blameNodes, unicast)
 	return fmt.Errorf("fail to set bytes to local party: %w", err)
 }
 
@@ -170,9 +170,53 @@ func (t *TssCommon) updateLocal(wireMsg *messages.WireMessage) error {
 	if !wireMsg.Routing.IsBroadcast {
 		t.blameMgr.SetLastUnicastPeer(dataOwnerPeerID, wireMsg.RoundInfo)
 	}
-	if _, err := partyInfo.Party.UpdateFromBytes(wireMsg.Message, partyID, wireMsg.Routing.IsBroadcast); nil != err {
-		return t.processInvalidMsgBlame(wireMsg, err)
+	round, err := GetMsgRound(wireMsg, partyID)
+	if err != nil {
+		t.logger.Error().Err(err).Msg("broken tss share")
+		return err
 	}
+	acceptedShares := t.blameMgr.GetAcceptShares()
+	// we only allow a message be updated only once.
+	dat, ok := acceptedShares.Load(round)
+	if ok {
+		partyList := dat.([]string)
+		for _, el := range partyList {
+			if el == partyID.Id {
+				t.logger.Debug().Msgf("we received the duplicated message from party %s", partyID.Id)
+				return nil
+			}
+		}
+	}
+
+	partyInlist := func(el *btss.PartyID, l []*btss.PartyID) bool {
+		for _, each := range l {
+			if el == each {
+				return true
+			}
+		}
+		return false
+	}
+
+	if len(t.culprits) != 0 && partyInlist(partyID, t.culprits) {
+		t.logger.Error().Msgf("the malicious party (party ID:%s) try to send incorrect message to me (party ID:%s)", partyID.Id, t.partyInfo.Party.PartyID().Id)
+		return errors.New(blame.TssBrokenMsg)
+
+	}
+
+	_, errUp := partyInfo.Party.UpdateFromBytes(wireMsg.Message, partyID, wireMsg.Routing.IsBroadcast)
+	if errUp != nil {
+		return t.processInvalidMsgBlame(wireMsg, round, errUp)
+	}
+
+	if !ok {
+		partyList := []string{partyID.Id}
+		acceptedShares.Store(round, partyList)
+		return nil
+	}
+	partyList := dat.([]string)
+	partyList = append(partyList, partyID.Id)
+	acceptedShares.Store(round, partyList)
+
 	return nil
 }
 

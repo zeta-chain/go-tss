@@ -126,7 +126,6 @@ func (s *SignatureNotifier) sendOneMsgToPeer(m *signatureItem) error {
 	if err != nil {
 		return fmt.Errorf("fail to marshal Keysign Signature to bytes:%w", err)
 	}
-
 	err = p2p.WriteStreamWithBuffer(ksBuf, stream)
 	if err != nil {
 		return fmt.Errorf("fail to write message to stream:%w", err)

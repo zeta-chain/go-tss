@@ -6,6 +6,11 @@ import (
 	"gitlab.com/thorchain/tss/go-tss/messages"
 )
 
+type RoundInfo struct {
+	Index    int
+	RoundMsg string
+}
+
 type RoundMgr struct {
 	storedMsg   map[string]*messages.WireMessage
 	storeLocker *sync.Mutex

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path"
 	"sort"
 	"strconv"
 	"strings"
@@ -377,6 +378,14 @@ func (s *TssKeysignTestSuite) TestSignMessageRejectOnePeer(c *C) {
 		}(i)
 	}
 	wg.Wait()
+}
+
+func (s *TssKeysignTestSuite) TearDownSuite(c *C) {
+	for i, _ := range s.comms {
+		tempFilePath := path.Join(os.TempDir(), strconv.Itoa(i))
+		err := os.RemoveAll(tempFilePath)
+		c.Assert(err, IsNil)
+	}
 }
 
 func (s *TssKeysignTestSuite) TearDownTest(c *C) {

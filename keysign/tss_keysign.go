@@ -139,6 +139,7 @@ func (tKeySign *TssKeySign) processKeySign(errChan chan struct{}, outCh <-chan b
 	tKeySign.logger.Debug().Msg("start to read messages from local party")
 	tssConf := tKeySign.tssCommonStruct.GetConf()
 	blameMgr := tKeySign.tssCommonStruct.GetBlameMgr()
+
 	for {
 		select {
 		case <-errChan: // when key sign return
@@ -164,7 +165,7 @@ func (tKeySign *TssKeySign) processKeySign(errChan chan struct{}, outCh <-chan b
 					tKeySign.logger.Error().Err(err).Msg("error in get unicast blame")
 				}
 				if len(blameNodesUnicast) > 0 && len(blameNodesUnicast) <= threshold {
-					blameMgr.GetBlame().SetBlame(failReason, blameNodesUnicast, lastMsg.IsBroadcast())
+					blameMgr.GetBlame().SetBlame(failReason, blameNodesUnicast, true)
 				}
 			} else {
 				blameNodesUnicast, err := blameMgr.GetUnicastBlame(conversion.GetPreviousKeySignUicast(lastMsg.Type()))
@@ -172,7 +173,7 @@ func (tKeySign *TssKeySign) processKeySign(errChan chan struct{}, outCh <-chan b
 					tKeySign.logger.Error().Err(err).Msg("error in get unicast blame")
 				}
 				if len(blameNodesUnicast) > 0 && len(blameNodesUnicast) <= threshold {
-					blameMgr.GetBlame().SetBlame(failReason, blameNodesUnicast, lastMsg.IsBroadcast())
+					blameMgr.GetBlame().SetBlame(failReason, blameNodesUnicast, true)
 				}
 			}
 
@@ -181,6 +182,20 @@ func (tKeySign *TssKeySign) processKeySign(errChan chan struct{}, outCh <-chan b
 				tKeySign.logger.Error().Err(err).Msg("error in get broadcast blame")
 			}
 			blameMgr.GetBlame().AddBlameNodes(blameNodesBroadcast...)
+
+			// if we cannot find the blame node, we check whether everyone send me the share
+			if len(blameMgr.GetBlame().BlameNodes) == 0 {
+				blameNodesMisingShare, isUnicast, err := blameMgr.TssMissingShareBlame(messages.TSSKEYSIGNROUNDS)
+				if err != nil {
+					tKeySign.logger.Error().Err(err).Msg("fail to get the node of missing share ")
+				}
+
+				if len(blameNodesMisingShare) > 0 && len(blameNodesMisingShare) <= threshold {
+					blameMgr.GetBlame().AddBlameNodes(blameNodesMisingShare...)
+					blameMgr.GetBlame().IsUnicast = isUnicast
+				}
+			}
+
 			return nil, blame.ErrTssTimeOut
 		case msg := <-outCh:
 			tKeySign.logger.Debug().Msgf(">>>>>>>>>>key sign msg: %s", msg.String())
