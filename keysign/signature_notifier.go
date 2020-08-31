@@ -99,7 +99,7 @@ func (s *SignatureNotifier) handleStream(stream network.Stream) {
 }
 
 func (s *SignatureNotifier) sendOneMsgToPeer(m *signatureItem) error {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
 	defer cancel()
 	stream, err := s.host.NewStream(ctx, m.peerID, signatureNotifierProtocol)
 	if err != nil {
