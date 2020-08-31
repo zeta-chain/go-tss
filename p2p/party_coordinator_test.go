@@ -48,7 +48,8 @@ func leaderAppearsLastTest(t *testing.T, msgID string, peers []string, pcs []*Pa
 			defer wg.Done()
 			// we simulate different nodes join at different time
 			time.Sleep(time.Millisecond * time.Duration(rand.Int()%100))
-			onlinePeers, err := coordinator.JoinPartyWithLeader(msgID, "10", peers, 3)
+			sigChan := make(chan string)
+			onlinePeers, err := coordinator.JoinPartyWithLeader(msgID, "10", peers, 3, sigChan)
 			assert.Nil(t, err)
 			assert.Len(t, onlinePeers, 4)
 		}(el)
@@ -59,8 +60,9 @@ func leaderAppearsLastTest(t *testing.T, msgID string, peers []string, pcs []*Pa
 	wg.Add(1)
 	go func(coordinator *PartyCoordinator) {
 		defer wg.Done()
+		sigChan := make(chan string)
 		// we simulate different nodes join at different time
-		onlinePeers, err := coordinator.JoinPartyWithLeader(msgID, "10", peers, 3)
+		onlinePeers, err := coordinator.JoinPartyWithLeader(msgID, "10", peers, 3, sigChan)
 		assert.Nil(t, err)
 		assert.Len(t, onlinePeers, 4)
 	}(pcs[0])
@@ -74,7 +76,8 @@ func leaderAppersFirstTest(t *testing.T, msgID string, peers []string, pcs []*Pa
 	go func(coordinator *PartyCoordinator) {
 		defer wg.Done()
 		// we simulate different nodes join at different time
-		onlinePeers, err := coordinator.JoinPartyWithLeader(msgID, "10", peers, 3)
+		sigChan := make(chan string)
+		onlinePeers, err := coordinator.JoinPartyWithLeader(msgID, "10", peers, 3, sigChan)
 		assert.Nil(t, err)
 		assert.Len(t, onlinePeers, 4)
 	}(pcs[0])
@@ -85,7 +88,8 @@ func leaderAppersFirstTest(t *testing.T, msgID string, peers []string, pcs []*Pa
 			defer wg.Done()
 			// we simulate different nodes join at different time
 			time.Sleep(time.Millisecond * time.Duration(rand.Int()%100))
-			onlinePeers, err := coordinator.JoinPartyWithLeader(msgID, "10", peers, 3)
+			sigChan := make(chan string)
+			onlinePeers, err := coordinator.JoinPartyWithLeader(msgID, "10", peers, 3, sigChan)
 			assert.Nil(t, err)
 			assert.Len(t, onlinePeers, 4)
 		}(el)
@@ -179,8 +183,9 @@ func TestNewPartyCoordinatorTimeOut(t *testing.T) {
 		wg.Add(1)
 		go func(coordinator *PartyCoordinator) {
 			defer wg.Done()
-			_, err := coordinator.JoinPartyWithLeader(msgID, "10", peers, 3)
-			assert.Equal(t, err, errLeaderNotReady)
+			sigChan := make(chan string)
+			_, err := coordinator.JoinPartyWithLeader(msgID, "10", peers, 3, sigChan)
+			assert.Equal(t, err, ErrLeaderNotReady)
 		}(el)
 
 	}
@@ -192,8 +197,9 @@ func TestNewPartyCoordinatorTimeOut(t *testing.T) {
 		wg.Add(1)
 		go func(coordinator *PartyCoordinator) {
 			defer wg.Done()
-			onlinePeers, err := coordinator.JoinPartyWithLeader(msgID, "10", peers, 3)
-			assert.Equal(t, errJoinPartyTimeout, err)
+			sigChan := make(chan string)
+			onlinePeers, err := coordinator.JoinPartyWithLeader(msgID, "10", peers, 3, sigChan)
+			assert.Equal(t, ErrJoinPartyTimeout, err)
 			var onlinePeersStr []string
 			for _, el := range onlinePeers {
 				onlinePeersStr = append(onlinePeersStr, el.String())

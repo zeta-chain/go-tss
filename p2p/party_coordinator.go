@@ -18,8 +18,10 @@ import (
 )
 
 var (
-	errJoinPartyTimeout = errors.New("fail to join party, timeout")
-	errLeaderNotReady   = errors.New("leader not reachable")
+	ErrJoinPartyTimeout = errors.New("fail to join party, timeout")
+	ErrLeaderNotReady   = errors.New("leader not reachable")
+	ErrSignReceived     = errors.New("signature received")
+	ErrSigGenerated     = errors.New("signature generated")
 )
 
 type PartyCoordinator struct {
@@ -58,7 +60,7 @@ func (pc *PartyCoordinator) Stop() {
 	close(pc.stopChan)
 }
 
-func (pc *PartyCoordinator) processRespMsg(respMsg messages.JoinPartyLeaderComm, stream network.Stream) {
+func (pc *PartyCoordinator) processRespMsg(respMsg *messages.JoinPartyLeaderComm, stream network.Stream) {
 	pc.streamMgr.AddStream(respMsg.ID, stream)
 
 	remotePeer := stream.Conn().RemotePeer().String()
@@ -70,7 +72,7 @@ func (pc *PartyCoordinator) processRespMsg(respMsg messages.JoinPartyLeaderComm,
 		return
 	}
 	if remotePeer == peerGroup.leader {
-		peerGroup.leaderResponse = &respMsg
+		peerGroup.leaderResponse = respMsg
 		peerGroup.notify <- true
 		err := WriteStreamWithBuffer([]byte("done"), stream)
 		if err != nil {
@@ -83,7 +85,7 @@ func (pc *PartyCoordinator) processRespMsg(respMsg messages.JoinPartyLeaderComm,
 	return
 }
 
-func (pc *PartyCoordinator) processReqMsg(requestMsg messages.JoinPartyLeaderComm, stream network.Stream) {
+func (pc *PartyCoordinator) processReqMsg(requestMsg *messages.JoinPartyLeaderComm, stream network.Stream) {
 	pc.streamMgr.AddStream(requestMsg.ID, stream)
 	pc.joinPartyGroupLock.Lock()
 	peerGroup, ok := pc.peersGroup[requestMsg.ID]
@@ -123,10 +125,10 @@ func (pc *PartyCoordinator) HandleStream(stream network.Stream) {
 	}
 	switch msg.MsgType {
 	case "request":
-		pc.processReqMsg(msg, stream)
+		pc.processReqMsg(&msg, stream)
 		return
 	case "response":
-		pc.processRespMsg(msg, stream)
+		pc.processRespMsg(&msg, stream)
 		return
 	default:
 		logger.Err(err).Msg("fail to process this message")
@@ -270,13 +272,17 @@ func (pc *PartyCoordinator) sendMsgToPeer(msgBuf []byte, msgID string, remotePee
 	return nil
 }
 
-func (pc *PartyCoordinator) joinPartyMember(msgID string, leader string, threshold int) ([]peer.ID, error) {
+func (pc *PartyCoordinator) joinPartyMember(msgID string, leader string, threshold int, sigChan chan string) ([]peer.ID, error) {
 	peerGroup, err := pc.createJoinPartyGroups(msgID, leader, []string{leader}, threshold)
+	if err != nil {
+		return nil, fmt.Errorf("fail to create join party:%w", err)
+	}
+
 	leaderPeerID, err := peer.Decode(leader)
-	peerGroup.leader = leader
 	if err != nil {
 		return nil, fmt.Errorf("fail to decode peer id(%s):%w", leader, err)
 	}
+	peerGroup.leader = leader
 	msg := messages.JoinPartyLeaderComm{
 		ID: msgID,
 	}
@@ -300,6 +306,7 @@ func (pc *PartyCoordinator) joinPartyMember(msgID string, leader string, thresho
 		}
 	}()
 	// this is the total time TSS will wait for the party to form
+	var sigNotify string
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -315,12 +322,21 @@ func (pc *PartyCoordinator) joinPartyMember(msgID string, leader string, thresho
 			close(done)
 			pc.logger.Error().Msg("the leader has not reply us")
 			return
+		case result := <-sigChan:
+			sigNotify = result
+			close(done)
+			return
 		}
 	}()
 	wg.Wait()
 	if peerGroup.leaderResponse == nil {
-		return nil, errLeaderNotReady
+		return nil, ErrLeaderNotReady
 	}
+
+	if sigNotify == "signature received" {
+		return nil, ErrSignReceived
+	}
+
 	onlineNodes := peerGroup.leaderResponse.PeerIDs
 	if len(onlineNodes) < threshold {
 		return nil, errors.New("not enough peer")
@@ -336,10 +352,10 @@ func (pc *PartyCoordinator) joinPartyMember(msgID string, leader string, thresho
 		return pIDs, nil
 	}
 	pc.logger.Error().Msg("leader response with join party timeout")
-	return pIDs, errJoinPartyTimeout
+	return pIDs, ErrJoinPartyTimeout
 }
 
-func (pc *PartyCoordinator) joinPartyLeader(msgID string, peers []string, threshold int) ([]peer.ID, error) {
+func (pc *PartyCoordinator) joinPartyLeader(msgID string, peers []string, threshold int, sigChan chan string) ([]peer.ID, error) {
 	peerGroup, err := pc.createJoinPartyGroups(msgID, pc.host.ID().String(), peers, threshold)
 	if err != nil {
 		pc.logger.Error().Err(err).Msg("fail to create the join party group")
@@ -351,7 +367,7 @@ func (pc *PartyCoordinator) joinPartyLeader(msgID string, peers []string, thresh
 		pc.logger.Error().Err(err).Msg("fail to parse peer id")
 		return nil, err
 	}
-
+	var sigNotify string
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
@@ -366,10 +382,15 @@ func (pc *PartyCoordinator) joinPartyLeader(msgID string, peers []string, thresh
 				// timeout
 				pc.logger.Error().Msg("leader waits for peers timeout")
 				return
+			case result := <-sigChan:
+				sigNotify = result
 			}
 		}
 	}()
 	wg.Wait()
+	if sigNotify == "signature received" {
+		return nil, ErrSignReceived
+	}
 	onlinePeers, _ := peerGroup.getPeersStatus()
 	onlinePeers = append(onlinePeers, pc.host.ID())
 
@@ -388,7 +409,7 @@ func (pc *PartyCoordinator) joinPartyLeader(msgID string, peers []string, thresh
 		// we notify the failure of the join party to everyone
 		msg.Type = messages.JoinPartyLeaderComm_Timeout
 		pc.sendResponseToAll(&msg, allPeers)
-		return onlinePeers, errJoinPartyTimeout
+		return onlinePeers, ErrJoinPartyTimeout
 	}
 	// we notify all the peers who to run keygen/keysign
 	// if a nodes is not in the list, it means he is not selected by the leader to run the tss
@@ -396,16 +417,16 @@ func (pc *PartyCoordinator) joinPartyLeader(msgID string, peers []string, thresh
 	return onlinePeers, nil
 }
 
-func (pc *PartyCoordinator) JoinPartyWithLeader(msgID, blockHeight string, peers []string, threshold int) ([]peer.ID, error) {
+func (pc *PartyCoordinator) JoinPartyWithLeader(msgID, blockHeight string, peers []string, threshold int, signChan chan string) ([]peer.ID, error) {
 	leader, err := LeaderNode(msgID, blockHeight, peers)
 	if err != nil {
 		return nil, err
 	}
 	if pc.host.ID().String() == leader {
-		return pc.joinPartyLeader(msgID, peers, threshold)
+		return pc.joinPartyLeader(msgID, peers, threshold, signChan)
 	}
 	// now we are just the normal peer
-	return pc.joinPartyMember(msgID, leader, threshold)
+	return pc.joinPartyMember(msgID, leader, threshold, signChan)
 }
 
 // JoinPartyWithRetry this method provide the functionality to join party with retry and back off
@@ -460,7 +481,7 @@ func (pc *PartyCoordinator) JoinPartyWithRetry(msg *messages.JoinPartyLeaderComm
 	if len(onlinePeers) == len(peers) {
 		return onlinePeers, nil
 	}
-	return onlinePeers, errJoinPartyTimeout
+	return onlinePeers, ErrJoinPartyTimeout
 }
 
 func (pc *PartyCoordinator) ReleaseStream(msgID string) {

@@ -46,8 +46,8 @@ func (t *TssServer) Keygen(req keygen.Request) (keygen.Response, error) {
 		t.p2pCommunication.ReleaseStream(msgID)
 		t.partyCoordinator.ReleaseStream(msgID)
 	}()
-
-	onlinePeers, err := t.joinParty(msgID, req.BlockHeight, req.Keys, len(req.Keys)-1)
+	sigChan := make(chan string)
+	onlinePeers, err := t.joinParty(msgID, req.BlockHeight, req.Keys, len(req.Keys)-1, sigChan)
 	if err != nil {
 		if onlinePeers == nil {
 			t.logger.Error().Err(err).Msg("error before we start join party")

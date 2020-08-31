@@ -90,7 +90,7 @@ func (s *SignatureNotifier) handleStream(stream network.Stream) {
 	}
 	finished, err := n.ProcessSignature(&signature)
 	if err != nil {
-		logger.Error().Err(err).Msg("fail to update local signature data")
+		logger.Error().Err(err).Msg("fail to verify local signature data")
 		return
 	}
 	if finished {
@@ -187,7 +187,7 @@ func (s *SignatureNotifier) removeNotifier(n *Notifier) {
 }
 
 // WaitForSignature wait until keysign finished and signature is available
-func (s *SignatureNotifier) WaitForSignature(messageID string, message []byte, poolPubKey string, timeout time.Duration) (*bc.SignatureData, error) {
+func (s *SignatureNotifier) WaitForSignature(messageID string, message []byte, poolPubKey string, timeout time.Duration, sigChan chan string) (*bc.SignatureData, error) {
 	n, err := NewNotifier(messageID, message, poolPubKey)
 	if err != nil {
 		return nil, fmt.Errorf("fail to create notifier")
@@ -200,6 +200,8 @@ func (s *SignatureNotifier) WaitForSignature(messageID string, message []byte, p
 		return d, nil
 	case <-time.After(timeout):
 		return nil, fmt.Errorf("timeout: didn't receive signature after %s", timeout)
+	case <-sigChan:
+		return nil, p2p.ErrSigGenerated
 	}
 }
 
