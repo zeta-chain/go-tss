@@ -417,16 +417,18 @@ func (pc *PartyCoordinator) joinPartyLeader(msgID string, peers []string, thresh
 	return onlinePeers, nil
 }
 
-func (pc *PartyCoordinator) JoinPartyWithLeader(msgID, blockHeight string, peers []string, threshold int, signChan chan string) ([]peer.ID, error) {
+func (pc *PartyCoordinator) JoinPartyWithLeader(msgID, blockHeight string, peers []string, threshold int, signChan chan string) ([]peer.ID, string, error) {
 	leader, err := LeaderNode(msgID, blockHeight, peers)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	if pc.host.ID().String() == leader {
-		return pc.joinPartyLeader(msgID, peers, threshold, signChan)
+		onlines, err := pc.joinPartyLeader(msgID, peers, threshold, signChan)
+		return onlines, leader, err
 	}
 	// now we are just the normal peer
-	return pc.joinPartyMember(msgID, leader, threshold, signChan)
+	onlines, err := pc.joinPartyMember(msgID, leader, threshold, signChan)
+	return onlines, leader, err
 }
 
 // JoinPartyWithRetry this method provide the functionality to join party with retry and back off

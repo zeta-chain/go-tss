@@ -163,13 +163,12 @@ func (t *TssServer) requestToMsgId(request interface{}) (string, error) {
 	return common.MsgToHashString(dat)
 }
 
-func (t *TssServer) joinParty(msgID, blockHeight string, keys []string, threshold int, sigChan chan string) ([]peer.ID, error) {
+func (t *TssServer) joinParty(msgID, blockHeight string, keys []string, threshold int, sigChan chan string) ([]peer.ID, string, error) {
 	peerIDs, err := conversion.GetPeerIDsFromPubKeys(keys)
 	if err != nil {
-		return nil, fmt.Errorf("fail to convert pub key to peer id: %w", err)
+		return nil, "", fmt.Errorf("fail to convert pub key to peer id: %w", err)
 	}
-	onlinePeers, err := t.partyCoordinator.JoinPartyWithLeader(msgID, blockHeight, peerIDs, threshold, sigChan)
-	return onlinePeers, err
+	return t.partyCoordinator.JoinPartyWithLeader(msgID, blockHeight, peerIDs, threshold, sigChan)
 }
 
 // GetLocalPeerID return the local peer

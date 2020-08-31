@@ -239,7 +239,7 @@ func (s *FourNodeTestSuite) TestFailJoinParty(c *C) {
 		c.Assert(item.PubKey, Equals, "")
 		c.Assert(item.Status, Equals, common.Fail)
 		c.Assert(item.Blame.BlameNodes, HasLen, 1)
-		expectedFailNode := "thorpub1addwnpepqtdklw8tf3anjz7nn5fly3uvq2e67w2apn560s4smmrt9e3x52nt2svmmu3"
+		expectedFailNode := "thorpub1addwnpepq2ryyje5zr09lq7gqptjwnxqsy2vcdngvwd6z7yt5yjcnyj8c8cn559xe69"
 		c.Assert(item.Blame.BlameNodes[0].Pubkey, Equals, expectedFailNode)
 	}
 }

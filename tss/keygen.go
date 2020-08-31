@@ -47,25 +47,23 @@ func (t *TssServer) Keygen(req keygen.Request) (keygen.Response, error) {
 		t.partyCoordinator.ReleaseStream(msgID)
 	}()
 	sigChan := make(chan string)
-	onlinePeers, err := t.joinParty(msgID, req.BlockHeight, req.Keys, len(req.Keys)-1, sigChan)
+	onlinePeers, leader, err := t.joinParty(msgID, req.BlockHeight, req.Keys, len(req.Keys)-1, sigChan)
 	if err != nil {
-		if onlinePeers == nil {
-			t.logger.Error().Err(err).Msg("error before we start join party")
-			return keygen.Response{
-				Status: common.Fail,
-				Blame:  blame.NewBlame(blame.InternalError, []blame.Node{}),
-			}, nil
-		}
-		blameMgr := keygenInstance.GetTssCommonStruct().GetBlameMgr()
-		blameNodes, err := blameMgr.NodeSyncBlame(req.Keys, onlinePeers)
+		var blameLeader blame.Blame
+		leaderPubKey, err := conversion.GetPubKeyFromPeerID(leader)
 		if err != nil {
-			t.logger.Err(err).Msg("fail to get peers to blame")
+			t.logger.Error().Err(err).Msg("fail to convert the peerID to public key")
+			blameLeader = blame.NewBlame(blame.TssSyncFail, []blame.Node{})
+		} else {
+			blameLeader = blame.NewBlame(blame.TssSyncFail, []blame.Node{{leaderPubKey, nil, nil}})
 		}
-		// make sure we blame the leader as well
+
+		t.logger.Error().Err(err).Msgf("fail to form keygen party with online:%v", onlinePeers)
+
 		t.logger.Error().Err(err).Msgf("fail to form keysign party with online:%v", onlinePeers)
 		return keygen.Response{
 			Status: common.Fail,
-			Blame:  blameNodes,
+			Blame:  blameLeader,
 		}, nil
 
 	}
