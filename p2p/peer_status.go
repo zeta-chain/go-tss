@@ -5,15 +5,21 @@ import (
 	"sync"
 
 	"github.com/libp2p/go-libp2p-core/peer"
+
+	"gitlab.com/thorchain/tss/go-tss/messages"
 )
 
 type PeerStatus struct {
 	peersResponse  map[peer.ID]bool
 	peerStatusLock *sync.RWMutex
-	newFound       chan bool
+	notify         chan bool
+	leaderResponse *messages.JoinPartyLeaderComm
+	leader         string
+	threshold      int
+	reqCount       int
 }
 
-func NewPeerStatus(peerNodes []peer.ID, myPeerID peer.ID) *PeerStatus {
+func NewPeerStatus(peerNodes []peer.ID, myPeerID peer.ID, leader string, threshold int) *PeerStatus {
 	dat := make(map[peer.ID]bool)
 	for _, el := range peerNodes {
 		if el == myPeerID {
@@ -24,7 +30,10 @@ func NewPeerStatus(peerNodes []peer.ID, myPeerID peer.ID) *PeerStatus {
 	peerStatus := &PeerStatus{
 		peersResponse:  dat,
 		peerStatusLock: &sync.RWMutex{},
-		newFound:       make(chan bool, len(peerNodes)),
+		notify:         make(chan bool, len(peerNodes)),
+		leader:         leader,
+		threshold:      threshold,
+		reqCount:       0,
 	}
 	return peerStatus
 }
@@ -57,9 +66,16 @@ func (ps *PeerStatus) updatePeer(peerNode peer.ID) (bool, error) {
 	if !ok {
 		return false, errors.New("key not found")
 	}
+	// we already have enough participants
+	if ps.reqCount >= ps.threshold {
+		return false, nil
+	}
 	if !val {
 		ps.peersResponse[peerNode] = true
-		return true, nil
+		ps.reqCount++
+		if ps.reqCount >= ps.threshold {
+			return true, nil
+		}
 	}
 	return false, nil
 }

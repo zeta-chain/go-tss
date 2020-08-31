@@ -67,7 +67,7 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 		return emptyResp, errors.New("empty signer pub keys")
 	}
 
-	threshold, err := common.GetThreshold(len(localStateItem.ParticipantKeys))
+	threshold, err := conversion.GetThreshold(len(localStateItem.ParticipantKeys))
 	if err != nil {
 		t.logger.Error().Err(err).Msg("fail to get the threshold")
 		return emptyResp, errors.New("fail to get threshold")
@@ -100,7 +100,7 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 		return emptyResp, fmt.Errorf("fail to convert pub keys to peer id:%w", err)
 	}
 
-	onlinePeers, err := t.joinParty(msgID, req.SignerPubKeys)
+	onlinePeers, err := t.joinParty(msgID, req.BlockHeight, req.SignerPubKeys, threshold)
 	if err != nil {
 		if onlinePeers == nil {
 			t.logger.Error().Err(err).Msg("error before we start join party")

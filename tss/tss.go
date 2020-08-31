@@ -20,7 +20,6 @@ import (
 	"gitlab.com/thorchain/tss/go-tss/conversion"
 	"gitlab.com/thorchain/tss/go-tss/keygen"
 	"gitlab.com/thorchain/tss/go-tss/keysign"
-	"gitlab.com/thorchain/tss/go-tss/messages"
 	"gitlab.com/thorchain/tss/go-tss/p2p"
 	"gitlab.com/thorchain/tss/go-tss/storage"
 )
@@ -164,16 +163,12 @@ func (t *TssServer) requestToMsgId(request interface{}) (string, error) {
 	return common.MsgToHashString(dat)
 }
 
-func (t *TssServer) joinParty(msgID string, keys []string) ([]peer.ID, error) {
+func (t *TssServer) joinParty(msgID, blockHeight string, keys []string, threshold int) ([]peer.ID, error) {
 	peerIDs, err := conversion.GetPeerIDsFromPubKeys(keys)
 	if err != nil {
 		return nil, fmt.Errorf("fail to convert pub key to peer id: %w", err)
 	}
-
-	joinPartyReq := &messages.JoinPartyRequest{
-		ID: msgID,
-	}
-	onlinePeers, err := t.partyCoordinator.JoinPartyWithRetry(joinPartyReq, peerIDs)
+	onlinePeers, err := t.partyCoordinator.JoinPartyWithLeader(msgID, blockHeight, peerIDs, threshold)
 	return onlinePeers, err
 }
 

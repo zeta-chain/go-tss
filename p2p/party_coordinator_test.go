@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"gitlab.com/thorchain/tss/go-tss/conversion"
-	"gitlab.com/thorchain/tss/go-tss/messages"
 )
 
 func setupHosts(t *testing.T, n int) []host.Host {
@@ -40,15 +39,69 @@ func setupHosts(t *testing.T, n int) []host.Host {
 	return hosts
 }
 
+func leaderAppearsLastTest(t *testing.T, msgID string, peers []string, pcs []*PartyCoordinator) {
+	wg := sync.WaitGroup{}
+
+	for _, el := range pcs[1:] {
+		wg.Add(1)
+		go func(coordinator *PartyCoordinator) {
+			defer wg.Done()
+			// we simulate different nodes join at different time
+			time.Sleep(time.Millisecond * time.Duration(rand.Int()%100))
+			onlinePeers, err := coordinator.JoinPartyWithLeader(msgID, "10", peers, 3)
+			assert.Nil(t, err)
+			assert.Len(t, onlinePeers, 4)
+		}(el)
+	}
+
+	time.Sleep(time.Second * 2)
+	// we start the leader firstly
+	wg.Add(1)
+	go func(coordinator *PartyCoordinator) {
+		defer wg.Done()
+		// we simulate different nodes join at different time
+		onlinePeers, err := coordinator.JoinPartyWithLeader(msgID, "10", peers, 3)
+		assert.Nil(t, err)
+		assert.Len(t, onlinePeers, 4)
+	}(pcs[0])
+	wg.Wait()
+}
+
+func leaderAppersFirstTest(t *testing.T, msgID string, peers []string, pcs []*PartyCoordinator) {
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	// we start the leader firstly
+	go func(coordinator *PartyCoordinator) {
+		defer wg.Done()
+		// we simulate different nodes join at different time
+		onlinePeers, err := coordinator.JoinPartyWithLeader(msgID, "10", peers, 3)
+		assert.Nil(t, err)
+		assert.Len(t, onlinePeers, 4)
+	}(pcs[0])
+	time.Sleep(time.Second)
+	for _, el := range pcs[1:] {
+		wg.Add(1)
+		go func(coordinator *PartyCoordinator) {
+			defer wg.Done()
+			// we simulate different nodes join at different time
+			time.Sleep(time.Millisecond * time.Duration(rand.Int()%100))
+			onlinePeers, err := coordinator.JoinPartyWithLeader(msgID, "10", peers, 3)
+			assert.Nil(t, err)
+			assert.Len(t, onlinePeers, 4)
+		}(el)
+	}
+	wg.Wait()
+}
+
 func TestNewPartyCoordinator(t *testing.T) {
 	ApplyDeadline = false
 	hosts := setupHosts(t, 4)
-	var pcs []PartyCoordinator
+	var pcs []*PartyCoordinator
 	var peers []string
 
-	timeout := time.Second * 10
+	timeout := time.Second * 4
 	for _, el := range hosts {
-		pcs = append(pcs, *NewPartyCoordinator(el, timeout))
+		pcs = append(pcs, NewPartyCoordinator(el, timeout))
 		peers = append(peers, el.ID().String())
 	}
 
@@ -59,33 +112,30 @@ func TestNewPartyCoordinator(t *testing.T) {
 	}()
 
 	msgID := conversion.RandStringBytesMask(64)
-	joinPartyReq := messages.JoinPartyRequest{
-		ID: msgID,
-	}
-	wg := sync.WaitGroup{}
+	leader, err := LeaderNode(msgID, "10", peers)
+	assert.Nil(t, err)
 
-	for _, el := range pcs {
-		wg.Add(1)
-
-		go func(coordinator PartyCoordinator) {
-			defer wg.Done()
-			// we simulate different nodes join at different time
-			time.Sleep(time.Second * time.Duration(rand.Int()%10))
-			onlinePeers, err := coordinator.JoinPartyWithRetry(&joinPartyReq, peers)
-			if err != nil {
-				t.Error(err)
+	// we sort the slice to ensure the leader is the first one easy for testing
+	for i, el := range pcs {
+		if el.host.ID().String() == leader {
+			if i == 0 {
+				break
 			}
-			assert.Nil(t, err)
-			assert.Len(t, onlinePeers, 4)
-		}(el)
+			temp := pcs[0]
+			pcs[0] = el
+			pcs[i] = temp
+			break
+		}
 	}
-
-	wg.Wait()
+	assert.Equal(t, pcs[0].host.ID().String(), leader)
+	// now we test the leader appears firstly and the the members
+	leaderAppersFirstTest(t, msgID, peers, pcs)
+	leaderAppearsLastTest(t, msgID, peers, pcs)
 }
 
 func TestNewPartyCoordinatorTimeOut(t *testing.T) {
 	ApplyDeadline = false
-	timeout := time.Second
+	timeout := time.Second * 3
 	hosts := setupHosts(t, 4)
 	var pcs []*PartyCoordinator
 	var peers []string
@@ -106,29 +156,54 @@ func TestNewPartyCoordinatorTimeOut(t *testing.T) {
 	}()
 
 	msgID := conversion.RandStringBytesMask(64)
-
-	joinPartyReq := messages.JoinPartyRequest{
-		ID: msgID,
-	}
 	wg := sync.WaitGroup{}
+	leader, err := LeaderNode(msgID, "10", peers)
+	assert.Nil(t, err)
 
-	for _, el := range pcs[:2] {
+	// we sort the slice to ensure the leader is the first one easy for testing
+	for i, el := range pcs {
+		if el.host.ID().String() == leader {
+			if i == 0 {
+				break
+			}
+			temp := pcs[0]
+			pcs[0] = el
+			pcs[i] = temp
+			break
+		}
+	}
+	assert.Equal(t, pcs[0].host.ID().String(), leader)
+
+	// we test the leader is offline
+	for _, el := range pcs[1:] {
 		wg.Add(1)
 		go func(coordinator *PartyCoordinator) {
 			defer wg.Done()
-			onlinePeers, err := coordinator.JoinPartyWithRetry(&joinPartyReq, peers)
-			assert.Errorf(t, err, errJoinPartyTimeout.Error())
+			_, err := coordinator.JoinPartyWithLeader(msgID, "10", peers, 3)
+			assert.Equal(t, err, errLeaderNotReady)
+		}(el)
+
+	}
+	wg.Wait()
+	// we test one of node is not ready
+	var expected []string
+	for _, el := range pcs[:3] {
+		expected = append(expected, el.host.ID().String())
+		wg.Add(1)
+		go func(coordinator *PartyCoordinator) {
+			defer wg.Done()
+			onlinePeers, err := coordinator.JoinPartyWithLeader(msgID, "10", peers, 3)
+			assert.Equal(t, errJoinPartyTimeout, err)
 			var onlinePeersStr []string
 			for _, el := range onlinePeers {
 				onlinePeersStr = append(onlinePeersStr, el.String())
 			}
 			sort.Strings(onlinePeersStr)
-			expected := peers[:2]
 			sort.Strings(expected)
-			assert.EqualValues(t, onlinePeersStr, expected)
+			sort.Strings(expected[:3])
+			assert.EqualValues(t, expected, onlinePeersStr)
 		}(el)
 	}
-
 	wg.Wait()
 }
 
@@ -144,7 +219,7 @@ func TestGetPeerIDs(t *testing.T) {
 		t.Fatal(err)
 	}
 	p1 := h1.ID()
-	timeout := time.Second * 5
+	timeout := time.Second * 2
 	pc := NewPartyCoordinator(h1, timeout)
 	r, err := pc.getPeerIDs([]string{})
 	assert.Nil(t, err)

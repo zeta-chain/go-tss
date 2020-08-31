@@ -1,18 +1,29 @@
 package p2p
 
 import (
-	"hash/fnv"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"sort"
 )
 
 // LeaderNode use the given input buf to calculate a hash , and consistently choose a node as a master coordinate note
-func LeaderNode(buf []byte, numNodes int32) (int32, error) {
-	h := fnv.New32()
-	if _, err := h.Write(buf); err != nil {
-		return -1, err
+func LeaderNode(msgID, blockHeight string, pIDs []string) (string, error) {
+	if len(pIDs) == 0 || len(msgID) == 0 || len(blockHeight) == 0 {
+		fmt.Printf("------%v\n", pIDs)
+		fmt.Printf("---msgid---%v\n", msgID)
+		fmt.Printf("---blockheight---%v\n", blockHeight)
+		return "", errors.New("invalid input for finding the leader")
 	}
-	result := int32(h.Sum32())
-	if result < 0 {
-		result = result * -1
+	keyStore := make(map[string]string)
+	hashes := make([]string, len(pIDs))
+	for i, el := range pIDs {
+		sum := sha256.Sum256([]byte(msgID + blockHeight + el))
+		encodedSum := hex.EncodeToString(sum[:])
+		keyStore[encodedSum] = el
+		hashes[i] = encodedSum
 	}
-	return result % numNodes, nil
+	sort.Strings(hashes)
+	return keyStore[hashes[0]], nil
 }
