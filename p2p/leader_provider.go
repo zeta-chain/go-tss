@@ -4,16 +4,12 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"sort"
 )
 
 // LeaderNode use the given input buf to calculate a hash , and consistently choose a node as a master coordinate note
 func LeaderNode(msgID, blockHeight string, pIDs []string) (string, error) {
 	if len(pIDs) == 0 || len(msgID) == 0 || len(blockHeight) == 0 {
-		fmt.Printf("------%v\n", pIDs)
-		fmt.Printf("---msgid---%v\n", msgID)
-		fmt.Printf("---blockheight---%v\n", blockHeight)
 		return "", errors.New("invalid input for finding the leader")
 	}
 	keyStore := make(map[string]string)

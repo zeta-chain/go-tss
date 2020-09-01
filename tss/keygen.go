@@ -60,7 +60,6 @@ func (t *TssServer) Keygen(req keygen.Request) (keygen.Response, error) {
 
 		t.logger.Error().Err(err).Msgf("fail to form keygen party with online:%v", onlinePeers)
 
-		t.logger.Error().Err(err).Msgf("fail to form keysign party with online:%v", onlinePeers)
 		return keygen.Response{
 			Status: common.Fail,
 			Blame:  blameLeader,
