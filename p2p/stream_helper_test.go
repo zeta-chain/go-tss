@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
-	"strconv"
 	"testing"
 	"time"
 
@@ -21,7 +20,6 @@ type MockNetworkStream struct {
 	errSetReadDeadLine  bool
 	errSetWriteDeadLine bool
 	errRead             bool
-	id                  int64
 }
 
 func NewMockNetworkStream() *MockNetworkStream {
@@ -70,10 +68,6 @@ func (m MockNetworkStream) Protocol() protocol.ID {
 
 func (m MockNetworkStream) SetProtocol(id protocol.ID) {
 	m.protocol = id
-}
-
-func (s MockNetworkStream) ID() string {
-	return strconv.FormatInt(s.id, 10)
 }
 
 func (m MockNetworkStream) Stat() network.Stat {
