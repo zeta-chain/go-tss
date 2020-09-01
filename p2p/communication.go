@@ -24,7 +24,10 @@ import (
 	"gitlab.com/thorchain/tss/go-tss/messages"
 )
 
-var joinPartyProtocol protocol.ID = "/p2p/join-party"
+var (
+	joinPartyProtocol           protocol.ID = "/p2p/join-party"
+	joinPartyProtocolWithLeader protocol.ID = "/p2p/join-party-leader"
+)
 
 // TSSProtocolID protocol id used for tss
 var TSSProtocolID protocol.ID = "/p2p/tss"

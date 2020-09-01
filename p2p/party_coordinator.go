@@ -10,6 +10,7 @@ import (
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p-core/protocol"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"google.golang.org/protobuf/proto"
@@ -50,6 +51,7 @@ func NewPartyCoordinator(host host.Host, timeout time.Duration) *PartyCoordinato
 		streamMgr:          NewStreamMgr(),
 	}
 	host.SetStreamHandler(joinPartyProtocol, pc.HandleStream)
+	host.SetStreamHandler(joinPartyProtocolWithLeader, pc.HandleStreamWithLeader)
 	return pc
 }
 
@@ -105,7 +107,6 @@ func (pc *PartyCoordinator) processReqMsg(requestMsg *messages.JoinPartyLeaderCo
 	}
 }
 
-// HandleStream handle party coordinate stream
 func (pc *PartyCoordinator) HandleStream(stream network.Stream) {
 	remotePeer := stream.Conn().RemotePeer()
 	logger := pc.logger.With().Str("remote peer", remotePeer.String()).Logger()
@@ -116,6 +117,49 @@ func (pc *PartyCoordinator) HandleStream(stream network.Stream) {
 		pc.streamMgr.AddStream("UNKNOWN", stream)
 		return
 	}
+	var msg messages.JoinPartyRequest
+	if err := proto.Unmarshal(payload, &msg); err != nil {
+		logger.Err(err).Msg("fail to unmarshal join party request")
+		pc.streamMgr.AddStream("UNKNOWN", stream)
+		return
+	}
+	pc.streamMgr.AddStream(msg.ID, stream)
+	pc.joinPartyGroupLock.Lock()
+	peerGroup, ok := pc.peersGroup[msg.ID]
+	pc.joinPartyGroupLock.Unlock()
+	if !ok {
+		pc.logger.Info().Msg("this party is not ready")
+		return
+	}
+	newFound, err := peerGroup.updatePeer(remotePeer)
+	if err != nil {
+		pc.logger.Error().Err(err).Msg("receive msg from unknown peer")
+		return
+	}
+	if newFound {
+		peerGroup.newFound <- true
+	}
+}
+
+// HandleStream handle party coordinate stream
+func (pc *PartyCoordinator) HandleStreamWithLeader(stream network.Stream) {
+	remotePeer := stream.Conn().RemotePeer()
+	logger := pc.logger.With().Str("remote peer", remotePeer.String()).Logger()
+	logger.Debug().Msg("reading from join party request")
+	payload, err := ReadStreamWithBuffer(stream)
+	if err != nil {
+		logger.Err(err).Msgf("fail to read payload from stream")
+		pc.streamMgr.AddStream("UNKNOWN", stream)
+		return
+	}
+
+	var msgLeaderless messages.JoinPartyRequest
+	if err := proto.Unmarshal(payload, &msgLeaderless); err != nil {
+		logger.Err(err).Msg("fail to unmarshal join party request")
+		pc.streamMgr.AddStream("UNKNOWN", stream)
+		return
+	}
+
 	var msg messages.JoinPartyLeaderComm
 	err = proto.Unmarshal(payload, &msg)
 	if err != nil {
@@ -183,7 +227,7 @@ func (pc *PartyCoordinator) sendResponseToAll(msg *messages.JoinPartyLeaderComm,
 			if peer == pc.host.ID() {
 				return
 			}
-			if err := pc.sendMsgToPeer(msgSend, msg.ID, peer); err != nil {
+			if err := pc.sendMsgToPeer(msgSend, msg.ID, peer, joinPartyProtocolWithLeader); err != nil {
 				pc.logger.Error().Err(err).Msg("error in send the join party request to peer")
 			}
 		}(el)
@@ -199,7 +243,7 @@ func (pc *PartyCoordinator) sendRequestToLeader(msg *messages.JoinPartyLeaderCom
 		return err
 	}
 
-	if err := pc.sendMsgToPeer(msgSend, msg.ID, leader); err != nil {
+	if err := pc.sendMsgToPeer(msgSend, msg.ID, leader, joinPartyProtocolWithLeader); err != nil {
 		pc.logger.Error().Err(err).Msg("error in send the join party request to leader")
 		return errors.New("fail to send request to leader")
 	}
@@ -207,13 +251,7 @@ func (pc *PartyCoordinator) sendRequestToLeader(msg *messages.JoinPartyLeaderCom
 	return nil
 }
 
-func (pc *PartyCoordinator) sendRequestToAll(msg *messages.JoinPartyLeaderComm, peers []peer.ID) {
-	msg.MsgType = "request"
-	msgSend, err := proto.Marshal(msg)
-	if err != nil {
-		pc.logger.Error().Msg("fail to marshal the message")
-		return
-	}
+func (pc *PartyCoordinator) sendRequestToAll(msgID string, msgSend []byte, peers []peer.ID) {
 	var wg sync.WaitGroup
 	wg.Add(len(peers))
 	for _, el := range peers {
@@ -222,7 +260,7 @@ func (pc *PartyCoordinator) sendRequestToAll(msg *messages.JoinPartyLeaderComm, 
 			if peer == pc.host.ID() {
 				return
 			}
-			if err := pc.sendMsgToPeer(msgSend, msg.ID, peer); err != nil {
+			if err := pc.sendMsgToPeer(msgSend, msgID, peer, joinPartyProtocol); err != nil {
 				pc.logger.Error().Err(err).Msg("error in send the join party request to peer")
 			}
 		}(el)
@@ -230,7 +268,7 @@ func (pc *PartyCoordinator) sendRequestToAll(msg *messages.JoinPartyLeaderComm, 
 	wg.Wait()
 }
 
-func (pc *PartyCoordinator) sendMsgToPeer(msgBuf []byte, msgID string, remotePeer peer.ID) error {
+func (pc *PartyCoordinator) sendMsgToPeer(msgBuf []byte, msgID string, remotePeer peer.ID, protoc protocol.ID) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*4)
 	defer cancel()
 	var stream network.Stream
@@ -241,7 +279,7 @@ func (pc *PartyCoordinator) sendMsgToPeer(msgBuf []byte, msgID string, remotePee
 		defer close(streamGetChan)
 
 		pc.logger.Debug().Msgf("try to open stream to (%s) ", remotePeer)
-		stream, err = pc.host.NewStream(ctx, remotePeer, joinPartyProtocol)
+		stream, err = pc.host.NewStream(ctx, remotePeer, protoc)
 		if err != nil {
 			streamError = fmt.Errorf("fail to create stream to peer(%s):%w", remotePeer, err)
 		}
@@ -432,8 +470,17 @@ func (pc *PartyCoordinator) JoinPartyWithLeader(msgID, blockHeight string, peers
 }
 
 // JoinPartyWithRetry this method provide the functionality to join party with retry and back off
-func (pc *PartyCoordinator) JoinPartyWithRetry(msg *messages.JoinPartyLeaderComm, peers []string) ([]peer.ID, error) {
-	peerGroup, err := pc.createJoinPartyGroups(msg.ID, "", peers, 1)
+func (pc *PartyCoordinator) JoinPartyWithRetry(msgID string, peers []string) ([]peer.ID, error) {
+	msg := messages.JoinPartyRequest{
+		ID: msgID,
+	}
+	msgSend, err := proto.Marshal(&msg)
+	if err != nil {
+		pc.logger.Error().Msg("fail to marshal the message")
+		return nil, err
+	}
+
+	peerGroup, err := pc.createJoinPartyGroups(msg.ID, "NONE", peers, 1)
 	if err != nil {
 		pc.logger.Error().Err(err).Msg("fail to create the join party group")
 		return nil, err
@@ -450,7 +497,7 @@ func (pc *PartyCoordinator) JoinPartyWithRetry(msg *messages.JoinPartyLeaderComm
 			case <-done:
 				return
 			default:
-				pc.sendRequestToAll(msg, offline)
+				pc.sendRequestToAll(msgID, msgSend, offline)
 			}
 			time.Sleep(time.Second)
 		}
@@ -477,7 +524,7 @@ func (pc *PartyCoordinator) JoinPartyWithRetry(msg *messages.JoinPartyLeaderComm
 
 	wg.Wait()
 	onlinePeers, _ := peerGroup.getPeersStatus()
-	pc.sendRequestToAll(msg, onlinePeers)
+	pc.sendRequestToAll(msgID, msgSend, onlinePeers)
 	// we always set ourselves as online
 	onlinePeers = append(onlinePeers, pc.host.ID())
 	if len(onlinePeers) == len(peers) {

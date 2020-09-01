@@ -7,9 +7,9 @@ type Request struct {
 }
 
 // NewRequest creeate a new instance of keygen.Request
-func NewRequest(keys []string) Request {
+func NewRequest(keys []string, blockHeight string) Request {
 	return Request{
 		Keys:        keys,
-		BlockHeight: "10",
+		BlockHeight: blockHeight,
 	}
 }

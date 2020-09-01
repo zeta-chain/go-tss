@@ -38,17 +38,40 @@ func (t *TssServer) waitForSignatures(msgID, poolPubKey string, msgToSign []byte
 }
 
 func (t *TssServer) generateSignature(msgID string, msgToSign []byte, req keysign.Request, threshold int, allSigners []peer.ID, localStateItem storage.KeygenLocalState, blameMgr *blame.Manager, keysignInstance *keysign.TssKeySign, sigChan chan string) (keysign.Response, error) {
-	onlinePeers, leader, err := t.joinParty(msgID, req.BlockHeight, req.SignerPubKeys, threshold, sigChan)
-	if err != nil {
-		// we received the signature from waiting for signature
-		if errors.Is(err, p2p.ErrSignReceived) {
-			return keysign.Response{}, err
+	onlinePeers, leader, errJoinParty := t.joinParty(msgID, req.BlockHeight, req.SignerPubKeys, allSigners, threshold, sigChan, false)
+	if errJoinParty != nil {
+		// this indicate we are processing the leaderness join party
+		if leader == "NONE" {
+			if onlinePeers == nil {
+				t.logger.Error().Err(errJoinParty).Msg("error before we start join party")
+				t.broadcastKeysignFailure(msgID, allSigners)
+				return keysign.Response{
+					Status: common.Fail,
+					Blame:  blame.NewBlame(blame.InternalError, []blame.Node{}),
+				}, nil
+			}
+
+			blameNodes, err := blameMgr.NodeSyncBlame(req.SignerPubKeys, onlinePeers)
+			if err != nil {
+				t.logger.Err(err).Msg("fail to get peers to blame")
+			}
+			t.broadcastKeysignFailure(msgID, allSigners)
+			// make sure we blame the leader as well
+			t.logger.Error().Err(err).Msgf("fail to form keysign party with online:%v", onlinePeers)
+			return keysign.Response{
+				Status: common.Fail,
+				Blame:  blameNodes,
+			}, nil
 		}
 
+		// we received the signature from waiting for signature
+		if errors.Is(errJoinParty, p2p.ErrSignReceived) {
+			return keysign.Response{}, errJoinParty
+		}
 		var blameLeader blame.Blame
 		leaderPubKey, err := conversion.GetPubKeyFromPeerID(leader)
 		if err != nil {
-			t.logger.Error().Err(err).Msg("fail to convert the peerID to public key")
+			t.logger.Error().Err(errJoinParty).Msgf("fail to convert the peerID to public key %s", leader)
 			blameLeader = blame.NewBlame(blame.TssSyncFail, []blame.Node{})
 		} else {
 			blameLeader = blame.NewBlame(blame.TssSyncFail, []blame.Node{{leaderPubKey, nil, nil}})
