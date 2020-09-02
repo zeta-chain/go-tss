@@ -221,6 +221,7 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 		// we received an valid signature indeed
 		if errWait == nil {
 			sigChan <- "signature received"
+			t.logger.Log().Msgf("for message %s we get the signature from the peer", msgID)
 		}
 	}()
 
