@@ -54,14 +54,12 @@ type FourNodeTestSuite struct {
 	ports         []int
 	preParams     []*btsskeygen.LocalPreParams
 	bootstrapPeer string
-	isBlameTest   bool
 }
 
 var _ = Suite(&FourNodeTestSuite{})
 
 // setup four nodes for test
 func (s *FourNodeTestSuite) SetUpTest(c *C) {
-	s.isBlameTest = false
 	common.InitLog("info", true, "four_nodes_test")
 	conversion.SetupBech32Prefix()
 	s.ports = []int{
@@ -103,10 +101,20 @@ func hash(payload []byte) []byte {
 }
 
 // we do for both join party schemes
-func (s *FourNodeTestSuite) TestKeygenAndKeySign(c *C) {
+func (s *FourNodeTestSuite) Test4NodesTss(c *C) {
 	s.doTestKeygenAndKeySign(c, false)
 	time.Sleep(time.Second * 2)
 	s.doTestKeygenAndKeySign(c, true)
+
+	time.Sleep(time.Second * 2)
+	s.doTestFailJoinParty(c, false)
+	time.Sleep(time.Second * 2)
+	s.doTestFailJoinParty(c, false)
+
+	time.Sleep(time.Second * 2)
+	s.doTestFailJoinParty(c, false)
+	time.Sleep(time.Second * 2)
+	s.doTestFailJoinParty(c, true)
 }
 
 // generate a new key
@@ -208,12 +216,6 @@ func (s *FourNodeTestSuite) doTestKeygenAndKeySign(c *C, newJoinParty bool) {
 	}
 }
 
-func (s *FourNodeTestSuite) TestFailJoinParty(c *C) {
-	s.doTestFailJoinParty(c, false)
-	time.Sleep(time.Second * 2)
-	s.doTestFailJoinParty(c, true)
-}
-
 func (s *FourNodeTestSuite) doTestFailJoinParty(c *C, newJoinParty bool) {
 	// JoinParty should fail if there is a node that suppose to be in the keygen , but we didn't send request in
 	var req keygen.Request
@@ -257,14 +259,7 @@ func (s *FourNodeTestSuite) doTestFailJoinParty(c *C, newJoinParty bool) {
 	}
 }
 
-func (s *FourNodeTestSuite) TestBlame(c *C) {
-	s.doTestBlame(c, false)
-	time.Sleep(time.Second * 2)
-	s.doTestBlame(c, true)
-}
-
 func (s *FourNodeTestSuite) doTestBlame(c *C, newJoinParty bool) {
-	s.isBlameTest = true
 	expectedFailNode := "thorpub1addwnpepqtdklw8tf3anjz7nn5fly3uvq2e67w2apn560s4smmrt9e3x52nt2svmmu3"
 	var req keygen.Request
 	if newJoinParty {
@@ -316,11 +311,10 @@ func (s *FourNodeTestSuite) doTestBlame(c *C, newJoinParty bool) {
 func (s *FourNodeTestSuite) TearDownTest(c *C) {
 	// give a second before we shutdown the network
 	time.Sleep(time.Second)
-
-	for i := 1; i < partyNum; i++ {
+	for i := 0; i < partyNum; i++ {
 		s.servers[i].Stop()
 	}
-	for i := 1; i < partyNum; i++ {
+	for i := 0; i < partyNum; i++ {
 		tempFilePath := path.Join(os.TempDir(), strconv.Itoa(i))
 		os.RemoveAll(tempFilePath)
 
