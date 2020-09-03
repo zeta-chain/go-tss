@@ -47,7 +47,8 @@ func (t *TssServer) Keygen(req keygen.Request) (keygen.Response, error) {
 		t.partyCoordinator.ReleaseStream(msgID)
 	}()
 	sigChan := make(chan string)
-	onlinePeers, leader, errJoinParty := t.joinParty(msgID, req.BlockHeight, req.Keys, nil, len(req.Keys)-1, sigChan, true)
+
+	onlinePeers, leader, errJoinParty := t.joinParty(msgID, req.BlockHeight, req.Keys, len(req.Keys)-1, sigChan)
 	if errJoinParty != nil {
 		// this indicate we are processing the leaderness join party
 		if leader == "NONE" {

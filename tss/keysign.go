@@ -37,14 +37,27 @@ func (t *TssServer) waitForSignatures(msgID, poolPubKey string, msgToSign []byte
 	), nil
 }
 
-func (t *TssServer) generateSignature(msgID string, msgToSign []byte, req keysign.Request, threshold int, allSigners []peer.ID, localStateItem storage.KeygenLocalState, blameMgr *blame.Manager, keysignInstance *keysign.TssKeySign, sigChan chan string) (keysign.Response, error) {
-	onlinePeers, leader, errJoinParty := t.joinParty(msgID, req.BlockHeight, req.SignerPubKeys, allSigners, threshold, sigChan, false)
+func (t *TssServer) generateSignature(msgID string, msgToSign []byte, req keysign.Request, threshold int, allParticipants []string, localStateItem storage.KeygenLocalState, blameMgr *blame.Manager, keysignInstance *keysign.TssKeySign, sigChan chan string) (keysign.Response, error) {
+	allPeersID, err := conversion.GetPeerIDsFromPubKeys(allParticipants)
+	if err != nil {
+		t.logger.Error().Msg("invalid block height or public key")
+		return keysign.Response{
+			Status: common.Fail,
+			Blame:  blame.NewBlame(blame.InternalError, []blame.Node{}),
+		}, nil
+	}
+
+	// we use the old join party
+	if req.BlockHeight == 0 {
+		allParticipants = req.SignerPubKeys
+	}
+	onlinePeers, leader, errJoinParty := t.joinParty(msgID, req.BlockHeight, allParticipants, threshold, sigChan)
 	if errJoinParty != nil {
 		// this indicate we are processing the leaderness join party
 		if leader == "NONE" {
 			if onlinePeers == nil {
 				t.logger.Error().Err(errJoinParty).Msg("error before we start join party")
-				t.broadcastKeysignFailure(msgID, allSigners)
+				t.broadcastKeysignFailure(msgID, allPeersID)
 				return keysign.Response{
 					Status: common.Fail,
 					Blame:  blame.NewBlame(blame.InternalError, []blame.Node{}),
@@ -55,7 +68,7 @@ func (t *TssServer) generateSignature(msgID string, msgToSign []byte, req keysig
 			if err != nil {
 				t.logger.Err(err).Msg("fail to get peers to blame")
 			}
-			t.broadcastKeysignFailure(msgID, allSigners)
+			t.broadcastKeysignFailure(msgID, allPeersID)
 			// make sure we blame the leader as well
 			t.logger.Error().Err(err).Msgf("fail to form keysign party with online:%v", onlinePeers)
 			return keysign.Response{
@@ -77,7 +90,7 @@ func (t *TssServer) generateSignature(msgID string, msgToSign []byte, req keysig
 			blameLeader = blame.NewBlame(blame.TssSyncFail, []blame.Node{{leaderPubKey, nil, nil}})
 		}
 
-		t.broadcastKeysignFailure(msgID, allSigners)
+		t.broadcastKeysignFailure(msgID, allPeersID)
 		// make sure we blame the leader as well
 		t.logger.Error().Err(err).Msgf("fail to form keysign party with online:%v", onlinePeers)
 		return keysign.Response{
@@ -118,7 +131,7 @@ func (t *TssServer) generateSignature(msgID string, msgToSign []byte, req keysig
 		t.logger.Error().Err(err).Msg("err in keysign")
 		sigChan <- "signature generated"
 		atomic.AddUint64(&t.Status.FailedKeySign, 1)
-		t.broadcastKeysignFailure(msgID, allSigners)
+		t.broadcastKeysignFailure(msgID, allPeersID)
 		blameNodes := *blameMgr.GetBlame()
 		return keysign.Response{
 			Status: common.Fail,
@@ -130,7 +143,7 @@ func (t *TssServer) generateSignature(msgID string, msgToSign []byte, req keysig
 
 	sigChan <- "signature generated"
 	// update signature notification
-	if err := t.signatureNotifier.BroadcastSignature(msgID, signatureData, allSigners); err != nil {
+	if err := t.signatureNotifier.BroadcastSignature(msgID, signatureData, allPeersID); err != nil {
 		return keysign.Response{}, fmt.Errorf("fail to broadcast signature:%w", err)
 	}
 	return keysign.NewResponse(
@@ -203,11 +216,6 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 	}
 
 	blameMgr := keysignInstance.GetTssCommonStruct().GetBlameMgr()
-	// get all the tss nodes that were part of the original key gen
-	allSigners, err := conversion.GetPeerIDs(localStateItem.ParticipantKeys)
-	if err != nil {
-		return emptyResp, fmt.Errorf("fail to convert pub keys to peer id:%w", err)
-	}
 
 	var receivedSig, generatedSig keysign.Response
 	var errWait, errGen error
@@ -228,7 +236,7 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 	// we generate the signature ourselves
 	go func() {
 		defer wg.Done()
-		generatedSig, errGen = t.generateSignature(msgID, msgToSign, req, threshold, allSigners, localStateItem, blameMgr, keysignInstance, sigChan)
+		generatedSig, errGen = t.generateSignature(msgID, msgToSign, req, threshold, localStateItem.ParticipantKeys, localStateItem, blameMgr, keysignInstance, sigChan)
 	}()
 	wg.Wait()
 	close(sigChan)

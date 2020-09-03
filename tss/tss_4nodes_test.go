@@ -112,18 +112,18 @@ func (s *FourNodeTestSuite) Test4NodesTss(c *C) {
 	s.doTestFailJoinParty(c, false)
 
 	time.Sleep(time.Second * 2)
-	s.doTestFailJoinParty(c, false)
+	s.doTestBlame(c, false)
 	time.Sleep(time.Second * 2)
-	s.doTestFailJoinParty(c, true)
+	s.doTestBlame(c, true)
 }
 
 // generate a new key
 func (s *FourNodeTestSuite) doTestKeygenAndKeySign(c *C, newJoinParty bool) {
 	var req keygen.Request
 	if newJoinParty {
-		req = keygen.NewRequest(testPubKeys, "10")
+		req = keygen.NewRequest(testPubKeys, 10)
 	} else {
-		req = keygen.NewRequest(testPubKeys, "-1")
+		req = keygen.NewRequest(testPubKeys, 0)
 	}
 	wg := sync.WaitGroup{}
 	lock := &sync.Mutex{}
@@ -148,24 +148,24 @@ func (s *FourNodeTestSuite) doTestKeygenAndKeySign(c *C, newJoinParty bool) {
 			c.Assert(poolPubKey, Equals, item.PubKey)
 		}
 	}
-	keysignReqWithErr := keysign.NewRequest(poolPubKey, "helloworld", "10", testPubKeys)
+	keysignReqWithErr := keysign.NewRequest(poolPubKey, "helloworld", 10, testPubKeys)
 	resp, err := s.servers[0].KeySign(keysignReqWithErr)
 	c.Assert(err, NotNil)
 	c.Assert(resp.S, Equals, "")
-	keysignReqWithErr1 := keysign.NewRequest(poolPubKey, base64.StdEncoding.EncodeToString(hash([]byte("helloworld"))), "10", testPubKeys[:1])
+	keysignReqWithErr1 := keysign.NewRequest(poolPubKey, base64.StdEncoding.EncodeToString(hash([]byte("helloworld"))), 10, testPubKeys[:1])
 	resp, err = s.servers[0].KeySign(keysignReqWithErr1)
 	c.Assert(err, NotNil)
 	c.Assert(resp.S, Equals, "")
-	keysignReqWithErr2 := keysign.NewRequest(poolPubKey, base64.StdEncoding.EncodeToString(hash([]byte("helloworld"))), "10", nil)
+	keysignReqWithErr2 := keysign.NewRequest(poolPubKey, base64.StdEncoding.EncodeToString(hash([]byte("helloworld"))), 10, nil)
 	resp, err = s.servers[0].KeySign(keysignReqWithErr2)
 	c.Assert(err, NotNil)
 	c.Assert(resp.S, Equals, "")
 
 	var keysignReq keysign.Request
 	if newJoinParty {
-		keysignReq = keysign.NewRequest(poolPubKey, base64.StdEncoding.EncodeToString(hash([]byte("helloworld"))), "10", testPubKeys)
+		keysignReq = keysign.NewRequest(poolPubKey, base64.StdEncoding.EncodeToString(hash([]byte("helloworld"))), 10, testPubKeys)
 	} else {
-		keysignReq = keysign.NewRequest(poolPubKey, base64.StdEncoding.EncodeToString(hash([]byte("helloworld"))), "-1", testPubKeys)
+		keysignReq = keysign.NewRequest(poolPubKey, base64.StdEncoding.EncodeToString(hash([]byte("helloworld"))), 0, testPubKeys)
 	}
 	keysignResult := make(map[int]keysign.Response)
 	for i := 0; i < partyNum; i++ {
@@ -189,9 +189,9 @@ func (s *FourNodeTestSuite) doTestKeygenAndKeySign(c *C, newJoinParty bool) {
 		c.Assert(signature, Equals, item.S+item.R)
 	}
 	if newJoinParty {
-		keysignReq = keysign.NewRequest(poolPubKey, base64.StdEncoding.EncodeToString(hash([]byte("helloworld"))), "10", testPubKeys[:3])
+		keysignReq = keysign.NewRequest(poolPubKey, base64.StdEncoding.EncodeToString(hash([]byte("helloworld"))), 10, testPubKeys[:3])
 	} else {
-		keysignReq = keysign.NewRequest(poolPubKey, base64.StdEncoding.EncodeToString(hash([]byte("helloworld"))), "-1", testPubKeys[:3])
+		keysignReq = keysign.NewRequest(poolPubKey, base64.StdEncoding.EncodeToString(hash([]byte("helloworld"))), 0, testPubKeys[:3])
 	}
 	keysignResult1 := make(map[int]keysign.Response)
 	for i := 0; i < partyNum; i++ {
@@ -220,9 +220,9 @@ func (s *FourNodeTestSuite) doTestFailJoinParty(c *C, newJoinParty bool) {
 	// JoinParty should fail if there is a node that suppose to be in the keygen , but we didn't send request in
 	var req keygen.Request
 	if newJoinParty {
-		req = keygen.NewRequest(testPubKeys, "10")
+		req = keygen.NewRequest(testPubKeys, 10)
 	} else {
-		req = keygen.NewRequest(testPubKeys, "-1")
+		req = keygen.NewRequest(testPubKeys, 0)
 	}
 	wg := sync.WaitGroup{}
 	lock := &sync.Mutex{}
@@ -263,9 +263,9 @@ func (s *FourNodeTestSuite) doTestBlame(c *C, newJoinParty bool) {
 	expectedFailNode := "thorpub1addwnpepqtdklw8tf3anjz7nn5fly3uvq2e67w2apn560s4smmrt9e3x52nt2svmmu3"
 	var req keygen.Request
 	if newJoinParty {
-		req = keygen.NewRequest(testPubKeys, "10")
+		req = keygen.NewRequest(testPubKeys, 10)
 	} else {
-		req = keygen.NewRequest(testPubKeys, "-1")
+		req = keygen.NewRequest(testPubKeys, 0)
 	}
 	wg := sync.WaitGroup{}
 	lock := &sync.Mutex{}

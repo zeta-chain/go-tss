@@ -163,34 +163,36 @@ func (t *TssServer) requestToMsgId(request interface{}) (string, error) {
 	return common.MsgToHashString(dat)
 }
 
-func (t *TssServer) joinParty(msgID, blockHeight string, keys []string, allSigners []peer.ID, threshold int, sigChan chan string, doKeygen bool) ([]peer.ID, string, error) {
-	if blockHeight == "-1" {
+func (t *TssServer) joinParty(msgID string, blockHeight int64, participants []string, threshold int, sigChan chan string) ([]peer.ID, string, error) {
+	if blockHeight == 0 {
 		t.logger.Info().Msg("we apply the leadness join party")
-		peerIDs, err := conversion.GetPeerIDsFromPubKeys(keys)
+		peerIDs, err := conversion.GetPeerIDsFromPubKeys(participants)
 		if err != nil {
 			return nil, "NONE", fmt.Errorf("fail to convert pub key to peer id: %w", err)
 		}
-		onlines, err := t.partyCoordinator.JoinPartyWithRetry(msgID, peerIDs)
+		var peersIDStr []string
+		for _, el := range peerIDs {
+			peersIDStr = append(peersIDStr, el.String())
+		}
+		onlines, err := t.partyCoordinator.JoinPartyWithRetry(msgID, peersIDStr)
 		return onlines, "NONE", err
 	} else {
 		t.logger.Info().Msg("we apply the join party with a leader")
-		if doKeygen {
-			peerIDs, err := conversion.GetPeerIDsFromPubKeys(keys)
-			if err != nil {
-				return nil, "", fmt.Errorf("fail to convert pub key to peer id: %w", err)
-			}
-			return t.partyCoordinator.JoinPartyWithLeader(msgID, blockHeight, peerIDs, threshold, sigChan)
-		}
 
-		if len(allSigners) == 0 {
+		if len(participants) == 0 {
 			t.logger.Error().Msg("we fail to have any participants or passed by request")
 			return nil, "", errors.New("no participants can be found")
 		}
-		var peerIDs []string
-		for _, el := range allSigners {
-			peerIDs = append(peerIDs, el.String())
+		peersID, err := conversion.GetPeerIDsFromPubKeys(participants)
+		if err != nil {
+			return nil, "", errors.New("fail to convert the public key to peer ID")
 		}
-		return t.partyCoordinator.JoinPartyWithLeader(msgID, blockHeight, peerIDs, threshold, sigChan)
+		var peersIDStr []string
+		for _, el := range peersID {
+			peersIDStr = append(peersIDStr, el.String())
+		}
+
+		return t.partyCoordinator.JoinPartyWithLeader(msgID, blockHeight, peersIDStr, threshold, sigChan)
 	}
 }
 
