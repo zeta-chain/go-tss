@@ -53,6 +53,10 @@ func (t *TssServer) generateSignature(msgID string, msgToSign []byte, req keysig
 	}
 	onlinePeers, leader, errJoinParty := t.joinParty(msgID, req.BlockHeight, allParticipants, threshold, sigChan)
 	if errJoinParty != nil {
+		// we received the signature from waiting for signature
+		if errors.Is(errJoinParty, p2p.ErrSignReceived) {
+			return keysign.Response{}, errJoinParty
+		}
 		// this indicate we are processing the leaderness join party
 		if leader == "NONE" {
 			if onlinePeers == nil {
@@ -77,10 +81,6 @@ func (t *TssServer) generateSignature(msgID string, msgToSign []byte, req keysig
 			}, nil
 		}
 
-		// we received the signature from waiting for signature
-		if errors.Is(errJoinParty, p2p.ErrSignReceived) {
-			return keysign.Response{}, errJoinParty
-		}
 		var blameLeader blame.Blame
 		leaderPubKey, err := conversion.GetPubKeyFromPeerID(leader)
 		if err != nil {
