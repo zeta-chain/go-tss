@@ -152,15 +152,18 @@ func (s *FourNodeTestSuite) doTestKeygenAndKeySign(c *C, newJoinParty bool) {
 	resp, err := s.servers[0].KeySign(keysignReqWithErr)
 	c.Assert(err, NotNil)
 	c.Assert(resp.S, Equals, "")
-	keysignReqWithErr1 := keysign.NewRequest(poolPubKey, base64.StdEncoding.EncodeToString(hash([]byte("helloworld"))), 10, testPubKeys[:1])
-	resp, err = s.servers[0].KeySign(keysignReqWithErr1)
-	c.Assert(err, NotNil)
-	c.Assert(resp.S, Equals, "")
-	keysignReqWithErr2 := keysign.NewRequest(poolPubKey, base64.StdEncoding.EncodeToString(hash([]byte("helloworld"))), 10, nil)
-	resp, err = s.servers[0].KeySign(keysignReqWithErr2)
-	c.Assert(err, NotNil)
-	c.Assert(resp.S, Equals, "")
-
+	if !newJoinParty {
+		keysignReqWithErr1 := keysign.NewRequest(poolPubKey, base64.StdEncoding.EncodeToString(hash([]byte("helloworld"))), 0, testPubKeys[:1])
+		resp, err = s.servers[0].KeySign(keysignReqWithErr1)
+		c.Assert(err, NotNil)
+		c.Assert(resp.S, Equals, "")
+	}
+	if !newJoinParty {
+		keysignReqWithErr2 := keysign.NewRequest(poolPubKey, base64.StdEncoding.EncodeToString(hash([]byte("helloworld"))), 0, nil)
+		resp, err = s.servers[0].KeySign(keysignReqWithErr2)
+		c.Assert(err, NotNil)
+		c.Assert(resp.S, Equals, "")
+	}
 	var keysignReq keysign.Request
 	if newJoinParty {
 		keysignReq = keysign.NewRequest(poolPubKey, base64.StdEncoding.EncodeToString(hash([]byte("helloworld"))), 10, testPubKeys)
@@ -189,7 +192,7 @@ func (s *FourNodeTestSuite) doTestKeygenAndKeySign(c *C, newJoinParty bool) {
 		c.Assert(signature, Equals, item.S+item.R)
 	}
 	if newJoinParty {
-		keysignReq = keysign.NewRequest(poolPubKey, base64.StdEncoding.EncodeToString(hash([]byte("helloworld"))), 10, testPubKeys[:3])
+		keysignReq = keysign.NewRequest(poolPubKey, base64.StdEncoding.EncodeToString(hash([]byte("helloworld"))), 10, nil)
 	} else {
 		keysignReq = keysign.NewRequest(poolPubKey, base64.StdEncoding.EncodeToString(hash([]byte("helloworld"))), 0, testPubKeys[:3])
 	}

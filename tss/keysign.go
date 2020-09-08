@@ -92,7 +92,7 @@ func (t *TssServer) generateSignature(msgID string, msgToSign []byte, req keysig
 
 		t.broadcastKeysignFailure(msgID, allPeersID)
 		// make sure we blame the leader as well
-		t.logger.Error().Err(err).Msgf("fail to form keysign party with online:%v", onlinePeers)
+		t.logger.Error().Err(errJoinParty).Msgf("messagesID(%s)fail to form keysign party with online:%v", msgID, onlinePeers)
 		return keysign.Response{
 			Status: common.Fail,
 			Blame:  blameLeader,
@@ -201,7 +201,7 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 	if err != nil {
 		return emptyResp, fmt.Errorf("fail to decode message(%s): %w", req.Message, err)
 	}
-	if len(req.SignerPubKeys) == 0 {
+	if len(req.SignerPubKeys) == 0 && req.BlockHeight == 0 {
 		return emptyResp, errors.New("empty signer pub keys")
 	}
 
@@ -210,7 +210,7 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 		t.logger.Error().Err(err).Msg("fail to get the threshold")
 		return emptyResp, errors.New("fail to get threshold")
 	}
-	if len(req.SignerPubKeys) <= threshold {
+	if len(req.SignerPubKeys) <= threshold && req.BlockHeight == 0 {
 		t.logger.Error().Msgf("not enough signers, threshold=%d and signers=%d", threshold, len(req.SignerPubKeys))
 		return emptyResp, errors.New("not enough signers")
 	}

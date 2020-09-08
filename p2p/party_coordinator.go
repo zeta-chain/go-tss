@@ -15,6 +15,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"google.golang.org/protobuf/proto"
 
+	"gitlab.com/thorchain/tss/go-tss/conversion"
 	"gitlab.com/thorchain/tss/go-tss/messages"
 )
 
@@ -368,6 +369,11 @@ func (pc *PartyCoordinator) joinPartyMember(msgID string, leader string, thresho
 	}()
 	wg.Wait()
 	if peerGroup.leaderResponse == nil {
+		leaderPk, err := conversion.GetPubKeyFromPeerID(leader)
+		if err != nil {
+			pc.logger.Error().Msg("leader is not reachable")
+		}
+		pc.logger.Error().Msgf("leader(%s) is not reachable", leaderPk)
 		return nil, ErrLeaderNotReady
 	}
 
