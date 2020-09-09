@@ -48,7 +48,8 @@ func (t *TssServer) Keygen(req keygen.Request) (keygen.Response, error) {
 	}()
 	sigChan := make(chan string)
 
-	onlinePeers, leader, errJoinParty := t.joinParty(msgID, req.BlockHeight, req.Keys, len(req.Keys)-1, sigChan)
+	blameMgr := keygenInstance.GetTssCommonStruct().GetBlameMgr()
+	onlinePeers, leader, errJoinParty := t.joinParty(msgID, req.Version, req.BlockHeight, req.Keys, len(req.Keys)-1, sigChan)
 	if errJoinParty != nil {
 		// this indicate we are processing the leaderness join party
 		if leader == "NONE" {
@@ -59,7 +60,6 @@ func (t *TssServer) Keygen(req keygen.Request) (keygen.Response, error) {
 					Blame:  blame.NewBlame(blame.InternalError, []blame.Node{}),
 				}, nil
 			}
-			blameMgr := keygenInstance.GetTssCommonStruct().GetBlameMgr()
 			blameNodes, err := blameMgr.NodeSyncBlame(req.Keys, onlinePeers)
 			if err != nil {
 				t.logger.Err(errJoinParty).Msg("fail to get peers to blame")
@@ -95,7 +95,6 @@ func (t *TssServer) Keygen(req keygen.Request) (keygen.Response, error) {
 	// following http response aborts, it still counted as a successful keygen
 	// as the Tss model runs successfully.
 	k, err := keygenInstance.GenerateNewKey(req)
-	blameMgr := keygenInstance.GetTssCommonStruct().GetBlameMgr()
 	if err != nil {
 		atomic.AddUint64(&t.Status.FailedKeyGen, 1)
 		t.logger.Error().Err(err).Msg("err in keygen")

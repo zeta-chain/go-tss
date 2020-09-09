@@ -20,6 +20,7 @@ import (
 	"gitlab.com/thorchain/tss/go-tss/conversion"
 	"gitlab.com/thorchain/tss/go-tss/keygen"
 	"gitlab.com/thorchain/tss/go-tss/keysign"
+	"gitlab.com/thorchain/tss/go-tss/messages"
 	"gitlab.com/thorchain/tss/go-tss/p2p"
 	"gitlab.com/thorchain/tss/go-tss/storage"
 )
@@ -163,8 +164,12 @@ func (t *TssServer) requestToMsgId(request interface{}) (string, error) {
 	return common.MsgToHashString(dat)
 }
 
-func (t *TssServer) joinParty(msgID string, blockHeight int64, participants []string, threshold int, sigChan chan string) ([]peer.ID, string, error) {
-	if blockHeight == 0 {
+func (t *TssServer) joinParty(msgID, version string, blockHeight int64, participants []string, threshold int, sigChan chan string) ([]peer.ID, string, error) {
+	newJoinParty, err := conversion.VersionCheck(version, ">= "+messages.NEWJOINPARTYVERSION)
+	if err != nil {
+		return nil, "", fmt.Errorf("fail to parse the version with error:%w", err)
+	}
+	if !newJoinParty {
 		t.logger.Info().Msg("we apply the leadness join party")
 		peerIDs, err := conversion.GetPeerIDsFromPubKeys(participants)
 		if err != nil {

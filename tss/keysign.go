@@ -47,11 +47,18 @@ func (t *TssServer) generateSignature(msgID string, msgToSign []byte, req keysig
 		}, nil
 	}
 
+	newJoinParty, err := conversion.VersionCheck(req.Version, ">= "+messages.NEWJOINPARTYVERSION)
+	if err != nil {
+		return keysign.Response{
+			Status: common.Fail,
+			Blame:  blame.NewBlame(blame.InternalError, []blame.Node{}),
+		}, errors.New("fail to parse the version")
+	}
 	// we use the old join party
-	if req.BlockHeight == 0 {
+	if !newJoinParty {
 		allParticipants = req.SignerPubKeys
 	}
-	onlinePeers, leader, errJoinParty := t.joinParty(msgID, req.BlockHeight, allParticipants, threshold, sigChan)
+	onlinePeers, leader, errJoinParty := t.joinParty(msgID, req.Version, req.BlockHeight, allParticipants, threshold, sigChan)
 	if errJoinParty != nil {
 		// we received the signature from waiting for signature
 		if errors.Is(errJoinParty, p2p.ErrSignReceived) {
@@ -201,7 +208,16 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 	if err != nil {
 		return emptyResp, fmt.Errorf("fail to decode message(%s): %w", req.Message, err)
 	}
-	if len(req.SignerPubKeys) == 0 && req.BlockHeight == 0 {
+
+	newJoinParty, err := conversion.VersionCheck(req.Version, ">= "+messages.NEWJOINPARTYVERSION)
+	if err != nil {
+		return keysign.Response{
+			Status: common.Fail,
+			Blame:  blame.NewBlame(blame.InternalError, []blame.Node{}),
+		}, errors.New("fail to parse the version")
+	}
+
+	if len(req.SignerPubKeys) == 0 && !newJoinParty {
 		return emptyResp, errors.New("empty signer pub keys")
 	}
 
@@ -210,7 +226,7 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 		t.logger.Error().Err(err).Msg("fail to get the threshold")
 		return emptyResp, errors.New("fail to get threshold")
 	}
-	if len(req.SignerPubKeys) <= threshold && req.BlockHeight == 0 {
+	if len(req.SignerPubKeys) <= threshold && !newJoinParty {
 		t.logger.Error().Msgf("not enough signers, threshold=%d and signers=%d", threshold, len(req.SignerPubKeys))
 		return emptyResp, errors.New("not enough signers")
 	}

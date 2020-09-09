@@ -164,7 +164,7 @@ func getPreparams(c *C) []*btsskeygen.LocalPreParams {
 
 func (s *TssKeygenTestSuite) TestGenerateNewKey(c *C) {
 	sort.Strings(testPubKeys)
-	req := NewRequest(testPubKeys, 10)
+	req := NewRequest(testPubKeys, 10, "")
 	messageID, err := common.MsgToHashString([]byte(strings.Join(req.Keys, "")))
 	c.Assert(err, IsNil)
 	conf := common.TssConfig{
@@ -217,7 +217,7 @@ func (s *TssKeygenTestSuite) TestGenerateNewKey(c *C) {
 
 func (s *TssKeygenTestSuite) TestGenerateNewKeyWithStop(c *C) {
 	sort.Strings(testPubKeys)
-	req := NewRequest(testPubKeys, 10)
+	req := NewRequest(testPubKeys, 10, "")
 	messageID, err := common.MsgToHashString([]byte(strings.Join(req.Keys, "")))
 	c.Assert(err, IsNil)
 	conf := common.TssConfig{
