@@ -4,7 +4,7 @@ import (
 	"errors"
 	"math/rand"
 
-	"github.com/Masterminds/semver"
+	"github.com/blang/semver"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	atypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -42,15 +42,14 @@ func RandStringBytesMask(n int) string {
 	return string(b)
 }
 
-func VersionCheck(currentVer, expectedVer string) (bool, error) {
-	c, err := semver.NewConstraint(expectedVer)
+func VersionLTCheck(currentVer, expectedVer string) (bool, error) {
+	c, err := semver.Make(expectedVer)
 	if err != nil {
 		return false, errors.New("fail to parse the expected version")
 	}
-	v, err := semver.NewVersion(currentVer)
+	v, err := semver.Make(currentVer)
 	if err != nil {
 		return false, errors.New("fail to parse the current version")
 	}
-	ret, _ := c.Validate(v)
-	return ret, nil
+	return v.LT(c), nil
 }

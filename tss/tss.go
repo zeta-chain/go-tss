@@ -165,11 +165,11 @@ func (t *TssServer) requestToMsgId(request interface{}) (string, error) {
 }
 
 func (t *TssServer) joinParty(msgID, version string, blockHeight int64, participants []string, threshold int, sigChan chan string) ([]peer.ID, string, error) {
-	newJoinParty, err := conversion.VersionCheck(version, ">= "+messages.NEWJOINPARTYVERSION)
+	oldJoinParty, err := conversion.VersionLTCheck(version, messages.NEWJOINPARTYVERSION)
 	if err != nil {
 		return nil, "", fmt.Errorf("fail to parse the version with error:%w", err)
 	}
-	if !newJoinParty {
+	if oldJoinParty {
 		t.logger.Info().Msg("we apply the leadness join party")
 		peerIDs, err := conversion.GetPeerIDsFromPubKeys(participants)
 		if err != nil {

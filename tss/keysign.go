@@ -47,7 +47,7 @@ func (t *TssServer) generateSignature(msgID string, msgToSign []byte, req keysig
 		}, nil
 	}
 
-	newJoinParty, err := conversion.VersionCheck(req.Version, ">= "+messages.NEWJOINPARTYVERSION)
+	oldJoinParty, err := conversion.VersionLTCheck(req.Version, messages.NEWJOINPARTYVERSION)
 	if err != nil {
 		return keysign.Response{
 			Status: common.Fail,
@@ -55,7 +55,7 @@ func (t *TssServer) generateSignature(msgID string, msgToSign []byte, req keysig
 		}, errors.New("fail to parse the version")
 	}
 	// we use the old join party
-	if !newJoinParty {
+	if oldJoinParty {
 		allParticipants = req.SignerPubKeys
 	}
 	onlinePeers, leader, errJoinParty := t.joinParty(msgID, req.Version, req.BlockHeight, allParticipants, threshold, sigChan)
@@ -209,7 +209,7 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 		return emptyResp, fmt.Errorf("fail to decode message(%s): %w", req.Message, err)
 	}
 
-	newJoinParty, err := conversion.VersionCheck(req.Version, ">= "+messages.NEWJOINPARTYVERSION)
+	oldJoinParty, err := conversion.VersionLTCheck(req.Version, messages.NEWJOINPARTYVERSION)
 	if err != nil {
 		return keysign.Response{
 			Status: common.Fail,
@@ -217,7 +217,7 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 		}, errors.New("fail to parse the version")
 	}
 
-	if len(req.SignerPubKeys) == 0 && !newJoinParty {
+	if len(req.SignerPubKeys) == 0 && oldJoinParty {
 		return emptyResp, errors.New("empty signer pub keys")
 	}
 
@@ -226,7 +226,7 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 		t.logger.Error().Err(err).Msg("fail to get the threshold")
 		return emptyResp, errors.New("fail to get threshold")
 	}
-	if len(req.SignerPubKeys) <= threshold && !newJoinParty {
+	if len(req.SignerPubKeys) <= threshold && oldJoinParty {
 		t.logger.Error().Msgf("not enough signers, threshold=%d and signers=%d", threshold, len(req.SignerPubKeys))
 		return emptyResp, errors.New("not enough signers")
 	}

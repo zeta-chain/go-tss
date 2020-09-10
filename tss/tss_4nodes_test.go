@@ -148,7 +148,12 @@ func (s *FourNodeTestSuite) doTestKeygenAndKeySign(c *C, newJoinParty bool) {
 			c.Assert(poolPubKey, Equals, item.PubKey)
 		}
 	}
-	keysignReqWithErr := keysign.NewRequest(poolPubKey, "helloworld", 10, testPubKeys, "0.14.0")
+
+	keysignReqWithErr := keysign.NewRequest(poolPubKey, "helloworld", 10, testPubKeys, "0.13.0")
+	if newJoinParty {
+		keysignReqWithErr = keysign.NewRequest(poolPubKey, "helloworld", 10, testPubKeys, "0.14.0")
+	}
+
 	resp, err := s.servers[0].KeySign(keysignReqWithErr)
 	c.Assert(err, NotNil)
 	c.Assert(resp.S, Equals, "")
