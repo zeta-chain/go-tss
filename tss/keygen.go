@@ -72,7 +72,13 @@ func (t *TssServer) Keygen(req keygen.Request) (keygen.Response, error) {
 			}, nil
 
 		}
+
 		var blameLeader blame.Blame
+		var blameNodes blame.Blame
+		blameNodes, err = blameMgr.NodeSyncBlame(req.Keys, onlinePeers)
+		if err != nil {
+			t.logger.Err(errJoinParty).Msg("fail to get peers to blame")
+		}
 		leaderPubKey, err := conversion.GetPubKeyFromPeerID(leader)
 		if err != nil {
 			t.logger.Error().Err(errJoinParty).Msgf("fail to convert the peerID to public key with leader %s", leader)
@@ -80,12 +86,16 @@ func (t *TssServer) Keygen(req keygen.Request) (keygen.Response, error) {
 		} else {
 			blameLeader = blame.NewBlame(blame.TssSyncFail, []blame.Node{{leaderPubKey, nil, nil}})
 		}
-
+		if len(onlinePeers) != 0 {
+			blameNodes.AddBlameNodes(blameLeader.BlameNodes...)
+		} else {
+			blameNodes = blameLeader
+		}
 		t.logger.Error().Err(errJoinParty).Msgf("fail to form keygen party with online:%v", onlinePeers)
 
 		return keygen.Response{
 			Status: common.Fail,
-			Blame:  blameLeader,
+			Blame:  blameNodes,
 		}, nil
 
 	}

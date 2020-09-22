@@ -382,9 +382,6 @@ func (pc *PartyCoordinator) joinPartyMember(msgID string, leader string, thresho
 	}
 
 	onlineNodes := peerGroup.leaderResponse.PeerIDs
-	if len(onlineNodes) < threshold {
-		return nil, errors.New("not enough peer")
-	}
 	// we trust the returned nodes returned by the leader, if tss fail, the leader
 	// also will get blamed.
 	pIDs, err := pc.getPeerIDs(onlineNodes)
@@ -392,6 +389,10 @@ func (pc *PartyCoordinator) joinPartyMember(msgID string, leader string, thresho
 		pc.logger.Error().Err(err).Msg("fail to parse peer id")
 		return nil, err
 	}
+	if len(pIDs) < threshold {
+		return pIDs, errors.New("not enough peer")
+	}
+
 	if peerGroup.leaderResponse.Type == messages.JoinPartyLeaderComm_Success {
 		return pIDs, nil
 	}
