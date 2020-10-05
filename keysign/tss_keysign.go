@@ -68,7 +68,7 @@ func (tKeySign *TssKeySign) SignMessage(msgToSign []byte, localStateItem storage
 		tKeySign.logger.Info().Msgf("we are not in this rounds key sign")
 		return nil, nil
 	}
-	threshold, err := common.GetThreshold(len(localStateItem.ParticipantKeys))
+	threshold, err := conversion.GetThreshold(len(localStateItem.ParticipantKeys))
 	if err != nil {
 		return nil, errors.New("fail to get threshold")
 	}
@@ -130,7 +130,7 @@ func (tKeySign *TssKeySign) SignMessage(msgToSign []byte, localStateItem storage
 	}
 	keySignWg.Wait()
 
-	tKeySign.logger.Info().Msg("successfully sign the message")
+	tKeySign.logger.Info().Msgf("%s successfully sign the message", tKeySign.p2pComm.GetHost().ID().String())
 	return result, nil
 }
 
@@ -155,7 +155,7 @@ func (tKeySign *TssKeySign) processKeySign(errChan chan struct{}, outCh <-chan b
 			if failReason == "" {
 				failReason = blame.TssTimeout
 			}
-			threshold, err := common.GetThreshold(len(tKeySign.tssCommonStruct.P2PPeers) + 1)
+			threshold, err := conversion.GetThreshold(len(tKeySign.tssCommonStruct.P2PPeers) + 1)
 			if err != nil {
 				tKeySign.logger.Error().Err(err).Msg("error in get the threshold for generate blame")
 			}

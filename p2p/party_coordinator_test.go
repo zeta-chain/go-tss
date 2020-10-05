@@ -14,10 +14,9 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"gitlab.com/thorchain/tss/go-tss/conversion"
-	"gitlab.com/thorchain/tss/go-tss/messages"
 )
 
-func setupHosts(t *testing.T, n int) []host.Host {
+func setupHostsLocally(t *testing.T, n int) []host.Host {
 	mn := mocknet.New(context.Background())
 	var hosts []host.Host
 	for i := 0; i < n; i++ {
@@ -40,9 +39,9 @@ func setupHosts(t *testing.T, n int) []host.Host {
 	return hosts
 }
 
-func TestNewPartyCoordinator(t *testing.T) {
+func TestPartyCoordinator(t *testing.T) {
 	ApplyDeadline = false
-	hosts := setupHosts(t, 4)
+	hosts := setupHostsLocally(t, 4)
 	var pcs []PartyCoordinator
 	var peers []string
 
@@ -59,9 +58,6 @@ func TestNewPartyCoordinator(t *testing.T) {
 	}()
 
 	msgID := conversion.RandStringBytesMask(64)
-	joinPartyReq := messages.JoinPartyRequest{
-		ID: msgID,
-	}
 	wg := sync.WaitGroup{}
 
 	for _, el := range pcs {
@@ -71,7 +67,7 @@ func TestNewPartyCoordinator(t *testing.T) {
 			defer wg.Done()
 			// we simulate different nodes join at different time
 			time.Sleep(time.Second * time.Duration(rand.Int()%10))
-			onlinePeers, err := coordinator.JoinPartyWithRetry(&joinPartyReq, peers)
+			onlinePeers, err := coordinator.JoinPartyWithRetry(msgID, peers)
 			if err != nil {
 				t.Error(err)
 			}
@@ -83,7 +79,7 @@ func TestNewPartyCoordinator(t *testing.T) {
 	wg.Wait()
 }
 
-func TestNewPartyCoordinatorTimeOut(t *testing.T) {
+func TestPartyCoordinatorTimeOut(t *testing.T) {
 	ApplyDeadline = false
 	timeout := time.Second
 	hosts := setupHosts(t, 4)
@@ -106,18 +102,14 @@ func TestNewPartyCoordinatorTimeOut(t *testing.T) {
 	}()
 
 	msgID := conversion.RandStringBytesMask(64)
-
-	joinPartyReq := messages.JoinPartyRequest{
-		ID: msgID,
-	}
 	wg := sync.WaitGroup{}
 
 	for _, el := range pcs[:2] {
 		wg.Add(1)
 		go func(coordinator *PartyCoordinator) {
 			defer wg.Done()
-			onlinePeers, err := coordinator.JoinPartyWithRetry(&joinPartyReq, peers)
-			assert.Errorf(t, err, errJoinPartyTimeout.Error())
+			onlinePeers, err := coordinator.JoinPartyWithRetry(msgID, peers)
+			assert.Errorf(t, err, ErrJoinPartyTimeout.Error())
 			var onlinePeersStr []string
 			for _, el := range onlinePeers {
 				onlinePeersStr = append(onlinePeersStr, el.String())
@@ -130,34 +122,4 @@ func TestNewPartyCoordinatorTimeOut(t *testing.T) {
 	}
 
 	wg.Wait()
-}
-
-func TestGetPeerIDs(t *testing.T) {
-	ApplyDeadline = false
-	id1 := tnet.RandIdentityOrFatal(t)
-	mn := mocknet.New(context.Background())
-	// add peers to mock net
-
-	a1 := tnet.RandLocalTCPAddress()
-	h1, err := mn.AddPeer(id1.PrivateKey(), a1)
-	if err != nil {
-		t.Fatal(err)
-	}
-	p1 := h1.ID()
-	timeout := time.Second * 5
-	pc := NewPartyCoordinator(h1, timeout)
-	r, err := pc.getPeerIDs([]string{})
-	assert.Nil(t, err)
-	assert.Len(t, r, 0)
-	input := []string{
-		p1.String(),
-	}
-	r1, err := pc.getPeerIDs(input)
-	assert.Nil(t, err)
-	assert.Len(t, r1, 1)
-	assert.Equal(t, r1[0], p1)
-	input = append(input, "whatever")
-	r2, err := pc.getPeerIDs(input)
-	assert.NotNil(t, err)
-	assert.Len(t, r2, 0)
 }

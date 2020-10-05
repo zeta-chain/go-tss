@@ -499,7 +499,7 @@ func (t *TssCommon) processVerMsg(broadcastConfirmMsg *messages.BroadcastConfirm
 	localCacheItem.UpdateConfirmList(broadcastConfirmMsg.P2PID, broadcastConfirmMsg.Hash)
 	t.logger.Debug().Msgf("total confirmed parties:%+v", localCacheItem.ConfirmedList)
 
-	threshold, err := GetThreshold(len(partyInfo.PartyIDMap))
+	threshold, err := conversion.GetThreshold(len(partyInfo.PartyIDMap))
 	if err != nil {
 		return err
 	}
@@ -628,7 +628,7 @@ func (t *TssCommon) processTSSMsg(wireMsg *messages.WireMessage, msgType message
 	}
 	localCacheItem.UpdateConfirmList(t.localPeerID, msgHash)
 
-	threshold, err := GetThreshold(len(partyInfo.PartyIDMap))
+	threshold, err := conversion.GetThreshold(len(partyInfo.PartyIDMap))
 	if err != nil {
 		return err
 	}

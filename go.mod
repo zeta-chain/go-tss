@@ -5,6 +5,7 @@ go 1.14
 require (
 	github.com/binance-chain/go-sdk v0.0.0-00010101000000-000000000000
 	github.com/binance-chain/tss-lib v0.0.0-00010101000000-000000000000
+	github.com/blang/semver v3.5.1+incompatible
 	github.com/btcsuite/btcd v0.20.1-beta
 	github.com/cosmos/cosmos-sdk v0.39.0
 	github.com/davidlazar/go-crypto v0.0.0-20200604182044-b73af7476f6c // indirect

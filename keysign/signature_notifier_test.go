@@ -71,11 +71,12 @@ func TestSignatureNotifierHappyPath(t *testing.T) {
 	var signature bc.SignatureData
 	err = json.Unmarshal(content, &signature)
 	assert.Nil(t, err)
+	sigChan := make(chan string)
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		sig, err := n1.WaitForSignature(messageID, buf, poolPubKey, time.Second*30)
+		sig, err := n1.WaitForSignature(messageID, buf, poolPubKey, time.Second*30, sigChan)
 		assert.Nil(t, err)
 		assert.NotNil(t, sig)
 	}()

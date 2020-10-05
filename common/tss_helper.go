@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"math/big"
 	"os"
 	"sort"
@@ -39,14 +38,6 @@ func Contains(s []*btss.PartyID, e *btss.PartyID) bool {
 		}
 	}
 	return false
-}
-
-func GetThreshold(value int) (int, error) {
-	if value < 0 {
-		return 0, errors.New("negative input")
-	}
-	threshold := int(math.Ceil(float64(value)*2.0/3.0)) - 1
-	return threshold, nil
 }
 
 func MsgToHashInt(msg []byte) (*big.Int, error) {
