@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
@@ -46,6 +47,7 @@ func (t *TssHttpServer) tssNewHandler() http.Handler {
 	router.Handle("/status", http.HandlerFunc(t.getNodeStatusHandler)).Methods(http.MethodGet)
 	router.Handle("/ping", http.HandlerFunc(t.pingHandler)).Methods(http.MethodGet)
 	router.Handle("/p2pid", http.HandlerFunc(t.getP2pIDHandler)).Methods(http.MethodGet)
+	http.Handle("/metrics", promhttp.Handler())
 	router.Use(logMiddleware())
 	return router
 }
