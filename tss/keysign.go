@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/libp2p/go-libp2p-core/peer"
 
@@ -58,12 +59,18 @@ func (t *TssServer) generateSignature(msgID string, msgToSign []byte, req keysig
 	if oldJoinParty {
 		allParticipants = req.SignerPubKeys
 	}
+
+	joinPartyStartTime := time.Now()
 	onlinePeers, leader, errJoinParty := t.joinParty(msgID, req.Version, req.BlockHeight, allParticipants, threshold, sigChan)
+	joinPartyTime := time.Since(joinPartyStartTime)
 	if errJoinParty != nil {
 		// we received the signature from waiting for signature
 		if errors.Is(errJoinParty, p2p.ErrSignReceived) {
 			return keysign.Response{}, errJoinParty
 		}
+		fmt.Printf("-------we saw error----------%v\n", errJoinParty)
+		t.tssMetrics.KeysignJoinParty(joinPartyTime, false)
+		t.tssMetrics.UpdateKeySign(0, false)
 		// this indicate we are processing the leaderness join party
 		if leader == "NONE" {
 			if onlinePeers == nil {
@@ -106,6 +113,7 @@ func (t *TssServer) generateSignature(msgID string, msgToSign []byte, req keysig
 		}, nil
 
 	}
+	t.tssMetrics.KeysignJoinParty(joinPartyTime, true)
 	isKeySignMember := false
 	for _, el := range onlinePeers {
 		if el == t.p2pCommunication.GetHost().ID() {
@@ -130,12 +138,14 @@ func (t *TssServer) generateSignature(msgID string, msgToSign []byte, req keysig
 			Blame:  blame.Blame{},
 		}, nil
 	}
-
+	keysignStartTime := time.Now()
 	signatureData, err := keysignInstance.SignMessage(msgToSign, localStateItem, signers)
+	keysignTime := time.Since(keysignStartTime)
 	// the statistic of keygen only care about Tss it self, even if the following http response aborts,
 	// it still counted as a successful keygen as the Tss model runs successfully.
 	if err != nil {
 		t.logger.Error().Err(err).Msg("err in keysign")
+		t.tssMetrics.UpdateKeySign(keysignTime, false)
 		sigChan <- "signature generated"
 		atomic.AddUint64(&t.Status.FailedKeySign, 1)
 		t.broadcastKeysignFailure(msgID, allPeersID)
@@ -146,6 +156,7 @@ func (t *TssServer) generateSignature(msgID string, msgToSign []byte, req keysig
 		}, nil
 	}
 
+	t.tssMetrics.UpdateKeySign(keysignTime, true)
 	atomic.AddUint64(&t.Status.SucKeySign, 1)
 
 	sigChan <- "signature generated"

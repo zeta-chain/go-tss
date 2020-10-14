@@ -47,7 +47,7 @@ func (t *TssHttpServer) tssNewHandler() http.Handler {
 	router.Handle("/status", http.HandlerFunc(t.getNodeStatusHandler)).Methods(http.MethodGet)
 	router.Handle("/ping", http.HandlerFunc(t.pingHandler)).Methods(http.MethodGet)
 	router.Handle("/p2pid", http.HandlerFunc(t.getP2pIDHandler)).Methods(http.MethodGet)
-	http.Handle("/metrics", promhttp.Handler())
+	router.Handle("/metrics", promhttp.Handler())
 	router.Use(logMiddleware())
 	return router
 }

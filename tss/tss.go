@@ -21,6 +21,7 @@ import (
 	"gitlab.com/thorchain/tss/go-tss/keygen"
 	"gitlab.com/thorchain/tss/go-tss/keysign"
 	"gitlab.com/thorchain/tss/go-tss/messages"
+	"gitlab.com/thorchain/tss/go-tss/monitor"
 	"gitlab.com/thorchain/tss/go-tss/p2p"
 	"gitlab.com/thorchain/tss/go-tss/storage"
 )
@@ -39,6 +40,7 @@ type TssServer struct {
 	stateManager      storage.LocalStateManager
 	signatureNotifier *keysign.SignatureNotifier
 	privateKey        tcrypto.PrivKey
+	tssMetrics        *monitor.Metric
 }
 
 // NewTss create a new instance of Tss
@@ -98,6 +100,8 @@ func NewTss(
 	}
 	pc := p2p.NewPartyCoordinator(comm.GetHost(), conf.PartyTimeout)
 	sn := keysign.NewSignatureNotifier(comm.GetHost())
+	metrics := monitor.NewMetric()
+	metrics.ThroughputSampleStart()
 	tssServer := TssServer{
 		conf:   conf,
 		logger: log.With().Str("module", "tss").Logger(),
@@ -113,6 +117,7 @@ func NewTss(
 		stateManager:      stateManager,
 		signatureNotifier: sn,
 		privateKey:        priKey,
+		tssMetrics:        metrics,
 	}
 
 	return &tssServer, nil
@@ -134,6 +139,7 @@ func (t *TssServer) Stop() {
 		t.logger.Error().Msgf("error in shutdown the p2p server")
 	}
 	t.partyCoordinator.Stop()
+	t.tssMetrics.ThroughputSamplingStop()
 	log.Info().Msg("The Tss and p2p server has been stopped successfully")
 }
 
