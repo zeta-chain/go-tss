@@ -109,7 +109,7 @@ func (s *FourNodeTestSuite) Test4NodesTss(c *C) {
 	time.Sleep(time.Second * 2)
 	s.doTestFailJoinParty(c, false)
 	time.Sleep(time.Second * 2)
-	s.doTestFailJoinParty(c, false)
+	s.doTestFailJoinParty(c, true)
 
 	time.Sleep(time.Second * 2)
 	s.doTestBlame(c, false)
@@ -250,20 +250,19 @@ func (s *FourNodeTestSuite) doTestFailJoinParty(c *C, newJoinParty bool) {
 
 	wg.Wait()
 	c.Logf("result:%+v", keygenResult)
-	for idx, item := range keygenResult {
-		if idx == 0 {
-			continue
-		}
+	for _, item := range keygenResult {
 		c.Assert(item.PubKey, Equals, "")
 		c.Assert(item.Status, Equals, common.Fail)
-		c.Assert(item.Blame.BlameNodes, HasLen, 1)
 		var expectedFailNode string
 		if newJoinParty {
-			expectedFailNode = "thorpub1addwnpepq2ryyje5zr09lq7gqptjwnxqsy2vcdngvwd6z7yt5yjcnyj8c8cn559xe69"
+			c.Assert(item.Blame.BlameNodes, HasLen, 2)
+			expectedFailNode := []string{"thorpub1addwnpepqtdklw8tf3anjz7nn5fly3uvq2e67w2apn560s4smmrt9e3x52nt2svmmu3", "thorpub1addwnpepq2ryyje5zr09lq7gqptjwnxqsy2vcdngvwd6z7yt5yjcnyj8c8cn559xe69"}
+			c.Assert(item.Blame.BlameNodes[0].Pubkey, Equals, expectedFailNode[0])
+			c.Assert(item.Blame.BlameNodes[1].Pubkey, Equals, expectedFailNode[1])
 		} else {
 			expectedFailNode = "thorpub1addwnpepqtdklw8tf3anjz7nn5fly3uvq2e67w2apn560s4smmrt9e3x52nt2svmmu3"
+			c.Assert(item.Blame.BlameNodes[0].Pubkey, Equals, expectedFailNode)
 		}
-		c.Assert(item.Blame.BlameNodes[0].Pubkey, Equals, expectedFailNode)
 	}
 }
 

@@ -174,6 +174,10 @@ func (pc *PartyCoordinator) HandleStreamWithLeader(stream network.Stream) {
 		return
 	case "response":
 		pc.processRespMsg(&msg, stream)
+		err := WriteStreamWithBuffer([]byte("done"), stream)
+		if err != nil {
+			pc.logger.Error().Err(err).Msgf("fail to send response to leader")
+		}
 		return
 	default:
 		logger.Err(err).Msg("fail to process this message")
@@ -228,7 +232,7 @@ func (pc *PartyCoordinator) sendResponseToAll(msg *messages.JoinPartyLeaderComm,
 			if peer == pc.host.ID() {
 				return
 			}
-			if err := pc.sendMsgToPeer(msgSend, msg.ID, peer, joinPartyProtocolWithLeader); err != nil {
+			if err := pc.sendMsgToPeer(msgSend, msg.ID, peer, joinPartyProtocolWithLeader, true); err != nil {
 				pc.logger.Error().Err(err).Msg("error in send the join party request to peer")
 			}
 		}(el)
@@ -244,7 +248,7 @@ func (pc *PartyCoordinator) sendRequestToLeader(msg *messages.JoinPartyLeaderCom
 		return err
 	}
 
-	if err := pc.sendMsgToPeer(msgSend, msg.ID, leader, joinPartyProtocolWithLeader); err != nil {
+	if err := pc.sendMsgToPeer(msgSend, msg.ID, leader, joinPartyProtocolWithLeader, false); err != nil {
 		pc.logger.Error().Err(err).Msg("error in send the join party request to leader")
 		return errors.New("fail to send request to leader")
 	}
@@ -261,7 +265,7 @@ func (pc *PartyCoordinator) sendRequestToAll(msgID string, msgSend []byte, peers
 			if peer == pc.host.ID() {
 				return
 			}
-			if err := pc.sendMsgToPeer(msgSend, msgID, peer, joinPartyProtocol); err != nil {
+			if err := pc.sendMsgToPeer(msgSend, msgID, peer, joinPartyProtocol, false); err != nil {
 				pc.logger.Error().Err(err).Msg("error in send the join party request to peer")
 			}
 		}(el)
@@ -269,7 +273,7 @@ func (pc *PartyCoordinator) sendRequestToAll(msgID string, msgSend []byte, peers
 	wg.Wait()
 }
 
-func (pc *PartyCoordinator) sendMsgToPeer(msgBuf []byte, msgID string, remotePeer peer.ID, protoc protocol.ID) error {
+func (pc *PartyCoordinator) sendMsgToPeer(msgBuf []byte, msgID string, remotePeer peer.ID, protoc protocol.ID, needResponse bool) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*4)
 	defer cancel()
 	var stream network.Stream
@@ -306,6 +310,13 @@ func (pc *PartyCoordinator) sendMsgToPeer(msgBuf []byte, msgID string, remotePee
 	err = WriteStreamWithBuffer(msgBuf, stream)
 	if err != nil {
 		return fmt.Errorf("fail to write message to stream:%w", err)
+	}
+
+	if needResponse {
+		_, err := ReadStreamWithBuffer(stream)
+		if err != nil {
+			pc.logger.Error().Err(err).Msgf("fail to get the ")
+		}
 	}
 
 	return nil

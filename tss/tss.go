@@ -170,7 +170,7 @@ func (t *TssServer) joinParty(msgID, version string, blockHeight int64, particip
 		return nil, "", fmt.Errorf("fail to parse the version with error:%w", err)
 	}
 	if oldJoinParty {
-		t.logger.Info().Msg("we apply the leadness join party")
+		t.logger.Info().Msg("we apply the leadless join party")
 		peerIDs, err := conversion.GetPeerIDsFromPubKeys(participants)
 		if err != nil {
 			return nil, "NONE", fmt.Errorf("fail to convert pub key to peer id: %w", err)
