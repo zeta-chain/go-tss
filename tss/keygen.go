@@ -1,7 +1,6 @@
 package tss
 
 import (
-	"sync/atomic"
 	"time"
 
 	"gitlab.com/thorchain/tss/go-tss/blame"
@@ -55,7 +54,7 @@ func (t *TssServer) Keygen(req keygen.Request) (keygen.Response, error) {
 	if errJoinParty != nil {
 		t.tssMetrics.KeygenJoinParty(joinPartyTime, false)
 		t.tssMetrics.UpdateKeyGen(0, false)
-		// this indicate we are processing the leaderness join party
+		// this indicate we are processing the leaderless join party
 		if leader == "NONE" {
 			if onlinePeers == nil {
 				t.logger.Error().Err(err).Msg("error before we start join party")
@@ -114,13 +113,11 @@ func (t *TssServer) Keygen(req keygen.Request) (keygen.Response, error) {
 	keygenTime := time.Since(beforeKeygen)
 	if err != nil {
 		t.tssMetrics.UpdateKeyGen(keygenTime, false)
-		atomic.AddUint64(&t.Status.FailedKeyGen, 1)
 		t.logger.Error().Err(err).Msg("err in keygen")
 		blameNodes := *blameMgr.GetBlame()
 		return keygen.NewResponse("", "", common.Fail, blameNodes), err
 	} else {
 		t.tssMetrics.UpdateKeyGen(keygenTime, true)
-		atomic.AddUint64(&t.Status.SucKeyGen, 1)
 	}
 
 	newPubKey, addr, err := conversion.GetTssPubKey(k)

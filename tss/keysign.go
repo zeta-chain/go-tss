@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -142,7 +141,6 @@ func (t *TssServer) generateSignature(msgID string, msgToSign []byte, req keysig
 	if err != nil {
 		t.logger.Error().Err(err).Msg("err in keysign")
 		sigChan <- "signature generated"
-		atomic.AddUint64(&t.Status.FailedKeySign, 1)
 		t.broadcastKeysignFailure(msgID, allPeersID)
 		blameNodes := *blameMgr.GetBlame()
 		return keysign.Response{
@@ -150,8 +148,6 @@ func (t *TssServer) generateSignature(msgID string, msgToSign []byte, req keysig
 			Blame:  blameNodes,
 		}, nil
 	}
-
-	atomic.AddUint64(&t.Status.SucKeySign, 1)
 
 	sigChan <- "signature generated"
 	// update signature notification

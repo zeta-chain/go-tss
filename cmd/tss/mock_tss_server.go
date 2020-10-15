@@ -2,7 +2,6 @@ package main
 
 import (
 	"errors"
-	"time"
 
 	"gitlab.com/thorchain/tss/go-tss/blame"
 	"gitlab.com/thorchain/tss/go-tss/common"
@@ -43,14 +42,4 @@ func (mts *MockTssServer) KeySign(req keysign.Request) (keysign.Response, error)
 		return keysign.Response{}, errors.New("you ask for it")
 	}
 	return keysign.NewResponse("", "", common.Success, blame.Blame{}), nil
-}
-
-func (mts *MockTssServer) GetStatus() common.TssStatus {
-	return common.TssStatus{
-		Starttime:     time.Now(),
-		SucKeyGen:     0,
-		FailedKeyGen:  0,
-		SucKeySign:    0,
-		FailedKeySign: 0,
-	}
 }

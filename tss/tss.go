@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"sort"
 	"sync"
-	"time"
 
 	bkeygen "github.com/binance-chain/tss-lib/ecdsa/keygen"
 	sdk "github.com/cosmos/cosmos-sdk/types"
@@ -30,7 +29,6 @@ import (
 type TssServer struct {
 	conf              common.TssConfig
 	logger            zerolog.Logger
-	Status            common.TssStatus
 	p2pCommunication  *p2p.Communication
 	localNodePubKey   string
 	preParams         *bkeygen.LocalPreParams
@@ -101,13 +99,12 @@ func NewTss(
 	pc := p2p.NewPartyCoordinator(comm.GetHost(), conf.PartyTimeout)
 	sn := keysign.NewSignatureNotifier(comm.GetHost())
 	metrics := monitor.NewMetric()
-	metrics.ThroughputSampleStart()
+	if conf.EnableMonitor {
+		metrics.Enable()
+	}
 	tssServer := TssServer{
-		conf:   conf,
-		logger: log.With().Str("module", "tss").Logger(),
-		Status: common.TssStatus{
-			Starttime: time.Now(),
-		},
+		conf:              conf,
+		logger:            log.With().Str("module", "tss").Logger(),
 		p2pCommunication:  comm,
 		localNodePubKey:   pubKey,
 		preParams:         preParams,
@@ -126,7 +123,6 @@ func NewTss(
 // Start Tss server
 func (t *TssServer) Start() error {
 	log.Info().Msg("Starting the TSS servers")
-	t.Status.Starttime = time.Now()
 	return nil
 }
 
@@ -139,7 +135,6 @@ func (t *TssServer) Stop() {
 		t.logger.Error().Msgf("error in shutdown the p2p server")
 	}
 	t.partyCoordinator.Stop()
-	t.tssMetrics.ThroughputSamplingStop()
 	log.Info().Msg("The Tss and p2p server has been stopped successfully")
 }
 
@@ -210,9 +205,4 @@ func (t *TssServer) joinParty(msgID, version string, blockHeight int64, particip
 // GetLocalPeerID return the local peer
 func (t *TssServer) GetLocalPeerID() string {
 	return t.p2pCommunication.GetLocalPeerID()
-}
-
-// GetStatus return the TssStatus
-func (t *TssServer) GetStatus() common.TssStatus {
-	return t.Status
 }

@@ -68,10 +68,12 @@ func (s *FourNodeTestSuite) SetUpTest(c *C) {
 	s.bootstrapPeer = "/ip4/127.0.0.1/tcp/16666/p2p/16Uiu2HAmACG5DtqmQsHtXg4G2sLS65ttv84e7MrL4kapkjfmhxAp"
 	s.preParams = getPreparams(c)
 	s.servers = make([]*TssServer, partyNum)
+
 	conf := common.TssConfig{
 		KeyGenTimeout:   60 * time.Second,
 		KeySignTimeout:  60 * time.Second,
 		PreParamTimeout: 5 * time.Second,
+		EnableMonitor:   false,
 	}
 
 	var wg sync.WaitGroup
