@@ -68,9 +68,7 @@ func (t *TssServer) generateSignature(msgID string, msgToSign []byte, req keysig
 		if errors.Is(errJoinParty, p2p.ErrSignReceived) {
 			return keysign.Response{}, errJoinParty
 		}
-		fmt.Printf("-------we saw error----------%v\n", errJoinParty)
 		t.tssMetrics.KeysignJoinParty(joinPartyTime, false)
-		t.tssMetrics.UpdateKeySign(0, false)
 		// this indicate we are processing the leaderness join party
 		if leader == "NONE" {
 			if onlinePeers == nil {
@@ -138,14 +136,11 @@ func (t *TssServer) generateSignature(msgID string, msgToSign []byte, req keysig
 			Blame:  blame.Blame{},
 		}, nil
 	}
-	keysignStartTime := time.Now()
 	signatureData, err := keysignInstance.SignMessage(msgToSign, localStateItem, signers)
-	keysignTime := time.Since(keysignStartTime)
 	// the statistic of keygen only care about Tss it self, even if the following http response aborts,
 	// it still counted as a successful keygen as the Tss model runs successfully.
 	if err != nil {
 		t.logger.Error().Err(err).Msg("err in keysign")
-		t.tssMetrics.UpdateKeySign(keysignTime, false)
 		sigChan <- "signature generated"
 		atomic.AddUint64(&t.Status.FailedKeySign, 1)
 		t.broadcastKeysignFailure(msgID, allPeersID)
@@ -156,7 +151,6 @@ func (t *TssServer) generateSignature(msgID string, msgToSign []byte, req keysig
 		}, nil
 	}
 
-	t.tssMetrics.UpdateKeySign(keysignTime, true)
 	atomic.AddUint64(&t.Status.SucKeySign, 1)
 
 	sigChan <- "signature generated"
@@ -170,6 +164,15 @@ func (t *TssServer) generateSignature(msgID string, msgToSign []byte, req keysig
 		common.Success,
 		blame.Blame{},
 	), nil
+}
+
+func (t *TssServer) updateKeySignResult(result keysign.Response, timeSpent time.Duration) {
+	if result.Status == common.Success {
+		t.tssMetrics.UpdateKeySign(timeSpent, true)
+		return
+	}
+	t.tssMetrics.UpdateKeySign(timeSpent, false)
+	return
 }
 
 func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
@@ -249,6 +252,7 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 	sigChan := make(chan string, 2)
 	wg := sync.WaitGroup{}
 	wg.Add(2)
+	keysignStartTime := time.Now()
 	// we wait for signatures
 	go func() {
 		defer wg.Done()
@@ -267,16 +271,21 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 	}()
 	wg.Wait()
 	close(sigChan)
-
+	keysignTime := time.Since(keysignStartTime)
 	// we received the generated verified signature, so we return
 	if errWait == nil {
+		t.updateKeySignResult(receivedSig, keysignTime)
 		return receivedSig, nil
 	}
 	// for this round, we are not the active signer
 	if errors.Is(errGen, p2p.ErrSignReceived) {
+
+		t.updateKeySignResult(receivedSig, keysignTime)
 		return receivedSig, nil
 	}
 
+	// we get the signature from our tss keysign
+	t.updateKeySignResult(generatedSig, keysignTime)
 	return generatedSig, errGen
 }
 

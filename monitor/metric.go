@@ -2,7 +2,6 @@ package monitor
 
 import (
 	"errors"
-	"math"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -116,8 +115,8 @@ func (m *Metric) updateThroughput() {
 		return
 	}
 
-	deltaKeygen := math.Round((currentKeygen - m.previousKeyGenCounter) / period)
-	deltaKeysign := math.Round((currentKeysign - m.previousSignCounter) / period)
+	deltaKeygen := (currentKeygen - m.previousKeyGenCounter) * 2
+	deltaKeysign := (currentKeysign - m.previousSignCounter) * 2
 	m.previousKeyGenCounter = currentKeygen
 	m.previousSignCounter = currentKeysign
 	m.tssThroughput.WithLabelValues("keygen").Set(deltaKeygen)
@@ -218,7 +217,7 @@ func NewMetric() *Metric {
 				Namespace: "Tss",
 				Subsystem: "Tss_monitor",
 				Name:      "Tss_throughput",
-				Help:      "the throughput of keysign/keygen every 30 seconds",
+				Help:      "the throughput of keysign/keygen every 60 seconds",
 			}, []string{"type"}),
 
 		logger:         log.With().Str("module", "tssMonitor").Logger(),
