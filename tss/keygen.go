@@ -1,7 +1,7 @@
 package tss
 
 import (
-	"sync/atomic"
+	"time"
 
 	"gitlab.com/thorchain/tss/go-tss/blame"
 	"gitlab.com/thorchain/tss/go-tss/common"
@@ -47,11 +47,14 @@ func (t *TssServer) Keygen(req keygen.Request) (keygen.Response, error) {
 		t.partyCoordinator.ReleaseStream(msgID)
 	}()
 	sigChan := make(chan string)
-
 	blameMgr := keygenInstance.GetTssCommonStruct().GetBlameMgr()
+	joinPartyStartTime := time.Now()
 	onlinePeers, leader, errJoinParty := t.joinParty(msgID, req.Version, req.BlockHeight, req.Keys, len(req.Keys)-1, sigChan)
+	joinPartyTime := time.Since(joinPartyStartTime)
 	if errJoinParty != nil {
-		// this indicate we are processing the leaderness join party
+		t.tssMetrics.KeygenJoinParty(joinPartyTime, false)
+		t.tssMetrics.UpdateKeyGen(0, false)
+		// this indicate we are processing the leaderless join party
 		if leader == "NONE" {
 			if onlinePeers == nil {
 				t.logger.Error().Err(err).Msg("error before we start join party")
@@ -100,18 +103,21 @@ func (t *TssServer) Keygen(req keygen.Request) (keygen.Response, error) {
 
 	}
 
+	t.tssMetrics.KeygenJoinParty(joinPartyTime, true)
 	t.logger.Debug().Msg("keygen party formed")
 	// the statistic of keygen only care about Tss it self, even if the
 	// following http response aborts, it still counted as a successful keygen
 	// as the Tss model runs successfully.
+	beforeKeygen := time.Now()
 	k, err := keygenInstance.GenerateNewKey(req)
+	keygenTime := time.Since(beforeKeygen)
 	if err != nil {
-		atomic.AddUint64(&t.Status.FailedKeyGen, 1)
+		t.tssMetrics.UpdateKeyGen(keygenTime, false)
 		t.logger.Error().Err(err).Msg("err in keygen")
 		blameNodes := *blameMgr.GetBlame()
 		return keygen.NewResponse("", "", common.Fail, blameNodes), err
 	} else {
-		atomic.AddUint64(&t.Status.SucKeyGen, 1)
+		t.tssMetrics.UpdateKeyGen(keygenTime, true)
 	}
 
 	newPubKey, addr, err := conversion.GetTssPubKey(k)

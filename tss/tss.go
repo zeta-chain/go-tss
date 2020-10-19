@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"sort"
 	"sync"
-	"time"
 
 	bkeygen "github.com/binance-chain/tss-lib/ecdsa/keygen"
 	sdk "github.com/cosmos/cosmos-sdk/types"
@@ -21,6 +20,7 @@ import (
 	"gitlab.com/thorchain/tss/go-tss/keygen"
 	"gitlab.com/thorchain/tss/go-tss/keysign"
 	"gitlab.com/thorchain/tss/go-tss/messages"
+	"gitlab.com/thorchain/tss/go-tss/monitor"
 	"gitlab.com/thorchain/tss/go-tss/p2p"
 	"gitlab.com/thorchain/tss/go-tss/storage"
 )
@@ -29,7 +29,6 @@ import (
 type TssServer struct {
 	conf              common.TssConfig
 	logger            zerolog.Logger
-	Status            common.TssStatus
 	p2pCommunication  *p2p.Communication
 	localNodePubKey   string
 	preParams         *bkeygen.LocalPreParams
@@ -39,6 +38,7 @@ type TssServer struct {
 	stateManager      storage.LocalStateManager
 	signatureNotifier *keysign.SignatureNotifier
 	privateKey        tcrypto.PrivKey
+	tssMetrics        *monitor.Metric
 }
 
 // NewTss create a new instance of Tss
@@ -98,12 +98,13 @@ func NewTss(
 	}
 	pc := p2p.NewPartyCoordinator(comm.GetHost(), conf.PartyTimeout)
 	sn := keysign.NewSignatureNotifier(comm.GetHost())
+	metrics := monitor.NewMetric()
+	if conf.EnableMonitor {
+		metrics.Enable()
+	}
 	tssServer := TssServer{
-		conf:   conf,
-		logger: log.With().Str("module", "tss").Logger(),
-		Status: common.TssStatus{
-			Starttime: time.Now(),
-		},
+		conf:              conf,
+		logger:            log.With().Str("module", "tss").Logger(),
 		p2pCommunication:  comm,
 		localNodePubKey:   pubKey,
 		preParams:         preParams,
@@ -113,6 +114,7 @@ func NewTss(
 		stateManager:      stateManager,
 		signatureNotifier: sn,
 		privateKey:        priKey,
+		tssMetrics:        metrics,
 	}
 
 	return &tssServer, nil
@@ -121,7 +123,6 @@ func NewTss(
 // Start Tss server
 func (t *TssServer) Start() error {
 	log.Info().Msg("Starting the TSS servers")
-	t.Status.Starttime = time.Now()
 	return nil
 }
 
@@ -204,9 +205,4 @@ func (t *TssServer) joinParty(msgID, version string, blockHeight int64, particip
 // GetLocalPeerID return the local peer
 func (t *TssServer) GetLocalPeerID() string {
 	return t.p2pCommunication.GetLocalPeerID()
-}
-
-// GetStatus return the TssStatus
-func (t *TssServer) GetStatus() common.TssStatus {
-	return t.Status
 }

@@ -11,7 +11,6 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"gitlab.com/thorchain/tss/go-tss/common"
 	"gitlab.com/thorchain/tss/go-tss/keygen"
 )
 
@@ -57,18 +56,6 @@ func (TssHttpServerTestSuite) TestGetP2pIDHandler(c *C) {
 	res := httptest.NewRecorder()
 	s.getP2pIDHandler(res, req)
 	c.Assert(res.Code, Equals, http.StatusOK)
-}
-
-func (TssHttpServerTestSuite) TestGetNodeStatusHandler(c *C) {
-	tssServer := &MockTssServer{}
-	s := NewTssHttpServer("127.0.0.1:8080", tssServer)
-	c.Assert(s, NotNil)
-	req := httptest.NewRequest(http.MethodGet, "/status", nil)
-	res := httptest.NewRecorder()
-	s.getNodeStatusHandler(res, req)
-	c.Assert(res.Code, Equals, http.StatusOK)
-	var status common.TssStatus
-	c.Assert(json.Unmarshal(res.Body.Bytes(), &status), IsNil)
 }
 
 func (TssHttpServerTestSuite) TestKeygenHandler(c *C) {

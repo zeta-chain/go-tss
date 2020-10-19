@@ -13,19 +13,6 @@ type TssConfig struct {
 	KeySignTimeout time.Duration
 	// Pre-parameter define the pre-parameter generations timeout
 	PreParamTimeout time.Duration
-}
-
-type TssStatus struct {
-	// Starttime indicates when the Tss server starts
-	Starttime time.Time `json:"start_time"`
-	// SucKeyGen indicates how many times we run keygen successfully
-	SucKeyGen uint64 `json:"successful_keygen"`
-	// FailedKeyGen indicates how many times we run keygen unsuccessfully(the invalid http request is not counted as
-	// the failure of keygen)
-	FailedKeyGen uint64 `json:"failed_keygen"`
-	// SucKeySign indicates how many times we run keySign successfully
-	SucKeySign uint64 `json:"successful_keysign"`
-	// FailedKeySign indicates how many times we run keysign unsuccessfully(the invalid http request is not counted as
-	// the failure of keysign)
-	FailedKeySign uint64 `json:"failed_keysign"`
+	// enable the tss monitor
+	EnableMonitor bool
 }
