@@ -1,0 +1,6 @@
+---
+title: fix the bug of the connectivity check of bootstrap node and set connection
+  timeout to 20 seconds
+merge_request: 200
+author:
+type: fixed
