@@ -683,7 +683,8 @@ func (t *TssCommon) ProcessInboundMessages(finishChan chan struct{}, wg *sync.Wa
 
 			err := t.ProcessOneMessage(&wrappedMsg, m.PeerID.String())
 			if err != nil {
-				t.logger.Error().Err(err).Msg("fail to process the received message")
+				t.logger.Error().Err(err).Msg("fail to process the received message and we quit tss message processing")
+				return
 			}
 
 		}
