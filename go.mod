@@ -31,7 +31,7 @@ require (
 	go.opencensus.io v0.22.3 // indirect
 	golang.org/x/crypto v0.0.0-20200406173513-056763e48d71
 	golang.org/x/text v0.3.2
-	google.golang.org/protobuf v1.24.0
+	google.golang.org/protobuf v1.25.0
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f
 )
 
@@ -39,4 +39,4 @@ replace github.com/etcd-io/bbolt => go.etcd.io/bbolt v1.3.5-0.20200615073812-232
 
 replace github.com/binance-chain/go-sdk => gitlab.com/thorchain/binance-sdk v1.2.2
 
-replace github.com/binance-chain/tss-lib => github.com/notatestuser/tss-lib v0.0.0-20200713181904-07b961c77a1a
+replace github.com/binance-chain/tss-lib => gitlab.com/thorchain/tss/tss-lib v0.0.0-20201117030014-45cca042d315
