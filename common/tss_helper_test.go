@@ -3,11 +3,9 @@ package common
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"math/big"
 	"path"
-	"strconv"
 
 	btss "github.com/binance-chain/tss-lib/tss"
 	sdk "github.com/cosmos/cosmos-sdk/types"
@@ -120,7 +118,6 @@ func (t *tssHelpSuite) TestGetMsgRound(c *C) {
 	for _, el := range sharesRawKeySign {
 		var msg messages.WireMessage
 		json.Unmarshal(el, &msg)
-		fmt.Printf("------>%v\n", msg.RoundInfo)
 		sharesKeySign = append(sharesKeySign, &msg)
 	}
 	messagesKeygen := []string{
@@ -145,8 +142,11 @@ func (t *tssHelpSuite) TestGetMsgRound(c *C) {
 	for i := 0; i < len(messagesKeygen); i++ {
 		ret, err := GetMsgRound(sharesKeyGen[j], mockParty)
 		c.Assert(err, IsNil)
-		index := strconv.Itoa(i) + ","
-		c.Assert(ret, Equals, index+messagesKeygen[i])
+		expectedRound := blame.RoundInfo{
+			Index:    i,
+			RoundMsg: messagesKeygen[i],
+		}
+		c.Assert(ret, Equals, expectedRound)
 		// we skip the unicast
 		if j == 1 {
 			j += 3
@@ -158,8 +158,11 @@ func (t *tssHelpSuite) TestGetMsgRound(c *C) {
 	for i := 0; i < len(messagesKeysign); i++ {
 		ret, err := GetMsgRound(sharesKeySign[j], mockParty)
 		c.Assert(err, IsNil)
-		index := strconv.Itoa(i) + ","
-		c.Assert(ret, Equals, index+messagesKeysign[i])
+		expectedRound := blame.RoundInfo{
+			Index:    i,
+			RoundMsg: messagesKeysign[i],
+		}
+		c.Assert(ret, Equals, expectedRound)
 		// we skip the unicast
 		if j == 0 || j == 4 {
 			j += 3
@@ -167,7 +170,8 @@ func (t *tssHelpSuite) TestGetMsgRound(c *C) {
 			j += 1
 		}
 	}
+
 	ret, err := GetMsgRound(sharesKeyGen[1], mockParty)
-	c.Assert(ret, Equals, "1,"+messages.KEYGEN2aUnicast)
+	c.Assert(ret, Equals, blame.RoundInfo{Index: 1, RoundMsg: messages.KEYGEN2aUnicast})
 	c.Assert(err, IsNil)
 }

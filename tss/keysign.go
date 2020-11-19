@@ -26,12 +26,12 @@ func (t *TssServer) waitForSignatures(msgID, poolPubKey string, msgToSign []byte
 		return keysign.Response{}, err
 	}
 
-	if data == nil || (len(data.S) == 0 && len(data.R) == 0) {
+	if data == nil || (len(data.GetSignature().S) == 0 && len(data.GetSignature().R) == 0) {
 		return keysign.Response{}, errors.New("keysign failed")
 	}
 	return keysign.NewResponse(
-		base64.StdEncoding.EncodeToString(data.R),
-		base64.StdEncoding.EncodeToString(data.S),
+		base64.StdEncoding.EncodeToString(data.GetSignature().R),
+		base64.StdEncoding.EncodeToString(data.GetSignature().S),
 		common.Success,
 		blame.Blame{},
 	), nil
@@ -155,8 +155,8 @@ func (t *TssServer) generateSignature(msgID string, msgToSign []byte, req keysig
 		return keysign.Response{}, fmt.Errorf("fail to broadcast signature:%w", err)
 	}
 	return keysign.NewResponse(
-		base64.StdEncoding.EncodeToString(signatureData.R),
-		base64.StdEncoding.EncodeToString(signatureData.S),
+		base64.StdEncoding.EncodeToString(signatureData.GetSignature().R),
+		base64.StdEncoding.EncodeToString(signatureData.GetSignature().S),
 		common.Success,
 		blame.Blame{},
 	), nil

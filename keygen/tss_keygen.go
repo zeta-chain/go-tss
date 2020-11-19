@@ -21,8 +21,6 @@ import (
 	"gitlab.com/thorchain/tss/go-tss/storage"
 )
 
-const TSSKEYGENROUNDS = 4
-
 type TssKeyGen struct {
 	logger          zerolog.Logger
 	localNodePubKey string

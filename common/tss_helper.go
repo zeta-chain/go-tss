@@ -115,6 +115,26 @@ func getHighestFreq(confirmedList map[string]string) (string, int, error) {
 	return data, maxFreq, nil
 }
 
+// due to the nature of tss, we may find the invalid share of the previous round only
+// when we get the shares from the peers in the current round. So, when we identify
+// an error in this round, we check whether the previous round is the unicast
+func checkUnicast(round blame.RoundInfo) bool {
+	index := round.Index
+	isKeyGen := strings.Contains(round.RoundMsg, "KGR")
+	// keygen unicast blame
+	if isKeyGen {
+		if index == 1 || index == 2 {
+			return true
+		}
+		return false
+	}
+	// keysign unicast blame
+	if index < 5 {
+		return true
+	}
+	return false
+}
+
 func GetMsgRound(wireMsg *messages.WireMessage, partyID *btss.PartyID) (blame.RoundInfo, error) {
 	parsedMsg, err := btss.ParseWireMessage(wireMsg.Message, partyID, wireMsg.Routing.IsBroadcast)
 	if err != nil {
@@ -192,84 +212,9 @@ func GetMsgRound(wireMsg *messages.WireMessage, partyID *btss.PartyID) (blame.Ro
 			Index:    7,
 			RoundMsg: messages.KEYSIGN7,
 		}, nil
-	case *signing.SignRound8Message:
-		return blame.RoundInfo{
-			Index:    8,
-			RoundMsg: messages.KEYSIGN8,
-		}, nil
-	case *signing.SignRound9Message:
-		return blame.RoundInfo{
-			Index:    9,
-			RoundMsg: messages.KEYSIGN9,
-		}, nil
+
 	default:
 		return blame.RoundInfo{}, errors.New("unknown round")
-	}
-}
-
-// due to the nature of tss, we may find the invalid share of the previous round only
-// when we get the shares from the peers in the current round. So, when we identify
-// an error in this round, we check whether the previous round is the unicast
-func checkUnicast(round blame.RoundInfo) bool {
-	index := round.Index
-	isKeyGen := strings.Contains(round.RoundMsg, "KGR")
-	// keygen unicast blame
-	if isKeyGen {
-		if index == 1 || index == 2 {
-			return true
-		}
-		return false
-	}
-	// keysign unicast blame
-	if index < 5 {
-		return true
-	}
-	return false
-}
-
-func GetMsgRound(wireMsg *messages.WireMessage, partyID *btss.PartyID) (string, error) {
-	parsedMsg, err := btss.ParseWireMessage(wireMsg.Message, partyID, wireMsg.Routing.IsBroadcast)
-	if err != nil {
-		return "", err
-	}
-	switch parsedMsg.Content().(type) {
-	case *keygen.KGRound1Message:
-		return "0," + messages.KEYGEN1, nil
-
-	case *keygen.KGRound2Message1:
-		return "1," + messages.KEYGEN2aUnicast, nil
-
-	case *keygen.KGRound2Message2:
-		return "2," + messages.KEYGEN2b, nil
-
-	case *keygen.KGRound3Message:
-		return "3," + messages.KEYGEN3, nil
-
-	case *signing.SignRound1Message1:
-		return "0," + messages.KEYSIGN1aUnicast, nil
-
-	case *signing.SignRound1Message2:
-		return "1," + messages.KEYSIGN1b, nil
-
-	case *signing.SignRound2Message:
-		return "2," + messages.KEYSIGN2Unicast, nil
-
-	case *signing.SignRound3Message:
-		return "3," + messages.KEYSIGN3, nil
-
-	case *signing.SignRound4Message:
-		return "4," + messages.KEYSIGN4, nil
-
-	case *signing.SignRound5Message:
-		return "5," + messages.KEYSIGN5, nil
-
-	case *signing.SignRound6Message:
-		return "6," + messages.KEYSIGN6, nil
-
-	case *signing.SignRound7Message:
-		return "7," + messages.KEYSIGN7, nil
-	default:
-		return "", nil
 	}
 }
 
