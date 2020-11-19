@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/libp2p/go-libp2p"
@@ -24,14 +25,17 @@ import (
 	"gitlab.com/thorchain/tss/go-tss/messages"
 )
 
-var joinPartyProtocol protocol.ID = "/p2p/join-party"
+var (
+	joinPartyProtocol           protocol.ID = "/p2p/join-party"
+	joinPartyProtocolWithLeader protocol.ID = "/p2p/join-party-leader"
+)
 
 // TSSProtocolID protocol id used for tss
 var TSSProtocolID protocol.ID = "/p2p/tss"
 
 const (
 	// TimeoutConnecting maximum time for wait for peers to connect
-	TimeoutConnecting = time.Minute * 1
+	TimeoutConnecting = time.Second * 20
 )
 
 // Message that get transfer across the wire
@@ -193,32 +197,43 @@ func (c *Communication) bootStrapConnectivityCheck() error {
 		c.logger.Error().Msg("we do not have the bootstrap node set, quit the connectivity check")
 		return nil
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
-	defer cancel()
 
+	var onlineNodes uint32
+	var wg sync.WaitGroup
 	for _, el := range c.bootstrapPeers {
 		peer, err := peer.AddrInfoFromP2pAddr(el)
 		if err != nil {
 			c.logger.Error().Err(err).Msg("error in decode the bootstrap node, skip it")
 			continue
 		}
-
-		outChan := ping.Ping(ctx, c.host, peer.ID)
-
-		for {
-			ret, ok := <-outChan
-			if !ok {
-				break
+		wg.Add(1)
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+			defer cancel()
+			defer wg.Done()
+			outChan := ping.Ping(ctx, c.host, peer.ID)
+			select {
+			case ret, ok := <-outChan:
+				if !ok {
+					return
+				}
+				if ret.Error == nil {
+					c.logger.Debug().Msgf("connect to peer %v with RTT %v\n", peer.ID, ret.RTT)
+					atomic.AddUint32(&onlineNodes, 1)
+				}
+			case <-ctx.Done():
+				c.logger.Error().Msgf("fail to ping the node %s within 2 seconds", peer.ID)
 			}
-			if ret.Error == nil {
-				c.logger.Debug().Msgf("connect to peer %v with RTT %v\n", peer.ID, ret.RTT)
-				return nil
-			}
-		}
+		}()
 	}
+	wg.Wait()
 
-	c.logger.Error().Msg("fail to connect to any bootstrap node")
-	return errors.New("the node cannot connect to any bootstrap node")
+	if onlineNodes > 0 {
+		c.logger.Info().Msgf("we have successfully ping pong %d nodes", onlineNodes)
+		return nil
+	}
+	c.logger.Error().Msg("fail to ping any bootstrap node")
+	return errors.New("the node cannot ping any bootstrap node")
 }
 
 func (c *Communication) startChannel(privKeyBytes []byte) error {
@@ -251,7 +266,7 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 	// client because we want each peer to maintain its own local copy of the
 	// DHT, so that the bootstrapping node of the DHT can go down without
 	// inhibiting future peer discovery.
-	kademliaDHT, err := dht.New(ctx, h)
+	kademliaDHT, err := dht.New(ctx, h, dht.Mode(dht.ModeServer))
 	if err != nil {
 		return fmt.Errorf("fail to create DHT: %w", err)
 	}

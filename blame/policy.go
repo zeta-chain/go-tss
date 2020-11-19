@@ -131,24 +131,37 @@ func (m *Manager) TssWrongShareBlame(wiredMsg *messages.WireMessage) (string, er
 }
 
 // this blame blames the node fail to send the shares to the node
-func (m *Manager) TssMissingShareBlame(rounds int) ([]Node, error) {
+func (m *Manager) TssMissingShareBlame(rounds int) ([]Node, bool, error) {
 	cachedShares := make([][]string, rounds)
 	m.acceptedShares.Range(func(key, value interface{}) bool {
 		data := value.([]string)
-		out := strings.Split(key.(string), ",")
-		index, err := strconv.Atoi(out[0])
-		if err != nil {
-			m.logger.Warn().Msg("fail to get the index of these shares")
-			return true
-		}
+		roundInfo := key.(RoundInfo)
+		index := roundInfo.Index
 		cachedShares[index] = data
 		return true
 	})
 	var peers []string
+	isUnicast := false
 	// we search from the first round to find the missing
-	for _, el := range cachedShares {
+	for index, el := range cachedShares {
 		if len(el)+1 == len(m.PartyIDtoP2PID) {
 			continue
+		}
+		// we find whether the missing share is in unicast
+		if rounds == messages.TSSKEYGENROUNDS {
+			// we are processing the keygen and if the missing shares is in second round(index=1)
+			// we mark it as the unicast.
+			if index == 1 {
+				isUnicast = true
+			}
+		}
+		if rounds == messages.TSSKEYSIGNROUNDS {
+			// we are processing the keysign and if the missing shares is in the 5 round(index<1)
+			// we all mark it as the unicast, because in some cases, the error will be detected
+			// in the following round, so we cannot "trust" the node stops at the current round.
+			if index < 5 {
+				isUnicast = true
+			}
 		}
 		// we add our own id to avoid blame ourselves
 		el = append(el, m.partyInfo.Party.PartyID().Id)
@@ -159,7 +172,7 @@ func (m *Manager) TssMissingShareBlame(rounds int) ([]Node, error) {
 	}
 	blamePubKeys, err := m.getBlamePubKeysNotInList(peers)
 	if err != nil {
-		return nil, err
+		return nil, isUnicast, err
 	}
 	var blameNodes []Node
 	for _, el := range blamePubKeys {
@@ -170,5 +183,5 @@ func (m *Manager) TssMissingShareBlame(rounds int) ([]Node, error) {
 		}
 		blameNodes = append(blameNodes, node)
 	}
-	return blameNodes, nil
+	return blameNodes, isUnicast, nil
 }

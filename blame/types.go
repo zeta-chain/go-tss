@@ -10,6 +10,7 @@ const (
 	HashCheckFail = "hash check failed"
 	TssTimeout    = "Tss timeout"
 	TssSyncFail   = "signers fail to sync before keygen/keysign"
+	TssBrokenMsg  = "tss share verification failed"
 	InternalError = "fail to start the join party "
 )
 
@@ -35,6 +36,7 @@ type Node struct {
 }
 
 // Blame is used to store the blame nodes and the fail reason
+// *** Blame struct had been referenced and registered in thornode , so please don't change this structure, otherwise it will have consensus failure when trying to update thornode  ***
 type Blame struct {
 	FailReason string `json:"fail_reason"`
 	IsUnicast  bool   `json:"is_broadcast"`

@@ -1,0 +1,5 @@
+---
+title: fix incorrect calculation of heigest frequency calculation
+merge_request: 197
+author:
+type: fixed

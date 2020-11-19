@@ -90,7 +90,7 @@ func (s *SignatureNotifier) handleStream(stream network.Stream) {
 	}
 	finished, err := n.ProcessSignature(&signature)
 	if err != nil {
-		logger.Error().Err(err).Msg("fail to update local signature data")
+		logger.Error().Err(err).Msg("fail to verify local signature data")
 		return
 	}
 	if finished {
@@ -99,7 +99,7 @@ func (s *SignatureNotifier) handleStream(stream network.Stream) {
 }
 
 func (s *SignatureNotifier) sendOneMsgToPeer(m *signatureItem) error {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
 	defer cancel()
 	stream, err := s.host.NewStream(ctx, m.peerID, signatureNotifierProtocol)
 	if err != nil {
@@ -200,6 +200,8 @@ func (s *SignatureNotifier) WaitForSignature(messageID string, message []byte, p
 		return d, nil
 	case <-time.After(timeout):
 		return nil, fmt.Errorf("timeout: didn't receive signature after %s", timeout)
+	case <-sigChan:
+		return nil, p2p.ErrSigGenerated
 	}
 }
 

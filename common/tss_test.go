@@ -54,18 +54,18 @@ func (t *TssTestSuite) SetUpSuite(c *C) {
 }
 
 func (t *TssTestSuite) TestGetThreshold(c *C) {
-	_, err := GetThreshold(-2)
+	_, err := conversion.GetThreshold(-2)
 	c.Assert(err, NotNil)
-	output, err := GetThreshold(4)
+	output, err := conversion.GetThreshold(4)
 	c.Assert(err, IsNil)
 	c.Assert(output, Equals, 2)
-	output, err = GetThreshold(9)
+	output, err = conversion.GetThreshold(9)
 	c.Assert(err, IsNil)
 	c.Assert(output, Equals, 5)
-	output, err = GetThreshold(10)
+	output, err = conversion.GetThreshold(10)
 	c.Assert(err, IsNil)
 	c.Assert(output, Equals, 6)
-	output, err = GetThreshold(99)
+	output, err = conversion.GetThreshold(99)
 	c.Assert(err, IsNil)
 	c.Assert(output, Equals, 65)
 }
@@ -441,7 +441,7 @@ func (t *TssTestSuite) TestProcessInvalidMsgBlame(c *C) {
 	}
 
 	fakeErr := btss.NewError(errors.New("test error"), "test task", 1, nil, culprits...)
-	tssCommonStruct.processInvalidMsgBlame(&wiredMsg, fakeErr)
+	tssCommonStruct.processInvalidMsgBlame(&wiredMsg, blame.RoundInfo{RoundMsg: roundInfo}, fakeErr)
 	blameResult := tssCommonStruct.GetBlameMgr().GetBlame()
 	c.Assert(blameResult.BlameNodes, HasLen, 3)
 	for _, el := range blameResult.BlameNodes[:2] {

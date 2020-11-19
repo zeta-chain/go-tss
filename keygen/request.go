@@ -2,12 +2,16 @@ package keygen
 
 // Request request to do keygen
 type Request struct {
-	Keys []string `json:"keys"`
+	Keys        []string `json:"keys"`
+	BlockHeight int64    `json:"block_height"`
+	Version     string   `json:"tss_version"`
 }
 
 // NewRequest creeate a new instance of keygen.Request
-func NewRequest(keys []string) Request {
+func NewRequest(keys []string, blockHeight int64, version string) Request {
 	return Request{
-		Keys: keys,
+		Keys:        keys,
+		BlockHeight: blockHeight,
+		Version:     version,
 	}
 }

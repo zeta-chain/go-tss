@@ -69,7 +69,7 @@ func (tKeySign *TssKeySign) SignMessage(msgToSign []byte, localStateItem storage
 		tKeySign.logger.Info().Msgf("we are not in this rounds key sign")
 		return nil, nil
 	}
-	threshold, err := common.GetThreshold(len(localStateItem.ParticipantKeys))
+	threshold, err := conversion.GetThreshold(len(localStateItem.ParticipantKeys))
 	if err != nil {
 		return nil, errors.New("fail to get threshold")
 	}
@@ -131,7 +131,7 @@ func (tKeySign *TssKeySign) SignMessage(msgToSign []byte, localStateItem storage
 	}
 	keySignWg.Wait()
 
-	tKeySign.logger.Info().Msg("successfully sign the message")
+	tKeySign.logger.Info().Msgf("%s successfully sign the message", tKeySign.p2pComm.GetHost().ID().String())
 	return result, nil
 }
 
@@ -156,7 +156,7 @@ func (tKeySign *TssKeySign) processKeySign(errChan chan struct{}, outCh <-chan b
 			if failReason == "" {
 				failReason = blame.TssTimeout
 			}
-			threshold, err := common.GetThreshold(len(tKeySign.tssCommonStruct.P2PPeers) + 1)
+			threshold, err := conversion.GetThreshold(len(tKeySign.tssCommonStruct.P2PPeers) + 1)
 			if err != nil {
 				tKeySign.logger.Error().Err(err).Msg("error in get the threshold for generate blame")
 			}
@@ -166,7 +166,7 @@ func (tKeySign *TssKeySign) processKeySign(errChan chan struct{}, outCh <-chan b
 					tKeySign.logger.Error().Err(err).Msg("error in get unicast blame")
 				}
 				if len(blameNodesUnicast) > 0 && len(blameNodesUnicast) <= threshold {
-					blameMgr.GetBlame().SetBlame(failReason, blameNodesUnicast, lastMsg.IsBroadcast())
+					blameMgr.GetBlame().SetBlame(failReason, blameNodesUnicast, true)
 				}
 			} else {
 				blameNodesUnicast, err := blameMgr.GetUnicastBlame(conversion.GetPreviousKeySignUicast(lastMsg.Type()))
@@ -174,7 +174,7 @@ func (tKeySign *TssKeySign) processKeySign(errChan chan struct{}, outCh <-chan b
 					tKeySign.logger.Error().Err(err).Msg("error in get unicast blame")
 				}
 				if len(blameNodesUnicast) > 0 && len(blameNodesUnicast) <= threshold {
-					blameMgr.GetBlame().SetBlame(failReason, blameNodesUnicast, lastMsg.IsBroadcast())
+					blameMgr.GetBlame().SetBlame(failReason, blameNodesUnicast, true)
 				}
 			}
 
@@ -186,13 +186,14 @@ func (tKeySign *TssKeySign) processKeySign(errChan chan struct{}, outCh <-chan b
 
 			// if we cannot find the blame node, we check whether everyone send me the share
 			if len(blameMgr.GetBlame().BlameNodes) == 0 {
-				blameNodesMisingShare, err := blameMgr.TssMissingShareBlame(TSSKEYSIGNROUNDS)
+				blameNodesMisingShare, isUnicast, err := blameMgr.TssMissingShareBlame(messages.TSSKEYSIGNROUNDS)
 				if err != nil {
 					tKeySign.logger.Error().Err(err).Msg("fail to get the node of missing share ")
 				}
 
 				if len(blameNodesMisingShare) > 0 && len(blameNodesMisingShare) <= threshold {
 					blameMgr.GetBlame().AddBlameNodes(blameNodesMisingShare...)
+					blameMgr.GetBlame().IsUnicast = isUnicast
 				}
 			}
 

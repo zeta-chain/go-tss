@@ -37,11 +37,11 @@ func (s *PeerStatusTestSuite) TestPeerStatus(c *C) {
 	peers := generateRandomPeers(c, 5)
 	sortPeers(peers)
 
-	peerStatus := NewPeerStatus(peers, peers[0])
+	peerStatus := NewPeerStatus(peers, peers[0], peers[0].String(), 2)
 
 	ret, err := peerStatus.updatePeer(peers[2])
 	c.Assert(err, IsNil)
-	c.Assert(ret, Equals, true)
+	c.Assert(ret, Equals, false)
 	ret, err = peerStatus.updatePeer(peers[1])
 	c.Assert(err, IsNil)
 	c.Assert(ret, Equals, true)
@@ -63,10 +63,8 @@ func (s *PeerStatusTestSuite) TestPeerStatus(c *C) {
 
 	ret, err = peerStatus.updatePeer(peers[3])
 	c.Assert(err, IsNil)
-	c.Assert(ret, Equals, true)
+	c.Assert(ret, Equals, false)
 	ret, err = peerStatus.updatePeer(peers[4])
 	c.Assert(err, IsNil)
-	c.Assert(ret, Equals, true)
-	ret = peerStatus.getCoordinationStatus()
-	c.Assert(ret, Equals, true)
+	c.Assert(ret, Equals, false)
 }

@@ -9,11 +9,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"math/big"
 	"os"
-	"sort"
-	"strconv"
+	"strings"
 
 	"github.com/binance-chain/tss-lib/ecdsa/keygen"
 	"github.com/binance-chain/tss-lib/ecdsa/signing"
@@ -24,6 +22,7 @@ import (
 	"github.com/rs/zerolog/log"
 	tcrypto "github.com/tendermint/tendermint/crypto"
 
+	"gitlab.com/thorchain/tss/go-tss/blame"
 	"gitlab.com/thorchain/tss/go-tss/messages"
 )
 
@@ -37,14 +36,6 @@ func Contains(s []*btss.PartyID, e *btss.PartyID) bool {
 		}
 	}
 	return false
-}
-
-func GetThreshold(value int) (int, error) {
-	if value < 0 {
-		return 0, errors.New("negative input")
-	}
-	threshold := int(math.Ceil(float64(value)*2.0/3.0)) - 1
-	return threshold, nil
 }
 
 func MsgToHashInt(msg []byte) (*big.Int, error) {
@@ -110,29 +101,130 @@ func getHighestFreq(confirmedList map[string]string) (string, int, error) {
 		return "", 0, errors.New("empty input")
 	}
 	freq := make(map[string]int, len(confirmedList))
-	hashPeerMap := make(map[string]string, len(confirmedList))
-	for peer, n := range confirmedList {
+	for _, n := range confirmedList {
 		freq[n]++
-		hashPeerMap[n] = peer
 	}
-
-	sFreq := make([][2]string, 0, len(freq))
-	for n, f := range freq {
-		sFreq = append(sFreq, [2]string{n, strconv.FormatInt(int64(f), 10)})
-	}
-	sort.Slice(sFreq, func(i, j int) bool {
-		if sFreq[i][1] > sFreq[j][1] {
-			return true
-		} else {
-			return false
+	maxFreq := -1
+	var data string
+	for key, counter := range freq {
+		if counter > maxFreq {
+			maxFreq = counter
+			data = key
 		}
-	},
-	)
-	freqInt, err := strconv.Atoi(sFreq[0][1])
-	if err != nil {
-		return "", 0, err
 	}
-	return sFreq[0][0], freqInt, nil
+	return data, maxFreq, nil
+}
+
+func GetMsgRound(wireMsg *messages.WireMessage, partyID *btss.PartyID) (blame.RoundInfo, error) {
+	parsedMsg, err := btss.ParseWireMessage(wireMsg.Message, partyID, wireMsg.Routing.IsBroadcast)
+	if err != nil {
+		return blame.RoundInfo{}, err
+	}
+	switch parsedMsg.Content().(type) {
+	case *keygen.KGRound1Message:
+		return blame.RoundInfo{
+			Index:    0,
+			RoundMsg: messages.KEYGEN1,
+		}, nil
+
+	case *keygen.KGRound2Message1:
+		return blame.RoundInfo{
+			Index:    1,
+			RoundMsg: messages.KEYGEN2aUnicast,
+		}, nil
+
+	case *keygen.KGRound2Message2:
+		return blame.RoundInfo{
+			Index:    2,
+			RoundMsg: messages.KEYGEN2b,
+		}, nil
+
+	case *keygen.KGRound3Message:
+		return blame.RoundInfo{
+			Index:    3,
+			RoundMsg: messages.KEYGEN3,
+		}, nil
+
+	case *signing.SignRound1Message1:
+		return blame.RoundInfo{
+			Index:    0,
+			RoundMsg: messages.KEYSIGN1aUnicast,
+		}, nil
+
+	case *signing.SignRound1Message2:
+		return blame.RoundInfo{
+			Index:    1,
+			RoundMsg: messages.KEYSIGN1b,
+		}, nil
+
+	case *signing.SignRound2Message:
+		return blame.RoundInfo{
+			Index:    2,
+			RoundMsg: messages.KEYSIGN2Unicast,
+		}, nil
+
+	case *signing.SignRound3Message:
+		return blame.RoundInfo{
+			Index:    3,
+			RoundMsg: messages.KEYSIGN3,
+		}, nil
+
+	case *signing.SignRound4Message:
+		return blame.RoundInfo{
+			Index:    4,
+			RoundMsg: messages.KEYSIGN4,
+		}, nil
+
+	case *signing.SignRound5Message:
+		return blame.RoundInfo{
+			Index:    5,
+			RoundMsg: messages.KEYSIGN5,
+		}, nil
+
+	case *signing.SignRound6Message:
+		return blame.RoundInfo{
+			Index:    6,
+			RoundMsg: messages.KEYSIGN6,
+		}, nil
+
+	case *signing.SignRound7Message:
+		return blame.RoundInfo{
+			Index:    7,
+			RoundMsg: messages.KEYSIGN7,
+		}, nil
+	case *signing.SignRound8Message:
+		return blame.RoundInfo{
+			Index:    8,
+			RoundMsg: messages.KEYSIGN8,
+		}, nil
+	case *signing.SignRound9Message:
+		return blame.RoundInfo{
+			Index:    9,
+			RoundMsg: messages.KEYSIGN9,
+		}, nil
+	default:
+		return blame.RoundInfo{}, errors.New("unknown round")
+	}
+}
+
+// due to the nature of tss, we may find the invalid share of the previous round only
+// when we get the shares from the peers in the current round. So, when we identify
+// an error in this round, we check whether the previous round is the unicast
+func checkUnicast(round blame.RoundInfo) bool {
+	index := round.Index
+	isKeyGen := strings.Contains(round.RoundMsg, "KGR")
+	// keygen unicast blame
+	if isKeyGen {
+		if index == 1 || index == 2 {
+			return true
+		}
+		return false
+	}
+	// keysign unicast blame
+	if index < 5 {
+		return true
+	}
+	return false
 }
 
 func GetMsgRound(wireMsg *messages.WireMessage, partyID *btss.PartyID) (string, error) {

@@ -29,14 +29,14 @@ func GetPeerIDFromPubKey(pubkey string) (peer.ID, error) {
 }
 
 // GetPeerIDsFromPubKeys convert a list of node pub key to their peer.ID
-func GetPeerIDsFromPubKeys(pubkeys []string) ([]string, error) {
-	var peerIDs []string
+func GetPeerIDsFromPubKeys(pubkeys []string) ([]peer.ID, error) {
+	var peerIDs []peer.ID
 	for _, item := range pubkeys {
 		peerID, err := GetPeerIDFromPubKey(item)
 		if err != nil {
 			return nil, err
 		}
-		peerIDs = append(peerIDs, peerID.String())
+		peerIDs = append(peerIDs, peerID)
 	}
 	return peerIDs, nil
 }
