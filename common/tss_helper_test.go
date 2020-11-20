@@ -98,8 +98,8 @@ func (t *tssHelpSuite) TestTssCommon_processRequestMsgFromPeer(c *C) {
 }
 
 func (t *tssHelpSuite) TestGetMsgRound(c *C) {
-	fileNameKeyGen := "sharesKeygen0"
-	fileNameKeySign := "sharesKeysign0"
+	fileNameKeyGen := "shareskeygen0"
+	fileNameKeySign := "shareskeysign0"
 	filePathKeyGen := path.Join("../test_data/tss_keygen_shares", fileNameKeyGen)
 	dataKeyGen, err := ioutil.ReadFile(filePathKeyGen)
 	c.Assert(err, IsNil)
