@@ -25,8 +25,8 @@ func (t *TssServer) waitForSignatures(msgID, poolPubKey string, msgToSign []byte
 	if err != nil {
 		return keysign.Response{}, err
 	}
-
-	if data == nil || (len(data.GetSignature().S) == 0 && len(data.GetSignature().R) == 0) {
+	// for gg20, it wrap the signature R,S into ECSignature structure
+	if data.GetSignature() == nil || (len(data.GetSignature().S) == 0 && len(data.GetSignature().R) == 0) {
 		return keysign.Response{}, errors.New("keysign failed")
 	}
 	return keysign.NewResponse(
@@ -121,7 +121,6 @@ func (t *TssServer) generateSignature(msgID string, msgToSign []byte, req keysig
 		// we are not the keysign member so we quit keysign and waiting for signature
 		return keysign.Response{}, p2p.ErrSignReceived
 	}
-
 	parsedPeers := make([]string, len(onlinePeers))
 	for i, el := range onlinePeers {
 		parsedPeers[i] = el.String()
@@ -275,11 +274,9 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 	}
 	// for this round, we are not the active signer
 	if errors.Is(errGen, p2p.ErrSignReceived) {
-
 		t.updateKeySignResult(receivedSig, keysignTime)
 		return receivedSig, nil
 	}
-
 	// we get the signature from our tss keysign
 	t.updateKeySignResult(generatedSig, keysignTime)
 	return generatedSig, errGen

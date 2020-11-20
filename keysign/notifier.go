@@ -63,7 +63,8 @@ func (n *Notifier) verifySignature(data *signing.SignatureData) (bool, error) {
 func (n *Notifier) ProcessSignature(data *signing.SignatureData) (bool, error) {
 	// only need to verify the signature when data is not nil
 	// when data is nil , which means keysign  failed, there is no signature to be verified in that case
-	if data != nil {
+	// for gg20, it wrap the signature R,S into ECSignature structure
+	if data.GetSignature() != nil {
 		verify, err := n.verifySignature(data)
 		if err != nil {
 			return false, fmt.Errorf("fail to verify signature: %w", err)
