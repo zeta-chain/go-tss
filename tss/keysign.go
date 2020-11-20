@@ -57,6 +57,23 @@ func (t *TssServer) generateSignature(msgID string, msgToSign []byte, req keysig
 	// we use the old join party
 	if oldJoinParty {
 		allParticipants = req.SignerPubKeys
+		myPk, err := conversion.GetPubKeyFromPeerID(t.p2pCommunication.GetHost().ID().String())
+		if err != nil {
+			t.logger.Info().Msgf("fail to convert the p2p id(%s) to pubkey, turn to wait for signature", t.p2pCommunication.GetHost().ID().String())
+			return keysign.Response{}, p2p.ErrNotActiveSigner
+		}
+		isSignMember := false
+		for _, el := range allParticipants {
+			if myPk == el {
+				isSignMember = true
+				break
+			}
+		}
+		if !isSignMember {
+			t.logger.Info().Msgf("we(%s) are not the active signer", t.p2pCommunication.GetHost().ID().String())
+			return keysign.Response{}, p2p.ErrNotActiveSigner
+		}
+
 	}
 
 	joinPartyStartTime := time.Now()
@@ -119,7 +136,8 @@ func (t *TssServer) generateSignature(msgID string, msgToSign []byte, req keysig
 	}
 	if !isKeySignMember {
 		// we are not the keysign member so we quit keysign and waiting for signature
-		return keysign.Response{}, p2p.ErrSignReceived
+		t.logger.Info().Msgf("we(%s) are not the active signer", t.p2pCommunication.GetHost().ID().String())
+		return keysign.Response{}, p2p.ErrNotActiveSigner
 	}
 	parsedPeers := make([]string, len(onlinePeers))
 	for i, el := range onlinePeers {
@@ -273,7 +291,7 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 		return receivedSig, nil
 	}
 	// for this round, we are not the active signer
-	if errors.Is(errGen, p2p.ErrSignReceived) {
+	if errors.Is(errGen, p2p.ErrSignReceived) || errors.Is(errGen, p2p.ErrNotActiveSigner) {
 		t.updateKeySignResult(receivedSig, keysignTime)
 		return receivedSig, nil
 	}
