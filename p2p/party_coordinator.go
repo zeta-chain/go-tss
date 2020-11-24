@@ -23,6 +23,7 @@ var (
 	ErrJoinPartyTimeout = errors.New("fail to join party, timeout")
 	ErrLeaderNotReady   = errors.New("leader not reachable")
 	ErrSignReceived     = errors.New("signature received")
+	ErrNotActiveSigner  = errors.New("not active signer")
 	ErrSigGenerated     = errors.New("signature generated")
 )
 
