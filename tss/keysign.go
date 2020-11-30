@@ -26,7 +26,7 @@ func (t *TssServer) waitForSignatures(msgID, poolPubKey string, msgToSign []byte
 		return keysign.Response{}, err
 	}
 	// for gg20, it wrap the signature R,S into ECSignature structure
-	if data.GetSignature() == nil || (len(data.GetSignature().S) == 0 && len(data.GetSignature().R) == 0) {
+	if data == nil || data.GetSignature() == nil || (len(data.GetSignature().S) == 0 && len(data.GetSignature().R) == 0) {
 		return keysign.Response{}, errors.New("keysign failed")
 	}
 	return keysign.NewResponse(
