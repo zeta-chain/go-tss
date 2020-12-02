@@ -98,13 +98,12 @@ func (t *tssHelpSuite) TestTssCommon_processRequestMsgFromPeer(c *C) {
 }
 
 func (t *tssHelpSuite) TestGetMsgRound(c *C) {
-	fileNameKeyGen := "sharesKeygen0"
-	fileNameKeySign := "sharesKeysign0"
+	fileNameKeyGen := "shareskeygen0"
+	fileNameKeySign := "shareskeysign0"
 	filePathKeyGen := path.Join("../test_data/tss_keygen_shares", fileNameKeyGen)
 	dataKeyGen, err := ioutil.ReadFile(filePathKeyGen)
 	c.Assert(err, IsNil)
 	filePathKeySign := path.Join("../test_data/tss_keysign_shares", fileNameKeySign)
-	c.Assert(err, IsNil)
 	dataKeySign, err := ioutil.ReadFile(filePathKeySign)
 	sharesRawKeyGen := bytes.Split(dataKeyGen, []byte("\n"))
 	sharesRawKeySign := bytes.Split(dataKeySign, []byte("\n"))
@@ -137,8 +136,6 @@ func (t *tssHelpSuite) TestGetMsgRound(c *C) {
 		messages.KEYSIGN5,
 		messages.KEYSIGN6,
 		messages.KEYSIGN7,
-		messages.KEYSIGN8,
-		messages.KEYSIGN9,
 	}
 	mockParty := btss.NewPartyID("12", "22", big.NewInt(2))
 	j := 0
@@ -152,7 +149,7 @@ func (t *tssHelpSuite) TestGetMsgRound(c *C) {
 		c.Assert(ret, Equals, expectedRound)
 		// we skip the unicast
 		if j == 1 {
-			j += 5
+			j += 3
 		} else {
 			j += 1
 		}
@@ -167,12 +164,13 @@ func (t *tssHelpSuite) TestGetMsgRound(c *C) {
 		}
 		c.Assert(ret, Equals, expectedRound)
 		// we skip the unicast
-		if j == 0 || j == 5 {
-			j += 5
+		if j == 0 || j == 4 {
+			j += 3
 		} else {
 			j += 1
 		}
 	}
+
 	ret, err := GetMsgRound(sharesKeyGen[1], mockParty)
 	c.Assert(ret, Equals, blame.RoundInfo{Index: 1, RoundMsg: messages.KEYGEN2aUnicast})
 	c.Assert(err, IsNil)

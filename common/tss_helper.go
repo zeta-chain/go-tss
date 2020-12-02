@@ -115,6 +115,26 @@ func getHighestFreq(confirmedList map[string]string) (string, int, error) {
 	return data, maxFreq, nil
 }
 
+// due to the nature of tss, we may find the invalid share of the previous round only
+// when we get the shares from the peers in the current round. So, when we identify
+// an error in this round, we check whether the previous round is the unicast
+func checkUnicast(round blame.RoundInfo) bool {
+	index := round.Index
+	isKeyGen := strings.Contains(round.RoundMsg, "KGR")
+	// keygen unicast blame
+	if isKeyGen {
+		if index == 1 || index == 2 {
+			return true
+		}
+		return false
+	}
+	// keysign unicast blame
+	if index < 5 {
+		return true
+	}
+	return false
+}
+
 func GetMsgRound(wireMsg *messages.WireMessage, partyID *btss.PartyID) (blame.RoundInfo, error) {
 	parsedMsg, err := btss.ParseWireMessage(wireMsg.Message, partyID, wireMsg.Routing.IsBroadcast)
 	if err != nil {
@@ -192,39 +212,10 @@ func GetMsgRound(wireMsg *messages.WireMessage, partyID *btss.PartyID) (blame.Ro
 			Index:    7,
 			RoundMsg: messages.KEYSIGN7,
 		}, nil
-	case *signing.SignRound8Message:
-		return blame.RoundInfo{
-			Index:    8,
-			RoundMsg: messages.KEYSIGN8,
-		}, nil
-	case *signing.SignRound9Message:
-		return blame.RoundInfo{
-			Index:    9,
-			RoundMsg: messages.KEYSIGN9,
-		}, nil
+
 	default:
 		return blame.RoundInfo{}, errors.New("unknown round")
 	}
-}
-
-// due to the nature of tss, we may find the invalid share of the previous round only
-// when we get the shares from the peers in the current round. So, when we identify
-// an error in this round, we check whether the previous round is the unicast
-func checkUnicast(round blame.RoundInfo) bool {
-	index := round.Index
-	isKeyGen := strings.Contains(round.RoundMsg, "KGR")
-	// keygen unicast blame
-	if isKeyGen {
-		if index == 1 || index == 2 {
-			return true
-		}
-		return false
-	}
-	// keysign unicast blame
-	if index < 5 {
-		return true
-	}
-	return false
 }
 
 func (t *TssCommon) NotifyTaskDone() error {

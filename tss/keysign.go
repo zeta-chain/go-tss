@@ -25,13 +25,13 @@ func (t *TssServer) waitForSignatures(msgID, poolPubKey string, msgToSign []byte
 	if err != nil {
 		return keysign.Response{}, err
 	}
-
-	if data == nil || (len(data.S) == 0 && len(data.R) == 0) {
+	// for gg20, it wrap the signature R,S into ECSignature structure
+	if data == nil || data.GetSignature() == nil || (len(data.GetSignature().S) == 0 && len(data.GetSignature().R) == 0) {
 		return keysign.Response{}, errors.New("keysign failed")
 	}
 	return keysign.NewResponse(
-		base64.StdEncoding.EncodeToString(data.R),
-		base64.StdEncoding.EncodeToString(data.S),
+		base64.StdEncoding.EncodeToString(data.GetSignature().R),
+		base64.StdEncoding.EncodeToString(data.GetSignature().S),
 		common.Success,
 		blame.Blame{},
 	), nil
@@ -139,7 +139,6 @@ func (t *TssServer) generateSignature(msgID string, msgToSign []byte, req keysig
 		t.logger.Info().Msgf("we(%s) are not the active signer", t.p2pCommunication.GetHost().ID().String())
 		return keysign.Response{}, p2p.ErrNotActiveSigner
 	}
-
 	parsedPeers := make([]string, len(onlinePeers))
 	for i, el := range onlinePeers {
 		parsedPeers[i] = el.String()
@@ -173,8 +172,8 @@ func (t *TssServer) generateSignature(msgID string, msgToSign []byte, req keysig
 		return keysign.Response{}, fmt.Errorf("fail to broadcast signature:%w", err)
 	}
 	return keysign.NewResponse(
-		base64.StdEncoding.EncodeToString(signatureData.R),
-		base64.StdEncoding.EncodeToString(signatureData.S),
+		base64.StdEncoding.EncodeToString(signatureData.GetSignature().R),
+		base64.StdEncoding.EncodeToString(signatureData.GetSignature().S),
 		common.Success,
 		blame.Blame{},
 	), nil
@@ -296,7 +295,6 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 		t.updateKeySignResult(receivedSig, keysignTime)
 		return receivedSig, nil
 	}
-
 	// we get the signature from our tss keysign
 	t.updateKeySignResult(generatedSig, keysignTime)
 	return generatedSig, errGen
