@@ -66,17 +66,13 @@ func (n *Notifier) ProcessSignature(data *signing.SignatureData) (bool, error) {
 	// for gg20, it wrap the signature R,S into ECSignature structure
 	if data.GetSignature() != nil {
 		verify, err := n.verifySignature(data)
-		if err != nil {
+		if err != nil || !verify {
 			return false, fmt.Errorf("fail to verify signature: %w", err)
 		}
-		if !verify {
-			return false, nil
-		}
-
+		n.resp <- data
+		return true, nil
 	}
-	// it is ok to push nil to the resp channel , the receiver will check it
-	n.resp <- data
-	return true, nil
+	return false, nil
 }
 
 // GetResponseChannel the final signature gathered from keysign party will be returned from the channel

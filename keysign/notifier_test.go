@@ -64,9 +64,9 @@ func (NotifierTestSuite) TestNotifierHappyPath(c *C) {
 	c.Assert(contentInvalid, NotNil)
 	var sigInvalid signing.SignatureData
 	c.Assert(json.Unmarshal(contentInvalid, &sigInvalid), IsNil)
-	// valid keysign peer , but invalid signature we should continue to listen
+	// with a invalid signature, it should report the error of the invalid signature
 	finish, err := n.ProcessSignature(&sigInvalid)
-	c.Assert(err, IsNil)
+	c.Assert(err, NotNil)
 	c.Assert(finish, Equals, false)
 	// valid signature from a keysign peer , we should accept it and bail out
 	finish, err = n.ProcessSignature(&signature)

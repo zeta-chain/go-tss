@@ -21,13 +21,14 @@ import (
 
 func (t *TssServer) waitForSignatures(msgID, poolPubKey string, msgToSign []byte, sigChan chan string) (keysign.Response, error) {
 	// TSS keysign include both form party and keysign itself, thus we wait twice of the timeout
-	data, err := t.signatureNotifier.WaitForSignature(msgID, msgToSign, poolPubKey, t.conf.KeySignTimeout, sigChan)
+	data, err := t.signatureNotifier.WaitForSignature(msgID, msgToSign, poolPubKey, t.conf.KeySignTimeout*2, sigChan)
 	if err != nil {
 		return keysign.Response{}, err
 	}
 	// for gg20, it wrap the signature R,S into ECSignature structure
-	if data == nil || data.GetSignature() == nil || (len(data.GetSignature().S) == 0 && len(data.GetSignature().R) == 0) {
-		return keysign.Response{}, errors.New("keysign failed")
+	// we do not need to check the length of R,S any longer, as the signature check will filter out invalid signature
+	if data == nil || data.GetSignature() == nil {
+		return keysign.Response{}, errors.New("keysign failed with nil signature")
 	}
 	return keysign.NewResponse(
 		base64.StdEncoding.EncodeToString(data.GetSignature().R),
@@ -274,7 +275,9 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 		if errWait == nil {
 			sigChan <- "signature received"
 			t.logger.Log().Msgf("for message %s we get the signature from the peer", msgID)
+			return
 		}
+		t.logger.Log().Msgf("we fail to get the valid signature with error %v", errWait)
 	}()
 
 	// we generate the signature ourselves
