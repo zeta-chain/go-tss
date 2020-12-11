@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/binance-chain/tss-lib/common"
 	"github.com/binance-chain/tss-lib/ecdsa/signing"
 	"github.com/golang/protobuf/proto"
 	"github.com/libp2p/go-libp2p-core/host"
@@ -24,7 +25,7 @@ var signatureNotifierProtocol protocol.ID = "/p2p/signatureNotifier"
 type signatureItem struct {
 	messageID     string
 	peerID        peer.ID
-	signatureData *signing.SignatureData
+	signatureData *common.ECSignature
 }
 
 // SignatureNotifier is design to notify the
@@ -74,7 +75,7 @@ func (s *SignatureNotifier) handleStream(stream network.Stream) {
 		return
 	}
 	s.streamMgr.AddStream(msg.ID, stream)
-	var signature signing.SignatureData
+	var signature common.ECSignature
 	if len(msg.Signature) > 0 && msg.KeysignStatus == messages.KeysignSignature_Success {
 		if err := proto.Unmarshal(msg.Signature, &signature); err != nil {
 			logger.Error().Err(err).Msg("fail to unmarshal signature data")
@@ -154,7 +155,7 @@ func (s *SignatureNotifier) broadcastCommon(messageID string, sig *signing.Signa
 		signature := &signatureItem{
 			messageID:     messageID,
 			peerID:        p,
-			signatureData: sig,
+			signatureData: sig.GetSignature(),
 		}
 		wg.Add(1)
 		go func() {
@@ -187,7 +188,7 @@ func (s *SignatureNotifier) removeNotifier(n *Notifier) {
 }
 
 // WaitForSignature wait until keysign finished and signature is available
-func (s *SignatureNotifier) WaitForSignature(messageID string, message []byte, poolPubKey string, timeout time.Duration, sigChan chan string) (*signing.SignatureData, error) {
+func (s *SignatureNotifier) WaitForSignature(messageID string, message []byte, poolPubKey string, timeout time.Duration, sigChan chan string) (*common.ECSignature, error) {
 	n, err := NewNotifier(messageID, message, poolPubKey)
 	if err != nil {
 		return nil, fmt.Errorf("fail to create notifier")
