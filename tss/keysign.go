@@ -21,7 +21,7 @@ import (
 
 func (t *TssServer) waitForSignatures(msgID, poolPubKey string, msgToSign []byte, sigChan chan string) (keysign.Response, error) {
 	// TSS keysign include both form party and keysign itself, thus we wait twice of the timeout
-	data, err := t.signatureNotifier.WaitForSignature(msgID, msgToSign, poolPubKey, t.conf.KeySignTimeout*2, sigChan)
+	data, err := t.signatureNotifier.WaitForSignature(msgID, msgToSign, poolPubKey, t.conf.KeySignTimeout+t.conf.PartyTimeout+time.Second*2, sigChan)
 	if err != nil {
 		return keysign.Response{}, err
 	}
