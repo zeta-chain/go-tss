@@ -1,0 +1,5 @@
+---
+title: bug fixing of accepting the nil signature
+merge_request: 208
+author:
+type: fixed
