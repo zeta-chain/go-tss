@@ -584,8 +584,8 @@ func (t *TssCommon) processTSSMsg(wireMsg *messages.WireMessage, msgType message
 		return errors.New("error in find the data owner")
 	}
 	keyBytes := dataOwner.GetKey()
-	var pk secp256k1.PubKeySecp256k1
-	copy(pk[:], keyBytes)
+	var pk secp256k1.PubKey
+	pk = keyBytes
 	ok = verifySignature(pk, wireMsg.Message, wireMsg.Sig, t.msgID)
 	if !ok {
 		t.logger.Error().Msg("fail to verify the signature")
