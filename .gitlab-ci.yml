@@ -49,7 +49,7 @@ build-docker:
 
 release:
   stage: release
-  image: registry.gitlab.com/thorchain/release-tool:latest
+  image: registry.gitlab.com/thorchain/misc/release-tool:latest
   only:
     - master
   except:
