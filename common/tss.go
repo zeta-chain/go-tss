@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"runtime"
+	"strings"
 	"sync"
 
 	btss "github.com/binance-chain/tss-lib/tss"
@@ -21,49 +23,120 @@ import (
 
 // PartyInfo the information used by tss key gen and key sign
 type PartyInfo struct {
-	Party      btss.Party
+	PartyMap   *sync.Map
 	PartyIDMap map[string]*btss.PartyID
 }
 
 type TssCommon struct {
-	conf                TssConfig
-	logger              zerolog.Logger
-	partyLock           *sync.Mutex
-	partyInfo           *PartyInfo
-	PartyIDtoP2PID      map[string]peer.ID
-	unConfirmedMsgLock  *sync.Mutex
-	unConfirmedMessages map[string]*LocalCacheItem
-	localPeerID         string
-	broadcastChannel    chan *messages.BroadcastMsgChan
-	TssMsg              chan *p2p.Message
-	P2PPeers            []peer.ID // most of tss message are broadcast, we store the peers ID to avoid iterating
-	msgID               string
-	privateKey          tcrypto.PrivKey
-	taskDone            chan struct{}
-	blameMgr            *blame.Manager
-	finishedPeers       map[string]bool
-	culprits            []*btss.PartyID
+	conf                        TssConfig
+	logger                      zerolog.Logger
+	partyLock                   *sync.Mutex
+	partyInfo                   *PartyInfo
+	PartyIDtoP2PID              map[string]peer.ID
+	unConfirmedMsgLock          *sync.Mutex
+	unConfirmedMessages         map[string]*LocalCacheItem
+	localPeerID                 string
+	broadcastChannel            chan *messages.BroadcastMsgChan
+	TssMsg                      chan *p2p.Message
+	P2PPeersLock                *sync.RWMutex
+	P2PPeers                    []peer.ID // most of tss message are broadcast, we store the peers ID to avoid iterating
+	msgID                       string
+	privateKey                  tcrypto.PrivKey
+	taskDone                    chan struct{}
+	blameMgr                    *blame.Manager
+	finishedPeers               map[string]bool
+	culprits                    []*btss.PartyID
+	culpritsLock                *sync.RWMutex
+	cachedWireBroadcastMsgLists *sync.Map
+	cachedWireUnicastMsgLists   *sync.Map
+	msgNum                      int
 }
 
-func NewTssCommon(peerID string, broadcastChannel chan *messages.BroadcastMsgChan, conf TssConfig, msgID string, privKey tcrypto.PrivKey) *TssCommon {
+func NewTssCommon(peerID string, broadcastChannel chan *messages.BroadcastMsgChan, conf TssConfig, msgID string, privKey tcrypto.PrivKey, msgNum int) *TssCommon {
 	return &TssCommon{
-		conf:                conf,
-		logger:              log.With().Str("module", "tsscommon").Logger(),
-		partyLock:           &sync.Mutex{},
-		partyInfo:           nil,
-		PartyIDtoP2PID:      make(map[string]peer.ID),
-		unConfirmedMsgLock:  &sync.Mutex{},
-		unConfirmedMessages: make(map[string]*LocalCacheItem),
-		broadcastChannel:    broadcastChannel,
-		TssMsg:              make(chan *p2p.Message),
-		P2PPeers:            nil,
-		msgID:               msgID,
-		localPeerID:         peerID,
-		privateKey:          privKey,
-		taskDone:            make(chan struct{}),
-		blameMgr:            blame.NewBlameManager(),
-		finishedPeers:       make(map[string]bool),
-		culprits:            []*btss.PartyID{},
+		conf:                        conf,
+		logger:                      log.With().Str("module", "tsscommon").Logger(),
+		partyLock:                   &sync.Mutex{},
+		partyInfo:                   nil,
+		PartyIDtoP2PID:              make(map[string]peer.ID),
+		unConfirmedMsgLock:          &sync.Mutex{},
+		unConfirmedMessages:         make(map[string]*LocalCacheItem),
+		broadcastChannel:            broadcastChannel,
+		TssMsg:                      make(chan *p2p.Message, msgNum),
+		P2PPeersLock:                &sync.RWMutex{},
+		P2PPeers:                    nil,
+		msgID:                       msgID,
+		localPeerID:                 peerID,
+		privateKey:                  privKey,
+		taskDone:                    make(chan struct{}),
+		blameMgr:                    blame.NewBlameManager(),
+		finishedPeers:               make(map[string]bool),
+		culpritsLock:                &sync.RWMutex{},
+		cachedWireBroadcastMsgLists: &sync.Map{},
+		cachedWireUnicastMsgLists:   &sync.Map{},
+		msgNum:                      msgNum,
+	}
+}
+
+type BulkWireMsg struct {
+	WiredBulkMsgs []byte
+	MsgIdentifier string
+	Routing       *btss.MessageRouting
+}
+
+func NewBulkWireMsg(msg []byte, id string, r *btss.MessageRouting) BulkWireMsg {
+	return BulkWireMsg{
+		WiredBulkMsgs: msg,
+		MsgIdentifier: id,
+		Routing:       r,
+	}
+}
+
+type tssJob struct {
+	wireBytes      []byte
+	msgIdentifier  string
+	partyID        *btss.PartyID
+	isBroadcast    bool
+	localParty     btss.Party
+	acceptedShares map[blame.RoundInfo][]string
+}
+
+func newJob(party btss.Party, wireBytes []byte, msgIdentifier string, from *btss.PartyID, isBroadcast bool) *tssJob {
+	return &tssJob{
+		wireBytes:     wireBytes,
+		msgIdentifier: msgIdentifier,
+		partyID:       from,
+		isBroadcast:   isBroadcast,
+		localParty:    party,
+	}
+}
+
+func (t *TssCommon) doTssJob(tssJobChan chan *tssJob, jobWg *sync.WaitGroup) {
+	defer func() {
+		jobWg.Done()
+	}()
+
+	for tssjob := range tssJobChan {
+		party := tssjob.localParty
+		wireBytes := tssjob.wireBytes
+		partyID := tssjob.partyID
+		isBroadcast := tssjob.isBroadcast
+
+		round, err := GetMsgRound(wireBytes, partyID, isBroadcast)
+		if err != nil {
+			t.logger.Error().Err(err).Msg("broken tss share")
+			continue
+		}
+		round.MsgIdentifier = tssjob.msgIdentifier
+
+		_, errUp := party.UpdateFromBytes(wireBytes, partyID, isBroadcast)
+		if errUp != nil {
+			err := t.processInvalidMsgBlame(round.RoundMsg, round, errUp)
+			t.logger.Error().Err(err).Msgf("fail to apply the share to tss")
+			continue
+		}
+		// we need to retrieve the partylist again as others may update it once we process apply tss share
+		t.blameMgr.UpdateAcceptShare(round, partyID.Id)
 	}
 }
 
@@ -108,15 +181,17 @@ func (t *TssCommon) SetLocalPeerID(peerID string) {
 	t.localPeerID = peerID
 }
 
-func (t *TssCommon) processInvalidMsgBlame(wireMsg *messages.WireMessage, round blame.RoundInfo, err *btss.Error) error {
+func (t *TssCommon) processInvalidMsgBlame(roundInfo string, round blame.RoundInfo, err *btss.Error) error {
 	// now we get the culprits ID, invalid message and signature the culprits sent
 	var culpritsID []string
 	var invalidMsgs []*messages.WireMessage
 	unicast := checkUnicast(round)
+	t.culpritsLock.Lock()
 	t.culprits = append(t.culprits, err.Culprits()...)
+	t.culpritsLock.Unlock()
 	for _, el := range err.Culprits() {
 		culpritsID = append(culpritsID, el.Id)
-		key := fmt.Sprintf("%s-%s", el.Id, wireMsg.RoundInfo)
+		key := fmt.Sprintf("%s-%s", el.Id, roundInfo)
 		storedMsg := t.blameMgr.GetRoundMgr().Get(key)
 		invalidMsgs = append(invalidMsgs, storedMsg)
 	}
@@ -170,53 +245,69 @@ func (t *TssCommon) updateLocal(wireMsg *messages.WireMessage) error {
 	if !wireMsg.Routing.IsBroadcast {
 		t.blameMgr.SetLastUnicastPeer(dataOwnerPeerID, wireMsg.RoundInfo)
 	}
-	round, err := GetMsgRound(wireMsg, partyID)
+
+	var bulkMsg []BulkWireMsg
+	err := json.Unmarshal(wireMsg.Message, &bulkMsg)
 	if err != nil {
-		t.logger.Error().Err(err).Msg("broken tss share")
+		t.logger.Error().Err(err).Msg("error to unmarshal the BulkMsg")
 		return err
 	}
-	acceptedShares := t.blameMgr.GetAcceptShares()
-	// we only allow a message be updated only once.
-	dat, ok := acceptedShares.Load(round)
-	if ok {
-		partyList := dat.([]string)
-		for _, el := range partyList {
-			if el == partyID.Id {
-				t.logger.Debug().Msgf("we received the duplicated message from party %s", partyID.Id)
-				return nil
-			}
+
+	worker := runtime.NumCPU()
+	tssJobChan := make(chan *tssJob, len(bulkMsg))
+	jobWg := sync.WaitGroup{}
+	for i := 0; i < worker; i++ {
+		jobWg.Add(1)
+		go t.doTssJob(tssJobChan, &jobWg)
+	}
+	for _, msg := range bulkMsg {
+		data, ok := partyInfo.PartyMap.Load(msg.MsgIdentifier)
+		if !ok {
+			t.logger.Error().Msg("cannot find the party to this wired msg")
+			return errors.New("cannot find the party")
 		}
-	}
-
-	partyInlist := func(el *btss.PartyID, l []*btss.PartyID) bool {
-		for _, each := range l {
-			if el == each {
-				return true
-			}
+		localMsgParty := data.(btss.Party)
+		partyID, ok := partyInfo.PartyIDMap[msg.Routing.From.Id]
+		if !ok {
+			t.logger.Error().Msg("error in find the partyID")
+			return errors.New("cannot find the party to handle the message")
 		}
-		return false
+
+		round, err := GetMsgRound(msg.WiredBulkMsgs, partyID, msg.Routing.IsBroadcast)
+		if err != nil {
+			t.logger.Error().Err(err).Msg("broken tss share")
+			return err
+		}
+
+		// we only allow a message be updated only once.
+		// here we use round + msgIdentifier as the key for the acceptedShares
+		round.MsgIdentifier = msg.MsgIdentifier
+		// if this share is duplicated, we skip this share
+		if t.blameMgr.CheckMsgDuplication(round, partyID.Id) {
+			t.logger.Debug().Msgf("we received the duplicated message from party %s", partyID.Id)
+			continue
+		}
+
+		partyInlist := func(el *btss.PartyID, l []*btss.PartyID) bool {
+			for _, each := range l {
+				if el == each {
+					return true
+				}
+			}
+			return false
+		}
+		t.culpritsLock.RLock()
+		if len(t.culprits) != 0 && partyInlist(partyID, t.culprits) {
+			t.logger.Error().Msgf("the malicious party (party ID:%s) try to send incorrect message to me (party ID:%s)", partyID.Id, localMsgParty.PartyID().Id)
+			t.culpritsLock.RUnlock()
+			return errors.New(blame.TssBrokenMsg)
+		}
+		t.culpritsLock.RUnlock()
+		job := newJob(localMsgParty, msg.WiredBulkMsgs, round.MsgIdentifier, partyID, msg.Routing.IsBroadcast)
+		tssJobChan <- job
 	}
-
-	if len(t.culprits) != 0 && partyInlist(partyID, t.culprits) {
-		t.logger.Error().Msgf("the malicious party (party ID:%s) try to send incorrect message to me (party ID:%s)", partyID.Id, t.partyInfo.Party.PartyID().Id)
-		return errors.New(blame.TssBrokenMsg)
-
-	}
-
-	_, errUp := partyInfo.Party.UpdateFromBytes(wireMsg.Message, partyID, wireMsg.Routing.IsBroadcast)
-	if errUp != nil {
-		return t.processInvalidMsgBlame(wireMsg, round, errUp)
-	}
-
-	if !ok {
-		partyList := []string{partyID.Id}
-		acceptedShares.Store(round, partyList)
-		return nil
-	}
-	partyList := dat.([]string)
-	partyList = append(partyList, partyID.Id)
-	acceptedShares.Store(round, partyList)
-
+	close(tssJobChan)
+	jobWg.Wait()
 	return nil
 }
 
@@ -352,11 +443,14 @@ func (t *TssCommon) hashCheck(localCacheItem *LocalCacheItem, threshold int) err
 	return blame.ErrNotMajority
 }
 
-func (t *TssCommon) ProcessOutCh(msg btss.Message, msgType messages.THORChainTSSMessageType) error {
-	buf, r, err := msg.WireBytes()
-	// if we cannot get the wire share, the tss keygen will fail, we just quit.
+func (t *TssCommon) sendBulkMsg(wiredMsgType string, tssMsgType messages.THORChainTSSMessageType, wiredMsgList []BulkWireMsg) error {
+	// since all the messages in the list is the same round, so it must have the same dest
+	// we just need to get the routing info of the first message
+	r := wiredMsgList[0].Routing
+
+	buf, err := json.Marshal(wiredMsgList)
 	if err != nil {
-		return fmt.Errorf("fail to get wire bytes: %w", err)
+		return fmt.Errorf("error in marshal the cachedWireMsg: %w", err)
 	}
 
 	sig, err := generateSignature(buf, t.msgID, t.privateKey)
@@ -367,7 +461,7 @@ func (t *TssCommon) ProcessOutCh(msg btss.Message, msgType messages.THORChainTSS
 
 	wireMsg := messages.WireMessage{
 		Routing:   r,
-		RoundInfo: msg.Type(),
+		RoundInfo: wiredMsgType,
 		Message:   buf,
 		Sig:       sig,
 	}
@@ -376,13 +470,16 @@ func (t *TssCommon) ProcessOutCh(msg btss.Message, msgType messages.THORChainTSS
 		return fmt.Errorf("fail to convert tss msg to wire bytes: %w", err)
 	}
 	wrappedMsg := messages.WrappedMessage{
-		MessageType: msgType,
 		MsgID:       t.msgID,
+		MessageType: tssMsgType,
 		Payload:     wireMsgBytes,
 	}
+
 	peerIDs := make([]peer.ID, 0)
 	if len(r.To) == 0 {
+		t.P2PPeersLock.RLock()
 		peerIDs = t.P2PPeers
+		t.P2PPeersLock.RUnlock()
 	} else {
 		for _, each := range r.To {
 			peerID, ok := t.PartyIDtoP2PID[each.Id]
@@ -401,6 +498,69 @@ func (t *TssCommon) ProcessOutCh(msg btss.Message, msgType messages.THORChainTSS
 	return nil
 }
 
+func (t *TssCommon) ProcessOutCh(msg btss.Message, msgType messages.THORChainTSSMessageType) error {
+	msgData, r, err := msg.WireBytes()
+	// if we cannot get the wire share, the tss will fail, we just quit.
+	if err != nil {
+		return fmt.Errorf("fail to get wire bytes: %w", err)
+	}
+
+	if r.IsBroadcast {
+		cachedWiredMsg := NewBulkWireMsg(msgData, msg.GetFrom().Moniker, r)
+		// now we store this message in cache
+		dat, ok := t.cachedWireBroadcastMsgLists.Load(msg.Type())
+		if !ok {
+			l := []BulkWireMsg{cachedWiredMsg}
+			t.cachedWireBroadcastMsgLists.Store(msg.Type(), l)
+		} else {
+			cachedList := dat.([]BulkWireMsg)
+			cachedList = append(cachedList, cachedWiredMsg)
+			t.cachedWireBroadcastMsgLists.Store(msg.Type(), cachedList)
+		}
+	} else {
+		cachedWiredMsg := NewBulkWireMsg(msgData, msg.GetFrom().Moniker, r)
+		dat, ok := t.cachedWireUnicastMsgLists.Load(msg.Type() + ":" + r.To[0].String())
+		if !ok {
+			l := []BulkWireMsg{cachedWiredMsg}
+			t.cachedWireUnicastMsgLists.Store(msg.Type()+":"+r.To[0].String(), l)
+		} else {
+			cachedList := dat.([]BulkWireMsg)
+			cachedList = append(cachedList, cachedWiredMsg)
+			t.cachedWireUnicastMsgLists.Store(msg.Type()+":"+r.To[0].String(), cachedList)
+		}
+	}
+	t.cachedWireUnicastMsgLists.Range(func(key, value interface{}) bool {
+		wiredMsgList := value.([]BulkWireMsg)
+		ret := strings.Split(key.(string), ":")
+		wiredMsgType := ret[0]
+		if len(wiredMsgList) == t.msgNum {
+			err := t.sendBulkMsg(wiredMsgType, msgType, wiredMsgList)
+			if err != nil {
+				t.logger.Error().Err(err).Msg("error in send bulk message")
+				return true
+			}
+			t.cachedWireUnicastMsgLists.Delete(key)
+		}
+		return true
+	})
+
+	t.cachedWireBroadcastMsgLists.Range(func(key, value interface{}) bool {
+		wiredMsgList := value.([]BulkWireMsg)
+		wiredMsgType := key.(string)
+		if len(wiredMsgList) == t.msgNum {
+			err := t.sendBulkMsg(wiredMsgType, msgType, wiredMsgList)
+			if err != nil {
+				t.logger.Error().Err(err).Msg("error in send bulk message")
+				return true
+			}
+			t.cachedWireBroadcastMsgLists.Delete(key)
+		}
+		return true
+	})
+
+	return nil
+}
+
 func (t *TssCommon) applyShare(localCacheItem *LocalCacheItem, threshold int, key string, msgType messages.THORChainTSSMessageType) error {
 	unicast := true
 	if localCacheItem.Msg.Routing.IsBroadcast {
@@ -412,7 +572,7 @@ func (t *TssCommon) applyShare(localCacheItem *LocalCacheItem, threshold int, ke
 			return nil
 		}
 		if errors.Is(err, blame.ErrNotMajority) {
-			t.logger.Error().Err(err).Msg("we send request to get the message mathch with majority")
+			t.logger.Error().Err(err).Msg("we send request to get the message match with majority")
 			localCacheItem.Msg = nil
 			return t.requestShareFromPeer(localCacheItem, threshold, key, msgType)
 		}
@@ -548,12 +708,14 @@ func (t *TssCommon) receiverBroadcastHashToPeers(wireMsg *messages.WireMessage, 
 	if !ok {
 		return errors.New("error in find the data owner peerID")
 	}
+	t.P2PPeersLock.RLock()
 	for _, el := range t.P2PPeers {
 		if el == dataOwnerPeerID {
 			continue
 		}
 		peerIDs = append(peerIDs, el)
 	}
+	t.P2PPeersLock.RUnlock()
 	msgVerType := getBroadcastMessageType(msgType)
 	key := wireMsg.GetCacheKey()
 	msgHash, err := conversion.BytesToHashString(wireMsg.Message)

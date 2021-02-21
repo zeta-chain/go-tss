@@ -1,6 +1,7 @@
 package tss
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -70,8 +71,8 @@ func (s *FourNodeTestSuite) SetUpTest(c *C) {
 	s.servers = make([]*TssServer, partyNum)
 
 	conf := common.TssConfig{
-		KeyGenTimeout:   60 * time.Second,
-		KeySignTimeout:  60 * time.Second,
+		KeyGenTimeout:   90 * time.Second,
+		KeySignTimeout:  90 * time.Second,
 		PreParamTimeout: 5 * time.Second,
 		EnableMonitor:   false,
 	}
@@ -119,14 +120,24 @@ func (s *FourNodeTestSuite) Test4NodesTss(c *C) {
 	s.doTestBlame(c, true)
 }
 
+func checkSignResult(c *C, keysignResult map[int]keysign.Response) {
+	for i := 0; i < len(keysignResult)-1; i++ {
+		currentSignatures := keysignResult[i].Signatures
+		// we test with two messsages and the size of the signature should be 44
+		c.Assert(currentSignatures, HasLen, 2)
+		c.Assert(currentSignatures[0].S, HasLen, 44)
+		currentData, err := json.Marshal(currentSignatures)
+		c.Assert(err, IsNil)
+		nextSignatures := keysignResult[i+1].Signatures
+		nextData, err := json.Marshal(nextSignatures)
+		c.Assert(err, IsNil)
+		ret := bytes.Equal(currentData, nextData)
+		c.Assert(ret, Equals, true)
+	}
+}
+
 // generate a new key
 func (s *FourNodeTestSuite) doTestKeygenAndKeySign(c *C, newJoinParty bool) {
-	var req keygen.Request
-	if newJoinParty {
-		req = keygen.NewRequest(testPubKeys, 10, "0.14.0")
-	} else {
-		req = keygen.NewRequest(testPubKeys, 10, "0.13.0")
-	}
 	wg := sync.WaitGroup{}
 	lock := &sync.Mutex{}
 	keygenResult := make(map[int]keygen.Response)
@@ -134,6 +145,13 @@ func (s *FourNodeTestSuite) doTestKeygenAndKeySign(c *C, newJoinParty bool) {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
+			var req keygen.Request
+			localPubKeys := append([]string{}, testPubKeys...)
+			if newJoinParty {
+				req = keygen.NewRequest(localPubKeys, 10, "0.14.0")
+			} else {
+				req = keygen.NewRequest(localPubKeys, 10, "0.13.0")
+			}
 			res, err := s.servers[idx].Keygen(req)
 			c.Assert(err, IsNil)
 			lock.Lock()
@@ -151,37 +169,40 @@ func (s *FourNodeTestSuite) doTestKeygenAndKeySign(c *C, newJoinParty bool) {
 		}
 	}
 
-	keysignReqWithErr := keysign.NewRequest(poolPubKey, "helloworld", 10, testPubKeys, "0.13.0")
+	keysignReqWithErr := keysign.NewRequest(poolPubKey, []string{"helloworld", "helloworld2"}, 10, testPubKeys, "0.13.0")
 	if newJoinParty {
-		keysignReqWithErr = keysign.NewRequest(poolPubKey, "helloworld", 10, testPubKeys, "0.14.0")
+		keysignReqWithErr = keysign.NewRequest(poolPubKey, []string{"helloworld", "helloworld2"}, 10, testPubKeys, "0.14.0")
 	}
 
 	resp, err := s.servers[0].KeySign(keysignReqWithErr)
 	c.Assert(err, NotNil)
-	c.Assert(resp.S, Equals, "")
+	c.Assert(resp.Signatures, HasLen, 0)
 	if !newJoinParty {
-		keysignReqWithErr1 := keysign.NewRequest(poolPubKey, base64.StdEncoding.EncodeToString(hash([]byte("helloworld"))), 10, testPubKeys[:1], "0.13.0")
+		keysignReqWithErr1 := keysign.NewRequest(poolPubKey, []string{base64.StdEncoding.EncodeToString(hash([]byte("helloworld"))), base64.StdEncoding.EncodeToString(hash([]byte("helloworld2")))}, 10, testPubKeys[:1], "0.13.0")
 		resp, err = s.servers[0].KeySign(keysignReqWithErr1)
 		c.Assert(err, NotNil)
-		c.Assert(resp.S, Equals, "")
+		c.Assert(resp.Signatures, HasLen, 0)
+
 	}
 	if !newJoinParty {
-		keysignReqWithErr2 := keysign.NewRequest(poolPubKey, base64.StdEncoding.EncodeToString(hash([]byte("helloworld"))), 10, nil, "0.13.0")
+		keysignReqWithErr2 := keysign.NewRequest(poolPubKey, []string{base64.StdEncoding.EncodeToString(hash([]byte("helloworld"))), base64.StdEncoding.EncodeToString(hash([]byte("helloworld2")))}, 10, nil, "0.13.0")
 		resp, err = s.servers[0].KeySign(keysignReqWithErr2)
 		c.Assert(err, NotNil)
-		c.Assert(resp.S, Equals, "")
+		c.Assert(resp.Signatures, HasLen, 0)
 	}
-	var keysignReq keysign.Request
-	if newJoinParty {
-		keysignReq = keysign.NewRequest(poolPubKey, base64.StdEncoding.EncodeToString(hash([]byte("helloworld"))), 10, testPubKeys, "0.14.0")
-	} else {
-		keysignReq = keysign.NewRequest(poolPubKey, base64.StdEncoding.EncodeToString(hash([]byte("helloworld"))), 10, testPubKeys, "0.13.0")
-	}
+
 	keysignResult := make(map[int]keysign.Response)
 	for i := 0; i < partyNum; i++ {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
+			localPubKeys := append([]string{}, testPubKeys...)
+			var keysignReq keysign.Request
+			if newJoinParty {
+				keysignReq = keysign.NewRequest(poolPubKey, []string{base64.StdEncoding.EncodeToString(hash([]byte("helloworld"))), base64.StdEncoding.EncodeToString(hash([]byte("helloworld2")))}, 10, localPubKeys, "0.14.0")
+			} else {
+				keysignReq = keysign.NewRequest(poolPubKey, []string{base64.StdEncoding.EncodeToString(hash([]byte("helloworld"))), base64.StdEncoding.EncodeToString(hash([]byte("helloworld2")))}, 10, localPubKeys, "0.13.0")
+			}
 			res, err := s.servers[idx].KeySign(keysignReq)
 			c.Assert(err, IsNil)
 			lock.Lock()
@@ -190,24 +211,19 @@ func (s *FourNodeTestSuite) doTestKeygenAndKeySign(c *C, newJoinParty bool) {
 		}(i)
 	}
 	wg.Wait()
-	var signature string
-	for _, item := range keysignResult {
-		if len(signature) == 0 {
-			signature = item.S + item.R
-			continue
-		}
-		c.Assert(signature, Equals, item.S+item.R)
-	}
-	if newJoinParty {
-		keysignReq = keysign.NewRequest(poolPubKey, base64.StdEncoding.EncodeToString(hash([]byte("helloworld"))), 10, nil, "0.14.0")
-	} else {
-		keysignReq = keysign.NewRequest(poolPubKey, base64.StdEncoding.EncodeToString(hash([]byte("helloworld"))), 10, testPubKeys[:3], "0.13.0")
-	}
+	checkSignResult(c, keysignResult)
+
 	keysignResult1 := make(map[int]keysign.Response)
 	for i := 0; i < partyNum; i++ {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
+			var keysignReq keysign.Request
+			if newJoinParty {
+				keysignReq = keysign.NewRequest(poolPubKey, []string{base64.StdEncoding.EncodeToString(hash([]byte("helloworld"))), base64.StdEncoding.EncodeToString(hash([]byte("helloworld2")))}, 10, nil, "0.14.0")
+			} else {
+				keysignReq = keysign.NewRequest(poolPubKey, []string{base64.StdEncoding.EncodeToString(hash([]byte("helloworld"))), base64.StdEncoding.EncodeToString(hash([]byte("helloworld2")))}, 10, testPubKeys[:3], "0.13.0")
+			}
 			res, err := s.servers[idx].KeySign(keysignReq)
 			c.Assert(err, IsNil)
 			lock.Lock()
@@ -216,24 +232,11 @@ func (s *FourNodeTestSuite) doTestKeygenAndKeySign(c *C, newJoinParty bool) {
 		}(i)
 	}
 	wg.Wait()
-	signature = ""
-	for _, item := range keysignResult1 {
-		if len(signature) == 0 {
-			signature = item.S + item.R
-			continue
-		}
-		c.Assert(signature, Equals, item.S+item.R)
-	}
+	checkSignResult(c, keysignResult1)
 }
 
 func (s *FourNodeTestSuite) doTestFailJoinParty(c *C, newJoinParty bool) {
 	// JoinParty should fail if there is a node that suppose to be in the keygen , but we didn't send request in
-	var req keygen.Request
-	if newJoinParty {
-		req = keygen.NewRequest(testPubKeys, 10, "0.14.0")
-	} else {
-		req = keygen.NewRequest(testPubKeys, 10, "0.13.0")
-	}
 	wg := sync.WaitGroup{}
 	lock := &sync.Mutex{}
 	keygenResult := make(map[int]keygen.Response)
@@ -242,6 +245,12 @@ func (s *FourNodeTestSuite) doTestFailJoinParty(c *C, newJoinParty bool) {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
+			var req keygen.Request
+			if newJoinParty {
+				req = keygen.NewRequest(testPubKeys, 10, "0.14.0")
+			} else {
+				req = keygen.NewRequest(testPubKeys, 10, "0.13.0")
+			}
 			res, err := s.servers[idx].Keygen(req)
 			c.Assert(err, IsNil)
 			lock.Lock()
@@ -324,7 +333,7 @@ func (s *FourNodeTestSuite) TearDownTest(c *C) {
 		s.servers[i].Stop()
 	}
 	for i := 0; i < partyNum; i++ {
-		tempFilePath := path.Join(os.TempDir(), strconv.Itoa(i))
+		tempFilePath := path.Join(os.TempDir(), "4nodes_test", strconv.Itoa(i))
 		os.RemoveAll(tempFilePath)
 
 	}
@@ -333,9 +342,9 @@ func (s *FourNodeTestSuite) TearDownTest(c *C) {
 func (s *FourNodeTestSuite) getTssServer(c *C, index int, conf common.TssConfig, bootstrap string) *TssServer {
 	priKey, err := conversion.GetPriKey(testPriKeyArr[index])
 	c.Assert(err, IsNil)
-	baseHome := path.Join(os.TempDir(), strconv.Itoa(index))
+	baseHome := path.Join(os.TempDir(), "4nodes_test", strconv.Itoa(index))
 	if _, err := os.Stat(baseHome); os.IsNotExist(err) {
-		err := os.Mkdir(baseHome, os.ModePerm)
+		err := os.MkdirAll(baseHome, os.ModePerm)
 		c.Assert(err, IsNil)
 	}
 	var peerIDs []maddr.Multiaddr
