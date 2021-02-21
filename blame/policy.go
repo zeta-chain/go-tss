@@ -15,7 +15,7 @@ import (
 func (m *Manager) tssTimeoutBlame(lastMessageType string, partyIDMap map[string]*btss.PartyID) ([]string, error) {
 	peersSet := mapset.NewSet()
 	for _, el := range partyIDMap {
-		if el.Id != m.partyInfo.Party.PartyID().Id {
+		if el.Id != m.localPartyID {
 			peersSet.Add(el.Id)
 		}
 	}
@@ -46,9 +46,7 @@ func (m *Manager) tssTimeoutBlame(lastMessageType string, partyIDMap map[string]
 
 // this blame blames the node who cause the timeout in node sync
 func (m *Manager) NodeSyncBlame(keys []string, onlinePeers []peer.ID) (Blame, error) {
-	blame := Blame{
-		FailReason: TssSyncFail,
-	}
+	blame := NewBlame(TssSyncFail, nil)
 	for _, item := range keys {
 		found := false
 		peerID, err := conversion.GetPeerIDFromPubKey(item)
@@ -70,12 +68,15 @@ func (m *Manager) NodeSyncBlame(keys []string, onlinePeers []peer.ID) (Blame, er
 
 // this blame blames the node who cause the timeout in unicast message
 func (m *Manager) GetUnicastBlame(lastMsgType string) ([]Node, error) {
+	m.lastMsgLocker.RLock()
 	if len(m.lastUnicastPeer) == 0 {
+		m.lastMsgLocker.RUnlock()
 		m.logger.Debug().Msg("we do not have any unicast message received yet")
 		return nil, nil
 	}
 	peersMap := make(map[string]bool)
 	peersID, ok := m.lastUnicastPeer[lastMsgType]
+	m.lastMsgLocker.RUnlock()
 	if !ok {
 		return nil, fmt.Errorf("fail to find peers of the given msg type %w", ErrTssTimeOut)
 	}
@@ -129,57 +130,69 @@ func (m *Manager) TssWrongShareBlame(wiredMsg *messages.WireMessage) (string, er
 }
 
 // this blame blames the node fail to send the shares to the node
+// with batch signing, we need to put the accepted shares into different message group
+// then search the missing share for each keysign message
 func (m *Manager) TssMissingShareBlame(rounds int) ([]Node, bool, error) {
-	cachedShares := make([][]string, rounds)
-	m.acceptedShares.Range(func(key, value interface{}) bool {
-		data := value.([]string)
-		roundInfo := key.(RoundInfo)
-		index := roundInfo.Index
-		cachedShares[index] = data
-		return true
-	})
+	acceptedShareForMsg := make(map[string][][]string)
+	var blameNodes []Node
 	var peers []string
 	isUnicast := false
-	// we search from the first round to find the missing
-	for index, el := range cachedShares {
-		if len(el)+1 == len(m.PartyIDtoP2PID) {
+	m.acceptShareLocker.Lock()
+	for roundInfo, value := range m.acceptedShares {
+		cachedShares, ok := acceptedShareForMsg[roundInfo.MsgIdentifier]
+		if !ok {
+			cachedShares := make([][]string, rounds)
+			cachedShares[roundInfo.Index] = value
+			acceptedShareForMsg[roundInfo.MsgIdentifier] = cachedShares
 			continue
 		}
-		// we find whether the missing share is in unicast
-		if rounds == messages.TSSKEYGENROUNDS {
-			// we are processing the keygen and if the missing shares is in second round(index=1)
-			// we mark it as the unicast.
-			if index == 1 {
-				isUnicast = true
-			}
-		}
-		if rounds == messages.TSSKEYSIGNROUNDS {
-			// we are processing the keysign and if the missing shares is in the 5 round(index<1)
-			// we all mark it as the unicast, because in some cases, the error will be detected
-			// in the following round, so we cannot "trust" the node stops at the current round.
-			if index < 5 {
-				isUnicast = true
-			}
-		}
-		// we add our own id to avoid blame ourselves
-		el = append(el, m.partyInfo.Party.PartyID().Id)
-		for _, pid := range el {
-			peers = append(peers, m.PartyIDtoP2PID[pid].String())
-		}
-		break
+		cachedShares[roundInfo.Index] = value
 	}
-	blamePubKeys, err := m.getBlamePubKeysNotInList(peers)
-	if err != nil {
-		return nil, isUnicast, err
-	}
-	var blameNodes []Node
-	for _, el := range blamePubKeys {
-		node := Node{
-			el,
-			nil,
-			nil,
+	m.acceptShareLocker.Unlock()
+
+	for _, cachedShares := range acceptedShareForMsg {
+		// we search from the first round to find the missing
+		for index, el := range cachedShares {
+			if len(el)+1 == len(m.PartyIDtoP2PID) {
+				continue
+			}
+			// we find whether the missing share is in unicast
+			if rounds == messages.TSSKEYGENROUNDS {
+				// we are processing the keygen and if the missing shares is in second round(index=1)
+				// we mark it as the unicast.
+				if index == 1 {
+					isUnicast = true
+				}
+			}
+			if rounds == messages.TSSKEYSIGNROUNDS {
+				// we are processing the keysign and if the missing shares is in the 5 round(index<1)
+				// we all mark it as the unicast, because in some cases, the error will be detected
+				// in the following round, so we cannot "trust" the node stops at the current round.
+				if index < 5 {
+					isUnicast = true
+				}
+			}
+			// we add our own id to avoid blame ourselves
+			// since all the local parties have the same id, so we just need to take one of them to get the peer
+
+			el = append(el, m.localPartyID)
+			for _, pid := range el {
+				peers = append(peers, m.PartyIDtoP2PID[pid].String())
+			}
+			break
 		}
-		blameNodes = append(blameNodes, node)
+		blamePubKeys, err := m.getBlamePubKeysNotInList(peers)
+		if err != nil {
+			return nil, isUnicast, err
+		}
+		for _, el := range blamePubKeys {
+			node := Node{
+				el,
+				nil,
+				nil,
+			}
+			blameNodes = append(blameNodes, node)
+		}
 	}
 	return blameNodes, isUnicast, nil
 }
