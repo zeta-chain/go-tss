@@ -1,0 +1,5 @@
+---
+title: replace the key derive key from pbkdf2 to scrypt
+merge_request:
+author: ford.betelgeuse
+type: security
