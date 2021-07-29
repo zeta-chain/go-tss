@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"golang.org/x/crypto/sha3"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -29,11 +30,15 @@ func (s *FileStateMgrTestSuite) SetUpTest(c *C) {
 func (s *FileStateMgrTestSuite) TestNewFileStateMgr(c *C) {
 	folder := os.TempDir()
 	f := filepath.Join(folder, "test", "test1", "test2")
+	password := "my password!"
+	h := sha3.New256()
+	h.Write([]byte(password))
+	sk := h.Sum(nil)
 	defer func() {
 		err := os.RemoveAll(f)
 		c.Assert(err, IsNil)
 	}()
-	fsm, err := NewFileStateMgr(f)
+	fsm, err := NewFileStateMgr(f, sk)
 	c.Assert(err, IsNil)
 	c.Assert(fsm, NotNil)
 	_, err = os.Stat(f)
@@ -46,6 +51,12 @@ func (s *FileStateMgrTestSuite) TestNewFileStateMgr(c *C) {
 }
 
 func (s *FileStateMgrTestSuite) TestSaveLocalState(c *C) {
+
+	password := "my password!"
+	h := sha3.New256()
+	h.Write([]byte(password))
+	sk := h.Sum(nil)
+
 	stateItem := KeygenLocalState{
 		PubKey:    "wasdfasdfasdfasdfasdfasdf",
 		LocalData: keygen.NewLocalPartySaveData(5),
@@ -60,10 +71,9 @@ func (s *FileStateMgrTestSuite) TestSaveLocalState(c *C) {
 		err := os.RemoveAll(f)
 		c.Assert(err, IsNil)
 	}()
-	fsm, err := NewFileStateMgr(f)
+	fsm, err := NewFileStateMgr(f, sk)
 	c.Assert(err, IsNil)
 	c.Assert(fsm, NotNil)
-	c.Assert(fsm.SaveLocalState(stateItem), NotNil)
 	stateItem.PubKey = "thorpub1addwnpepqf90u7n3nr2jwsw4t2gzhzqfdlply8dlzv3mdj4dr22uvhe04azq5gac3gq"
 	c.Assert(fsm.SaveLocalState(stateItem), IsNil)
 	filePathName := filepath.Join(f, "localstate-"+stateItem.PubKey+".json")
@@ -76,6 +86,11 @@ func (s *FileStateMgrTestSuite) TestSaveLocalState(c *C) {
 
 func (s *FileStateMgrTestSuite) TestSaveAddressBook(c *C) {
 	testAddresses := make(map[peer.ID]addr.AddrList)
+	password := "my password!"
+	h := sha3.New256()
+	h.Write([]byte(password))
+	sk := h.Sum(nil)
+
 	var t *testing.T
 	id1 := tnet.RandIdentityOrFatal(t)
 	id2 := tnet.RandIdentityOrFatal(t)
@@ -92,7 +107,7 @@ func (s *FileStateMgrTestSuite) TestSaveAddressBook(c *C) {
 		err := os.RemoveAll(f)
 		c.Assert(err, IsNil)
 	}()
-	fsm, err := NewFileStateMgr(f)
+	fsm, err := NewFileStateMgr(f, sk)
 	c.Assert(err, IsNil)
 	c.Assert(fsm, NotNil)
 	c.Assert(fsm.SaveAddressBook(testAddresses), IsNil)

@@ -3,6 +3,7 @@ package tss
 import (
 	"errors"
 	"fmt"
+	"golang.org/x/crypto/sha3"
 	"sort"
 	"strings"
 	"sync"
@@ -62,7 +63,10 @@ func NewTss(
 		return nil, fmt.Errorf("fail to genearte the key: %w", err)
 	}
 
-	stateManager, err := storage.NewFileStateMgr(baseFolder)
+	h := sha3.New256()
+	h.Write(priKey.Bytes())
+	aesKey := h.Sum(nil)
+	stateManager, err := storage.NewFileStateMgr(baseFolder, aesKey)
 	if err != nil {
 		return nil, fmt.Errorf("fail to create file state manager")
 	}
