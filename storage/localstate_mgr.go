@@ -5,16 +5,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/binance-chain/tss-lib/ecdsa/keygen"
+	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p-peerstore/addr"
+	ma "github.com/multiformats/go-multiaddr"
+	"gitlab.com/thorchain/tss/go-tss/common"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
-
-	"github.com/binance-chain/tss-lib/ecdsa/keygen"
-	"github.com/libp2p/go-libp2p-core/peer"
-	"github.com/libp2p/go-libp2p-peerstore/addr"
-	ma "github.com/multiformats/go-multiaddr"
 
 	"gitlab.com/thorchain/tss/go-tss/conversion"
 )
@@ -39,11 +39,12 @@ type LocalStateManager interface {
 // FileStateMgr save the local state to file
 type FileStateMgr struct {
 	folder    string
+	sk        []byte
 	writeLock *sync.RWMutex
 }
 
 // NewFileStateMgr create a new instance of the FileStateMgr which implements LocalStateManager
-func NewFileStateMgr(folder string) (*FileStateMgr, error) {
+func NewFileStateMgr(folder string, sk []byte) (*FileStateMgr, error) {
 	if len(folder) > 0 {
 		_, err := os.Stat(folder)
 		if err != nil && os.IsNotExist(err) {
@@ -55,6 +56,7 @@ func NewFileStateMgr(folder string) (*FileStateMgr, error) {
 	return &FileStateMgr{
 		folder:    folder,
 		writeLock: &sync.RWMutex{},
+		sk:        sk,
 	}, nil
 }
 
@@ -84,7 +86,12 @@ func (fsm *FileStateMgr) SaveLocalState(state KeygenLocalState) error {
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(filePathName, buf, 0o655)
+	encryptedData, err := common.AESEncrypt(buf, fsm.sk)
+	if err != nil {
+		return err
+	}
+	encryptedData = append([]byte("enc"), encryptedData...)
+	return ioutil.WriteFile(filePathName, encryptedData, 0o655)
 }
 
 // GetLocalState read the local state from file system
@@ -100,12 +107,22 @@ func (fsm *FileStateMgr) GetLocalState(pubKey string) (KeygenLocalState, error) 
 		return KeygenLocalState{}, err
 	}
 
-	buf, err := ioutil.ReadFile(filePathName)
+	loadedData, err := ioutil.ReadFile(filePathName)
 	if err != nil {
 		return KeygenLocalState{}, fmt.Errorf("file to read from file(%s): %w", filePathName, err)
 	}
+	var plainText []byte
+	if bytes.Equal([]byte("enc"), loadedData[:3]) {
+		plainText, err = common.AESDecrypt(loadedData[3:], fsm.sk)
+		if err != nil {
+			return KeygenLocalState{}, fmt.Errorf("fail to decrypt the keygen data with %v", err)
+		}
+	} else {
+		plainText = loadedData
+	}
+
 	var localState KeygenLocalState
-	if err := json.Unmarshal(buf, &localState); nil != err {
+	if err := json.Unmarshal(plainText, &localState); nil != err {
 		return KeygenLocalState{}, fmt.Errorf("fail to unmarshal KeygenLocalState: %w", err)
 	}
 	return localState, nil
