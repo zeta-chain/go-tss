@@ -1,20 +1,13 @@
 package main
 
 import (
+	"crypto/sha256"
 	"encoding/hex"
-	"golang.org/x/crypto/scrypt"
 
 	"gitlab.com/thorchain/binance-sdk/common/uuid"
 
+	"golang.org/x/crypto/pbkdf2"
 	"golang.org/x/crypto/sha3"
-)
-
-const (
-	// parameters here are default parameters copied from go-ethereum
-	StandardScryptN = 1 << 18
-	scryptR         = 8
-	scryptDKLen     = 32
-	StandardScryptP = 1
 )
 
 type cipherParams struct {
@@ -52,10 +45,7 @@ func exportKeyStore(privKey []byte, password string) (*EncryptedKey, error) {
 	scryptParamsJSON["c"] = 262144
 
 	cipherParamsJSON := cipherParams{IV: hex.EncodeToString(iv)}
-	derivedKey, err := scrypt.Key([]byte(password), salt, StandardScryptN, scryptR, StandardScryptP, scryptDKLen)
-	if err != nil {
-		return nil, err
-	}
+	derivedKey := pbkdf2.Key([]byte(password), salt, 262144, 32, sha256.New)
 	encryptKey := derivedKey[:32]
 	cipherText, err := aesCTRXOR(encryptKey, privKey, iv)
 	if err != nil {
