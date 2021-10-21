@@ -86,6 +86,7 @@ func (tKeySign *TssKeySign) SignMessage(msgsToSign [][]byte, localStateItem stor
 	if err != nil {
 		return nil, fmt.Errorf("fail to form key sign party: %w", err)
 	}
+
 	if !common.Contains(partiesID, localPartyID) {
 		tKeySign.logger.Info().Msgf("we are not in this rounds key sign")
 		return nil, nil
@@ -95,7 +96,6 @@ func (tKeySign *TssKeySign) SignMessage(msgsToSign [][]byte, localStateItem stor
 		return nil, errors.New("fail to get threshold")
 	}
 
-	// tKeySign.logger.Debug().Msgf("local party: %+v", localPartyID)
 	outCh := make(chan btss.Message, 2*len(partiesID)*len(msgsToSign))
 	endCh := make(chan *signing.SignatureData, len(partiesID)*len(msgsToSign))
 	errCh := make(chan struct{})
@@ -112,6 +112,7 @@ func (tKeySign *TssKeySign) SignMessage(msgsToSign [][]byte, localStateItem stor
 		if err != nil {
 			return nil, fmt.Errorf("error to create parties in batch signging %w\n", err)
 		}
+		tKeySign.logger.Info().Msgf("message: (%s) keysign parties: %+v", m.String(), parties)
 		eachLocalPartyID.Moniker = moniker
 		tKeySign.localParties = nil
 		params := btss.NewParameters(ctx, eachLocalPartyID, len(partiesID), threshold)
