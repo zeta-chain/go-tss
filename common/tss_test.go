@@ -15,7 +15,7 @@ import (
 	btsskeygen "github.com/binance-chain/tss-lib/ecdsa/keygen"
 	btss "github.com/binance-chain/tss-lib/tss"
 	coskey "github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
-	sdk "github.com/cosmos/cosmos-sdk/types"
+	sdk "github.com/cosmos/cosmos-sdk/types/bech32/legacybech32"
 	tcrypto "github.com/tendermint/tendermint/crypto"
 	"github.com/tendermint/tendermint/crypto/secp256k1"
 	. "gopkg.in/check.v1"
@@ -383,7 +383,7 @@ func findSender(arr []*btss.PartyID) *btss.PartyID {
 		pk := coskey.PubKey{
 			Key: el.GetKey()[:],
 		}
-		out, _ := sdk.Bech32ifyPubKey(sdk.Bech32PubKeyTypeAccPub, &pk)
+		out, _ := sdk.MarshalPubKey(sdk.AccPK, &pk)
 		if out == testSenderPubKey {
 			return el
 		}
@@ -404,7 +404,7 @@ func (t *TssTestSuite) TestProcessVerMessage(c *C) {
 }
 
 func (t *TssTestSuite) TestTssCommon(c *C) {
-	pk, err := sdk.GetPubKeyFromBech32(sdk.Bech32PubKeyTypeAccPub, "thorpub1addwnpepqtdklw8tf3anjz7nn5fly3uvq2e67w2apn560s4smmrt9e3x52nt2svmmu3")
+	pk, err := sdk.UnmarshalPubKey(sdk.AccPK, "thorpub1addwnpepqtdklw8tf3anjz7nn5fly3uvq2e67w2apn560s4smmrt9e3x52nt2svmmu3")
 	c.Assert(err, IsNil)
 	peerID, err := conversion.GetPeerIDFromSecp256PubKey(pk.Bytes())
 	c.Assert(err, IsNil)

@@ -9,7 +9,7 @@ import (
 	"github.com/binance-chain/tss-lib/crypto"
 	"github.com/btcsuite/btcd/btcec"
 	coskey "github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
-	sdk "github.com/cosmos/cosmos-sdk/types"
+	sdk "github.com/cosmos/cosmos-sdk/types/bech32/legacybech32"
 	"github.com/libp2p/go-libp2p-core/peer"
 	. "gopkg.in/check.v1"
 )
@@ -66,7 +66,7 @@ func (p *ConversionTestSuite) TestGetParties(c *C) {
 		Key: localParty.Key[:],
 	}
 	c.Assert(err, IsNil)
-	got, err := sdk.Bech32ifyPubKey(sdk.Bech32PubKeyTypeAccPub, &pk)
+	got, err := sdk.MarshalPubKey(sdk.AccPK, &pk)
 	c.Assert(err, IsNil)
 	c.Assert(got, Equals, p.testPubKeys[0])
 	var gotKeys []string
@@ -74,7 +74,7 @@ func (p *ConversionTestSuite) TestGetParties(c *C) {
 		pk := coskey.PubKey{
 			Key: val.Key,
 		}
-		got, err := sdk.Bech32ifyPubKey(sdk.Bech32PubKeyTypeAccPub, &pk)
+		got, err := sdk.MarshalPubKey(sdk.AccPK, &pk)
 		c.Assert(err, IsNil)
 		gotKeys = append(gotKeys, got)
 	}
@@ -190,7 +190,7 @@ func (p *ConversionTestSuite) TestSetupPartyIDMap(c *C) {
 		pk := coskey.PubKey{
 			Key: el.Key,
 		}
-		got, err := sdk.Bech32ifyPubKey(sdk.Bech32PubKeyTypeAccPub, &pk)
+		got, err := sdk.MarshalPubKey(sdk.AccPK, &pk)
 		c.Assert(err, IsNil)
 		pubKeys = append(pubKeys, got)
 	}
