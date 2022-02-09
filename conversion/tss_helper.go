@@ -5,7 +5,7 @@ import (
 	"math/rand"
 
 	"github.com/blang/semver"
-	sdk "github.com/cosmos/cosmos-sdk/types"
+	sdk "github.com/cosmos/cosmos-sdk/types/bech32/legacybech32"
 	atypes "github.com/cosmos/cosmos-sdk/x/auth/vesting/types"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/tendermint/tendermint/crypto/secp256k1"
@@ -14,7 +14,7 @@ import (
 // GetRandomPubKey for test
 func GetRandomPubKey() string {
 	_, pubKey, _ := atypes.KeyTestPubAddr()
-	bech32PubKey, _ := sdk.Bech32ifyPubKey(sdk.Bech32PubKeyTypeAccPub, pubKey)
+	bech32PubKey, _ := sdk.MarshalPubKey(sdk.AccPK, pubKey)
 	return bech32PubKey
 }
 
