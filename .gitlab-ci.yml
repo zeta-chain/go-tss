@@ -23,10 +23,10 @@ unit_tests:
 
 lint_code:
   cache: {}
-  image: golangci/golangci-lint:v1.46.2
+  image: golangci/golangci-lint:v1.44.2
   stage: test
   before_script:
-    - go get mvdan.cc/gofumpt
+    - go get mvdan.cc/gofumpt@v0.2.1
   script:
     - golangci-lint run -v
 
