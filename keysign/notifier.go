@@ -7,7 +7,7 @@ import (
 	"math/big"
 
 	"github.com/binance-chain/tss-lib/common"
-	sdk "github.com/cosmos/cosmos-sdk/types"
+	sdk "github.com/cosmos/cosmos-sdk/types/bech32/legacybech32"
 	"github.com/tendermint/btcd/btcec"
 )
 
@@ -44,7 +44,7 @@ func NewNotifier(messageID string, messages [][]byte, poolPubKey string) (*Notif
 // go-tss respect the payload it receives , assume the payload had been hashed already by whoever send it in.
 func (n *Notifier) verifySignature(data *common.ECSignature, msg []byte) (bool, error) {
 	// we should be able to use any of the pubkeys to verify the signature
-	pubKey, err := sdk.GetPubKeyFromBech32(sdk.Bech32PubKeyTypeAccPub, n.poolPubKey)
+	pubKey, err := sdk.UnmarshalPubKey(sdk.AccPK, n.poolPubKey)
 	if err != nil {
 		return false, fmt.Errorf("fail to get pubkey from bech32 pubkey string(%s):%w", n.poolPubKey, err)
 	}
