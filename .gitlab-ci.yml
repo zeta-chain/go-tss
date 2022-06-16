@@ -22,6 +22,7 @@ unit_tests:
     - go tool cover -func=coverage.out
 
 lint_code:
+  cache: {}
   image: golangci/golangci-lint:v1.46.2
   stage: test
   before_script:
