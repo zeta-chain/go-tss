@@ -1,4 +1,4 @@
-image: golang:1.15
+image: golang:1.17
 
 cache:
   paths:
@@ -22,10 +22,11 @@ unit_tests:
     - go tool cover -func=coverage.out
 
 lint_code:
-  image: golangci/golangci-lint
+  cache: {}
+  image: golangci/golangci-lint:v1.44.2
   stage: test
   before_script:
-    - go get mvdan.cc/gofumpt
+    - go get mvdan.cc/gofumpt@v0.2.1
   script:
     - golangci-lint run -v
 
