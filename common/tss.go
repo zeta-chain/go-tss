@@ -266,8 +266,12 @@ func (t *TssCommon) updateLocal(wireMsg *messages.WireMessage) error {
 			t.logger.Error().Msg("cannot find the party to this wired msg")
 			return errors.New("cannot find the party")
 		}
+		if msg.Routing.From.Id != wireMsg.Routing.From.Id {
+			// this should never happen , if it happened , which ever party did it , should be blamed and slashed
+			t.logger.Error().Msgf("all messages in a batch sign should have the same routing ,batch routing party id: %s, however message routing:%s", msg.Routing.From, wireMsg.Routing.From)
+		}
 		localMsgParty := data.(btss.Party)
-		partyID, ok := partyInfo.PartyIDMap[msg.Routing.From.Id]
+		partyID, ok := partyInfo.PartyIDMap[wireMsg.Routing.From.Id]
 		if !ok {
 			t.logger.Error().Msg("error in find the partyID")
 			return errors.New("cannot find the party to handle the message")
