@@ -4,7 +4,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/peer"
 	tnet "github.com/libp2p/go-libp2p-testing/net"
 	. "gopkg.in/check.v1"
 )

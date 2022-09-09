@@ -1,14 +1,13 @@
 package p2p
 
 import (
-	"context"
 	"math/rand"
 	"sort"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/libp2p/go-libp2p-core/host"
+	"github.com/libp2p/go-libp2p/core/host"
 	tnet "github.com/libp2p/go-libp2p-testing/net"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
 	"github.com/stretchr/testify/assert"
@@ -17,7 +16,7 @@ import (
 )
 
 func setupHostsLocally(t *testing.T, n int) []host.Host {
-	mn := mocknet.New(context.Background())
+	mn := mocknet.New()
 	var hosts []host.Host
 	for i := 0; i < n; i++ {
 

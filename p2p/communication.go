@@ -10,17 +10,18 @@ import (
 	"time"
 
 	"github.com/libp2p/go-libp2p"
-	"github.com/libp2p/go-libp2p-core/crypto"
-	"github.com/libp2p/go-libp2p-core/host"
-	"github.com/libp2p/go-libp2p-core/network"
-	"github.com/libp2p/go-libp2p-core/peer"
-	"github.com/libp2p/go-libp2p-core/protocol"
-	discovery "github.com/libp2p/go-libp2p-discovery"
+	"github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/network"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/protocol"
+  "github.com/libp2p/go-libp2p/p2p/discovery/routing"
+	discoveryutil "github.com/libp2p/go-libp2p/p2p/discovery/util"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
 	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
-	maddr "github.com/multiformats/go-multiaddr"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	maddr "github.com/multiformats/go-multiaddr"
 
 	"gitlab.com/thorchain/tss/go-tss/messages"
 )
@@ -47,9 +48,9 @@ type Message struct {
 // Communication use p2p to broadcast messages among all the TSS nodes
 type Communication struct {
 	rendezvous       string // based on group
-	bootstrapPeers   []maddr.Multiaddr
+	bootstrapPeers   []Multiaddr
 	logger           zerolog.Logger
-	listenAddr       maddr.Multiaddr
+	listenAddr       Multiaddr
 	host             host.Host
 	wg               *sync.WaitGroup
 	stopChan         chan struct{} // channel to indicate whether we should stop
@@ -57,17 +58,17 @@ type Communication struct {
 	subscriberLocker *sync.Mutex
 	streamCount      int64
 	BroadcastMsgChan chan *messages.BroadcastMsgChan
-	externalAddr     maddr.Multiaddr
+	externalAddr     Multiaddr
 	streamMgr        *StreamMgr
 }
 
 // NewCommunication create a new instance of Communication
-func NewCommunication(rendezvous string, bootstrapPeers []maddr.Multiaddr, port int, externalIP string) (*Communication, error) {
+func NewCommunication(rendezvous string, bootstrapPeers []Multiaddr, port int, externalIP string) (*Communication, error) {
 	addr, err := maddr.NewMultiaddr(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", port))
 	if err != nil {
 		return nil, fmt.Errorf("fail to create listen addr: %w", err)
 	}
-	var externalAddr maddr.Multiaddr = nil
+	var externalAddr Multiaddr = nil
 	if len(externalIP) != 0 {
 		externalAddr, err = maddr.NewMultiaddr(fmt.Sprintf("/ip4/%s/tcp/%d", externalIP, port))
 		if err != nil {
@@ -244,15 +245,16 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 		return err
 	}
 
-	addressFactory := func(addrs []maddr.Multiaddr) []maddr.Multiaddr {
+	addressFactory := func(addrs []Multiaddr) []Multiaddr {
 		if c.externalAddr != nil {
-			return []maddr.Multiaddr{c.externalAddr}
+			return []Multiaddr{c.externalAddr}
 		}
 		return addrs
 	}
 
-	h, err := libp2p.New(ctx,
-		libp2p.ListenAddrs([]maddr.Multiaddr{c.listenAddr}...),
+
+	h, err := libp2p.New(
+		libp2p.ListenAddrs([]Multiaddr{c.listenAddr}...),
 		libp2p.Identity(p2pPriKey),
 		libp2p.AddrsFactory(addressFactory),
 	)
@@ -290,8 +292,8 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 
 	// We use a rendezvous point "meet me here" to announce our location.
 	// This is like telling your friends to meet you at the Eiffel Tower.
-	routingDiscovery := discovery.NewRoutingDiscovery(kademliaDHT)
-	discovery.Advertise(ctx, routingDiscovery, c.rendezvous)
+	routingDiscovery := routing.NewRoutingDiscovery(kademliaDHT)
+	discoveryutil.Advertise(ctx, routingDiscovery, c.rendezvous)
 	err = c.bootStrapConnectivityCheck()
 	if err != nil {
 		return err

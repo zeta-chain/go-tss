@@ -7,13 +7,13 @@ import (
 	"testing"
 
 	"github.com/binance-chain/tss-lib/ecdsa/keygen"
-	"github.com/libp2p/go-libp2p-core/peer"
-	"github.com/libp2p/go-libp2p-peerstore/addr"
+	"github.com/libp2p/go-libp2p/core/peer"
 	tnet "github.com/libp2p/go-libp2p-testing/net"
 	maddr "github.com/multiformats/go-multiaddr"
 	. "gopkg.in/check.v1"
 
 	"gitlab.com/thorchain/tss/go-tss/conversion"
+	"gitlab.com/thorchain/tss/go-tss/p2p"
 )
 
 type FileStateMgrTestSuite struct{}
@@ -75,7 +75,7 @@ func (s *FileStateMgrTestSuite) TestSaveLocalState(c *C) {
 }
 
 func (s *FileStateMgrTestSuite) TestSaveAddressBook(c *C) {
-	testAddresses := make(map[peer.ID]addr.AddrList)
+	testAddresses := make(map[peer.ID]p2p.AddrList)
 	var t *testing.T
 	id1 := tnet.RandIdentityOrFatal(t)
 	id2 := tnet.RandIdentityOrFatal(t)
@@ -84,7 +84,7 @@ func (s *FileStateMgrTestSuite) TestSaveAddressBook(c *C) {
 	c.Assert(err, IsNil)
 	peers := []peer.ID{id1.ID(), id2.ID(), id3.ID()}
 	for _, each := range peers {
-		testAddresses[each] = []maddr.Multiaddr{mockAddr}
+		testAddresses[each] = []p2p.Multiaddr{mockAddr}
 	}
 	folder := os.TempDir()
 	f := filepath.Join(folder, "test")

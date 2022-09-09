@@ -17,7 +17,7 @@ import (
 	"github.com/ipfs/go-log"
 
 	"github.com/binance-chain/tss-lib/crypto"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/peer"
 	tcrypto "github.com/tendermint/tendermint/crypto"
 	"github.com/tendermint/tendermint/crypto/secp256k1"
 

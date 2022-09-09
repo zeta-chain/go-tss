@@ -4,7 +4,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/peer"
 
 	"gitlab.com/thorchain/tss/go-tss/messages"
 )
