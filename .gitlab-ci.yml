@@ -10,50 +10,18 @@ before_script:
 
 stages:
   - test
-  - build
-  - smoke-test
-  - release
 
 unit_tests:
   stage: test
   coverage: '/total:\s+\(statements\)\s+(\d+.\d+\%)/'
   script:
-    - go test  --race -v -coverprofile=coverage.out -timeout 15m ./...
-    - go tool cover -func=coverage.out
+    - make unittest
 
 lint_code:
   cache: {}
-  image: golangci/golangci-lint:v1.44.2
+  image: golangci/golangci-lint:v1.46.2
   stage: test
   before_script:
-    - go get mvdan.cc/gofumpt@v0.2.1
+    - go get mvdan.cc/gofumpt@v0.3.0
   script:
     - golangci-lint run -v
-
-build-docker:
-  stage: build
-  image: docker:stable
-  only:
-    - master
-  services:
-    - docker:20.10.12-dind
-  variables:
-    DOCKER_HOST: tcp://docker:2375
-    DOCKER_DRIVER: overlay2
-  before_script:
-    - apk update
-    - apk add make git jq curl
-    - make docker-gitlab-login
-  script:
-    - make docker-gitlab-build
-    - make docker-gitlab-push
-
-release:
-  stage: release
-  image: registry.gitlab.com/thorchain/misc/release-tool:latest
-  only:
-    - master
-  except:
-    - schedules
-  script:
-    - release-tool changelog
