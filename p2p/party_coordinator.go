@@ -303,7 +303,7 @@ func (pc *PartyCoordinator) sendMsgToPeer(msgBuf []byte, msgID string, remotePee
 
 	defer func() {
 		pc.streamMgr.AddStream(msgID, stream)
-		if err := stream.Close(); err != nil {
+		if err := stream.CloseWrite(); err != nil {
 			pc.logger.Error().Err(err).Msg("fail to close stream")
 		}
 	}()
