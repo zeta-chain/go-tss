@@ -438,7 +438,7 @@ func (pc *PartyCoordinator) joinPartyLeader(msgID string, peers []string, thresh
 				pc.logger.Debug().Msg("we have enough participants")
 				return
 
-			case <-time.After(pc.timeout / 2):
+			case <-time.After(pc.timeout):
 				// timeout, reporting to peers before their timeout
 				pc.logger.Error().Msg("leader waits for peers timeout")
 				return

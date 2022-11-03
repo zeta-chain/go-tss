@@ -10,18 +10,20 @@ import (
 	"time"
 
 	"github.com/libp2p/go-libp2p"
+	dht "github.com/libp2p/go-libp2p-kad-dht"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
-  "github.com/libp2p/go-libp2p/p2p/discovery/routing"
+	"github.com/libp2p/go-libp2p/p2p/discovery/routing"
 	discoveryutil "github.com/libp2p/go-libp2p/p2p/discovery/util"
-	dht "github.com/libp2p/go-libp2p-kad-dht"
+	rcmgr "github.com/libp2p/go-libp2p/p2p/host/resource-manager"
+	"github.com/libp2p/go-libp2p/p2p/net/connmgr"
 	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
+	maddr "github.com/multiformats/go-multiaddr"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	maddr "github.com/multiformats/go-multiaddr"
 
 	"gitlab.com/thorchain/tss/go-tss/messages"
 )
@@ -251,12 +253,43 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 		}
 		return addrs
 	}
+	scalingLimits := rcmgr.DefaultLimits
+	scalingLimits.ProtocolPeerBaseLimit = rcmgr.BaseLimit{
+		Streams:         512,
+		StreamsInbound:  256,
+		StreamsOutbound: 256,
+		Memory:          64 << 20,
+	}
+	scalingLimits.ProtocolPeerLimitIncrease = rcmgr.BaseLimitIncrease{
+		Streams:         64,
+		StreamsInbound:  64,
+		StreamsOutbound: 64,
+		Memory:          16 << 20,
+	}
+	// Add limits around included libp2p protocols
+	libp2p.SetDefaultServiceLimits(&scalingLimits)
+	// Turn the scaling limits into a static set of limits using `.AutoScale`. This
+	// scales the limits proportional to your system memory.
+	limits := scalingLimits.AutoScale()
+	// The resource manager expects a limiter, se we create one from our limits.
 
+	limiter := rcmgr.NewFixedLimiter(limits)
+
+	m, err := rcmgr.NewResourceManager(limiter, rcmgr.WithAllowlistedMultiaddrs(c.bootstrapPeers), rcmgr.WithMetrics(NewResourceMetricReporter()))
+	if err != nil {
+		return err
+	}
+	cmgr, err := connmgr.NewConnManager(1024, 1500)
+	if err != nil {
+		return err
+	}
 
 	h, err := libp2p.New(
 		libp2p.ListenAddrs([]Multiaddr{c.listenAddr}...),
 		libp2p.Identity(p2pPriKey),
 		libp2p.AddrsFactory(addressFactory),
+		libp2p.ResourceManager(m),
+		libp2p.ConnectionManager(cmgr),
 	)
 	if err != nil {
 		return fmt.Errorf("fail to create p2p host: %w", err)
