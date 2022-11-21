@@ -254,17 +254,24 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 		return addrs
 	}
 	scalingLimits := rcmgr.DefaultLimits
-	scalingLimits.ProtocolPeerBaseLimit = rcmgr.BaseLimit{
+	protocolPeerBaseLimit := rcmgr.BaseLimit{
 		Streams:         512,
 		StreamsInbound:  256,
 		StreamsOutbound: 256,
 		Memory:          64 << 20,
 	}
-	scalingLimits.ProtocolPeerLimitIncrease = rcmgr.BaseLimitIncrease{
+	protocolPeerLimitIncrease := rcmgr.BaseLimitIncrease{
 		Streams:         64,
 		StreamsInbound:  64,
 		StreamsOutbound: 64,
 		Memory:          16 << 20,
+	}
+
+	scalingLimits.ProtocolPeerBaseLimit = protocolPeerBaseLimit
+	scalingLimits.ProtocolPeerLimitIncrease = protocolPeerLimitIncrease
+	for _, item := range []protocol.ID{joinPartyProtocol, joinPartyProtocolWithLeader, TSSProtocolID} {
+		scalingLimits.AddProtocolLimit(item, protocolPeerBaseLimit, protocolPeerLimitIncrease)
+		scalingLimits.AddProtocolPeerLimit(item, protocolPeerBaseLimit, protocolPeerLimitIncrease)
 	}
 	// Add limits around included libp2p protocols
 	libp2p.SetDefaultServiceLimits(&scalingLimits)
