@@ -266,7 +266,8 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 		StreamsOutbound: 64,
 		Memory:          16 << 20,
 	}
-
+	scalingLimits.ProtocolBaseLimit = protocolPeerBaseLimit
+	scalingLimits.ProtocolLimitIncrease = protocolPeerLimitIncrease
 	scalingLimits.ProtocolPeerBaseLimit = protocolPeerBaseLimit
 	scalingLimits.ProtocolPeerLimitIncrease = protocolPeerLimitIncrease
 	for _, item := range []protocol.ID{joinPartyProtocol, joinPartyProtocolWithLeader, TSSProtocolID} {
