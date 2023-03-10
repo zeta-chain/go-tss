@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/libp2p/go-libp2p/core/network"
@@ -28,6 +29,7 @@ type StreamMgr struct {
 	unusedStreams map[string][]network.Stream
 	streamLocker  *sync.RWMutex
 	logger        zerolog.Logger
+	numStream     atomic.Int64
 }
 
 func NewStreamMgr() *StreamMgr {
@@ -44,17 +46,21 @@ func (sm *StreamMgr) ReleaseStream(msgID string) {
 	unknownStreams, okUnknown := sm.unusedStreams["UNKNOWN"]
 	sm.streamLocker.RUnlock()
 	streams := append(usedStreams, unknownStreams...)
+	cnt := int64(0)
 	if okStream || okUnknown {
 		for _, el := range streams {
 			err := el.Reset()
 			if err != nil {
 				sm.logger.Error().Err(err).Msg("fail to reset the stream,skip it")
 			}
+			cnt++
 		}
 		sm.streamLocker.Lock()
 		delete(sm.unusedStreams, msgID)
 		sm.streamLocker.Unlock()
+		sm.numStream.Add(-cnt)
 	}
+	sm.logger.Info().Msgf("release stream, msgID: %s, numStream: %d, numUnusedStream %d", msgID, sm.numStream.Load(), len(sm.unusedStreams))
 }
 
 func (sm *StreamMgr) AddStream(msgID string, stream network.Stream) {
@@ -71,6 +77,8 @@ func (sm *StreamMgr) AddStream(msgID string, stream network.Stream) {
 		entries = append(entries, stream)
 		sm.unusedStreams[msgID] = entries
 	}
+	sm.numStream.Add(1)
+	sm.logger.Info().Msgf("add stream, msgID: %s, numStream: %d, numUnusedStream %d", msgID, sm.numStream.Load(), len(sm.unusedStreams))
 }
 
 // ReadStreamWithBuffer read data from the given stream
