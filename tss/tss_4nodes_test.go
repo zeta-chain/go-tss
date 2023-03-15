@@ -238,9 +238,9 @@ func (s *FourNodeTestSuite) doTestKeygenAndKeySign(c *C, newJoinParty bool) {
 				}
 
 				height++
-				log.Info().Msgf("#### numActiveKeysign = %d, errCnt = %d, successCnt = %d", numActiveKeysign, errCnt, successfulKeysigns)
+				fmt.Printf("#### numActiveKeysign = %d, errCnt = %d, successCnt = %d", numActiveKeysign, errCnt, successfulKeysigns)
 				if numActiveKeysign > 200 {
-					log.Info().Msgf("#### numActiveKeysign = %d, errCnt = %d", numActiveKeysign, errCnt)
+					fmt.Printf("#### numActiveKeysign = %d, errCnt = %d", numActiveKeysign, errCnt)
 					break
 				}
 			}
