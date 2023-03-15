@@ -126,14 +126,15 @@ func (pc *PartyCoordinator) HandleStream(stream network.Stream) {
 		pc.streamMgr.AddStream("UNKNOWN", stream)
 		return
 	}
-	pc.streamMgr.AddStream(msg.ID, stream)
 	pc.joinPartyGroupLock.Lock()
 	peerGroup, ok := pc.peersGroup[msg.ID]
 	pc.joinPartyGroupLock.Unlock()
 	if !ok {
 		pc.logger.Info().Msg("this party is not ready")
+		_ = stream.Close()
 		return
 	}
+	pc.streamMgr.AddStream(msg.ID, stream)
 	newFound, err := peerGroup.updatePeer(remotePeer)
 	if err != nil {
 		pc.logger.Error().Err(err).Msg("receive msg from unknown peer")
@@ -328,6 +329,7 @@ func (pc *PartyCoordinator) sendMsgToPeer(msgBuf []byte, msgID string, remotePee
 
 func (pc *PartyCoordinator) joinPartyMember(msgID string, leader string, threshold int, sigChan chan string) ([]peer.ID, error) {
 	peerGroup, err := pc.createJoinPartyGroups(msgID, leader, []string{leader}, threshold)
+	pc.logger.Info().Msg("joining party as a member")
 	if err != nil {
 		return nil, fmt.Errorf("fail to create join party:%w", err)
 	}
@@ -418,6 +420,7 @@ func (pc *PartyCoordinator) joinPartyMember(msgID string, leader string, thresho
 
 func (pc *PartyCoordinator) joinPartyLeader(msgID string, peers []string, threshold int, sigChan chan string) ([]peer.ID, error) {
 	peerGroup, err := pc.createJoinPartyGroups(msgID, pc.host.ID().String(), peers, threshold)
+	pc.logger.Info().Msg("joining party as the leader")
 	if err != nil {
 		pc.logger.Error().Err(err).Msg("fail to create the join party group")
 		return nil, err
