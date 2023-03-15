@@ -57,6 +57,7 @@ func (sm *StreamMgr) ReleaseStream(msgID string) {
 		}
 		sm.streamLocker.Lock()
 		delete(sm.unusedStreams, msgID)
+		delete(sm.unusedStreams, "UNKNOWN")
 		sm.streamLocker.Unlock()
 		sm.numStream.Add(-cnt)
 	}
