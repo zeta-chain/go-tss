@@ -61,7 +61,7 @@ func (sm *StreamMgr) ReleaseStream(msgID string) {
 		sm.streamLocker.Unlock()
 		sm.numStream.Add(-cnt)
 	}
-	sm.logger.Info().Msgf("release stream, msgID: %s, numStream: %d, Unknown streams: %d, total: %d", msgID, len(streams), unknownStreams, sm.numStream.Load())
+	//sm.logger.Info().Msgf("release stream, msgID: %s, numStream: %d, Unknown streams: %d, total: %d", msgID, len(streams), unknownStreams, sm.numStream.Load())
 }
 
 func (sm *StreamMgr) AddStream(msgID string, stream network.Stream) {
@@ -79,7 +79,7 @@ func (sm *StreamMgr) AddStream(msgID string, stream network.Stream) {
 		sm.unusedStreams[msgID] = entries
 	}
 	sm.numStream.Add(1)
-	sm.logger.Info().Msgf("add stream, msgID: %s, numStream: %d, total: %d", msgID, len(entries), sm.numStream.Load())
+	//sm.logger.Info().Msgf("add stream, msgID: %s, numStream: %d, total: %d", msgID, len(entries), sm.numStream.Load())
 }
 
 // ReadStreamWithBuffer read data from the given stream

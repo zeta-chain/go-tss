@@ -329,7 +329,6 @@ func (pc *PartyCoordinator) sendMsgToPeer(msgBuf []byte, msgID string, remotePee
 
 func (pc *PartyCoordinator) joinPartyMember(msgID string, leader string, threshold int, sigChan chan string) ([]peer.ID, error) {
 	peerGroup, err := pc.createJoinPartyGroups(msgID, leader, []string{leader}, threshold)
-	pc.logger.Info().Msg("joining party as a member")
 	if err != nil {
 		return nil, fmt.Errorf("fail to create join party:%w", err)
 	}
@@ -420,7 +419,6 @@ func (pc *PartyCoordinator) joinPartyMember(msgID string, leader string, thresho
 
 func (pc *PartyCoordinator) joinPartyLeader(msgID string, peers []string, threshold int, sigChan chan string) ([]peer.ID, error) {
 	peerGroup, err := pc.createJoinPartyGroups(msgID, pc.host.ID().String(), peers, threshold)
-	pc.logger.Info().Msg("joining party as the leader")
 	if err != nil {
 		pc.logger.Error().Err(err).Msg("fail to create the join party group")
 		return nil, err
