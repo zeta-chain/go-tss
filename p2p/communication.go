@@ -170,13 +170,14 @@ func (c *Communication) readFromStream(stream network.Stream) {
 			return
 		}
 		c.logger.Debug().Msgf(">>>>>>>[%s] %s", wrappedMsg.MessageType, string(wrappedMsg.Payload))
-		c.streamMgr.AddStream(wrappedMsg.MsgID, stream)
 		channel := c.getSubscriber(wrappedMsg.MessageType, wrappedMsg.MsgID)
 		if nil == channel {
 			c.logger.Debug().Msgf("no MsgID %s found for this message", wrappedMsg.MsgID)
 			c.logger.Debug().Msgf("no MsgID %s found for this message", wrappedMsg.MessageType)
+			_ = stream.Close()
 			return
 		}
+		c.streamMgr.AddStream(wrappedMsg.MsgID, stream)
 		channel <- &Message{
 			PeerID:  stream.Conn().RemotePeer(),
 			Payload: dataBuf,

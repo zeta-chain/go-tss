@@ -65,16 +65,16 @@ func (pc *PartyCoordinator) Stop() {
 }
 
 func (pc *PartyCoordinator) processRespMsg(respMsg *messages.JoinPartyLeaderComm, stream network.Stream) {
-	pc.streamMgr.AddStream(respMsg.ID, stream)
-
 	remotePeer := stream.Conn().RemotePeer().String()
 	pc.joinPartyGroupLock.Lock()
 	peerGroup, ok := pc.peersGroup[respMsg.ID]
 	pc.joinPartyGroupLock.Unlock()
 	if !ok {
 		pc.logger.Info().Msgf("message ID from peer(%s) can not be found", remotePeer)
+		_ = stream.Close()
 		return
 	}
+	pc.streamMgr.AddStream(respMsg.ID, stream)
 	if remotePeer == peerGroup.leader {
 		peerGroup.setLeaderResponse(respMsg)
 		peerGroup.notify <- true
@@ -90,14 +90,15 @@ func (pc *PartyCoordinator) processRespMsg(respMsg *messages.JoinPartyLeaderComm
 }
 
 func (pc *PartyCoordinator) processReqMsg(requestMsg *messages.JoinPartyLeaderComm, stream network.Stream) {
-	pc.streamMgr.AddStream(requestMsg.ID, stream)
 	pc.joinPartyGroupLock.Lock()
 	peerGroup, ok := pc.peersGroup[requestMsg.ID]
 	pc.joinPartyGroupLock.Unlock()
 	if !ok {
 		pc.logger.Info().Msg("this party is not ready")
+		_ = stream.Close()
 		return
 	}
+	pc.streamMgr.AddStream(requestMsg.ID, stream)
 	remotePeer := stream.Conn().RemotePeer()
 	partyFormed, err := peerGroup.updatePeer(remotePeer)
 	if err != nil {
@@ -125,14 +126,15 @@ func (pc *PartyCoordinator) HandleStream(stream network.Stream) {
 		pc.streamMgr.AddStream("UNKNOWN", stream)
 		return
 	}
-	pc.streamMgr.AddStream(msg.ID, stream)
 	pc.joinPartyGroupLock.Lock()
 	peerGroup, ok := pc.peersGroup[msg.ID]
 	pc.joinPartyGroupLock.Unlock()
 	if !ok {
 		pc.logger.Info().Msg("this party is not ready")
+		_ = stream.Close()
 		return
 	}
+	pc.streamMgr.AddStream(msg.ID, stream)
 	newFound, err := peerGroup.updatePeer(remotePeer)
 	if err != nil {
 		pc.logger.Error().Err(err).Msg("receive msg from unknown peer")
@@ -302,9 +304,11 @@ func (pc *PartyCoordinator) sendMsgToPeer(msgBuf []byte, msgID string, remotePee
 	}
 
 	defer func() {
-		pc.streamMgr.AddStream(msgID, stream)
 		if err := stream.Close(); err != nil {
 			pc.logger.Error().Err(err).Msg("fail to close stream")
+			_ = stream.Close()
+		} else {
+			pc.streamMgr.AddStream(msgID, stream)
 		}
 	}()
 	pc.logger.Debug().Msgf("open stream to (%s) successfully", remotePeer)
