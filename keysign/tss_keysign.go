@@ -214,7 +214,7 @@ func (tKeySign *TssKeySign) processKeySign(reqNum int, errChan chan struct{}, ou
 					tKeySign.logger.Error().Err(err).Msg("error in get unicast blame")
 				}
 				if len(blameNodesUnicast) > 0 && len(blameNodesUnicast) <= threshold {
-					blameMgr.GetBlame().SetBlame(failReason, blameNodesUnicast, true)
+					blameMgr.GetBlame().SetBlame(failReason, blameNodesUnicast, true, tKeySign.tssCommonStruct.RoundInfo)
 				}
 			} else {
 				blameNodesUnicast, err := blameMgr.GetUnicastBlame(conversion.GetPreviousKeySignUicast(lastMsg.Type()))
@@ -222,7 +222,7 @@ func (tKeySign *TssKeySign) processKeySign(reqNum int, errChan chan struct{}, ou
 					tKeySign.logger.Error().Err(err).Msg("error in get unicast blame")
 				}
 				if len(blameNodesUnicast) > 0 && len(blameNodesUnicast) <= threshold {
-					blameMgr.GetBlame().SetBlame(failReason, blameNodesUnicast, true)
+					blameMgr.GetBlame().SetBlame(failReason, blameNodesUnicast, true, tKeySign.tssCommonStruct.RoundInfo)
 				}
 			}
 

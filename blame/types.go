@@ -41,6 +41,7 @@ type Node struct {
 type Blame struct {
 	FailReason string `json:"fail_reason"`
 	IsUnicast  bool   `json:"is_broadcast"`
+	Round      string `json:"round"`
 	BlameNodes []Node `json:"blame_peers,omitempty"`
 	blameLock  *sync.RWMutex
 }
