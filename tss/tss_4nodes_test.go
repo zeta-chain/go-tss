@@ -301,7 +301,7 @@ func (s *FourNodeTestSuite) doTestBlame(c *C, newJoinParty bool) {
 	}
 	// if we shutdown one server during keygen , he should be blamed
 
-	time.Sleep(time.Millisecond * 50)
+	time.Sleep(time.Millisecond * 100)
 	s.servers[0].Stop()
 	defer func() {
 		conf := common.TssConfig{

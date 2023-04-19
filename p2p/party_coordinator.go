@@ -7,10 +7,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/libp2p/go-libp2p/core/host"
-	"github.com/libp2p/go-libp2p/core/network"
-	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/libp2p/go-libp2p/core/protocol"
+	"github.com/libp2p/go-libp2p-core/host"
+	"github.com/libp2p/go-libp2p-core/network"
+	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p-core/protocol"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"google.golang.org/protobuf/proto"
@@ -303,7 +303,7 @@ func (pc *PartyCoordinator) sendMsgToPeer(msgBuf []byte, msgID string, remotePee
 
 	defer func() {
 		pc.streamMgr.AddStream(msgID, stream)
-		if err := stream.CloseWrite(); err != nil {
+		if err := stream.Close(); err != nil {
 			pc.logger.Error().Err(err).Msg("fail to close stream")
 		}
 	}()
@@ -438,7 +438,7 @@ func (pc *PartyCoordinator) joinPartyLeader(msgID string, peers []string, thresh
 				pc.logger.Debug().Msg("we have enough participants")
 				return
 
-			case <-time.After(pc.timeout):
+			case <-time.After(pc.timeout / 2):
 				// timeout, reporting to peers before their timeout
 				pc.logger.Error().Msg("leader waits for peers timeout")
 				return

@@ -10,16 +10,13 @@ import (
 	"time"
 
 	"github.com/libp2p/go-libp2p"
+	"github.com/libp2p/go-libp2p-core/crypto"
+	"github.com/libp2p/go-libp2p-core/host"
+	"github.com/libp2p/go-libp2p-core/network"
+	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p-core/protocol"
+	discovery "github.com/libp2p/go-libp2p-discovery"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
-	"github.com/libp2p/go-libp2p/core/crypto"
-	"github.com/libp2p/go-libp2p/core/host"
-	"github.com/libp2p/go-libp2p/core/network"
-	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/libp2p/go-libp2p/core/protocol"
-	"github.com/libp2p/go-libp2p/p2p/discovery/routing"
-	discoveryutil "github.com/libp2p/go-libp2p/p2p/discovery/util"
-	rcmgr "github.com/libp2p/go-libp2p/p2p/host/resource-manager"
-	"github.com/libp2p/go-libp2p/p2p/net/connmgr"
 	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
 	maddr "github.com/multiformats/go-multiaddr"
 	"github.com/rs/zerolog"
@@ -50,9 +47,9 @@ type Message struct {
 // Communication use p2p to broadcast messages among all the TSS nodes
 type Communication struct {
 	rendezvous       string // based on group
-	bootstrapPeers   []Multiaddr
+	bootstrapPeers   []maddr.Multiaddr
 	logger           zerolog.Logger
-	listenAddr       Multiaddr
+	listenAddr       maddr.Multiaddr
 	host             host.Host
 	wg               *sync.WaitGroup
 	stopChan         chan struct{} // channel to indicate whether we should stop
@@ -60,17 +57,17 @@ type Communication struct {
 	subscriberLocker *sync.Mutex
 	streamCount      int64
 	BroadcastMsgChan chan *messages.BroadcastMsgChan
-	externalAddr     Multiaddr
+	externalAddr     maddr.Multiaddr
 	streamMgr        *StreamMgr
 }
 
 // NewCommunication create a new instance of Communication
-func NewCommunication(rendezvous string, bootstrapPeers []Multiaddr, port int, externalIP string) (*Communication, error) {
+func NewCommunication(rendezvous string, bootstrapPeers []maddr.Multiaddr, port int, externalIP string) (*Communication, error) {
 	addr, err := maddr.NewMultiaddr(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", port))
 	if err != nil {
 		return nil, fmt.Errorf("fail to create listen addr: %w", err)
 	}
-	var externalAddr Multiaddr = nil
+	var externalAddr maddr.Multiaddr = nil
 	if len(externalIP) != 0 {
 		externalAddr, err = maddr.NewMultiaddr(fmt.Sprintf("/ip4/%s/tcp/%d", externalIP, port))
 		if err != nil {
@@ -247,57 +244,17 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 		return err
 	}
 
-	addressFactory := func(addrs []Multiaddr) []Multiaddr {
+	addressFactory := func(addrs []maddr.Multiaddr) []maddr.Multiaddr {
 		if c.externalAddr != nil {
-			return []Multiaddr{c.externalAddr}
+			return []maddr.Multiaddr{c.externalAddr}
 		}
 		return addrs
 	}
-	scalingLimits := rcmgr.DefaultLimits
-	protocolPeerBaseLimit := rcmgr.BaseLimit{
-		Streams:         512,
-		StreamsInbound:  256,
-		StreamsOutbound: 256,
-		Memory:          64 << 20,
-	}
-	protocolPeerLimitIncrease := rcmgr.BaseLimitIncrease{
-		Streams:         64,
-		StreamsInbound:  64,
-		StreamsOutbound: 64,
-		Memory:          16 << 20,
-	}
-	scalingLimits.ProtocolBaseLimit = protocolPeerBaseLimit
-	scalingLimits.ProtocolLimitIncrease = protocolPeerLimitIncrease
-	scalingLimits.ProtocolPeerBaseLimit = protocolPeerBaseLimit
-	scalingLimits.ProtocolPeerLimitIncrease = protocolPeerLimitIncrease
-	for _, item := range []protocol.ID{joinPartyProtocol, joinPartyProtocolWithLeader, TSSProtocolID} {
-		scalingLimits.AddProtocolLimit(item, protocolPeerBaseLimit, protocolPeerLimitIncrease)
-		scalingLimits.AddProtocolPeerLimit(item, protocolPeerBaseLimit, protocolPeerLimitIncrease)
-	}
-	// Add limits around included libp2p protocols
-	libp2p.SetDefaultServiceLimits(&scalingLimits)
-	// Turn the scaling limits into a static set of limits using `.AutoScale`. This
-	// scales the limits proportional to your system memory.
-	limits := scalingLimits.AutoScale()
-	// The resource manager expects a limiter, se we create one from our limits.
 
-	limiter := rcmgr.NewFixedLimiter(limits)
-
-	m, err := rcmgr.NewResourceManager(limiter, rcmgr.WithAllowlistedMultiaddrs(c.bootstrapPeers), rcmgr.WithMetrics(NewResourceMetricReporter()))
-	if err != nil {
-		return err
-	}
-	cmgr, err := connmgr.NewConnManager(1024, 1500)
-	if err != nil {
-		return err
-	}
-
-	h, err := libp2p.New(
-		libp2p.ListenAddrs([]Multiaddr{c.listenAddr}...),
+	h, err := libp2p.New(ctx,
+		libp2p.ListenAddrs([]maddr.Multiaddr{c.listenAddr}...),
 		libp2p.Identity(p2pPriKey),
 		libp2p.AddrsFactory(addressFactory),
-		libp2p.ResourceManager(m),
-		libp2p.ConnectionManager(cmgr),
 	)
 	if err != nil {
 		return fmt.Errorf("fail to create p2p host: %w", err)
@@ -333,8 +290,8 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 
 	// We use a rendezvous point "meet me here" to announce our location.
 	// This is like telling your friends to meet you at the Eiffel Tower.
-	routingDiscovery := routing.NewRoutingDiscovery(kademliaDHT)
-	discoveryutil.Advertise(ctx, routingDiscovery, c.rendezvous)
+	routingDiscovery := discovery.NewRoutingDiscovery(kademliaDHT)
+	discovery.Advertise(ctx, routingDiscovery, c.rendezvous)
 	err = c.bootStrapConnectivityCheck()
 	if err != nil {
 		return err

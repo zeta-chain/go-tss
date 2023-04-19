@@ -18,12 +18,13 @@ import (
 	tsslibcommon "github.com/binance-chain/tss-lib/common"
 	btss "github.com/binance-chain/tss-lib/tss"
 	"github.com/ipfs/go-log"
+	"github.com/libp2p/go-libp2p-peerstore/addr"
 	zlog "github.com/rs/zerolog/log"
-	maddr "github.com/multiformats/go-multiaddr"
 
 	"gitlab.com/thorchain/tss/go-tss/conversion"
 
-	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p-core/peer"
+	maddr "github.com/multiformats/go-multiaddr"
 	tcrypto "github.com/tendermint/tendermint/crypto"
 	"github.com/tendermint/tendermint/crypto/secp256k1"
 	. "gopkg.in/check.v1"
@@ -84,11 +85,11 @@ func (m *MockLocalStateManager) GetLocalState(pubKey string) (storage.KeygenLoca
 	return state, nil
 }
 
-func (s *MockLocalStateManager) SaveAddressBook(address map[peer.ID]p2p.AddrList) error {
+func (s *MockLocalStateManager) SaveAddressBook(address map[peer.ID]addr.AddrList) error {
 	return nil
 }
 
-func (s *MockLocalStateManager) RetrieveP2PAddresses() (p2p.AddrList, error) {
+func (s *MockLocalStateManager) RetrieveP2PAddresses() (addr.AddrList, error) {
 	return nil, os.ErrNotExist
 }
 
@@ -147,7 +148,7 @@ func (s *TssKeysignTestSuite) SetUpTest(c *C) {
 			s.comms[i] = comm
 			continue
 		}
-		comm, err := p2p.NewCommunication("asgard", []p2p.Multiaddr{multiAddr}, ports[i], "")
+		comm, err := p2p.NewCommunication("asgard", []maddr.Multiaddr{multiAddr}, ports[i], "")
 		c.Assert(err, IsNil)
 		c.Assert(comm.Start(buf), IsNil)
 		s.comms[i] = comm

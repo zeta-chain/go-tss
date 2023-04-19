@@ -1,7 +1,7 @@
 syntax = "proto3";
 
 option go_package = "gitlab.com/thorchain/tss/go-tss/messages";
-
+import "google/protobuf/timestamp.proto";
 package messages;
 
 message KeysignSignature {

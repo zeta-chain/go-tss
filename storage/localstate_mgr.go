@@ -12,11 +12,11 @@ import (
 	"sync"
 
 	"github.com/binance-chain/tss-lib/ecdsa/keygen"
-	"github.com/libp2p/go-libp2p/core/peer"
-	maddr "github.com/multiformats/go-multiaddr"
+	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p-peerstore/addr"
+	ma "github.com/multiformats/go-multiaddr"
 
-  "gitlab.com/thorchain/tss/go-tss/conversion"
-	"gitlab.com/thorchain/tss/go-tss/p2p"
+	"gitlab.com/thorchain/tss/go-tss/conversion"
 )
 
 // KeygenLocalState is a structure used to represent the data we saved locally for different keygen
@@ -32,8 +32,8 @@ type KeygenLocalState struct {
 type LocalStateManager interface {
 	SaveLocalState(state KeygenLocalState) error
 	GetLocalState(pubKey string) (KeygenLocalState, error)
-	SaveAddressBook(addressBook map[peer.ID]p2p.AddrList) error
-	RetrieveP2PAddresses() (p2p.AddrList, error)
+	SaveAddressBook(addressBook map[peer.ID]addr.AddrList) error
+	RetrieveP2PAddresses() (addr.AddrList, error)
 }
 
 // FileStateMgr save the local state to file
@@ -111,7 +111,7 @@ func (fsm *FileStateMgr) GetLocalState(pubKey string) (KeygenLocalState, error) 
 	return localState, nil
 }
 
-func (fsm *FileStateMgr) SaveAddressBook(address map[peer.ID]p2p.AddrList) error {
+func (fsm *FileStateMgr) SaveAddressBook(address map[peer.ID]addr.AddrList) error {
 	if len(fsm.folder) < 1 {
 		return errors.New("base file path is invalid")
 	}
@@ -136,7 +136,7 @@ func (fsm *FileStateMgr) SaveAddressBook(address map[peer.ID]p2p.AddrList) error
 	return ioutil.WriteFile(filePathName, buf.Bytes(), 0o655)
 }
 
-func (fsm *FileStateMgr) RetrieveP2PAddresses() (p2p.AddrList, error) {
+func (fsm *FileStateMgr) RetrieveP2PAddresses() (addr.AddrList, error) {
 	if len(fsm.folder) < 1 {
 		return nil, errors.New("base file path is invalid")
 	}
@@ -154,13 +154,13 @@ func (fsm *FileStateMgr) RetrieveP2PAddresses() (p2p.AddrList, error) {
 	}
 	fsm.writeLock.RUnlock()
 	data := strings.Split(string(input), "\n")
-	var peerAddresses []p2p.Multiaddr
+	var peerAddresses []ma.Multiaddr
 	for _, el := range data {
 		// we skip the empty entry
 		if len(el) == 0 {
 			continue
 		}
-		addr, err := maddr.NewMultiaddr(el)
+		addr, err := ma.NewMultiaddr(el)
 		if err != nil {
 			return nil, fmt.Errorf("invalid address in address book %w", err)
 		}
