@@ -1232,8 +1232,8 @@ github.com/zondax/hid v0.9.0/go.mod h1:l5wttcP0jwtdLjqjMMWFVEE7d1zO0jvSPA9OPZxWp
 github.com/zondax/ledger-go v0.12.1/go.mod h1:KatxXrVDzgWwbssUWsF5+cOJHXPvzQ09YSlzGNuhOEo=
 gitlab.com/thorchain/binance-sdk v1.2.3-0.20210117202539-d569b6b9ba5d h1:GGPSI9gU22zW75m1YO7ZEMFtVEI5NgyK4g17CIXFjqI=
 gitlab.com/thorchain/binance-sdk v1.2.3-0.20210117202539-d569b6b9ba5d/go.mod h1:SW01IZMpqlPNPdhHnn99qnJNvg8ll/agyyW7p85npwY=
-gitlab.com/thorchain/tss/tss-lib v0.1.3 h1:59eItN0HPi/Cv9xyMIoposGXVLCXJlVuwBUckpAdq40=
-gitlab.com/thorchain/tss/tss-lib v0.1.3/go.mod h1:pEM3W/1inIzmdQn9IY9pA0MkG1bTGKhsSivxizeyyt4=
+gitlab.com/thorchain/tss/tss-lib v0.1.4 h1:l0Myix7cD47sNQ18rxaq6mr6OGci1t4LO2VCzg7p6ho=
+gitlab.com/thorchain/tss/tss-lib v0.1.4/go.mod h1:pEM3W/1inIzmdQn9IY9pA0MkG1bTGKhsSivxizeyyt4=
 go.etcd.io/bbolt v1.3.2/go.mod h1:IbVyRI1SCnLcuJnV2u8VeU0CEYM7e686BmAb1XKL+uU=
 go.etcd.io/bbolt v1.3.3/go.mod h1:IbVyRI1SCnLcuJnV2u8VeU0CEYM7e686BmAb1XKL+uU=
 go.etcd.io/bbolt v1.3.5 h1:XAzx9gjCb0Rxj7EoqcClPD1d5ZBxZJk0jbuoPHenBt0=
