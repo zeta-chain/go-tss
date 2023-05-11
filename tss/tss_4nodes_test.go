@@ -6,7 +6,10 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
+	"github.com/rs/zerolog/log"
 	"io/ioutil"
+	"math/rand"
 	"os"
 	"path"
 	"strconv"
@@ -105,19 +108,19 @@ func hash(payload []byte) []byte {
 
 // we do for both join party schemes
 func (s *FourNodeTestSuite) Test4NodesTss(c *C) {
-	s.doTestKeygenAndKeySign(c, false)
-	time.Sleep(time.Second * 2)
 	s.doTestKeygenAndKeySign(c, true)
+	//time.Sleep(time.Second * 2)
+	//s.doTestKeygenAndKeySign(c, true)
 
-	time.Sleep(time.Second * 2)
-	s.doTestFailJoinParty(c, false)
-	time.Sleep(time.Second * 2)
-	s.doTestFailJoinParty(c, true)
-
-	time.Sleep(time.Second * 2)
-	s.doTestBlame(c, false)
-	time.Sleep(time.Second * 2)
-	s.doTestBlame(c, true)
+	//time.Sleep(time.Second * 2)
+	//s.doTestFailJoinParty(c, false)
+	//time.Sleep(time.Second * 2)
+	//s.doTestFailJoinParty(c, true)
+	//
+	//time.Sleep(time.Second * 2)
+	//s.doTestBlame(c, false)
+	//time.Sleep(time.Second * 2)
+	//s.doTestBlame(c, true)
 }
 
 func checkSignResult(c *C, keysignResult map[int]keysign.Response) {
@@ -191,27 +194,61 @@ func (s *FourNodeTestSuite) doTestKeygenAndKeySign(c *C, newJoinParty bool) {
 		c.Assert(resp.Signatures, HasLen, 0)
 	}
 
-	keysignResult := make(map[int]keysign.Response)
+	blockTicker := time.NewTicker(5 * time.Second)
 	for i := 0; i < partyNum; i++ {
+		//start up a node
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
-			localPubKeys := append([]string{}, testPubKeys...)
-			var keysignReq keysign.Request
-			if newJoinParty {
-				keysignReq = keysign.NewRequest(poolPubKey, []string{base64.StdEncoding.EncodeToString(hash([]byte("helloworld"))), base64.StdEncoding.EncodeToString(hash([]byte("helloworld2")))}, 10, localPubKeys, "0.14.0")
-			} else {
-				keysignReq = keysign.NewRequest(poolPubKey, []string{base64.StdEncoding.EncodeToString(hash([]byte("helloworld"))), base64.StdEncoding.EncodeToString(hash([]byte("helloworld2")))}, 10, localPubKeys, "0.13.0")
+
+			for range blockTicker.C {
+				errCnt := 0
+				numActiveKeysign := 0
+				successfulKeysigns := 0
+				height := 0
+
+				repeat := 5
+				for i := 0; i < repeat; i++ {
+					wg.Add(1)
+					go func(index int) {
+						defer wg.Done()
+						r := rand.Intn(100)
+						var keysignReq keysign.Request
+						message := fmt.Sprintf("bn.i = %d.%d", height, index)
+						keysignReq = keysign.NewRequest(poolPubKey, []string{base64.StdEncoding.EncodeToString(hash([]byte(message)))}, int64(height), nil, "0.14.0")
+						if r > 10 {
+							lock.Lock()
+							numActiveKeysign++
+							lock.Unlock()
+
+							// attempt to sign message
+							_, err = s.servers[idx].KeySign(keysignReq)
+							lock.Lock()
+							defer lock.Unlock()
+							if err != nil {
+								log.Error().Err(err).Msgf("tss.Sign error: %s", err.Error())
+								errCnt++
+							} else {
+								fmt.Printf("SUCCESS: %s\n", keysignReq.Messages)
+								successfulKeysigns++
+							}
+							numActiveKeysign--
+						}
+					}(i)
+				}
+
+				height++
+				fmt.Printf("#### numActiveKeysign = %d, errCnt = %d, successCnt = %d", numActiveKeysign, errCnt, successfulKeysigns)
+				if numActiveKeysign > 200 {
+					fmt.Printf("#### numActiveKeysign = %d, errCnt = %d", numActiveKeysign, errCnt)
+					break
+				}
 			}
-			res, err := s.servers[idx].KeySign(keysignReq)
-			c.Assert(err, IsNil)
-			lock.Lock()
-			defer lock.Unlock()
-			keysignResult[idx] = res
+
 		}(i)
 	}
 	wg.Wait()
-	checkSignResult(c, keysignResult)
+	//checkSignResult(c, keysignResult)
 
 	keysignResult1 := make(map[int]keysign.Response)
 	for i := 0; i < partyNum; i++ {

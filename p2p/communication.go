@@ -173,13 +173,14 @@ func (c *Communication) readFromStream(stream network.Stream) {
 			return
 		}
 		c.logger.Debug().Msgf(">>>>>>>[%s] %s", wrappedMsg.MessageType, string(wrappedMsg.Payload))
-		c.streamMgr.AddStream(wrappedMsg.MsgID, stream)
 		channel := c.getSubscriber(wrappedMsg.MessageType, wrappedMsg.MsgID)
 		if nil == channel {
 			c.logger.Debug().Msgf("no MsgID %s found for this message", wrappedMsg.MsgID)
 			c.logger.Debug().Msgf("no MsgID %s found for this message", wrappedMsg.MessageType)
+			_ = stream.Close()
 			return
 		}
+		c.streamMgr.AddStream(wrappedMsg.MsgID, stream)
 		channel <- &Message{
 			PeerID:  stream.Conn().RemotePeer(),
 			Payload: dataBuf,
@@ -255,13 +256,13 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 	}
 	scalingLimits := rcmgr.DefaultLimits
 	protocolPeerBaseLimit := rcmgr.BaseLimit{
-		Streams:         512,
-		StreamsInbound:  256,
-		StreamsOutbound: 256,
-		Memory:          64 << 20,
+		Streams:         1024,
+		StreamsInbound:  512,
+		StreamsOutbound: 512,
+		Memory:          128 << 20,
 	}
 	protocolPeerLimitIncrease := rcmgr.BaseLimitIncrease{
-		Streams:         64,
+		Streams:         128,
 		StreamsInbound:  64,
 		StreamsOutbound: 64,
 		Memory:          16 << 20,

@@ -74,7 +74,6 @@ func (s *SignatureNotifier) handleStream(stream network.Stream) {
 		s.streamMgr.AddStream("UNKNOWN", stream)
 		return
 	}
-	s.streamMgr.AddStream(msg.ID, stream)
 	var signatures []*common.ECSignature
 	if len(msg.Signatures) > 0 && msg.KeysignStatus == messages.KeysignSignature_Success {
 		for _, el := range msg.Signatures {
@@ -91,8 +90,11 @@ func (s *SignatureNotifier) handleStream(stream network.Stream) {
 	n, ok := s.notifiers[msg.ID]
 	if !ok {
 		logger.Debug().Msgf("notifier for message id(%s) not exist", msg.ID)
+		_ = stream.Close()
 		return
 	}
+	s.streamMgr.AddStream(msg.ID, stream)
+
 	finished, err := n.ProcessSignature(signatures)
 	if err != nil {
 		logger.Error().Err(err).Msg("fail to verify local signature data")
