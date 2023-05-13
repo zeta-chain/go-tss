@@ -256,9 +256,9 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 	}
 	scalingLimits := rcmgr.DefaultLimits
 	protocolPeerBaseLimit := rcmgr.BaseLimit{
-		Streams:         1024,
-		StreamsInbound:  512,
-		StreamsOutbound: 512,
+		Streams:         2048,
+		StreamsInbound:  1024,
+		StreamsOutbound: 1024,
 		Memory:          128 << 20,
 	}
 	protocolPeerLimitIncrease := rcmgr.BaseLimitIncrease{
@@ -268,6 +268,8 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 		Memory:          16 << 20,
 	}
 
+	scalingLimits.ProtocolBaseLimit = protocolPeerBaseLimit
+	scalingLimits.ProtocolLimitIncrease = protocolPeerLimitIncrease
 	scalingLimits.ProtocolPeerBaseLimit = protocolPeerBaseLimit
 	scalingLimits.ProtocolPeerLimitIncrease = protocolPeerLimitIncrease
 	for _, item := range []protocol.ID{joinPartyProtocol, joinPartyProtocolWithLeader, TSSProtocolID} {
