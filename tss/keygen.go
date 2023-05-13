@@ -20,30 +20,30 @@ func (t *TssServer) Keygen(req keygen.Request) (keygen.Response, error) {
 	}
 
 	keygenInstance := keygen.NewTssKeyGen(
-		t.p2pCommunication.GetLocalPeerID(),
+		t.P2pCommunication.GetLocalPeerID(),
 		t.conf,
 		t.localNodePubKey,
-		t.p2pCommunication.BroadcastMsgChan,
+		t.P2pCommunication.BroadcastMsgChan,
 		t.stopChan,
 		t.preParams,
 		msgID,
 		t.stateManager,
 		t.privateKey,
-		t.p2pCommunication)
+		t.P2pCommunication)
 
 	keygenMsgChannel := keygenInstance.GetTssKeyGenChannels()
-	t.p2pCommunication.SetSubscribe(messages.TSSKeyGenMsg, msgID, keygenMsgChannel)
-	t.p2pCommunication.SetSubscribe(messages.TSSKeyGenVerMsg, msgID, keygenMsgChannel)
-	t.p2pCommunication.SetSubscribe(messages.TSSControlMsg, msgID, keygenMsgChannel)
-	t.p2pCommunication.SetSubscribe(messages.TSSTaskDone, msgID, keygenMsgChannel)
+	t.P2pCommunication.SetSubscribe(messages.TSSKeyGenMsg, msgID, keygenMsgChannel)
+	t.P2pCommunication.SetSubscribe(messages.TSSKeyGenVerMsg, msgID, keygenMsgChannel)
+	t.P2pCommunication.SetSubscribe(messages.TSSControlMsg, msgID, keygenMsgChannel)
+	t.P2pCommunication.SetSubscribe(messages.TSSTaskDone, msgID, keygenMsgChannel)
 
 	defer func() {
-		t.p2pCommunication.CancelSubscribe(messages.TSSKeyGenMsg, msgID)
-		t.p2pCommunication.CancelSubscribe(messages.TSSKeyGenVerMsg, msgID)
-		t.p2pCommunication.CancelSubscribe(messages.TSSControlMsg, msgID)
-		t.p2pCommunication.CancelSubscribe(messages.TSSTaskDone, msgID)
+		t.P2pCommunication.CancelSubscribe(messages.TSSKeyGenMsg, msgID)
+		t.P2pCommunication.CancelSubscribe(messages.TSSKeyGenVerMsg, msgID)
+		t.P2pCommunication.CancelSubscribe(messages.TSSControlMsg, msgID)
+		t.P2pCommunication.CancelSubscribe(messages.TSSTaskDone, msgID)
 
-		t.p2pCommunication.ReleaseStream(msgID)
+		t.P2pCommunication.ReleaseStream(msgID)
 		t.partyCoordinator.ReleaseStream(msgID)
 	}()
 	sigChan := make(chan string)

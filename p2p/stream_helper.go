@@ -29,7 +29,7 @@ type StreamMgr struct {
 	unusedStreams map[string][]network.Stream
 	streamLocker  *sync.RWMutex
 	logger        zerolog.Logger
-	numStream     atomic.Int64
+	NumStream     atomic.Int64
 }
 
 func NewStreamMgr() *StreamMgr {
@@ -57,11 +57,11 @@ func (sm *StreamMgr) ReleaseStream(msgID string) {
 		}
 		sm.streamLocker.Lock()
 		delete(sm.unusedStreams, msgID)
-		delete(sm.unusedStreams, "UNKNOWN")
+		//delete(sm.unusedStreams, "UNKNOWN")
 		sm.streamLocker.Unlock()
-		sm.numStream.Add(-cnt)
+		sm.NumStream.Add(-cnt)
 	}
-	sm.logger.Info().Msgf("release stream, msgID: %s, numStream: %d, Unknown streams: %d, total: %d", msgID, len(streams), unknownStreams, sm.numStream.Load())
+	//sm.logger.Info().Msgf("release stream, msgID: %s, NumStream: %d, Unknown streams: %d, total: %d", msgID, len(streams), unknownStreams, sm.NumStream.Load())
 }
 
 func (sm *StreamMgr) AddStream(msgID string, stream network.Stream) {
@@ -78,8 +78,8 @@ func (sm *StreamMgr) AddStream(msgID string, stream network.Stream) {
 		entries = append(entries, stream)
 		sm.unusedStreams[msgID] = entries
 	}
-	sm.numStream.Add(1)
-	sm.logger.Info().Msgf("add stream, msgID: %s, numStream: %d, total: %d", msgID, len(entries), sm.numStream.Load())
+	sm.NumStream.Add(1)
+	//sm.logger.Info().Msgf("add stream, msgID: %s, NumStream: %d, total: %d", msgID, len(entries), sm.NumStream.Load())
 }
 
 // ReadStreamWithBuffer read data from the given stream

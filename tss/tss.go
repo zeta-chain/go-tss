@@ -29,7 +29,7 @@ import (
 type TssServer struct {
 	conf              common.TssConfig
 	logger            zerolog.Logger
-	p2pCommunication  *p2p.Communication
+	P2pCommunication  *p2p.Communication
 	localNodePubKey   string
 	preParams         *bkeygen.LocalPreParams
 	tssKeyGenLocker   *sync.Mutex
@@ -109,7 +109,7 @@ func NewTss(
 	tssServer := TssServer{
 		conf:              conf,
 		logger:            log.With().Str("module", "tss").Logger(),
-		p2pCommunication:  comm,
+		P2pCommunication:  comm,
 		localNodePubKey:   pubKey,
 		preParams:         preParams,
 		tssKeyGenLocker:   &sync.Mutex{},
@@ -134,7 +134,7 @@ func (t *TssServer) Start() error {
 func (t *TssServer) Stop() {
 	close(t.stopChan)
 	// stop the p2p and finish the p2p wait group
-	err := t.p2pCommunication.Stop()
+	err := t.P2pCommunication.Stop()
 	if err != nil {
 		t.logger.Error().Msgf("error in shutdown the p2p server")
 	}
@@ -204,5 +204,5 @@ func (t *TssServer) joinParty(msgID, version string, blockHeight int64, particip
 
 // GetLocalPeerID return the local peer
 func (t *TssServer) GetLocalPeerID() string {
-	return t.p2pCommunication.GetLocalPeerID()
+	return t.P2pCommunication.GetLocalPeerID()
 }
