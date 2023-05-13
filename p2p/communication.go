@@ -284,6 +284,7 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 	// The resource manager expects a limiter, se we create one from our limits.
 
 	limiter := rcmgr.NewFixedLimiter(limits)
+	c.logger.Info().Msgf("libp2p limits: %+v", limits)
 
 	m, err := rcmgr.NewResourceManager(limiter, rcmgr.WithAllowlistedMultiaddrs(c.bootstrapPeers), rcmgr.WithMetrics(NewResourceMetricReporter()))
 	if err != nil {
