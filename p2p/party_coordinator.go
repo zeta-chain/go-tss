@@ -131,7 +131,7 @@ func (pc *PartyCoordinator) HandleStream(stream network.Stream) {
 	pc.joinPartyGroupLock.Unlock()
 	if !ok {
 		pc.logger.Info().Msg("this party is not ready")
-		_ = stream.Close()
+		//_ = stream.Close()
 		return
 	}
 	pc.streamMgr.AddStream(msg.ID, stream)

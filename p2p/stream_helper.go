@@ -26,7 +26,7 @@ const (
 var ApplyDeadline = true
 
 type StreamMgr struct {
-	unusedStreams map[string][]network.Stream
+	UnusedStreams map[string][]network.Stream
 	streamLocker  *sync.RWMutex
 	logger        zerolog.Logger
 	NumStream     atomic.Int64
@@ -34,7 +34,7 @@ type StreamMgr struct {
 
 func NewStreamMgr() *StreamMgr {
 	return &StreamMgr{
-		unusedStreams: make(map[string][]network.Stream),
+		UnusedStreams: make(map[string][]network.Stream),
 		streamLocker:  &sync.RWMutex{},
 		logger:        log.With().Str("module", "communication").Logger(),
 	}
@@ -42,8 +42,8 @@ func NewStreamMgr() *StreamMgr {
 
 func (sm *StreamMgr) ReleaseStream(msgID string) {
 	sm.streamLocker.RLock()
-	usedStreams, okStream := sm.unusedStreams[msgID]
-	unknownStreams, okUnknown := sm.unusedStreams["UNKNOWN"]
+	usedStreams, okStream := sm.UnusedStreams[msgID]
+	unknownStreams, okUnknown := sm.UnusedStreams["UNKNOWN"]
 	sm.streamLocker.RUnlock()
 	streams := append(usedStreams, unknownStreams...)
 	cnt := int64(0)
@@ -56,8 +56,8 @@ func (sm *StreamMgr) ReleaseStream(msgID string) {
 			cnt++
 		}
 		sm.streamLocker.Lock()
-		delete(sm.unusedStreams, msgID)
-		//delete(sm.unusedStreams, "UNKNOWN")
+		delete(sm.UnusedStreams, msgID)
+		delete(sm.UnusedStreams, "UNKNOWN")
 		sm.streamLocker.Unlock()
 		sm.NumStream.Add(-cnt)
 	}
@@ -70,13 +70,13 @@ func (sm *StreamMgr) AddStream(msgID string, stream network.Stream) {
 	}
 	sm.streamLocker.Lock()
 	defer sm.streamLocker.Unlock()
-	entries, ok := sm.unusedStreams[msgID]
+	entries, ok := sm.UnusedStreams[msgID]
 	if !ok {
 		entries := []network.Stream{stream}
-		sm.unusedStreams[msgID] = entries
+		sm.UnusedStreams[msgID] = entries
 	} else {
 		entries = append(entries, stream)
-		sm.unusedStreams[msgID] = entries
+		sm.UnusedStreams[msgID] = entries
 	}
 	sm.NumStream.Add(1)
 	//sm.logger.Info().Msgf("add stream, msgID: %s, NumStream: %d, total: %d", msgID, len(entries), sm.NumStream.Load())
