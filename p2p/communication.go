@@ -183,7 +183,7 @@ func (c *Communication) readFromStream(stream network.Stream) {
 		c.StreamMgr.AddStream(wrappedMsg.MsgID, stream)
 		select {
 		case <-time.After(10 * time.Second):
-			c.logger.Warn().Msgf("XXXX: timeout to send message to channel: protocol ID: %s, msg type %s, msgID %s", stream.Protocol(), wrappedMsg.MessageType.String(), wrappedMsg.MsgID)
+			c.logger.Warn().Msgf("XXXX: timeout to send message to channel: protocol ID: %s, msg type %s,  peer ID %s", stream.Protocol(), wrappedMsg.MessageType.String(), peerID)
 		case channel <- &Message{
 			PeerID:  stream.Conn().RemotePeer(),
 			Payload: dataBuf}:
