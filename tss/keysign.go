@@ -55,9 +55,9 @@ func (t *TssServer) generateSignature(msgID string, msgsToSign [][]byte, req key
 	// we use the old join party
 	if oldJoinParty {
 		allParticipants = req.SignerPubKeys
-		myPk, err := conversion.GetPubKeyFromPeerID(t.p2pCommunication.GetHost().ID().String())
+		myPk, err := conversion.GetPubKeyFromPeerID(t.P2pCommunication.GetHost().ID().String())
 		if err != nil {
-			t.logger.Info().Msgf("fail to convert the p2p id(%s) to pubkey, turn to wait for signature", t.p2pCommunication.GetHost().ID().String())
+			t.logger.Info().Msgf("fail to convert the p2p id(%s) to pubkey, turn to wait for signature", t.P2pCommunication.GetHost().ID().String())
 			return keysign.Response{}, p2p.ErrNotActiveSigner
 		}
 		isSignMember := false
@@ -68,7 +68,7 @@ func (t *TssServer) generateSignature(msgID string, msgsToSign [][]byte, req key
 			}
 		}
 		if !isSignMember {
-			t.logger.Info().Msgf("we(%s) are not the active signer", t.p2pCommunication.GetHost().ID().String())
+			t.logger.Info().Msgf("we(%s) are not the active signer", t.P2pCommunication.GetHost().ID().String())
 			return keysign.Response{}, p2p.ErrNotActiveSigner
 		}
 
@@ -128,13 +128,13 @@ func (t *TssServer) generateSignature(msgID string, msgsToSign [][]byte, req key
 	t.tssMetrics.KeysignJoinParty(joinPartyTime, true)
 	isKeySignMember := false
 	for _, el := range onlinePeers {
-		if el == t.p2pCommunication.GetHost().ID() {
+		if el == t.P2pCommunication.GetHost().ID() {
 			isKeySignMember = true
 		}
 	}
 	if !isKeySignMember {
 		// we are not the keysign member so we quit keysign and waiting for signature
-		t.logger.Info().Msgf("we(%s) are not the active signer", t.p2pCommunication.GetHost().ID().String())
+		t.logger.Info().Msgf("we(%s) are not the active signer", t.P2pCommunication.GetHost().ID().String())
 		return keysign.Response{}, p2p.ErrNotActiveSigner
 	}
 	parsedPeers := make([]string, len(onlinePeers))
@@ -194,30 +194,30 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 	}
 
 	keysignInstance := keysign.NewTssKeySign(
-		t.p2pCommunication.GetLocalPeerID(),
+		t.P2pCommunication.GetLocalPeerID(),
 		t.conf,
-		t.p2pCommunication.BroadcastMsgChan,
+		t.P2pCommunication.BroadcastMsgChan,
 		t.stopChan,
 		msgID,
 		t.privateKey,
-		t.p2pCommunication,
+		t.P2pCommunication,
 		t.stateManager,
 		len(req.Messages),
 	)
 
 	keySignChannels := keysignInstance.GetTssKeySignChannels()
-	t.p2pCommunication.SetSubscribe(messages.TSSKeySignMsg, msgID, keySignChannels)
-	t.p2pCommunication.SetSubscribe(messages.TSSKeySignVerMsg, msgID, keySignChannels)
-	t.p2pCommunication.SetSubscribe(messages.TSSControlMsg, msgID, keySignChannels)
-	t.p2pCommunication.SetSubscribe(messages.TSSTaskDone, msgID, keySignChannels)
+	t.P2pCommunication.SetSubscribe(messages.TSSKeySignMsg, msgID, keySignChannels)
+	t.P2pCommunication.SetSubscribe(messages.TSSKeySignVerMsg, msgID, keySignChannels)
+	t.P2pCommunication.SetSubscribe(messages.TSSControlMsg, msgID, keySignChannels)
+	t.P2pCommunication.SetSubscribe(messages.TSSTaskDone, msgID, keySignChannels)
 
 	defer func() {
-		t.p2pCommunication.CancelSubscribe(messages.TSSKeySignMsg, msgID)
-		t.p2pCommunication.CancelSubscribe(messages.TSSKeySignVerMsg, msgID)
-		t.p2pCommunication.CancelSubscribe(messages.TSSControlMsg, msgID)
-		t.p2pCommunication.CancelSubscribe(messages.TSSTaskDone, msgID)
+		t.P2pCommunication.CancelSubscribe(messages.TSSKeySignMsg, msgID)
+		t.P2pCommunication.CancelSubscribe(messages.TSSKeySignVerMsg, msgID)
+		t.P2pCommunication.CancelSubscribe(messages.TSSControlMsg, msgID)
+		t.P2pCommunication.CancelSubscribe(messages.TSSTaskDone, msgID)
 
-		t.p2pCommunication.ReleaseStream(msgID)
+		t.P2pCommunication.ReleaseStream(msgID)
 		t.signatureNotifier.ReleaseStream(msgID)
 		t.partyCoordinator.ReleaseStream(msgID)
 	}()

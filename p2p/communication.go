@@ -61,7 +61,7 @@ type Communication struct {
 	streamCount      int64
 	BroadcastMsgChan chan *messages.BroadcastMsgChan
 	externalAddr     Multiaddr
-	streamMgr        *StreamMgr
+	StreamMgr        *StreamMgr
 }
 
 // NewCommunication create a new instance of Communication
@@ -89,7 +89,7 @@ func NewCommunication(rendezvous string, bootstrapPeers []Multiaddr, port int, e
 		streamCount:      0,
 		BroadcastMsgChan: make(chan *messages.BroadcastMsgChan, 1024),
 		externalAddr:     externalAddr,
-		streamMgr:        NewStreamMgr(),
+		StreamMgr:        NewStreamMgr(),
 	}, nil
 }
 
@@ -145,7 +145,7 @@ func (c *Communication) writeToStream(pID peer.ID, msg []byte, msgID string) err
 	}
 
 	defer func() {
-		c.streamMgr.AddStream(msgID, stream)
+		c.StreamMgr.AddStream(msgID, stream)
 	}()
 	c.logger.Debug().Msgf(">>>writing messages to peer(%s)", pID)
 
@@ -163,13 +163,13 @@ func (c *Communication) readFromStream(stream network.Stream) {
 		dataBuf, err := ReadStreamWithBuffer(stream)
 		if err != nil {
 			c.logger.Error().Err(err).Msgf("fail to read from stream,peerID: %s", peerID)
-			c.streamMgr.AddStream("UNKNOWN", stream)
+			c.StreamMgr.AddStream("UNKNOWN", stream)
 			return
 		}
 		var wrappedMsg messages.WrappedMessage
 		if err := json.Unmarshal(dataBuf, &wrappedMsg); nil != err {
 			c.logger.Error().Err(err).Msg("fail to unmarshal wrapped message bytes")
-			c.streamMgr.AddStream("UNKNOWN", stream)
+			c.StreamMgr.AddStream("UNKNOWN", stream)
 			return
 		}
 		c.logger.Debug().Msgf(">>>>>>>[%s] %s", wrappedMsg.MessageType, string(wrappedMsg.Payload))
@@ -180,10 +180,13 @@ func (c *Communication) readFromStream(stream network.Stream) {
 			_ = stream.Close()
 			return
 		}
-		c.streamMgr.AddStream(wrappedMsg.MsgID, stream)
-		channel <- &Message{
+		c.StreamMgr.AddStream(wrappedMsg.MsgID, stream)
+		select {
+		case <-time.After(10 * time.Second):
+			c.logger.Warn().Msgf("XXXX: timeout to send message to channel: protocol ID: %s, msg type %s,  peer ID %s", stream.Protocol(), wrappedMsg.MessageType.String(), peerID)
+		case channel <- &Message{
 			PeerID:  stream.Conn().RemotePeer(),
-			Payload: dataBuf,
+			Payload: dataBuf}:
 		}
 
 	}
@@ -256,9 +259,9 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 	}
 	scalingLimits := rcmgr.DefaultLimits
 	protocolPeerBaseLimit := rcmgr.BaseLimit{
-		Streams:         1024,
-		StreamsInbound:  512,
-		StreamsOutbound: 512,
+		Streams:         8192,
+		StreamsInbound:  4096,
+		StreamsOutbound: 4096,
 		Memory:          128 << 20,
 	}
 	protocolPeerLimitIncrease := rcmgr.BaseLimitIncrease{
@@ -268,6 +271,8 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 		Memory:          16 << 20,
 	}
 
+	scalingLimits.ProtocolBaseLimit = protocolPeerBaseLimit
+	scalingLimits.ProtocolLimitIncrease = protocolPeerLimitIncrease
 	scalingLimits.ProtocolPeerBaseLimit = protocolPeerBaseLimit
 	scalingLimits.ProtocolPeerLimitIncrease = protocolPeerLimitIncrease
 	for _, item := range []protocol.ID{joinPartyProtocol, joinPartyProtocolWithLeader, TSSProtocolID} {
@@ -282,6 +287,7 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 	// The resource manager expects a limiter, se we create one from our limits.
 
 	limiter := rcmgr.NewFixedLimiter(limits)
+	c.logger.Info().Msgf("libp2p limits: %+v", limits)
 
 	m, err := rcmgr.NewResourceManager(limiter, rcmgr.WithAllowlistedMultiaddrs(c.bootstrapPeers), rcmgr.WithMetrics(NewResourceMetricReporter()))
 	if err != nil {
@@ -482,5 +488,5 @@ func (c *Communication) ProcessBroadcast() {
 }
 
 func (c *Communication) ReleaseStream(msgID string) {
-	c.streamMgr.ReleaseStream(msgID)
+	c.StreamMgr.ReleaseStream(msgID)
 }

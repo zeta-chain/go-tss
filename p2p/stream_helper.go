@@ -26,15 +26,15 @@ const (
 var ApplyDeadline = true
 
 type StreamMgr struct {
-	unusedStreams map[string][]network.Stream
+	UnusedStreams map[string][]network.Stream
 	streamLocker  *sync.RWMutex
 	logger        zerolog.Logger
-	numStream     atomic.Int64
+	NumStream     atomic.Int64
 }
 
 func NewStreamMgr() *StreamMgr {
 	return &StreamMgr{
-		unusedStreams: make(map[string][]network.Stream),
+		UnusedStreams: make(map[string][]network.Stream),
 		streamLocker:  &sync.RWMutex{},
 		logger:        log.With().Str("module", "communication").Logger(),
 	}
@@ -42,13 +42,13 @@ func NewStreamMgr() *StreamMgr {
 
 func (sm *StreamMgr) ReleaseStream(msgID string) {
 	sm.streamLocker.RLock()
-	usedStreams, okStream := sm.unusedStreams[msgID]
-	unknownStreams, okUnknown := sm.unusedStreams["UNKNOWN"]
+	usedStreams, okStream := sm.UnusedStreams[msgID]
+	unknownStreams, okUnknown := sm.UnusedStreams["UNKNOWN"]
 	if okStream {
-		delete(sm.unusedStreams, msgID)
+		delete(sm.UnusedStreams, msgID)
 	}
 	if okUnknown {
-		delete(sm.unusedStreams, "UNKNOWN")
+		delete(sm.UnusedStreams, "UNKNOWN")
 	}
 	sm.streamLocker.RUnlock()
 	streams := append(usedStreams, unknownStreams...)
@@ -61,9 +61,9 @@ func (sm *StreamMgr) ReleaseStream(msgID string) {
 			}
 			cnt++
 		}
-		sm.numStream.Add(-cnt)
+		sm.NumStream.Add(-cnt)
 	}
-	//sm.logger.Info().Msgf("release stream, msgID: %s, numStream: %d, Unknown streams: %d, total: %d", msgID, len(streams), unknownStreams, sm.numStream.Load())
+	//sm.logger.Info().Msgf("release stream, msgID: %s, NumStream: %d, Unknown streams: %d, total: %d", msgID, len(streams), unknownStreams, sm.NumStream.Load())
 }
 
 func (sm *StreamMgr) AddStream(msgID string, stream network.Stream) {
@@ -72,16 +72,16 @@ func (sm *StreamMgr) AddStream(msgID string, stream network.Stream) {
 	}
 	sm.streamLocker.Lock()
 	defer sm.streamLocker.Unlock()
-	entries, ok := sm.unusedStreams[msgID]
+	entries, ok := sm.UnusedStreams[msgID]
 	if !ok {
 		entries := []network.Stream{stream}
-		sm.unusedStreams[msgID] = entries
+		sm.UnusedStreams[msgID] = entries
 	} else {
 		entries = append(entries, stream)
-		sm.unusedStreams[msgID] = entries
+		sm.UnusedStreams[msgID] = entries
 	}
-	sm.numStream.Add(1)
-	//sm.logger.Info().Msgf("add stream, msgID: %s, numStream: %d, total: %d", msgID, len(entries), sm.numStream.Load())
+	sm.NumStream.Add(1)
+	//sm.logger.Info().Msgf("add stream, msgID: %s, NumStream: %d, total: %d", msgID, len(entries), sm.NumStream.Load())
 }
 
 // ReadStreamWithBuffer read data from the given stream
