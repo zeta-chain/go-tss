@@ -44,6 +44,12 @@ func (sm *StreamMgr) ReleaseStream(msgID string) {
 	sm.streamLocker.RLock()
 	usedStreams, okStream := sm.unusedStreams[msgID]
 	unknownStreams, okUnknown := sm.unusedStreams["UNKNOWN"]
+	if okStream {
+		delete(sm.unusedStreams, msgID)
+	}
+	if okUnknown {
+		delete(sm.unusedStreams, "UNKNOWN")
+	}
 	sm.streamLocker.RUnlock()
 	streams := append(usedStreams, unknownStreams...)
 	cnt := int64(0)
@@ -55,10 +61,6 @@ func (sm *StreamMgr) ReleaseStream(msgID string) {
 			}
 			cnt++
 		}
-		sm.streamLocker.Lock()
-		delete(sm.unusedStreams, msgID)
-		delete(sm.unusedStreams, "UNKNOWN")
-		sm.streamLocker.Unlock()
 		sm.numStream.Add(-cnt)
 	}
 	//sm.logger.Info().Msgf("release stream, msgID: %s, numStream: %d, Unknown streams: %d, total: %d", msgID, len(streams), unknownStreams, sm.numStream.Load())
