@@ -490,3 +490,27 @@ func (c *Communication) ProcessBroadcast() {
 func (c *Communication) ReleaseStream(msgID string) {
 	c.StreamMgr.ReleaseStream(msgID)
 }
+
+func (c *Communication) StartDiagnostic() {
+	c.wg.Add(1)
+	go func() {
+		ticker := time.NewTicker(time.Second * 10)
+		for {
+			select {
+			// Protocols:
+			//	signatureNotifierProtocol 	protocol.ID	= "/p2p/signatureNotifier"
+			//	joinPartyProtocol           protocol.ID = "/p2p/join-party"
+			//	joinPartyProtocolWithLeader protocol.ID = "/p2p/join-party-leader"
+			//	TSSProtocolID 				protocol.ID = "/p2p/tss"
+			case <-ticker.C:
+				err := c.host.Network().ResourceManager().ViewProtocol(joinPartyProtocol, func(scope network.ProtocolScope) error {
+					c.logger.Info().Msgf("joinPartyProtocolStat: %+v", scope.Stat())
+					return nil
+				})
+				if err != nil {
+					return
+				}
+			}
+		}
+	}()
+}
