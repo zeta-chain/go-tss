@@ -503,7 +503,7 @@ func (c *Communication) StartDiagnostic() {
 			//	joinPartyProtocolWithLeader protocol.ID = "/p2p/join-party-leader"
 			//	TSSProtocolID 				protocol.ID = "/p2p/tss"
 			case <-ticker.C:
-				err := c.host.Network().ResourceManager().ViewProtocol(joinPartyProtocol, func(scope network.ProtocolScope) error {
+				err := c.host.Network().ResourceManager().ViewProtocol(TSSProtocolID, func(scope network.ProtocolScope) error {
 					c.logger.Info().Msgf("joinPartyProtocolStat: %+v", scope.Stat())
 					return nil
 				})
