@@ -212,7 +212,7 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 	t.P2pCommunication.SetSubscribe(messages.TSSTaskDone, msgID, keySignChannels)
 
 	defer func() {
-		t.logger.Info().Str("Release Streams for msg", msgID).Msg("FINISHED KEY SIGN")
+		t.logger.Info().Str("msg", strings.Join(req.Messages, ",")).Msg("RELEASE STREAMS key sign")
 		t.P2pCommunication.CancelSubscribe(messages.TSSKeySignMsg, msgID)
 		t.P2pCommunication.CancelSubscribe(messages.TSSKeySignVerMsg, msgID)
 		t.P2pCommunication.CancelSubscribe(messages.TSSControlMsg, msgID)
