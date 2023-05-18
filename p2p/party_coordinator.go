@@ -71,7 +71,7 @@ func (pc *PartyCoordinator) processRespMsg(respMsg *messages.JoinPartyLeaderComm
 	pc.joinPartyGroupLock.Unlock()
 	if !ok {
 		pc.logger.Info().Msgf("message ID from peer(%s) can not be found", remotePeer)
-		_ = stream.Close()
+		_ = stream.Reset()
 		return
 	}
 	pc.streamMgr.AddStream(respMsg.ID, stream)
@@ -95,7 +95,7 @@ func (pc *PartyCoordinator) processReqMsg(requestMsg *messages.JoinPartyLeaderCo
 	pc.joinPartyGroupLock.Unlock()
 	if !ok {
 		pc.logger.Info().Msg("this party is not ready")
-		_ = stream.Close()
+		_ = stream.Reset()
 		return
 	}
 	pc.streamMgr.AddStream(requestMsg.ID, stream)
@@ -131,7 +131,7 @@ func (pc *PartyCoordinator) HandleStream(stream network.Stream) {
 	pc.joinPartyGroupLock.Unlock()
 	if !ok {
 		pc.logger.Info().Msg("this party is not ready")
-		//_ = stream.Close()
+		_ = stream.Reset()
 		return
 	}
 	pc.streamMgr.AddStream(msg.ID, stream)
