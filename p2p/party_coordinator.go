@@ -74,7 +74,6 @@ func (pc *PartyCoordinator) processRespMsg(respMsg *messages.JoinPartyLeaderComm
 		_ = stream.Reset()
 		return
 	}
-	pc.streamMgr.AddStream(respMsg.ID, stream)
 	if remotePeer == peerGroup.leader {
 		peerGroup.setLeaderResponse(respMsg)
 		peerGroup.notify <- true
@@ -95,10 +94,8 @@ func (pc *PartyCoordinator) processReqMsg(requestMsg *messages.JoinPartyLeaderCo
 	pc.joinPartyGroupLock.Unlock()
 	if !ok {
 		pc.logger.Info().Msg("this party is not ready")
-		_ = stream.Reset()
 		return
 	}
-	pc.streamMgr.AddStream(requestMsg.ID, stream)
 	remotePeer := stream.Conn().RemotePeer()
 	partyFormed, err := peerGroup.updatePeer(remotePeer)
 	if err != nil {
@@ -171,6 +168,15 @@ func (pc *PartyCoordinator) HandleStreamWithLeader(stream network.Stream) {
 		pc.streamMgr.AddStream("UNKNOWN", stream)
 		return
 	}
+	pc.joinPartyGroupLock.Lock()
+	_, ok := pc.peersGroup[msg.ID]
+	pc.joinPartyGroupLock.Unlock()
+	if !ok {
+		_ = stream.Reset()
+		return
+	}
+	pc.streamMgr.AddStream(msg.ID, stream)
+
 	switch msg.MsgType {
 	case "request":
 		pc.processReqMsg(&msg, stream)
