@@ -288,6 +288,9 @@ func (pc *PartyCoordinator) sendMsgToPeer(msgBuf []byte, msgID string, remotePee
 
 		pc.logger.Debug().Msgf("try to open stream to (%s) ", remotePeer)
 		stream, err = pc.host.NewStream(ctx, remotePeer, protoc)
+		if stream != nil {
+			pc.streamMgr.AddStream(msgID, stream)
+		}
 		if err != nil {
 			streamError = fmt.Errorf("fail to create stream to peer(%s):%w", remotePeer, err)
 		}
@@ -306,9 +309,7 @@ func (pc *PartyCoordinator) sendMsgToPeer(msgBuf []byte, msgID string, remotePee
 	defer func() {
 		if err := stream.CloseWrite(); err != nil {
 			pc.logger.Error().Err(err).Msg("fail to close stream")
-			_ = stream.Close()
-		} else {
-			pc.streamMgr.AddStream(msgID, stream)
+			_ = stream.Reset()
 		}
 	}()
 	pc.logger.Debug().Msgf("open stream to (%s) successfully", remotePeer)

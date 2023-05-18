@@ -136,17 +136,13 @@ func (c *Communication) writeToStream(pID peer.ID, msg []byte, msgID string) err
 	if pID == c.host.ID() {
 		return nil
 	}
-	stream, err := c.connectToOnePeer(pID)
+	stream, err := c.connectToOnePeer(pID, msgID)
 	if err != nil {
 		return fmt.Errorf("fail to open stream to peer(%s): %w", pID, err)
 	}
 	if nil == stream {
 		return nil
 	}
-
-	defer func() {
-		c.StreamMgr.AddStream(msgID, stream)
-	}()
 	c.logger.Debug().Msgf(">>>writing messages to peer(%s)", pID)
 
 	return WriteStreamWithBuffer(msg, stream)
@@ -350,7 +346,7 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 	return nil
 }
 
-func (c *Communication) connectToOnePeer(pID peer.ID) (network.Stream, error) {
+func (c *Communication) connectToOnePeer(pID peer.ID, msgID string) (network.Stream, error) {
 	c.logger.Debug().Msgf("peer:%s,current:%s", pID, c.host.ID())
 	// dont connect to itself
 	if pID == c.host.ID() {
@@ -360,6 +356,9 @@ func (c *Communication) connectToOnePeer(pID peer.ID) (network.Stream, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), TimeoutConnecting)
 	defer cancel()
 	stream, err := c.host.NewStream(ctx, pID, TSSProtocolID)
+	if stream != nil {
+		c.StreamMgr.AddStream(msgID, stream)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("fail to create new stream to peer: %s, %w", pID, err)
 	}
@@ -492,9 +491,15 @@ func (c *Communication) ReleaseStream(msgID string) {
 }
 
 func (c *Communication) StartDiagnostic() {
+	var protocols = []protocol.ID{
+		joinPartyProtocol,
+		joinPartyProtocolWithLeader,
+		TSSProtocolID,
+		protocol.ID("/p2p/signatureNotifier"),
+	}
 	c.wg.Add(1)
 	go func() {
-		ticker := time.NewTicker(time.Second * 10)
+		ticker := time.NewTicker(time.Second * 5)
 		for {
 			select {
 			// Protocols:
@@ -503,12 +508,14 @@ func (c *Communication) StartDiagnostic() {
 			//	joinPartyProtocolWithLeader protocol.ID = "/p2p/join-party-leader"
 			//	TSSProtocolID 				protocol.ID = "/p2p/tss"
 			case <-ticker.C:
-				err := c.host.Network().ResourceManager().ViewProtocol(TSSProtocolID, func(scope network.ProtocolScope) error {
-					c.logger.Info().Msgf("joinPartyProtocolStat: %+v", scope.Stat())
-					return nil
-				})
-				if err != nil {
-					return
+				for _, p := range protocols {
+					err := c.host.Network().ResourceManager().ViewProtocol(p, func(scope network.ProtocolScope) error {
+						c.logger.Info().Msgf("protocol %s: %+v", p, scope.Stat())
+						return nil
+					})
+					if err != nil {
+						return
+					}
 				}
 			}
 		}

@@ -109,13 +109,13 @@ func (s *SignatureNotifier) sendOneMsgToPeer(m *signatureItem) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
 	defer cancel()
 	stream, err := s.host.NewStream(ctx, m.peerID, signatureNotifierProtocol)
+	if stream != nil {
+		s.streamMgr.AddStream(m.messageID, stream)
+	}
 	if err != nil {
 		return fmt.Errorf("fail to create stream to peer(%s):%w", m.peerID, err)
 	}
 	s.logger.Debug().Msgf("open stream to (%s) successfully", m.peerID)
-	defer func() {
-		s.streamMgr.AddStream(m.messageID, stream)
-	}()
 	ks := &messages.KeysignSignature{
 		ID:            m.messageID,
 		KeysignStatus: messages.KeysignSignature_Failed,
