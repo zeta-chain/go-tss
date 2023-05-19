@@ -99,16 +99,14 @@ func (sm *StreamMgr) AddInboundStream(stream network.Stream) {
 	}
 	sm.streamLocker.Lock()
 	defer sm.streamLocker.Unlock()
-	sm.logger.Info().Msgf("AddInboundStream: ADDING NEW INBOUND STREAM %s", stream.ID())
 	id := stream.ID()
 	sm.JoinPartyInboundStreams[id] = true
-	sm.logger.Info().Msgf("New Map: %+v", sm.JoinPartyInboundStreams)
+
 }
 
 func (sm *StreamMgr) GetNumInboundStreams() int {
 	sm.streamLocker.RLock()
 	defer sm.streamLocker.RUnlock()
-	sm.logger.Info().Msgf("AddInboundStream: ADDING NEW INBOUND STREAM %+v", sm.JoinPartyInboundStreams)
 	numStreams := len(sm.JoinPartyInboundStreams)
 	return numStreams
 }
