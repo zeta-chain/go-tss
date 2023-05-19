@@ -101,6 +101,7 @@ func (sm *StreamMgr) AddInboundStream(stream network.Stream) {
 	defer sm.streamLocker.Unlock()
 	id := stream.ID()
 	sm.JoinPartyInboundStreams[id] = true
+	sm.logger.Info().Msgf("New Map: %+v", sm.JoinPartyInboundStreams)
 
 }
 
