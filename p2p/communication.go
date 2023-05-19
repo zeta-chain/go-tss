@@ -517,7 +517,7 @@ func (c *Communication) StartDiagnostic() {
 						return
 					}
 				}
-				c.logger.Info().Msgf("/p2p/join-party-leader inbound streams: %d", len(c.StreamMgr.JoinPartyInboundStreams))
+				c.logger.Info().Msgf("/p2p/join-party-leader inbound streams: %+v", c.StreamMgr.JoinPartyInboundStreams)
 			}
 		}
 	}()
