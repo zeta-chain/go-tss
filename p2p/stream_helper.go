@@ -94,9 +94,12 @@ func (sm *StreamMgr) AddStream(msgID string, stream network.Stream) {
 }
 
 func (sm *StreamMgr) AddInboundStream(stream network.Stream) {
-	sm.logger.Info().Msg("AddInboundStream: ADDING NEW INBOUND STREAM")
+	if stream == nil {
+		return
+	}
 	sm.streamLocker.Lock()
 	defer sm.streamLocker.Unlock()
+	sm.logger.Info().Msg("AddInboundStream: ADDING NEW INBOUND STREAM")
 	sm.JoinPartyInboundStreams[stream.ID()] = true
 }
 
