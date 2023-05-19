@@ -144,6 +144,7 @@ func (pc *PartyCoordinator) HandleStream(stream network.Stream) {
 
 // HandleStream handle party coordinate stream
 func (pc *PartyCoordinator) HandleStreamWithLeader(stream network.Stream) {
+	pc.streamMgr.AddInboundStream(stream)
 	remotePeer := stream.Conn().RemotePeer()
 	logger := pc.logger.With().Str("remote peer", remotePeer.String()).Logger()
 	logger.Debug().Msg("reading from join party request")

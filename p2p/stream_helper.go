@@ -26,22 +26,24 @@ const (
 var ApplyDeadline = true
 
 type StreamMgr struct {
-	UnusedStreams map[string][]network.Stream
-	streamLocker  *sync.RWMutex
-	logger        zerolog.Logger
-	NumStream     atomic.Int64
+	UnusedStreams           map[string][]network.Stream
+	JoinPartyInboundStreams map[string]bool
+	streamLocker            *sync.RWMutex
+	logger                  zerolog.Logger
+	NumStream               atomic.Int64
 }
 
 func NewStreamMgr() *StreamMgr {
 	return &StreamMgr{
-		UnusedStreams: make(map[string][]network.Stream),
-		streamLocker:  &sync.RWMutex{},
-		logger:        log.With().Str("module", "communication").Logger(),
+		UnusedStreams:           make(map[string][]network.Stream),
+		JoinPartyInboundStreams: make(map[string]bool),
+		streamLocker:            &sync.RWMutex{},
+		logger:                  log.With().Str("module", "communication").Logger(),
 	}
 }
 
 func (sm *StreamMgr) ReleaseStream(msgID string) {
-	sm.streamLocker.RLock()
+	sm.streamLocker.Lock()
 	usedStreams, okStream := sm.UnusedStreams[msgID]
 	unknownStreams, okUnknown := sm.UnusedStreams["UNKNOWN"]
 	if okStream {
@@ -50,11 +52,15 @@ func (sm *StreamMgr) ReleaseStream(msgID string) {
 	if okUnknown {
 		delete(sm.UnusedStreams, "UNKNOWN")
 	}
-	sm.streamLocker.RUnlock()
+	sm.streamLocker.Unlock()
 	streams := append(usedStreams, unknownStreams...)
 	cnt := int64(0)
 	if okStream || okUnknown {
 		for _, el := range streams {
+			_, ok := sm.JoinPartyInboundStreams[el.ID()]
+			if ok {
+				delete(sm.JoinPartyInboundStreams, el.ID())
+			}
 			err := el.Reset()
 			if err != nil {
 				sm.logger.Error().Err(err).Msg("fail to reset the stream,skip it")
@@ -82,6 +88,12 @@ func (sm *StreamMgr) AddStream(msgID string, stream network.Stream) {
 	}
 	sm.NumStream.Add(1)
 	//sm.logger.Info().Msgf("add stream, msgID: %s, NumStream: %d, total: %d", msgID, len(entries), sm.NumStream.Load())
+}
+
+func (sm *StreamMgr) AddInboundStream(stream network.Stream) {
+	sm.streamLocker.Lock()
+	defer sm.streamLocker.Unlock()
+	sm.JoinPartyInboundStreams[stream.ID()] = true
 }
 
 // ReadStreamWithBuffer read data from the given stream
