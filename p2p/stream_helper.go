@@ -57,10 +57,13 @@ func (sm *StreamMgr) ReleaseStream(msgID string) {
 	cnt := int64(0)
 	if okStream || okUnknown {
 		for _, el := range streams {
+			sm.streamLocker.Lock()
 			_, ok := sm.JoinPartyInboundStreams[el.ID()]
 			if ok {
 				delete(sm.JoinPartyInboundStreams, el.ID())
 			}
+			sm.streamLocker.Unlock()
+
 			err := el.Reset()
 			if err != nil {
 				sm.logger.Error().Err(err).Msg("fail to reset the stream,skip it")
