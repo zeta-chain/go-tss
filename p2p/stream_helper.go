@@ -103,6 +103,14 @@ func (sm *StreamMgr) AddInboundStream(stream network.Stream) {
 	sm.JoinPartyInboundStreams[stream.ID()] = true
 }
 
+func (sm *StreamMgr) GetNumInboundStreams() int {
+	sm.streamLocker.RLock()
+	defer sm.streamLocker.RUnlock()
+	sm.logger.Info().Msgf("AddInboundStream: ADDING NEW INBOUND STREAM %+v", sm.JoinPartyInboundStreams)
+	numStreams := len(sm.JoinPartyInboundStreams)
+	return numStreams
+}
+
 // ReadStreamWithBuffer read data from the given stream
 func ReadStreamWithBuffer(stream network.Stream) ([]byte, error) {
 	if ApplyDeadline {
