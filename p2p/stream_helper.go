@@ -90,7 +90,6 @@ func (sm *StreamMgr) AddStream(msgID string, stream network.Stream) {
 		sm.UnusedStreams[msgID] = entries
 	}
 	sm.NumStream.Add(1)
-	sm.logger.Info().Msgf("Unused Map: %+v", sm.UnusedStreams)
 	//sm.logger.Info().Msgf("add stream, msgID: %s, NumStream: %d, total: %d", msgID, len(entries), sm.NumStream.Load())
 }
 
