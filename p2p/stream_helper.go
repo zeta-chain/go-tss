@@ -27,7 +27,7 @@ var ApplyDeadline = true
 
 type StreamMgr struct {
 	UnusedStreams           map[string][]network.Stream
-	JoinPartyInboundStreams map[string]bool
+	JoinPartyInboundStreams map[string]int
 	streamLocker            *sync.RWMutex
 	logger                  zerolog.Logger
 	NumStream               atomic.Int64
@@ -36,7 +36,7 @@ type StreamMgr struct {
 func NewStreamMgr() *StreamMgr {
 	return &StreamMgr{
 		UnusedStreams:           make(map[string][]network.Stream),
-		JoinPartyInboundStreams: make(map[string]bool),
+		JoinPartyInboundStreams: make(map[string]int),
 		streamLocker:            &sync.RWMutex{},
 		logger:                  log.With().Str("module", "communication").Logger(),
 	}
@@ -100,7 +100,7 @@ func (sm *StreamMgr) AddInboundStream(stream network.Stream) {
 	sm.streamLocker.Lock()
 	defer sm.streamLocker.Unlock()
 	sm.logger.Info().Msgf("AddInboundStream: ADDING NEW INBOUND STREAM %s", stream.ID())
-	sm.JoinPartyInboundStreams[stream.ID()] = true
+	sm.JoinPartyInboundStreams[stream.ID()] = 1
 }
 
 func (sm *StreamMgr) GetNumInboundStreams() int {
