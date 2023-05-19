@@ -101,13 +101,15 @@ func (sm *StreamMgr) AddInboundStream(stream network.Stream) {
 	defer sm.streamLocker.Unlock()
 	id := stream.ID()
 	sm.JoinPartyInboundStreams[id] = true
-	sm.logger.Debug().Msgf("length of inbound map: ", len(sm.JoinPartyInboundStreams))
 }
 
 func (sm *StreamMgr) GetNumInboundStreams() int {
 	sm.streamLocker.RLock()
 	defer sm.streamLocker.RUnlock()
-	numStreams := len(sm.JoinPartyInboundStreams)
+	numStreams := 0
+	for _, _ = range sm.JoinPartyInboundStreams {
+		numStreams++
+	}
 	return numStreams
 }
 
