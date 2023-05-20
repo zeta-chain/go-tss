@@ -570,3 +570,35 @@ func (pc *PartyCoordinator) JoinPartyWithRetry(msgID string, peers []string) ([]
 func (pc *PartyCoordinator) ReleaseStream(msgID string) {
 	pc.streamMgr.ReleaseStream(msgID)
 }
+
+func (pc *PartyCoordinator) StartDiagnostic() {
+	var protocols = []protocol.ID{
+		joinPartyProtocol,
+		joinPartyProtocolWithLeader,
+		TSSProtocolID,
+		protocol.ID("/p2p/signatureNotifier"),
+	}
+	go func() {
+		ticker := time.NewTicker(time.Second * 5)
+		for {
+			select {
+			// Protocols:
+			//	signatureNotifierProtocol 	protocol.ID	= "/p2p/signatureNotifier"
+			//	joinPartyProtocol           protocol.ID = "/p2p/join-party"
+			//	joinPartyProtocolWithLeader protocol.ID = "/p2p/join-party-leader"
+			//	TSSProtocolID 				protocol.ID = "/p2p/tss"
+			case <-ticker.C:
+				for _, p := range protocols {
+					err := pc.host.Network().ResourceManager().ViewProtocol(p, func(scope network.ProtocolScope) error {
+						pc.logger.Info().Msgf("protocol %s: %+v", p, scope.Stat())
+						return nil
+					})
+					if err != nil {
+						return
+					}
+				}
+				pc.logger.Info().Msgf("/p2p/join-party-leader inbound streams: %d", pc.streamMgr.GetNumInboundStreams())
+			}
+		}
+	}()
+}

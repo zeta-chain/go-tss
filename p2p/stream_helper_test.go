@@ -24,10 +24,11 @@ type MockNetworkStream struct {
 	id                  int64
 }
 
-func NewMockNetworkStream() *MockNetworkStream {
+func NewMockNetworkStream(streamID int64) *MockNetworkStream {
 	return &MockNetworkStream{
 		Buffer:   &bytes.Buffer{},
 		protocol: testProtocolID,
+		id:       streamID,
 	}
 }
 
@@ -113,7 +114,7 @@ func TestReadLength(t *testing.T) {
 			expectedLength: 1024,
 			expectError:    false,
 			streamProvider: func() network.Stream {
-				s := NewMockNetworkStream()
+				s := NewMockNetworkStream(1)
 				buf := make([]byte, LengthHeader)
 				binary.LittleEndian.PutUint32(buf, 1024)
 				s.Buffer.Write(buf)
@@ -126,7 +127,7 @@ func TestReadLength(t *testing.T) {
 			expectedLength: 1024,
 			expectError:    true,
 			streamProvider: func() network.Stream {
-				s := NewMockNetworkStream()
+				s := NewMockNetworkStream(1)
 				s.errSetReadDeadLine = true
 				buf := make([]byte, LengthHeader)
 				binary.LittleEndian.PutUint32(buf, 1024)
@@ -140,7 +141,7 @@ func TestReadLength(t *testing.T) {
 			expectedLength: 1024,
 			expectError:    false,
 			streamProvider: func() network.Stream {
-				s := NewMockNetworkStream()
+				s := NewMockNetworkStream(1)
 				buf := make([]byte, LengthHeader)
 				binary.LittleEndian.PutUint32(buf, 1024)
 				s.Buffer.Write(buf)
@@ -153,7 +154,7 @@ func TestReadLength(t *testing.T) {
 			expectedLength: 1024,
 			expectError:    true,
 			streamProvider: func() network.Stream {
-				s := NewMockNetworkStream()
+				s := NewMockNetworkStream(1)
 				buf := make([]byte, LengthHeader)
 				binary.LittleEndian.PutUint32(buf, 1024)
 				s.Buffer.Write(buf)
@@ -193,7 +194,7 @@ func TestReadPayload(t *testing.T) {
 		{
 			name: "happy path",
 			streamProvider: func() *MockNetworkStream {
-				stream := NewMockNetworkStream()
+				stream := NewMockNetworkStream(1)
 				input := []byte("hello world")
 				err := WriteStreamWithBuffer(input, stream)
 				if err != nil {
@@ -234,23 +235,38 @@ func TestReadPayload(t *testing.T) {
 
 func TestStreamManager(t *testing.T) {
 	streamMgr := NewStreamMgr()
-	stream := NewMockNetworkStream()
+	stream := NewMockNetworkStream(1)
 
 	streamMgr.AddStream("1", nil)
-	assert.Equal(t, len(streamMgr.unusedStreams), 0)
+	assert.Equal(t, len(streamMgr.UnusedStreams), 0)
 	streamMgr.AddStream("1", stream)
 	streamMgr.AddStream("2", stream)
 	streamMgr.AddStream("3", stream)
 	streamMgr.ReleaseStream("1")
-	_, ok := streamMgr.unusedStreams["2"]
+	_, ok := streamMgr.UnusedStreams["2"]
 	assert.Equal(t, ok, true)
-	_, ok = streamMgr.unusedStreams["3"]
+	_, ok = streamMgr.UnusedStreams["3"]
 	assert.Equal(t, ok, true)
 	streamMgr.ReleaseStream("2")
-	_, ok = streamMgr.unusedStreams["2"]
+	_, ok = streamMgr.UnusedStreams["2"]
 	assert.Equal(t, ok, false)
 	streamMgr.ReleaseStream("3")
-	assert.Equal(t, len(streamMgr.unusedStreams), 0)
+	assert.Equal(t, len(streamMgr.UnusedStreams), 0)
 	streamMgr.ReleaseStream("3")
-	assert.Equal(t, len(streamMgr.unusedStreams), 0)
+	assert.Equal(t, len(streamMgr.UnusedStreams), 0)
+}
+
+func TestInboundStreamCount(t *testing.T) {
+	streamMgr := NewStreamMgr()
+	var streams []*MockNetworkStream
+	for idx := 0; idx < 10; idx++ {
+		streams = append(streams, NewMockNetworkStream(int64(idx)))
+	}
+	for _, stream := range streams {
+		streamMgr.AddInboundStream(stream)
+	}
+	want := 10
+	actual := streamMgr.GetNumInboundStreams()
+
+	assert.Equal(t, actual, want)
 }
