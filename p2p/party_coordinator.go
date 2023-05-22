@@ -591,6 +591,9 @@ func (pc *PartyCoordinator) StartDiagnostic() {
 					}
 				}
 				pc.logger.Info().Msgf("/p2p/join-party-leader inbound streams: %d", pc.streamMgr.GetNumInboundStreams())
+				for key, val := range pc.streamMgr.UnusedStreams {
+					pc.logger.Info().Msgf("/p2p/join-party-leader messageID: %s, num of streams: %d", key, len(val))
+				}
 			}
 		}
 	}()
