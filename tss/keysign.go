@@ -192,6 +192,7 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 	if err != nil {
 		return emptyResp, err
 	}
+	t.logger.Info().Msgf("SIGNING MESSAGE: %s", msgID)
 
 	keysignInstance := keysign.NewTssKeySign(
 		t.P2pCommunication.GetLocalPeerID(),
@@ -212,7 +213,7 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 	t.P2pCommunication.SetSubscribe(messages.TSSTaskDone, msgID, keySignChannels)
 
 	defer func() {
-		t.logger.Info().Str("msg", strings.Join(req.Messages, ",")).Msg("RELEASE STREAMS key sign")
+		t.logger.Info().Msgf("RELEASE STREAMS key sign msgID: %s", msgID)
 		t.P2pCommunication.CancelSubscribe(messages.TSSKeySignMsg, msgID)
 		t.P2pCommunication.CancelSubscribe(messages.TSSKeySignVerMsg, msgID)
 		t.P2pCommunication.CancelSubscribe(messages.TSSControlMsg, msgID)
@@ -292,7 +293,7 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 			t.logger.Log().Msgf("for message %s we get the signature from the peer", msgID)
 			return
 		}
-		t.logger.Log().Msgf("we fail to get the valid signature with error %v", errWait)
+		t.logger.Error().Msgf("for msgId: %s we fail to get a valid signature with error %v", msgID, errWait)
 	}()
 
 	// we generate the signature ourselves

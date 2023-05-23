@@ -440,7 +440,7 @@ func (pc *PartyCoordinator) joinPartyLeader(msgID string, peers []string, thresh
 		for {
 			select {
 			case <-peerGroup.notify:
-				pc.logger.Debug().Msg("we have enough participants")
+				pc.logger.Info().Msg("we have enough participants")
 				return
 
 			case <-time.After(pc.timeout):
