@@ -192,7 +192,7 @@ func (pc *PartyCoordinator) HandleStreamWithLeader(stream network.Stream) {
 	}
 }
 
-func (pc *PartyCoordinator) removePeerGroup(messageID string) {
+func (pc *PartyCoordinator) RemovePeerGroup(messageID string) {
 	pc.joinPartyGroupLock.Lock()
 	defer pc.joinPartyGroupLock.Unlock()
 	delete(pc.peersGroup, messageID)
@@ -515,7 +515,7 @@ func (pc *PartyCoordinator) JoinPartyWithRetry(msgID string, peers []string) ([]
 		pc.logger.Error().Err(err).Msg("fail to create the join party group")
 		return nil, err
 	}
-	defer pc.removePeerGroup(msg.ID)
+	defer pc.RemovePeerGroup(msg.ID)
 	_, offline := peerGroup.getPeersStatus()
 	var wg sync.WaitGroup
 	done := make(chan struct{})
