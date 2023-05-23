@@ -222,6 +222,8 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 		t.P2pCommunication.ReleaseStream(msgID)
 		t.signatureNotifier.ReleaseStream(msgID)
 		t.partyCoordinator.ReleaseStream(msgID)
+
+		t.partyCoordinator.RemovePeerGroup(msgID)
 	}()
 
 	localStateItem, err := t.stateManager.GetLocalState(req.PoolPubKey)

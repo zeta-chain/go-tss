@@ -44,10 +44,7 @@ func (t *TssServer) Keygen(req keygen.Request) (keygen.Response, error) {
 		t.P2pCommunication.CancelSubscribe(messages.TSSTaskDone, msgID)
 
 		t.P2pCommunication.ReleaseStream(msgID)
-		t.signatureNotifier.ReleaseStream(msgID)
 		t.partyCoordinator.ReleaseStream(msgID)
-
-		t.partyCoordinator.RemovePeerGroup(msgID)
 	}()
 	sigChan := make(chan string)
 	blameMgr := keygenInstance.GetTssCommonStruct().GetBlameMgr()
