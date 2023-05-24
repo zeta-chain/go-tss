@@ -71,7 +71,7 @@ func (pc *PartyCoordinator) processRespMsg(respMsg *messages.JoinPartyLeaderComm
 	pc.joinPartyGroupLock.Unlock()
 	if !ok {
 		pc.logger.Info().Msgf("message ID from peer(%s) can not be found", remotePeer)
-		_ = stream.Close()
+		_ = stream.Reset()
 		return
 	}
 	pc.streamMgr.AddStream(respMsg.ID, stream)
@@ -95,7 +95,7 @@ func (pc *PartyCoordinator) processReqMsg(requestMsg *messages.JoinPartyLeaderCo
 	pc.joinPartyGroupLock.Unlock()
 	if !ok {
 		pc.logger.Info().Msg("this party is not ready")
-		_ = stream.Close()
+		_ = stream.Reset()
 		return
 	}
 	pc.streamMgr.AddStream(requestMsg.ID, stream)
@@ -131,7 +131,7 @@ func (pc *PartyCoordinator) HandleStream(stream network.Stream) {
 	pc.joinPartyGroupLock.Unlock()
 	if !ok {
 		pc.logger.Info().Msg("this party is not ready")
-		_ = stream.Close()
+		_ = stream.Reset()
 		return
 	}
 	pc.streamMgr.AddStream(msg.ID, stream)
@@ -189,7 +189,7 @@ func (pc *PartyCoordinator) HandleStreamWithLeader(stream network.Stream) {
 	}
 }
 
-func (pc *PartyCoordinator) removePeerGroup(messageID string) {
+func (pc *PartyCoordinator) RemovePeerGroup(messageID string) {
 	pc.joinPartyGroupLock.Lock()
 	defer pc.joinPartyGroupLock.Unlock()
 	delete(pc.peersGroup, messageID)
@@ -306,7 +306,7 @@ func (pc *PartyCoordinator) sendMsgToPeer(msgBuf []byte, msgID string, remotePee
 	defer func() {
 		if err := stream.CloseWrite(); err != nil {
 			pc.logger.Error().Err(err).Msg("fail to close stream")
-			_ = stream.Close()
+			_ = stream.Reset()
 		} else {
 			pc.streamMgr.AddStream(msgID, stream)
 		}
@@ -511,7 +511,7 @@ func (pc *PartyCoordinator) JoinPartyWithRetry(msgID string, peers []string) ([]
 		pc.logger.Error().Err(err).Msg("fail to create the join party group")
 		return nil, err
 	}
-	defer pc.removePeerGroup(msg.ID)
+	defer pc.RemovePeerGroup(msg.ID)
 	_, offline := peerGroup.getPeersStatus()
 	var wg sync.WaitGroup
 	done := make(chan struct{})
@@ -561,4 +561,35 @@ func (pc *PartyCoordinator) JoinPartyWithRetry(msgID string, peers []string) ([]
 
 func (pc *PartyCoordinator) ReleaseStream(msgID string) {
 	pc.streamMgr.ReleaseStream(msgID)
+}
+
+func (pc *PartyCoordinator) StartDiagnostic() {
+	var protocols = []protocol.ID{
+		joinPartyProtocol,
+		joinPartyProtocolWithLeader,
+		TSSProtocolID,
+		protocol.ID("/p2p/signatureNotifier"),
+	}
+	go func() {
+		ticker := time.NewTicker(time.Second * 5)
+		for {
+			select {
+			// Protocols:
+			//	signatureNotifierProtocol 	protocol.ID	= "/p2p/signatureNotifier"
+			//	joinPartyProtocol           protocol.ID = "/p2p/join-party"
+			//	joinPartyProtocolWithLeader protocol.ID = "/p2p/join-party-leader"
+			//	TSSProtocolID 				protocol.ID = "/p2p/tss"
+			case <-ticker.C:
+				for _, p := range protocols {
+					err := pc.host.Network().ResourceManager().ViewProtocol(p, func(scope network.ProtocolScope) error {
+						pc.logger.Info().Msgf("protocol %s: %+v", p, scope.Stat())
+						return nil
+					})
+					if err != nil {
+						return
+					}
+				}
+			}
+		}
+	}()
 }

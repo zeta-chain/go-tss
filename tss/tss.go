@@ -101,6 +101,8 @@ func NewTss(
 		return nil, fmt.Errorf("fail to start p2p network: %w", err)
 	}
 	pc := p2p.NewPartyCoordinator(comm.GetHost(), conf.PartyTimeout)
+	//pc.StartDiagnostic() //***** Enable if diagnostics are needed
+
 	sn := keysign.NewSignatureNotifier(comm.GetHost())
 	metrics := monitor.NewMetric()
 	if conf.EnableMonitor {
