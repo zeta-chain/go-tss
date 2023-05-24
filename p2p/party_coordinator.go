@@ -65,7 +65,6 @@ func (pc *PartyCoordinator) Stop() {
 }
 
 func (pc *PartyCoordinator) processRespMsg(respMsg *messages.JoinPartyLeaderComm, stream network.Stream) {
-
 	remotePeer := stream.Conn().RemotePeer().String()
 	pc.joinPartyGroupLock.Lock()
 	peerGroup, ok := pc.peersGroup[respMsg.ID]
@@ -91,15 +90,15 @@ func (pc *PartyCoordinator) processRespMsg(respMsg *messages.JoinPartyLeaderComm
 }
 
 func (pc *PartyCoordinator) processReqMsg(requestMsg *messages.JoinPartyLeaderComm, stream network.Stream) {
-	pc.streamMgr.AddStream(requestMsg.ID, stream)
 	pc.joinPartyGroupLock.Lock()
 	peerGroup, ok := pc.peersGroup[requestMsg.ID]
 	pc.joinPartyGroupLock.Unlock()
 	if !ok {
 		pc.logger.Info().Msg("this party is not ready")
-		//_ = stream.Reset()
+		_ = stream.Reset()
 		return
 	}
+	pc.streamMgr.AddStream(requestMsg.ID, stream)
 	remotePeer := stream.Conn().RemotePeer()
 	partyFormed, err := peerGroup.updatePeer(remotePeer)
 	if err != nil {
