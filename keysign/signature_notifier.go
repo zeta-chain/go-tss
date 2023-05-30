@@ -90,7 +90,7 @@ func (s *SignatureNotifier) handleStream(stream network.Stream) {
 	n, ok := s.notifiers[msg.ID]
 	if !ok {
 		logger.Debug().Msgf("notifier for message id(%s) not exist", msg.ID)
-		_ = stream.Close()
+		_ = stream.Reset()
 		return
 	}
 	s.streamMgr.AddStream(msg.ID, stream)
