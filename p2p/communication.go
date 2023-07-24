@@ -265,10 +265,10 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 		Memory:          512 << 20,
 	}
 	protocolPeerLimitIncrease := rcmgr.BaseLimitIncrease{
-		Streams:         128,
-		StreamsInbound:  64,
-		StreamsOutbound: 64,
-		Memory:          16 << 20,
+		Streams:         512,
+		StreamsInbound:  256,
+		StreamsOutbound: 256,
+		Memory:          64 << 20,
 	}
 
 	scalingLimits.ProtocolPeerBaseLimit = protocolPeerBaseLimit
