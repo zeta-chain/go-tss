@@ -8,6 +8,7 @@ import (
 	"gitlab.com/thorchain/tss/go-tss/conversion"
 	"gitlab.com/thorchain/tss/go-tss/keygen"
 	"gitlab.com/thorchain/tss/go-tss/keysign"
+	"gitlab.com/thorchain/tss/go-tss/tss"
 )
 
 type MockTssServer struct {
@@ -28,6 +29,10 @@ func (mts *MockTssServer) Stop() {
 
 func (mts *MockTssServer) GetLocalPeerID() string {
 	return conversion.GetRandomPeerID().String()
+}
+
+func (mts *MockTssServer) GetKnownPeers() []tss.PeerInfo {
+	return []tss.PeerInfo{}
 }
 
 func (mts *MockTssServer) Keygen(req keygen.Request) (keygen.Response, error) {

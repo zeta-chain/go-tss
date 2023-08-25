@@ -10,6 +10,7 @@ type Server interface {
 	Start() error
 	Stop()
 	GetLocalPeerID() string
+	GetKnownPeers() []PeerInfo
 	Keygen(req keygen.Request) (keygen.Response, error)
 	KeySign(req keysign.Request) (keysign.Response, error)
 }

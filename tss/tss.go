@@ -12,6 +12,7 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types/bech32/legacybech32"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-peerstore/addr"
+	"github.com/multiformats/go-multiaddr"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	tcrypto "github.com/tendermint/tendermint/crypto"
@@ -40,6 +41,11 @@ type TssServer struct {
 	signatureNotifier *keysign.SignatureNotifier
 	privateKey        tcrypto.PrivKey
 	tssMetrics        *monitor.Metric
+}
+
+type PeerInfo struct {
+	ID      string
+	Address string
 }
 
 // NewTss create a new instance of Tss
@@ -206,4 +212,22 @@ func (t *TssServer) joinParty(msgID, version string, blockHeight int64, particip
 // GetLocalPeerID return the local peer
 func (t *TssServer) GetLocalPeerID() string {
 	return t.p2pCommunication.GetLocalPeerID()
+}
+
+// GetKnownPeers return the the ID and IP address of all peers.
+func (t *TssServer) GetKnownPeers() []PeerInfo {
+	infos := []PeerInfo{}
+	host := t.p2pCommunication.GetHost()
+
+	for _, conn := range host.Network().Conns() {
+		peer := conn.RemotePeer()
+		addrs := conn.RemoteMultiaddr()
+		ip, _ := addrs.ValueForProtocol(multiaddr.P_IP4)
+		pi := PeerInfo{
+			ID:      peer.String(),
+			Address: ip,
+		}
+		infos = append(infos, pi)
+	}
+	return infos
 }
