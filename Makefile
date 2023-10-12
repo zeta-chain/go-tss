@@ -44,7 +44,7 @@ protob:
 	protoc --go_out=module=$(module):. ./messages/*.proto
 
 build: protob
-	go build ./...
+	go1.19.13 build ./...
 
 docker-build:
 	docker build -t registry.gitlab.com/thorchain/tss/go-tss .
