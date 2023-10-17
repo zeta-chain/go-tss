@@ -1234,8 +1234,8 @@ github.com/yuin/goldmark v1.1.32/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9de
 github.com/yuin/goldmark v1.2.1/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/yuin/goldmark v1.3.5/go.mod h1:mwnBkeHKe2W/ZEtQ+71ViKU8L12m81fl3OWwC1Zlc8k=
 github.com/yuin/goldmark v1.4.13/go.mod h1:6yULJ656Px+3vBD8DxQVa3kxgyrAnzto9xy5taEt/CY=
-github.com/zeta-chain/tss-lib-thor v0.1.6 h1:Xeyt5s3LffUKfo+ttycPAQrviqkjPPu+gvlkb7q1OnE=
-github.com/zeta-chain/tss-lib-thor v0.1.6/go.mod h1:h8ZCkl19xxpxSFr05WgwQFomkG7HSbBdeoX/PRfJQGs=
+github.com/zeta-chain/tss-lib-thor v0.1.7-0.20231017181005-017342394351 h1:BxNj9L667kMCVZOfNwxpan56jAXdSbwX4uS/oOnOdh0=
+github.com/zeta-chain/tss-lib-thor v0.1.7-0.20231017181005-017342394351/go.mod h1:BFa3O7bRZzErlAPraAfLiFaitP2EFy2FuPxnPFyFneM=
 github.com/zondax/hid v0.9.0 h1:eiT3P6vNxAEVxXMw66eZUAAnU2zD33JBkfG/EnfAKl8=
 github.com/zondax/hid v0.9.0/go.mod h1:l5wttcP0jwtdLjqjMMWFVEE7d1zO0jvSPA9OPZxWpEM=
 github.com/zondax/ledger-go v0.12.1/go.mod h1:KatxXrVDzgWwbssUWsF5+cOJHXPvzQ09YSlzGNuhOEo=

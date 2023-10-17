@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	tsslibcommon "github.com/binance-chain/tss-lib/common"
 	"github.com/libp2p/go-libp2p/core/peer"
+	tsslibcommon "github.com/zeta-chain/tss-lib-thor/common"
 
 	"gitlab.com/thorchain/tss/go-tss/blame"
 	"gitlab.com/thorchain/tss/go-tss/common"

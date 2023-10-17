@@ -12,12 +12,12 @@ import (
 	"testing"
 	"time"
 
-	btsskeygen "github.com/binance-chain/tss-lib/ecdsa/keygen"
-	btss "github.com/binance-chain/tss-lib/tss"
 	coskey "github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
 	sdk "github.com/cosmos/cosmos-sdk/types/bech32/legacybech32"
 	tcrypto "github.com/tendermint/tendermint/crypto"
 	"github.com/tendermint/tendermint/crypto/secp256k1"
+	btsskeygen "github.com/zeta-chain/tss-lib-thor/ecdsa/keygen"
+	btss "github.com/zeta-chain/tss-lib-thor/tss"
 	. "gopkg.in/check.v1"
 
 	"gitlab.com/thorchain/tss/go-tss/blame"

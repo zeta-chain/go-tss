@@ -6,8 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/binance-chain/tss-lib/common"
-	tsslibcommon "github.com/binance-chain/tss-lib/common"
 	"github.com/golang/protobuf/proto"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
@@ -15,6 +13,8 @@ import (
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"github.com/zeta-chain/tss-lib-thor/common"
+	tsslibcommon "github.com/zeta-chain/tss-lib-thor/common"
 
 	"gitlab.com/thorchain/tss/go-tss/messages"
 	"gitlab.com/thorchain/tss/go-tss/p2p"

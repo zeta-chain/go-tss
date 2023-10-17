@@ -8,12 +8,12 @@ import (
 	"testing"
 	"time"
 
-	tsslibcommon "github.com/binance-chain/tss-lib/common"
-	"github.com/binance-chain/tss-lib/ecdsa/signing"
-	"github.com/libp2p/go-libp2p/core/peer"
 	tnet "github.com/libp2p/go-libp2p-testing/net"
+	"github.com/libp2p/go-libp2p/core/peer"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
 	"github.com/stretchr/testify/assert"
+	tsslibcommon "github.com/zeta-chain/tss-lib-thor/common"
+	"github.com/zeta-chain/tss-lib-thor/ecdsa/signing"
 
 	"gitlab.com/thorchain/tss/go-tss/common"
 	"gitlab.com/thorchain/tss/go-tss/p2p"

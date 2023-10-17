@@ -6,10 +6,10 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/binance-chain/tss-lib/ecdsa/keygen"
-	"github.com/libp2p/go-libp2p/core/peer"
 	tnet "github.com/libp2p/go-libp2p-testing/net"
+	"github.com/libp2p/go-libp2p/core/peer"
 	maddr "github.com/multiformats/go-multiaddr"
+	"github.com/zeta-chain/tss-lib-thor/ecdsa/keygen"
 	. "gopkg.in/check.v1"
 
 	"gitlab.com/thorchain/tss/go-tss/conversion"

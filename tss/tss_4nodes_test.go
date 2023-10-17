@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
-	btsskeygen "github.com/binance-chain/tss-lib/ecdsa/keygen"
 	maddr "github.com/multiformats/go-multiaddr"
+	btsskeygen "github.com/zeta-chain/tss-lib-thor/ecdsa/keygen"
 	. "gopkg.in/check.v1"
 
 	"gitlab.com/thorchain/tss/go-tss/common"

@@ -6,12 +6,12 @@ import (
 	"sync"
 	"time"
 
-	bcrypto "github.com/binance-chain/tss-lib/crypto"
-	bkg "github.com/binance-chain/tss-lib/ecdsa/keygen"
-	btss "github.com/binance-chain/tss-lib/tss"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	tcrypto "github.com/tendermint/tendermint/crypto"
+	bcrypto "github.com/zeta-chain/tss-lib-thor/crypto"
+	bkg "github.com/zeta-chain/tss-lib-thor/ecdsa/keygen"
+	btss "github.com/zeta-chain/tss-lib-thor/tss"
 
 	"gitlab.com/thorchain/tss/go-tss/blame"
 	"gitlab.com/thorchain/tss/go-tss/common"

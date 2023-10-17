@@ -11,11 +11,11 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/binance-chain/tss-lib/ecdsa/keygen"
 	"github.com/libp2p/go-libp2p/core/peer"
 	maddr "github.com/multiformats/go-multiaddr"
+	"github.com/zeta-chain/tss-lib-thor/ecdsa/keygen"
 
-  "gitlab.com/thorchain/tss/go-tss/conversion"
+	"gitlab.com/thorchain/tss/go-tss/conversion"
 	"gitlab.com/thorchain/tss/go-tss/p2p"
 )
 

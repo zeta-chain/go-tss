@@ -12,12 +12,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/binance-chain/tss-lib/common"
-	"github.com/binance-chain/tss-lib/ecdsa/keygen"
-	"github.com/binance-chain/tss-lib/test"
-	"github.com/binance-chain/tss-lib/tss"
 	"github.com/ipfs/go-log"
 	"github.com/pkg/errors"
+	"github.com/zeta-chain/tss-lib-thor/common"
+	"github.com/zeta-chain/tss-lib-thor/ecdsa/keygen"
+	"github.com/zeta-chain/tss-lib-thor/test"
+	"github.com/zeta-chain/tss-lib-thor/tss"
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
 )
