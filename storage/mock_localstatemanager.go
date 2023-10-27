@@ -3,7 +3,7 @@ package storage
 import (
 	"github.com/libp2p/go-libp2p/core/peer"
 
-	"gitlab.com/thorchain/tss/go-tss/p2p"
+	"github.com/zeta-chain/go-tss/p2p"
 )
 
 // MockLocalStateManager is a mock use for test purpose

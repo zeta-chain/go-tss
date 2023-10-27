@@ -1,4 +1,4 @@
-module = gitlab.com/thorchain/tss/go-tss
+module = github.com/zeta-chain/go-tss
 
 .PHONY: clear tools install test test-watch lint-pre lint lint-verbose protob build docker-gitlab-login docker-gitlab-push docker-gitlab-build
 
@@ -20,7 +20,7 @@ go.sum: go.mod
 	go mod verify
 
 test:
-	@go test --race ./...
+	@go1.19.13 test --race ./...
 
 test-watch: clear
 	@gow -c test -tags testnet -mod=readonly ./...
@@ -44,7 +44,7 @@ protob:
 	protoc --go_out=module=$(module):. ./messages/*.proto
 
 build: protob
-	go build ./...
+	go1.19.13 build ./...
 
 docker-build:
-	docker build -t registry.gitlab.com/thorchain/tss/go-tss .
+	docker build -t registry.github.com/zeta-chain/go-tss .

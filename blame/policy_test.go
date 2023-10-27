@@ -5,13 +5,12 @@ import (
 	"sync"
 	"testing"
 
-	bkg "github.com/binance-chain/tss-lib/ecdsa/keygen"
-	btss "github.com/binance-chain/tss-lib/tss"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/zeta-chain/go-tss/conversion"
+	"github.com/zeta-chain/go-tss/messages"
+	bkg "github.com/zeta-chain/tss-lib/ecdsa/keygen"
+	btss "github.com/zeta-chain/tss-lib/tss"
 	. "gopkg.in/check.v1"
-
-	"gitlab.com/thorchain/tss/go-tss/conversion"
-	"gitlab.com/thorchain/tss/go-tss/messages"
 )
 
 var (

@@ -7,22 +7,22 @@ import (
 	"strings"
 	"sync"
 
-	bkeygen "github.com/binance-chain/tss-lib/ecdsa/keygen"
 	coskey "github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
 	sdk "github.com/cosmos/cosmos-sdk/types/bech32/legacybech32"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	tcrypto "github.com/tendermint/tendermint/crypto"
+	bkeygen "github.com/zeta-chain/tss-lib/ecdsa/keygen"
 
-	"gitlab.com/thorchain/tss/go-tss/common"
-	"gitlab.com/thorchain/tss/go-tss/conversion"
-	"gitlab.com/thorchain/tss/go-tss/keygen"
-	"gitlab.com/thorchain/tss/go-tss/keysign"
-	"gitlab.com/thorchain/tss/go-tss/messages"
-	"gitlab.com/thorchain/tss/go-tss/monitor"
-	"gitlab.com/thorchain/tss/go-tss/p2p"
-	"gitlab.com/thorchain/tss/go-tss/storage"
+	"github.com/zeta-chain/go-tss/common"
+	"github.com/zeta-chain/go-tss/conversion"
+	"github.com/zeta-chain/go-tss/keygen"
+	"github.com/zeta-chain/go-tss/keysign"
+	"github.com/zeta-chain/go-tss/messages"
+	"github.com/zeta-chain/go-tss/monitor"
+	"github.com/zeta-chain/go-tss/p2p"
+	"github.com/zeta-chain/go-tss/storage"
 )
 
 // TssServer is the structure that can provide all keysign and key gen features

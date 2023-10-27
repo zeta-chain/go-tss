@@ -15,14 +15,13 @@ import (
 	"testing"
 	"time"
 
-	btsskeygen "github.com/binance-chain/tss-lib/ecdsa/keygen"
 	maddr "github.com/multiformats/go-multiaddr"
+	"github.com/zeta-chain/go-tss/common"
+	"github.com/zeta-chain/go-tss/conversion"
+	"github.com/zeta-chain/go-tss/keygen"
+	"github.com/zeta-chain/go-tss/keysign"
+	btsskeygen "github.com/zeta-chain/tss-lib/ecdsa/keygen"
 	. "gopkg.in/check.v1"
-
-	"gitlab.com/thorchain/tss/go-tss/common"
-	"gitlab.com/thorchain/tss/go-tss/conversion"
-	"gitlab.com/thorchain/tss/go-tss/keygen"
-	"gitlab.com/thorchain/tss/go-tss/keysign"
 )
 
 const (

@@ -6,19 +6,19 @@ import (
 	"sync"
 	"time"
 
-	bcrypto "github.com/binance-chain/tss-lib/crypto"
-	bkg "github.com/binance-chain/tss-lib/ecdsa/keygen"
-	btss "github.com/binance-chain/tss-lib/tss"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	tcrypto "github.com/tendermint/tendermint/crypto"
+	bcrypto "github.com/zeta-chain/tss-lib/crypto"
+	bkg "github.com/zeta-chain/tss-lib/ecdsa/keygen"
+	btss "github.com/zeta-chain/tss-lib/tss"
 
-	"gitlab.com/thorchain/tss/go-tss/blame"
-	"gitlab.com/thorchain/tss/go-tss/common"
-	"gitlab.com/thorchain/tss/go-tss/conversion"
-	"gitlab.com/thorchain/tss/go-tss/messages"
-	"gitlab.com/thorchain/tss/go-tss/p2p"
-	"gitlab.com/thorchain/tss/go-tss/storage"
+	"github.com/zeta-chain/go-tss/blame"
+	"github.com/zeta-chain/go-tss/common"
+	"github.com/zeta-chain/go-tss/conversion"
+	"github.com/zeta-chain/go-tss/messages"
+	"github.com/zeta-chain/go-tss/p2p"
+	"github.com/zeta-chain/go-tss/storage"
 )
 
 type TssKeyGen struct {

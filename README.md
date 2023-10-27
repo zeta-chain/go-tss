@@ -7,7 +7,7 @@
 > This repo mirrors from THORChain Gitlab to Github. 
 > To contribute, please contact the team and commit to the Gitlab repo:
 >
-> https://gitlab.com/thorchain/tss/go-tss
+> https://github.com/zeta-chain/go-tss
 
 
 ****
@@ -21,7 +21,7 @@
 
 ### How to contribute
 
-* Create an issue or find an existing issue on https://gitlab.com/thorchain/tss/go-tss/-/issues
+* Create an issue or find an existing issue on https://github.com/zeta-chain/go-tss/-/issues
 * Assign the issue to yourself
 * Create a branch using the issue id, for example if the issue you are working on is 600, then create a branch call `600-issue` , this way , gitlab will link your PR with the issue
 * Raise a PR , and submit it for the team to review
@@ -30,7 +30,7 @@
 
 ### the semantic version and release
 Go-TSS manage changelog entry the same way like gitlab, refer to (https://docs.gitlab.com/ee/development/changelog.html) for more detail. Once a merge request get merged into master branch,
-if the merge request upgrade the [version](https://gitlab.com/thorchain/tss/go-tss/-/blob/master/version), then a new release will be created automatically, and the repository will be tagged with
+if the merge request upgrade the [version](https://github.com/zeta-chain/go-tss/-/blob/master/version), then a new release will be created automatically, and the repository will be tagged with
 the new version by the release tool.
 
 ### How to generate a changelog entry

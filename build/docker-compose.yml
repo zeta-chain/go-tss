@@ -9,7 +9,7 @@ services:
     build:
       context: ../
       dockerfile: Dockerfile
-    #image: registry.gitlab.com/thorchain/tss/go-tss
+    #image: registry.github.com/zeta-chain/go-tss
     restart: unless-stopped
     environment:
       - PRIVKEY=${TSS_0}
@@ -27,7 +27,7 @@ services:
     build:
       context: ../
       dockerfile: Dockerfile
-    #image: registry.gitlab.com/thorchain/tss/go-tss
+    #image: registry.github.com/zeta-chain/go-tss
     restart: unless-stopped
     environment:
       - PRIVKEY=${TSS_1}
@@ -47,7 +47,7 @@ services:
     build:
       context: ../
       dockerfile: Dockerfile
-    #image: registry.gitlab.com/thorchain/tss/go-tss
+    #image: registry.github.com/zeta-chain/go-tss
     restart: unless-stopped
     environment:
       - PRIVKEY=${TSS_2}
@@ -66,7 +66,7 @@ services:
     build:
       context: ../
       dockerfile: Dockerfile
-    #image: registry.gitlab.com/thorchain/tss/go-tss
+    #image: registry.github.com/zeta-chain/go-tss
     restart: unless-stopped
     environment:
       - PRIVKEY=${TSS_3}
