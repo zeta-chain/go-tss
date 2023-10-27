@@ -6,7 +6,7 @@ import (
 
 	"github.com/libp2p/go-libp2p/core/peer"
 
-	"gitlab.com/thorchain/tss/go-tss/messages"
+	"github.com/zeta-chain/go-tss/messages"
 )
 
 type PeerStatus struct {

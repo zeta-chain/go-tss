@@ -14,23 +14,21 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ipfs/go-log"
-
-	"github.com/binance-chain/tss-lib/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	tcrypto "github.com/tendermint/tendermint/crypto"
 	"github.com/tendermint/tendermint/crypto/secp256k1"
+	"github.com/zeta-chain/tss-lib/crypto"
 
-	btsskeygen "github.com/binance-chain/tss-lib/ecdsa/keygen"
-	btss "github.com/binance-chain/tss-lib/tss"
+	"github.com/ipfs/go-log"
 	maddr "github.com/multiformats/go-multiaddr"
+	"github.com/zeta-chain/go-tss/common"
+	"github.com/zeta-chain/go-tss/conversion"
+	"github.com/zeta-chain/go-tss/messages"
+	"github.com/zeta-chain/go-tss/p2p"
+	"github.com/zeta-chain/go-tss/storage"
+	btsskeygen "github.com/zeta-chain/tss-lib/ecdsa/keygen"
+	btss "github.com/zeta-chain/tss-lib/tss"
 	. "gopkg.in/check.v1"
-
-	"gitlab.com/thorchain/tss/go-tss/common"
-	"gitlab.com/thorchain/tss/go-tss/conversion"
-	"gitlab.com/thorchain/tss/go-tss/messages"
-	"gitlab.com/thorchain/tss/go-tss/p2p"
-	"gitlab.com/thorchain/tss/go-tss/storage"
 )
 
 var (

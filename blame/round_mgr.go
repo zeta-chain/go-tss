@@ -3,7 +3,7 @@ package blame
 import (
 	"sync"
 
-	"gitlab.com/thorchain/tss/go-tss/messages"
+	"github.com/zeta-chain/go-tss/messages"
 )
 
 type RoundInfo struct {
