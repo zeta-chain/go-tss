@@ -101,7 +101,7 @@ func (fsm *FileStateMgr) SaveLocalState(state KeygenLocalState) error {
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(filePathName, data, 0o655)
+	return ioutil.WriteFile(filePathName, data, 0o600)
 }
 
 // GetLocalState read the local state from file system
@@ -116,6 +116,7 @@ func (fsm *FileStateMgr) GetLocalState(pubKey string) (KeygenLocalState, error) 
 	if _, err := os.Stat(filePathName); os.IsNotExist(err) {
 		return KeygenLocalState{}, err
 	}
+	filePathName = filepath.Clean(filePathName)
 
 	buf, err := ioutil.ReadFile(filePathName)
 	if err != nil {
@@ -154,7 +155,7 @@ func (fsm *FileStateMgr) SaveAddressBook(address map[peer.ID]p2p.AddrList) error
 	}
 	fsm.writeLock.Lock()
 	defer fsm.writeLock.Unlock()
-	return ioutil.WriteFile(filePathName, buf.Bytes(), 0o655)
+	return ioutil.WriteFile(filePathName, buf.Bytes(), 0o600)
 }
 
 func (fsm *FileStateMgr) RetrieveP2PAddresses() (p2p.AddrList, error) {
@@ -162,6 +163,7 @@ func (fsm *FileStateMgr) RetrieveP2PAddresses() (p2p.AddrList, error) {
 		return nil, errors.New("base file path is invalid")
 	}
 	filePathName := filepath.Join(fsm.folder, "address_book.seed")
+	filePathName = filepath.Clean(filePathName)
 
 	_, err := os.Stat(filePathName)
 	if err != nil {
