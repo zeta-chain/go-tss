@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -22,6 +23,7 @@ var _ = Suite(&FileStateMgrTestSuite{})
 func TestPackage(t *testing.T) { TestingT(t) }
 
 func (s *FileStateMgrTestSuite) SetUpTest(c *C) {
+	_ = os.Setenv(keyFragmentSeed, "vSeb9Pw5GEAcZHVX1AgxPPWeyPLWTfWkGWNXeDKFO2zHoqDsRnVVoLE4fEIcO14d")
 	conversion.SetupBech32Prefix()
 }
 
@@ -101,4 +103,33 @@ func (s *FileStateMgrTestSuite) TestSaveAddressBook(c *C) {
 	item, err := fsm.RetrieveP2PAddresses()
 	c.Assert(err, IsNil)
 	c.Assert(item, HasLen, 3)
+}
+
+func (s *FileStateMgrTestSuite) TestEncryption(c *C) {
+	folder := os.TempDir()
+	f := filepath.Join(folder, "test", "test1", "test2")
+	defer func() {
+		err := os.RemoveAll(f)
+		c.Assert(err, IsNil)
+	}()
+	fsm, err := NewFileStateMgr(f)
+	c.Assert(err, IsNil)
+	c.Assert(fsm, NotNil)
+
+	stateItem := KeygenLocalState{
+		PubKey:    "wasdfasdfasdfasdfasdfasdf",
+		LocalData: keygen.NewLocalPartySaveData(5),
+		ParticipantKeys: []string{
+			"A", "B", "C",
+		},
+		LocalPartyKey: "A",
+	}
+	buf, err := json.Marshal(stateItem)
+	c.Assert(buf, NotNil)
+
+	ct, err := fsm.encryptFragment(buf)
+	c.Assert(err, IsNil)
+	pt, err := fsm.decryptFragment(ct)
+	c.Assert(err, IsNil)
+	c.Assert(reflect.DeepEqual(buf, pt), Equals, true)
 }

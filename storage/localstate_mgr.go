@@ -2,10 +2,16 @@ package storage
 
 import (
 	"bytes"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,6 +24,8 @@ import (
 	"github.com/zeta-chain/go-tss/conversion"
 	"github.com/zeta-chain/go-tss/p2p"
 )
+
+const keyFragmentSeed = "TSS_FRAGMENT_SEED"
 
 // KeygenLocalState is a structure used to represent the data we saved locally for different keygen
 type KeygenLocalState struct {
@@ -40,6 +48,7 @@ type LocalStateManager interface {
 type FileStateMgr struct {
 	folder    string
 	writeLock *sync.RWMutex
+	key       []byte
 }
 
 // NewFileStateMgr create a new instance of the FileStateMgr which implements LocalStateManager
@@ -52,9 +61,14 @@ func NewFileStateMgr(folder string) (*FileStateMgr, error) {
 			}
 		}
 	}
+	key, err := getFragmentSeed()
+	if err != nil {
+		return nil, err
+	}
 	return &FileStateMgr{
 		folder:    folder,
 		writeLock: &sync.RWMutex{},
+		key:       key,
 	}, nil
 }
 
@@ -84,7 +98,11 @@ func (fsm *FileStateMgr) SaveLocalState(state KeygenLocalState) error {
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(filePathName, buf, 0o655)
+	data, err := fsm.encryptFragment(buf)
+	if err != nil {
+		return err
+	}
+	return ioutil.WriteFile(filePathName, data, 0o655)
 }
 
 // GetLocalState read the local state from file system
@@ -102,11 +120,15 @@ func (fsm *FileStateMgr) GetLocalState(pubKey string) (KeygenLocalState, error) 
 
 	buf, err := ioutil.ReadFile(filePathName)
 	if err != nil {
-		return KeygenLocalState{}, fmt.Errorf("file to read from file(%s): %w", filePathName, err)
+		return KeygenLocalState{}, fmt.Errorf("fail to read from file(%s): %w", filePathName, err)
+	}
+	pt, err := fsm.decryptFragment(buf)
+	if err != nil {
+		return KeygenLocalState{}, fmt.Errorf("fail to decrypt data: %w", err)
 	}
 	var localState KeygenLocalState
-	if err := json.Unmarshal(buf, &localState); nil != err {
-		return KeygenLocalState{}, fmt.Errorf("fail to unmarshal KeygenLocalState: %w", err)
+	if err := json.Unmarshal(pt, &localState); nil != err {
+		return KeygenLocalState{}, fmt.Errorf("fail to unmarshal KeygenLocalState:%x %w", pt, err)
 	}
 	return localState, nil
 }
@@ -167,4 +189,54 @@ func (fsm *FileStateMgr) RetrieveP2PAddresses() (p2p.AddrList, error) {
 		peerAddresses = append(peerAddresses, addr)
 	}
 	return peerAddresses, nil
+}
+
+func (fsm *FileStateMgr) encryptFragment(plainText []byte) ([]byte, error) {
+	block, err := aes.NewCipher(fsm.key)
+	if err != nil {
+		return nil, err
+	}
+	// Creating GCM mode
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		log.Fatalf("cipher GCM err: %v", err.Error())
+	}
+	// Generating random nonce
+	nonce := make([]byte, gcm.NonceSize())
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		return nil, err
+	}
+	cipherText := gcm.Seal(nonce, nonce, plainText, nil)
+	return cipherText, nil
+}
+
+func (fsm *FileStateMgr) decryptFragment(cipherText []byte) ([]byte, error) {
+	block, err := aes.NewCipher(fsm.key)
+	if err != nil {
+		return nil, err
+	}
+	// Creating GCM mode
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
+	// Detached nonce and decrypt
+	nonce := cipherText[:gcm.NonceSize()]
+	cipherText = cipherText[gcm.NonceSize():]
+	plainText, err := gcm.Open(nil, nonce, cipherText, nil)
+	if err != nil {
+		return nil, err
+	}
+	return plainText, nil
+}
+
+func getFragmentSeed() ([]byte, error) {
+	seedStr := os.Getenv(keyFragmentSeed)
+	if seedStr == "" {
+		return nil, errors.New("empty fragment seed, please populate env variable: " + keyFragmentSeed)
+	}
+	h := sha256.New()
+	h.Write([]byte(seedStr))
+	seed := h.Sum(nil)
+	return seed, nil
 }
