@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -199,7 +198,7 @@ func (fsm *FileStateMgr) encryptFragment(plainText []byte) ([]byte, error) {
 	// Creating GCM mode
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
-		log.Fatalf("cipher GCM err: %v", err.Error())
+		return nil, err
 	}
 	// Generating random nonce
 	nonce := make([]byte, gcm.NonceSize())
