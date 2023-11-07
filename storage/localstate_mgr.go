@@ -45,9 +45,10 @@ type LocalStateManager interface {
 
 // FileStateMgr save the local state to file
 type FileStateMgr struct {
-	folder    string
-	writeLock *sync.RWMutex
-	key       []byte
+	folder      string
+	writeLock   *sync.RWMutex
+	encryptMode bool
+	key         []byte
 }
 
 // NewFileStateMgr create a new instance of the FileStateMgr which implements LocalStateManager
@@ -60,14 +61,16 @@ func NewFileStateMgr(folder string) (*FileStateMgr, error) {
 			}
 		}
 	}
+	encryptMode := true
 	key, err := getFragmentSeed()
 	if err != nil {
-		return nil, err
+		encryptMode = false
 	}
 	return &FileStateMgr{
-		folder:    folder,
-		writeLock: &sync.RWMutex{},
-		key:       key,
+		folder:      folder,
+		writeLock:   &sync.RWMutex{},
+		encryptMode: encryptMode,
+		key:         key,
 	}, nil
 }
 
@@ -193,6 +196,9 @@ func (fsm *FileStateMgr) RetrieveP2PAddresses() (p2p.AddrList, error) {
 }
 
 func (fsm *FileStateMgr) encryptFragment(plainText []byte) ([]byte, error) {
+	if !fsm.encryptMode {
+		return plainText, nil
+	}
 	block, err := aes.NewCipher(fsm.key)
 	if err != nil {
 		return nil, err
@@ -211,7 +217,10 @@ func (fsm *FileStateMgr) encryptFragment(plainText []byte) ([]byte, error) {
 	return cipherText, nil
 }
 
-func (fsm *FileStateMgr) decryptFragment(cipherText []byte) ([]byte, error) {
+func (fsm *FileStateMgr) decryptFragment(buf []byte) ([]byte, error) {
+	if !fsm.encryptMode {
+		return buf, nil
+	}
 	block, err := aes.NewCipher(fsm.key)
 	if err != nil {
 		return nil, err
@@ -222,9 +231,9 @@ func (fsm *FileStateMgr) decryptFragment(cipherText []byte) ([]byte, error) {
 		return nil, err
 	}
 	// Detached nonce and decrypt
-	nonce := cipherText[:gcm.NonceSize()]
-	cipherText = cipherText[gcm.NonceSize():]
-	plainText, err := gcm.Open(nil, nonce, cipherText, nil)
+	nonce := buf[:gcm.NonceSize()]
+	buf = buf[gcm.NonceSize():]
+	plainText, err := gcm.Open(nil, nonce, buf, nil)
 	if err != nil {
 		return nil, err
 	}
