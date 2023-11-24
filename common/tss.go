@@ -35,6 +35,7 @@ type TssCommon struct {
 	PartyIDtoP2PID              map[string]peer.ID
 	unConfirmedMsgLock          *sync.Mutex
 	unConfirmedMessages         map[string]*LocalCacheItem
+	RoundInfo                   string
 	localPeerID                 string
 	broadcastChannel            chan *messages.BroadcastMsgChan
 	TssMsg                      chan *p2p.Message
@@ -198,7 +199,7 @@ func (t *TssCommon) processInvalidMsgBlame(roundInfo string, round blame.RoundIn
 	pubkeys, errBlame := conversion.AccPubKeysFromPartyIDs(culpritsID, t.partyInfo.PartyIDMap)
 	if errBlame != nil {
 		t.logger.Error().Err(err.Cause()).Msgf("error in get the blame nodes")
-		t.blameMgr.GetBlame().SetBlame(blame.TssBrokenMsg, nil, unicast)
+		t.blameMgr.GetBlame().SetBlame(blame.TssBrokenMsg, nil, unicast, roundInfo)
 		return fmt.Errorf("error in getting the blame nodes")
 	}
 	// This error indicates the share is wrong, we include this signature to prove that
@@ -217,7 +218,7 @@ func (t *TssCommon) processInvalidMsgBlame(roundInfo string, round blame.RoundIn
 		}
 		blameNodes = append(blameNodes, blame.NewNode(pk, msgBody, sig))
 	}
-	t.blameMgr.GetBlame().SetBlame(blame.TssBrokenMsg, blameNodes, unicast)
+	t.blameMgr.GetBlame().SetBlame(blame.TssBrokenMsg, blameNodes, unicast, roundInfo)
 	return fmt.Errorf("fail to set bytes to local party: %w", err)
 }
 
@@ -282,6 +283,7 @@ func (t *TssCommon) updateLocal(wireMsg *messages.WireMessage) error {
 			t.logger.Error().Err(err).Msg("broken tss share")
 			return err
 		}
+		t.RoundInfo = round.RoundMsg
 
 		// we only allow a message be updated only once.
 		// here we use round + msgIdentifier as the key for the acceptedShares
@@ -580,14 +582,15 @@ func (t *TssCommon) applyShare(localCacheItem *LocalCacheItem, threshold int, ke
 			localCacheItem.Msg = nil
 			return t.requestShareFromPeer(localCacheItem, threshold, key, msgType)
 		}
+
 		blamePk, err := t.blameMgr.TssWrongShareBlame(localCacheItem.Msg)
 		if err != nil {
 			t.logger.Error().Err(err).Msgf("error in get the blame nodes")
-			t.blameMgr.GetBlame().SetBlame(blame.HashCheckFail, nil, unicast)
+			t.blameMgr.GetBlame().SetBlame(blame.HashCheckFail, nil, unicast, t.RoundInfo)
 			return fmt.Errorf("error in getting the blame nodes %w", blame.ErrHashCheck)
 		}
 		blameNode := blame.NewNode(blamePk, localCacheItem.Msg.Message, localCacheItem.Msg.Sig)
-		t.blameMgr.GetBlame().SetBlame(blame.HashCheckFail, []blame.Node{blameNode}, unicast)
+		t.blameMgr.GetBlame().SetBlame(blame.HashCheckFail, []blame.Node{blameNode}, unicast, t.RoundInfo)
 		return blame.ErrHashCheck
 	}
 
@@ -671,6 +674,7 @@ func (t *TssCommon) processVerMsg(broadcastConfirmMsg *messages.BroadcastConfirm
 	if localCacheItem.Msg == nil {
 		return t.requestShareFromPeer(localCacheItem, threshold, key, msgType)
 	}
+
 	return t.applyShare(localCacheItem, threshold, key, msgType)
 }
 

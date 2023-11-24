@@ -36,16 +36,18 @@ func NewBlame(reason string, blameNodes []Node) Blame {
 func (b Blame) String() string {
 	sb := strings.Builder{}
 	sb.WriteString("reason:" + b.FailReason + " is_unicast:" + strconv.FormatBool(b.IsUnicast) + "\n")
+	sb.WriteString(fmt.Sprintf("round:%s\n", b.Round))
 	sb.WriteString(fmt.Sprintf("nodes:%+v\n", b.BlameNodes))
 	return sb.String()
 }
 
 // SetBlame update the field values of Blame
-func (b *Blame) SetBlame(reason string, nodes []Node, isUnicast bool) {
+func (b *Blame) SetBlame(reason string, nodes []Node, isUnicast bool, round string) {
 	b.blameLock.Lock()
 	defer b.blameLock.Unlock()
 	b.FailReason = reason
 	b.IsUnicast = isUnicast
+	b.Round = round
 	b.BlameNodes = append(b.BlameNodes, nodes...)
 }
 

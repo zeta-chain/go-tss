@@ -183,7 +183,7 @@ func (tKeyGen *TssKeyGen) processKeyGen(errChan chan struct{},
 			}
 
 			if len(blameNodesUnicast) > 0 && len(blameNodesUnicast) <= threshold {
-				blameMgr.GetBlame().SetBlame(failReason, blameNodesUnicast, true)
+				blameMgr.GetBlame().SetBlame(failReason, blameNodesUnicast, true, messages.KEYGEN2aUnicast)
 			}
 			blameNodesBroadcast, err := blameMgr.GetBroadcastBlame(lastMsg.Type())
 			if err != nil {
