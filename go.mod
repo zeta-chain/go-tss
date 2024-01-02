@@ -22,7 +22,7 @@ require (
 	github.com/stretchr/testify v1.8.0
 	github.com/tendermint/btcd v0.1.1
 	github.com/tendermint/tendermint v0.34.14
-	github.com/zeta-chain/tss-lib v0.1.7
+	github.com/zeta-chain/tss-lib v0.1.8-0.20240102220003-b406663f6e0f
 	gitlab.com/thorchain/binance-sdk v1.2.3-0.20210117202539-d569b6b9ba5d
 	go.uber.org/atomic v1.10.0
 	golang.org/x/crypto v0.0.0-20220525230936-793ad666bf5e
@@ -47,7 +47,6 @@ require (
 	github.com/benbjohnson/clock v1.3.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bgentry/speakeasy v0.1.0 // indirect
-	github.com/bnb-chain/tss-lib v1.5.0 // indirect
 	github.com/btcsuite/btcutil v1.0.3-0.20201208143702-a53e38424cce // indirect
 	github.com/cespare/xxhash v1.1.0 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
