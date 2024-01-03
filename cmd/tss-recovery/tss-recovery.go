@@ -7,8 +7,8 @@ import (
 	"io/ioutil"
 	"os"
 
+	"github.com/binance-chain/tss-lib/crypto/vss"
 	. "github.com/decred/dcrd/dcrec/secp256k1"
-	"github.com/zeta-chain/tss-lib/crypto/vss"
 )
 
 func main() {

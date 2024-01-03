@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	btsskeygen "github.com/binance-chain/tss-lib/ecdsa/keygen"
+	btss "github.com/binance-chain/tss-lib/tss"
 	coskey "github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
 	sdk "github.com/cosmos/cosmos-sdk/types/bech32/legacybech32"
 	tcrypto "github.com/tendermint/tendermint/crypto"
@@ -20,8 +22,6 @@ import (
 	"github.com/zeta-chain/go-tss/conversion"
 	"github.com/zeta-chain/go-tss/messages"
 	"github.com/zeta-chain/go-tss/p2p"
-	btsskeygen "github.com/zeta-chain/tss-lib/ecdsa/keygen"
-	btss "github.com/zeta-chain/tss-lib/tss"
 	. "gopkg.in/check.v1"
 )
 

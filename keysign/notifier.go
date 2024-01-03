@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/binance-chain/tss-lib/common"
 	sdk "github.com/cosmos/cosmos-sdk/types/bech32/legacybech32"
 	"github.com/tendermint/btcd/btcec"
-	"github.com/zeta-chain/tss-lib/common"
 )
 
 // Notifier is design to receive keysign signature, success or failure

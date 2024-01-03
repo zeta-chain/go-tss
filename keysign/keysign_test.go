@@ -15,10 +15,10 @@ import (
 	"testing"
 	"time"
 
+	tsslibcommon "github.com/binance-chain/tss-lib/common"
+	btss "github.com/binance-chain/tss-lib/tss"
 	maddr "github.com/multiformats/go-multiaddr"
 	zlog "github.com/rs/zerolog/log"
-	tsslibcommon "github.com/zeta-chain/tss-lib/common"
-	btss "github.com/zeta-chain/tss-lib/tss"
 
 	"github.com/zeta-chain/go-tss/conversion"
 

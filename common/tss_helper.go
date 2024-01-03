@@ -13,14 +13,14 @@ import (
 	"os"
 	"strings"
 
+	"github.com/binance-chain/tss-lib/ecdsa/keygen"
+	"github.com/binance-chain/tss-lib/ecdsa/signing"
+	btss "github.com/binance-chain/tss-lib/tss"
 	"github.com/btcsuite/btcd/btcec"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	tcrypto "github.com/tendermint/tendermint/crypto"
-	"github.com/zeta-chain/tss-lib/ecdsa/keygen"
-	"github.com/zeta-chain/tss-lib/ecdsa/signing"
-	btss "github.com/zeta-chain/tss-lib/tss"
 
 	"github.com/zeta-chain/go-tss/blame"
 	"github.com/zeta-chain/go-tss/messages"
