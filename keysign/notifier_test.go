@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"io/ioutil"
 
+	tsslibcommon "github.com/binance-chain/tss-lib/common"
+	"github.com/binance-chain/tss-lib/ecdsa/signing"
 	"github.com/zeta-chain/go-tss/common"
 	"github.com/zeta-chain/go-tss/conversion"
-	tsslibcommon "github.com/zeta-chain/tss-lib/common"
-	"github.com/zeta-chain/tss-lib/ecdsa/signing"
 	. "gopkg.in/check.v1"
 )
 

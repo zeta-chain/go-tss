@@ -15,12 +15,12 @@ import (
 	"testing"
 	"time"
 
+	btsskeygen "github.com/binance-chain/tss-lib/ecdsa/keygen"
 	maddr "github.com/multiformats/go-multiaddr"
 	"github.com/zeta-chain/go-tss/common"
 	"github.com/zeta-chain/go-tss/conversion"
 	"github.com/zeta-chain/go-tss/keygen"
 	"github.com/zeta-chain/go-tss/keysign"
-	btsskeygen "github.com/zeta-chain/tss-lib/ecdsa/keygen"
 	. "gopkg.in/check.v1"
 )
 
