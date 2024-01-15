@@ -247,12 +247,11 @@ func (fsm *FileStateMgr) decryptFragment(buf []byte) ([]byte, error) {
 }
 
 func getFragmentSeed(password string) ([]byte, error) {
-	seedStr := os.Getenv(password)
-	if seedStr == "" {
+	if password == "" {
 		return nil, errors.New("empty fragment seed, please check password: " + password)
 	}
 	h := sha256.New()
-	h.Write([]byte(seedStr))
+	h.Write([]byte(password))
 	seed := h.Sum(nil)
 	return seed, nil
 }
