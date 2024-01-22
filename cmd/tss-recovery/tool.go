@@ -11,7 +11,7 @@ import (
 	"math/big"
 	"os"
 
-	"github.com/binance-chain/tss-lib/ecdsa/keygen"
+	"gitlab.com/thorchain/tss/tss-lib/ecdsa/keygen"
 	"github.com/btcsuite/btcd/btcec"
 	coskey "github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
 	sdk "github.com/cosmos/cosmos-sdk/types"

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"sync"
 
-	btss "github.com/binance-chain/tss-lib/tss"
+	btss "gitlab.com/thorchain/tss/tss-lib/tss"
 )
 
 const (

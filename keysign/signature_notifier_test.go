@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	tsslibcommon "github.com/binance-chain/tss-lib/common"
-	"github.com/binance-chain/tss-lib/ecdsa/signing"
+	tsslibcommon "gitlab.com/thorchain/tss/tss-lib/common"
+	"gitlab.com/thorchain/tss/tss-lib/ecdsa/signing"
 	"github.com/libp2p/go-libp2p-core/peer"
 	tnet "github.com/libp2p/go-libp2p-testing/net"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"

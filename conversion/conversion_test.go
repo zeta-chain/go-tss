@@ -6,7 +6,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/binance-chain/tss-lib/crypto"
+	"gitlab.com/thorchain/tss/tss-lib/crypto"
 	"github.com/btcsuite/btcd/btcec"
 	coskey "github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
 	sdk "github.com/cosmos/cosmos-sdk/types/bech32/legacybech32"

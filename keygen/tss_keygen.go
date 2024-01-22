@@ -6,9 +6,9 @@ import (
 	"sync"
 	"time"
 
-	bcrypto "github.com/binance-chain/tss-lib/crypto"
-	bkg "github.com/binance-chain/tss-lib/ecdsa/keygen"
-	btss "github.com/binance-chain/tss-lib/tss"
+	bcrypto "gitlab.com/thorchain/tss/tss-lib/crypto"
+	bkg "gitlab.com/thorchain/tss/tss-lib/ecdsa/keygen"
+	btss "gitlab.com/thorchain/tss/tss-lib/tss"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	tcrypto "github.com/tendermint/tendermint/crypto"

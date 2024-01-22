@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	tsslibcommon "github.com/binance-chain/tss-lib/common"
+	tsslibcommon "gitlab.com/thorchain/tss/tss-lib/common"
 	"github.com/libp2p/go-libp2p-core/peer"
 
 	"gitlab.com/thorchain/tss/go-tss/blame"

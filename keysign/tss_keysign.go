@@ -9,9 +9,9 @@ import (
 	"sync"
 	"time"
 
-	tsslibcommon "github.com/binance-chain/tss-lib/common"
-	"github.com/binance-chain/tss-lib/ecdsa/signing"
-	btss "github.com/binance-chain/tss-lib/tss"
+	tsslibcommon "gitlab.com/thorchain/tss/tss-lib/common"
+	"gitlab.com/thorchain/tss/tss-lib/ecdsa/signing"
+	btss "gitlab.com/thorchain/tss/tss-lib/tss"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	tcrypto "github.com/tendermint/tendermint/crypto"

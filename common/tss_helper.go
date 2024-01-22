@@ -13,9 +13,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/binance-chain/tss-lib/ecdsa/keygen"
-	"github.com/binance-chain/tss-lib/ecdsa/signing"
-	btss "github.com/binance-chain/tss-lib/tss"
+	"gitlab.com/thorchain/tss/tss-lib/ecdsa/keygen"
+	"gitlab.com/thorchain/tss/tss-lib/ecdsa/signing"
+	btss "gitlab.com/thorchain/tss/tss-lib/tss"
 	"github.com/btcsuite/btcd/btcec"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/rs/zerolog"

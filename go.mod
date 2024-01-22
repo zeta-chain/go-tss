@@ -3,7 +3,6 @@ module gitlab.com/thorchain/tss/go-tss
 go 1.17
 
 require (
-	github.com/binance-chain/tss-lib v0.0.0-20201118045712-70b2cb4bf916
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/btcsuite/btcd v0.22.0-beta
 	github.com/cosmos/cosmos-sdk v0.45.1
@@ -33,6 +32,7 @@ require (
 	github.com/tendermint/btcd v0.1.1
 	github.com/tendermint/tendermint v0.34.14
 	gitlab.com/thorchain/binance-sdk v1.2.3-0.20210117202539-d569b6b9ba5d
+	gitlab.com/thorchain/tss/tss-lib v0.2.0
 	go.uber.org/atomic v1.7.0
 	golang.org/x/crypto v0.0.0-20210817164053-32db794688a5
 	golang.org/x/text v0.3.6
@@ -198,6 +198,5 @@ require (
 
 replace (
 	github.com/agl/ed25519 => github.com/binance-chain/edwards25519 v0.0.0-20200305024217-f36fc4b53d43
-	github.com/binance-chain/tss-lib => gitlab.com/thorchain/tss/tss-lib v0.1.5
 	github.com/gogo/protobuf => github.com/regen-network/protobuf v1.3.2-alpha.regen.4
 )
