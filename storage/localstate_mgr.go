@@ -48,11 +48,12 @@ type FileStateMgr struct {
 	folder      string
 	writeLock   *sync.RWMutex
 	encryptMode bool
-	key         []byte
+	passkey     []byte
+	keyGen      *KeygenLocalState
 }
 
 // NewFileStateMgr create a new instance of the FileStateMgr which implements LocalStateManager
-func NewFileStateMgr(folder string) (*FileStateMgr, error) {
+func NewFileStateMgr(folder string, password string) (*FileStateMgr, error) {
 	if len(folder) > 0 {
 		_, err := os.Stat(folder)
 		if err != nil && os.IsNotExist(err) {
@@ -62,7 +63,7 @@ func NewFileStateMgr(folder string) (*FileStateMgr, error) {
 		}
 	}
 	encryptMode := true
-	key, err := getFragmentSeed()
+	key, err := getFragmentSeed(password)
 	if err != nil {
 		encryptMode = false
 	}
@@ -70,7 +71,8 @@ func NewFileStateMgr(folder string) (*FileStateMgr, error) {
 		folder:      folder,
 		writeLock:   &sync.RWMutex{},
 		encryptMode: encryptMode,
-		key:         key,
+		passkey:     key,
+		keyGen:      nil,
 	}, nil
 }
 
@@ -109,6 +111,9 @@ func (fsm *FileStateMgr) SaveLocalState(state KeygenLocalState) error {
 
 // GetLocalState read the local state from file system
 func (fsm *FileStateMgr) GetLocalState(pubKey string) (KeygenLocalState, error) {
+	if fsm.keyGen != nil {
+		return *fsm.keyGen, nil
+	}
 	if len(pubKey) == 0 {
 		return KeygenLocalState{}, errors.New("pub key is empty")
 	}
@@ -133,6 +138,7 @@ func (fsm *FileStateMgr) GetLocalState(pubKey string) (KeygenLocalState, error) 
 	if err := json.Unmarshal(pt, &localState); nil != err {
 		return KeygenLocalState{}, fmt.Errorf("fail to unmarshal KeygenLocalState:%x %w", pt, err)
 	}
+	fsm.keyGen = &localState
 	return localState, nil
 }
 
@@ -199,7 +205,7 @@ func (fsm *FileStateMgr) encryptFragment(plainText []byte) ([]byte, error) {
 	if !fsm.encryptMode {
 		return plainText, nil
 	}
-	block, err := aes.NewCipher(fsm.key)
+	block, err := aes.NewCipher(fsm.passkey)
 	if err != nil {
 		return nil, err
 	}
@@ -221,7 +227,7 @@ func (fsm *FileStateMgr) decryptFragment(buf []byte) ([]byte, error) {
 	if !fsm.encryptMode {
 		return buf, nil
 	}
-	block, err := aes.NewCipher(fsm.key)
+	block, err := aes.NewCipher(fsm.passkey)
 	if err != nil {
 		return nil, err
 	}
@@ -240,11 +246,15 @@ func (fsm *FileStateMgr) decryptFragment(buf []byte) ([]byte, error) {
 	return plainText, nil
 }
 
-func getFragmentSeed() ([]byte, error) {
+func getFragmentSeed(password string) ([]byte, error) {
 	seedStr := os.Getenv(keyFragmentSeed)
 	if seedStr == "" {
-		return nil, errors.New("empty fragment seed, please populate env variable: " + keyFragmentSeed)
+		if password == "" {
+			return nil, errors.New("empty fragment seed, please check password: " + password)
+		}
+		seedStr = password
 	}
+
 	h := sha256.New()
 	h.Write([]byte(seedStr))
 	seed := h.Sum(nil)
