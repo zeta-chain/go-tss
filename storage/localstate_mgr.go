@@ -252,7 +252,7 @@ func getFragmentSeed(password string) ([]byte, error) {
 		if password == "" {
 			return nil, errors.New("empty fragment seed, please check password: " + password)
 		}
-		fmt.Println("using provided password !!!")
+		fmt.Println("using provided password !!!", password, len(password))
 		seedStr = password
 	}
 
