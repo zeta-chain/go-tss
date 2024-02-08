@@ -51,6 +51,7 @@ func NewTss(
 	conf common.TssConfig,
 	preParams *bkeygen.LocalPreParams,
 	externalIP string,
+	tssPassword string,
 ) (*TssServer, error) {
 	pk := coskey.PubKey{
 		Key: priKey.PubKey().Bytes()[:],
@@ -61,7 +62,7 @@ func NewTss(
 		return nil, fmt.Errorf("fail to genearte the key: %w", err)
 	}
 
-	stateManager, err := storage.NewFileStateMgr(baseFolder)
+	stateManager, err := storage.NewFileStateMgr(baseFolder, tssPassword)
 	if err != nil {
 		return nil, fmt.Errorf("fail to create file state manager")
 	}
