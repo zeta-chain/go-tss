@@ -250,7 +250,8 @@ func getFragmentSeed(password string) ([]byte, error) {
 	seedStr := os.Getenv(keyFragmentSeed)
 	if seedStr == "" {
 		if password == "" {
-			return nil, errors.New("empty fragment seed, please check password: " + password)
+			return nil, errors.New("environment variable (TSS_FRAGMENT_SEED) and password are both empty, " +
+				"key-share file will be saved in plaintext")
 		}
 		seedStr = password
 	}
