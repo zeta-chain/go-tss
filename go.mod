@@ -1,6 +1,6 @@
 module gitlab.com/thorchain/tss/go-tss
 
-go 1.17
+go 1.20
 
 require (
 	github.com/blang/semver v3.5.1+incompatible

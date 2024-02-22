@@ -33,6 +33,18 @@ func (ps *PeerStatus) setLeaderResponse(resp *messages.JoinPartyLeaderComm) {
 	ps.leaderResponse = resp
 }
 
+func (ps *PeerStatus) getLeader() string {
+	ps.peerStatusLock.RLock()
+	defer ps.peerStatusLock.RUnlock()
+	return ps.leader
+}
+
+func (ps *PeerStatus) setLeader(leader string) {
+	ps.peerStatusLock.Lock()
+	defer ps.peerStatusLock.Unlock()
+	ps.leader = leader
+}
+
 func NewPeerStatus(peerNodes []peer.ID, myPeerID peer.ID, leader string, threshold int) *PeerStatus {
 	dat := make(map[peer.ID]bool)
 	for _, el := range peerNodes {

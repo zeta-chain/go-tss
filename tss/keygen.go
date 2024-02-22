@@ -52,6 +52,8 @@ func (t *TssServer) Keygen(req keygen.Request) (keygen.Response, error) {
 	onlinePeers, leader, errJoinParty := t.joinParty(msgID, req.Version, req.BlockHeight, req.Keys, len(req.Keys)-1, sigChan)
 	joinPartyTime := time.Since(joinPartyStartTime)
 	if errJoinParty != nil {
+		t.logger.Error().Err(errJoinParty).Msgf("failed to joinParty after %s, onlinePeers=%v", joinPartyTime, onlinePeers)
+
 		t.tssMetrics.KeygenJoinParty(joinPartyTime, false)
 		t.tssMetrics.UpdateKeyGen(0, false)
 		// this indicate we are processing the leaderless join party
@@ -80,18 +82,23 @@ func (t *TssServer) Keygen(req keygen.Request) (keygen.Response, error) {
 		var blameNodes blame.Blame
 		blameNodes, err = blameMgr.NodeSyncBlame(req.Keys, onlinePeers)
 		if err != nil {
-			t.logger.Err(errJoinParty).Msg("fail to get peers to blame")
+			t.logger.Error().Err(err).Msg("failed to blame nodes for joinParty failure")
 		}
 		leaderPubKey, err := conversion.GetPubKeyFromPeerID(leader)
 		if err != nil {
-			t.logger.Error().Err(errJoinParty).Msgf("fail to convert the peerID to public key with leader %s", leader)
+			t.logger.Error().Err(err).Msgf("failed to convert peerID->pubkey for leader %s", leader)
 			blameLeader = blame.NewBlame(blame.TssSyncFail, []blame.Node{})
 		} else {
-			blameLeader = blame.NewBlame(blame.TssSyncFail, []blame.Node{{leaderPubKey, nil, nil}})
+			blameLeader = blame.NewBlame(blame.TssSyncFail, []blame.Node{{Pubkey: leaderPubKey, BlameData: nil, BlameSignature: nil}})
 		}
+
 		if len(onlinePeers) != 0 {
+			t.logger.Trace().Msgf("there were %d onlinePeers, adding leader to %d existing nodes blamed",
+				len(onlinePeers), len(blameNodes.BlameNodes))
 			blameNodes.AddBlameNodes(blameLeader.BlameNodes...)
 		} else {
+			t.logger.Trace().Msgf("there were %d onlinePeers, setting blame nodes to just the leader",
+				len(onlinePeers))
 			blameNodes = blameLeader
 		}
 		t.logger.Error().Err(errJoinParty).Msgf("fail to form keygen party with online:%v", onlinePeers)
@@ -103,8 +110,10 @@ func (t *TssServer) Keygen(req keygen.Request) (keygen.Response, error) {
 
 	}
 
+	t.logger.Info().Msg("joinParty succeeded, keygen party formed")
+	t.notifyJoinPartyChan()
 	t.tssMetrics.KeygenJoinParty(joinPartyTime, true)
-	t.logger.Debug().Msg("keygen party formed")
+
 	// the statistic of keygen only care about Tss it self, even if the
 	// following http response aborts, it still counted as a successful keygen
 	// as the Tss model runs successfully.
@@ -113,8 +122,8 @@ func (t *TssServer) Keygen(req keygen.Request) (keygen.Response, error) {
 	keygenTime := time.Since(beforeKeygen)
 	if err != nil {
 		t.tssMetrics.UpdateKeyGen(keygenTime, false)
-		t.logger.Error().Err(err).Msg("err in keygen")
 		blameNodes := *blameMgr.GetBlame()
+		t.logger.Error().Err(err).Msgf("failed to generate key, blaming: %+v", blameNodes.BlameNodes)
 		return keygen.NewResponse("", "", common.Fail, blameNodes), err
 	} else {
 		t.tssMetrics.UpdateKeyGen(keygenTime, true)
@@ -122,11 +131,12 @@ func (t *TssServer) Keygen(req keygen.Request) (keygen.Response, error) {
 
 	newPubKey, addr, err := conversion.GetTssPubKey(k)
 	if err != nil {
-		t.logger.Error().Err(err).Msg("fail to generate the new Tss key")
+		t.logger.Error().Err(err).Msg("failed to generate new tss pubkey from generated key")
 		status = common.Fail
 	}
 
 	blameNodes := *blameMgr.GetBlame()
+	t.logger.Trace().Msgf("returning from keygen with status=%d, blaming=%+v", status, blameNodes.BlameNodes)
 	return keygen.NewResponse(
 		newPubKey,
 		addr.String(),
