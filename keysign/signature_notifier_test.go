@@ -8,18 +8,19 @@ import (
 	"testing"
 	"time"
 
+	tsslibcommon "github.com/bnb-chain/tss-lib/common"
 	tnet "github.com/libp2p/go-libp2p-testing/net"
 	"github.com/libp2p/go-libp2p/core/peer"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
 	"github.com/stretchr/testify/assert"
-	tsslibcommon "gitlab.com/thorchain/tss/tss-lib/common"
-	"gitlab.com/thorchain/tss/tss-lib/ecdsa/signing"
+	"gitlab.com/thorchain/tss/go-tss/conversion"
 
 	"gitlab.com/thorchain/tss/go-tss/common"
 	"gitlab.com/thorchain/tss/go-tss/p2p"
 )
 
 func TestSignatureNotifierHappyPath(t *testing.T) {
+	conversion.SetupBech32Prefix()
 	poolPubKey := `thorpub1addwnpepq0ul3xt882a6nm6m7uhxj4tk2n82zyu647dyevcs5yumuadn4uamqx7neak`
 	messageToSign := "yhEwrxWuNBGnPT/L7PNnVWg7gFWNzCYTV+GuX3tKRH8="
 	buf, err := base64.StdEncoding.DecodeString(messageToSign)
@@ -68,7 +69,7 @@ func TestSignatureNotifierHappyPath(t *testing.T) {
 	content, err := os.ReadFile(sigFile)
 	assert.Nil(t, err)
 	assert.NotNil(t, content)
-	var signature signing.SignatureData
+	var signature tsslibcommon.SignatureData
 	err = json.Unmarshal(content, &signature)
 	assert.Nil(t, err)
 	sigChan := make(chan string)
@@ -81,10 +82,10 @@ func TestSignatureNotifierHappyPath(t *testing.T) {
 		assert.NotNil(t, sig)
 	}()
 
-	assert.Nil(t, n2.BroadcastSignature(messageID, []*tsslibcommon.ECSignature{signature.GetSignature()}, []peer.ID{
+	assert.Nil(t, n2.BroadcastSignature(messageID, []*tsslibcommon.SignatureData{&signature}, []peer.ID{
 		p1, p3,
 	}))
-	assert.Nil(t, n3.BroadcastSignature(messageID, []*tsslibcommon.ECSignature{signature.GetSignature()}, []peer.ID{
+	assert.Nil(t, n3.BroadcastSignature(messageID, []*tsslibcommon.SignatureData{&signature}, []peer.ID{
 		p1, p2,
 	}))
 	wg.Wait()
@@ -139,18 +140,18 @@ func TestSignatureNotifierBroadcastFirst(t *testing.T) {
 	content, err := os.ReadFile(sigFile)
 	assert.Nil(t, err)
 	assert.NotNil(t, content)
-	var signature signing.SignatureData
+	var signature tsslibcommon.SignatureData
 	err = json.Unmarshal(content, &signature)
 	assert.Nil(t, err)
 	sigChan := make(chan string)
 
 	assert.NotContains(t, n1.notifiers, messageID)
 
-	assert.Nil(t, n2.BroadcastSignature(messageID, []*tsslibcommon.ECSignature{signature.GetSignature()}, []peer.ID{
+	assert.Nil(t, n2.BroadcastSignature(messageID, []*tsslibcommon.SignatureData{&signature}, []peer.ID{
 		p1, p3,
 	}))
 
-	assert.Nil(t, n3.BroadcastSignature(messageID, []*tsslibcommon.ECSignature{signature.GetSignature()}, []peer.ID{
+	assert.Nil(t, n3.BroadcastSignature(messageID, []*tsslibcommon.SignatureData{&signature}, []peer.ID{
 		p1, p2,
 	}))
 

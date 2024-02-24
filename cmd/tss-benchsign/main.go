@@ -12,11 +12,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"gitlab.com/thorchain/tss/tss-lib/common"
-	"gitlab.com/thorchain/tss/tss-lib/ecdsa/keygen"
-	"gitlab.com/thorchain/tss/tss-lib/ecdsa/signing"
-	"gitlab.com/thorchain/tss/tss-lib/test"
-	"gitlab.com/thorchain/tss/tss-lib/tss"
+	"github.com/bnb-chain/tss-lib/common"
+	"github.com/bnb-chain/tss-lib/ecdsa/keygen"
+	"github.com/bnb-chain/tss-lib/ecdsa/signing"
+	"github.com/bnb-chain/tss-lib/test"
+	"github.com/bnb-chain/tss-lib/tss"
 	"github.com/btcsuite/btcd/btcec"
 	"github.com/ipfs/go-log"
 	"github.com/olekukonko/tablewriter"
@@ -125,13 +125,13 @@ func runSign(dir string, t int) {
 
 	errCh := make(chan *tss.Error, len(signPIDs))
 	outCh := make(chan tss.Message, len(signPIDs))
-	endCh := make(chan *signing.SignatureData, len(signPIDs))
+	endCh := make(chan common.SignatureData, len(signPIDs))
 
 	updater := test.SharedPartyUpdater
 
 	// init the parties
 	for i := 0; i < len(signPIDs); i++ {
-		params := tss.NewParameters(p2pCtx, signPIDs[i], len(signPIDs), t)
+		params := tss.NewParameters(btcec.S256(), p2pCtx, signPIDs[i], len(signPIDs), t)
 		P := signing.NewLocalParty(msg, params, keys[i], outCh, endCh).(*signing.LocalParty)
 		parties = append(parties, P)
 		go func(P *signing.LocalParty) {
@@ -165,6 +165,7 @@ outer:
 				go updater(parties[dest[0].Index], msg, errCh)
 			}
 
+		//nolint
 		case data := <-endCh:
 			atomic.AddInt32(&ended, 1)
 			if atomic.LoadInt32(&ended) == int32(len(signPIDs)) {
@@ -175,8 +176,8 @@ outer:
 					X:     pkX,
 					Y:     pkY,
 				}
-				r := new(big.Int).SetBytes(data.Signature.GetR())
-				s := new(big.Int).SetBytes(data.Signature.GetS())
+				r := new(big.Int).SetBytes(data.GetR())
+				s := new(big.Int).SetBytes(data.GetS())
 				var ok bool
 				if ok = ecdsa.Verify(
 					&pk,

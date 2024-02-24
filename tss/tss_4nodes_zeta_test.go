@@ -13,8 +13,8 @@ import (
 	"sync"
 	"time"
 
+	btsskeygen "github.com/bnb-chain/tss-lib/ecdsa/keygen"
 	maddr "github.com/multiformats/go-multiaddr"
-	btsskeygen "gitlab.com/thorchain/tss/tss-lib/ecdsa/keygen"
 	. "gopkg.in/check.v1"
 
 	"gitlab.com/thorchain/tss/go-tss/common"
@@ -107,7 +107,7 @@ func (s *FourNodeScaleZetaSuite) doTestKeygen(c *C, version string) {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
-			req := keygen.NewRequest(copyTestPubKeys(), 10, version)
+			req := keygen.NewRequest(copyTestPubKeys(), 10, version, common.ECDSA)
 			res, err := s.servers[idx].Keygen(req)
 			c.Assert(err, IsNil)
 			lock.Lock()

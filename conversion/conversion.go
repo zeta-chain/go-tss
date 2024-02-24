@@ -1,6 +1,7 @@
 package conversion
 
 import (
+	"crypto/elliptic"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -11,23 +12,23 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/bnb-chain/tss-lib/crypto"
+	btss "github.com/bnb-chain/tss-lib/tss"
 	"github.com/btcsuite/btcd/btcec"
+	s256k1 "github.com/btcsuite/btcd/btcec"
+	coseddkey "github.com/cosmos/cosmos-sdk/crypto/keys/ed25519"
 	coskey "github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
 	"github.com/cosmos/cosmos-sdk/types"
 	sdk "github.com/cosmos/cosmos-sdk/types/bech32/legacybech32"
 	crypto2 "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
-	"gitlab.com/thorchain/tss/tss-lib/crypto"
-	btss "gitlab.com/thorchain/tss/tss-lib/tss"
 
+	"github.com/decred/dcrd/dcrec/edwards/v2"
 	"gitlab.com/thorchain/tss/go-tss/messages"
 )
 
 // GetPeerIDFromSecp256PubKey convert the given pubkey into a peer.ID
 func GetPeerIDFromSecp256PubKey(pk []byte) (peer.ID, error) {
-	if len(pk) == 0 {
-		return "", errors.New("empty public key raw bytes")
-	}
 	ppk, err := crypto2.UnmarshalSecp256k1PublicKey(pk)
 	if err != nil {
 		return "", fmt.Errorf("fail to convert pubkey to the crypto pubkey used in libp2p: %w", err)
@@ -107,7 +108,7 @@ func SetupIDMaps(parties map[string]*btss.PartyID, partyIDtoP2PID map[string]pee
 	return nil
 }
 
-func GetParties(keys []string, localPartyKey string) ([]*btss.PartyID, *btss.PartyID, error) {
+func GetParties(keys []string, localPartyKey string) (btss.SortedPartyIDs, *btss.PartyID, error) {
 	var localPartyID *btss.PartyID
 	var unSortedPartiesID []*btss.PartyID
 	sort.Strings(keys)
@@ -142,15 +143,14 @@ func GetPreviousKeySignUicast(current string) string {
 	return messages.KEYSIGN2Unicast
 }
 
-func isOnCurve(x, y *big.Int) bool {
-	curve := btcec.S256()
+func isOnCurve(x, y *big.Int, curve elliptic.Curve) bool {
 	return curve.IsOnCurve(x, y)
 }
 
-func GetTssPubKey(pubKeyPoint *crypto.ECPoint) (string, types.AccAddress, error) {
+func GetTssPubKeyECDSA(pubKeyPoint *crypto.ECPoint) (string, types.AccAddress, error) {
 	// we check whether the point is on curve according to Kudelski report
-	if pubKeyPoint == nil || !isOnCurve(pubKeyPoint.X(), pubKeyPoint.Y()) {
-		return "", types.AccAddress{}, errors.New("invalid points")
+	if pubKeyPoint == nil || !isOnCurve(pubKeyPoint.X(), pubKeyPoint.Y(), s256k1.S256()) {
+		return "", types.AccAddress{}, errors.New("[ECDSA] invalid points")
 	}
 	tssPubKey := btcec.PublicKey{
 		Curve: btcec.S256(),
@@ -159,6 +159,26 @@ func GetTssPubKey(pubKeyPoint *crypto.ECPoint) (string, types.AccAddress, error)
 	}
 
 	compressedPubkey := coskey.PubKey{
+		Key: tssPubKey.SerializeCompressed(),
+	}
+
+	pubKey, err := sdk.MarshalPubKey(sdk.AccPK, &compressedPubkey)
+	addr := types.AccAddress(compressedPubkey.Address().Bytes())
+	return pubKey, addr, err
+}
+
+func GetTssPubKeyEDDSA(pubKeyPoint *crypto.ECPoint) (string, types.AccAddress, error) {
+	// we check whether the point is on curve according to Kudelski report
+	if pubKeyPoint == nil || !isOnCurve(pubKeyPoint.X(), pubKeyPoint.Y(), btss.Edwards()) {
+		return "", nil, errors.New("[EDDSA] invalid points")
+	}
+	tssPubKey := edwards.PublicKey{
+		Curve: edwards.Edwards(),
+		X:     pubKeyPoint.X(),
+		Y:     pubKeyPoint.Y(),
+	}
+
+	compressedPubkey := coseddkey.PubKey{
 		Key: tssPubKey.SerializeCompressed(),
 	}
 
@@ -182,4 +202,14 @@ func GetThreshold(value int) (int, error) {
 	}
 	threshold := int(math.Ceil(float64(value)*2.0/3.0)) - 1
 	return threshold, nil
+}
+
+func GetEDDSAPrivateKeyRawBytes(privateKey crypto2.PrivKey) ([]byte, error) {
+	var keyBytesArray [64]byte
+	pk, err := privateKey.Raw()
+	if err != nil {
+		return nil, err
+	}
+	copy(keyBytesArray[:], pk[:])
+	return keyBytesArray[:], nil
 }

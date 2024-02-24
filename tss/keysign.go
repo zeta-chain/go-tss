@@ -9,9 +9,10 @@ import (
 	"sync"
 	"time"
 
+	tsslibcommon "github.com/bnb-chain/tss-lib/common"
 	"github.com/libp2p/go-libp2p/core/peer"
-	tsslibcommon "gitlab.com/thorchain/tss/tss-lib/common"
 
+	sdk "github.com/cosmos/cosmos-sdk/types/bech32/legacybech32"
 	"gitlab.com/thorchain/tss/go-tss/blame"
 	"gitlab.com/thorchain/tss/go-tss/common"
 	"gitlab.com/thorchain/tss/go-tss/conversion"
@@ -19,6 +20,11 @@ import (
 	"gitlab.com/thorchain/tss/go-tss/messages"
 	"gitlab.com/thorchain/tss/go-tss/p2p"
 	"gitlab.com/thorchain/tss/go-tss/storage"
+
+	"github.com/cometbft/cometbft/crypto/ed25519"
+	"github.com/cometbft/cometbft/crypto/secp256k1"
+	"gitlab.com/thorchain/tss/go-tss/keysign/ecdsa"
+	"gitlab.com/thorchain/tss/go-tss/keysign/eddsa"
 )
 
 func (t *TssServer) waitForSignatures(msgID, poolPubKey string, msgsToSign [][]byte, sigChan chan string) (keysign.Response, error) {
@@ -35,7 +41,7 @@ func (t *TssServer) waitForSignatures(msgID, poolPubKey string, msgsToSign [][]b
 	return t.batchSignatures(data, msgsToSign), nil
 }
 
-func (t *TssServer) generateSignature(msgID string, msgsToSign [][]byte, req keysign.Request, threshold int, allParticipants []string, localStateItem storage.KeygenLocalState, blameMgr *blame.Manager, keysignInstance *keysign.TssKeySign, sigChan chan string) (keysign.Response, error) {
+func (t *TssServer) generateSignature(msgID string, msgsToSign [][]byte, req keysign.Request, threshold int, allParticipants []string, localStateItem storage.KeygenLocalState, blameMgr *blame.Manager, keysignInstance keysign.TssKeySign, sigChan chan string) (keysign.Response, error) {
 	allPeersID, err := conversion.GetPeerIDsFromPubKeys(allParticipants)
 	if err != nil {
 		t.logger.Error().Msg("invalid block height or public key")
@@ -113,7 +119,11 @@ func (t *TssServer) generateSignature(msgID string, msgsToSign [][]byte, req key
 			t.logger.Error().Err(errJoinParty).Msgf("fail to convert the peerID to public key %s", leader)
 			blameLeader = blame.NewBlame(blame.TssSyncFail, []blame.Node{})
 		} else {
-			blameLeader = blame.NewBlame(blame.TssSyncFail, []blame.Node{{Pubkey: leaderPubKey, BlameData: nil, BlameSignature: nil}})
+			blameLeader = blame.NewBlame(blame.TssSyncFail, []blame.Node{{
+				Pubkey:         leaderPubKey,
+				BlameData:      nil,
+				BlameSignature: nil,
+			}})
 		}
 
 		t.broadcastKeysignFailure(msgID, allPeersID)
@@ -192,17 +202,43 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 		return emptyResp, err
 	}
 
-	keysignInstance := keysign.NewTssKeySign(
-		t.p2pCommunication.GetLocalPeerID(),
-		t.conf,
-		t.p2pCommunication.BroadcastMsgChan,
-		t.stopChan,
-		msgID,
-		t.privateKey,
-		t.p2pCommunication,
-		t.stateManager,
-		len(req.Messages),
-	)
+	var keysignInstance keysign.TssKeySign
+	var algo common.Algo
+	pubKey, err := sdk.UnmarshalPubKey(sdk.AccPK, req.PoolPubKey)
+	if err != nil {
+		return emptyResp, err
+	}
+
+	switch pubKey.Type() {
+	case secp256k1.KeyType:
+		algo = common.ECDSA
+		keysignInstance = ecdsa.NewTssKeySign(
+			t.p2pCommunication.GetLocalPeerID(),
+			t.conf,
+			t.p2pCommunication.BroadcastMsgChan,
+			t.stopChan,
+			msgID,
+			t.privateKey,
+			t.p2pCommunication,
+			t.stateManager,
+			len(req.Messages),
+		)
+	case ed25519.KeyType:
+		algo = common.EdDSA
+		keysignInstance = eddsa.NewTssKeySign(
+			t.p2pCommunication.GetLocalPeerID(),
+			t.conf,
+			t.p2pCommunication.BroadcastMsgChan,
+			t.stopChan,
+			msgID,
+			t.privateKey,
+			t.p2pCommunication,
+			t.stateManager,
+			len(req.Messages),
+		)
+	default:
+		return keysign.Response{}, errors.New("invalid keysign algo")
+	}
 
 	keySignChannels := keysignInstance.GetTssKeySignChannels()
 	t.p2pCommunication.SetSubscribe(messages.TSSKeySignMsg, msgID, keySignChannels)
@@ -236,11 +272,11 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 	}
 
 	sort.SliceStable(msgsToSign, func(i, j int) bool {
-		ma, err := common.MsgToHashInt(msgsToSign[i])
+		ma, err := common.MsgToHashInt(msgsToSign[i], algo)
 		if err != nil {
 			t.logger.Error().Err(err).Msgf("fail to convert the hash value")
 		}
-		mb, err := common.MsgToHashInt(msgsToSign[j])
+		mb, err := common.MsgToHashInt(msgsToSign[j], algo)
 		if err != nil {
 			t.logger.Error().Err(err).Msgf("fail to convert the hash value")
 		}
@@ -324,16 +360,7 @@ func (t *TssServer) broadcastKeysignFailure(messageID string, peers []peer.ID) {
 	}
 }
 
-func (t *TssServer) isPartOfKeysignParty(parties []string) bool {
-	for _, item := range parties {
-		if t.localNodePubKey == item {
-			return true
-		}
-	}
-	return false
-}
-
-func (t *TssServer) batchSignatures(sigs []*tsslibcommon.ECSignature, msgsToSign [][]byte) keysign.Response {
+func (t *TssServer) batchSignatures(sigs []*tsslibcommon.SignatureData, msgsToSign [][]byte) keysign.Response {
 	var signatures []keysign.Signature
 	for i, sig := range sigs {
 		msg := base64.StdEncoding.EncodeToString(msgsToSign[i])

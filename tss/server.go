@@ -12,5 +12,6 @@ type Server interface {
 	GetLocalPeerID() string
 	GetKnownPeers() []PeerInfo
 	Keygen(req keygen.Request) (keygen.Response, error)
+	KeygenAllAlgo(req keygen.Request) ([]keygen.Response, error)
 	KeySign(req keysign.Request) (keysign.Response, error)
 }
