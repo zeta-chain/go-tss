@@ -11,7 +11,7 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types/bech32/legacybech32"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-peerstore/addr"
-	"github.com/multiformats/go-multiaddr"
+	maddr "github.com/multiformats/go-multiaddr"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	tcrypto "github.com/tendermint/tendermint/crypto"
@@ -236,7 +236,7 @@ func (t *TssServer) GetKnownPeers() []PeerInfo {
 	for _, conn := range host.Network().Conns() {
 		peer := conn.RemotePeer()
 		addrs := conn.RemoteMultiaddr()
-		ip, _ := addrs.ValueForProtocol(multiaddr.P_IP4)
+		ip, _ := addrs.ValueForProtocol(maddr.P_IP4)
 		pi := PeerInfo{
 			ID:      peer.String(),
 			Address: ip,
