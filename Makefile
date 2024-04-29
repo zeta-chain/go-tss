@@ -20,7 +20,7 @@ go.sum: go.mod
 	go mod verify
 
 test:
-	@go1.19.13 test --race ./...
+	@go test --race ./...
 
 test-watch: clear
 	@gow -c test -tags testnet -mod=readonly ./...
@@ -44,7 +44,7 @@ protob:
 	protoc --go_out=module=$(module):. ./messages/*.proto
 
 build: protob
-	go1.19.13 build ./...
+	go build ./...
 
 docker-build:
 	docker build -t registry.github.com/zeta-chain/go-tss .
