@@ -41,10 +41,6 @@ func main() {
 
 	// Setup Bech32 Prefixes
 	conversion.SetupBech32Prefix()
-	// this is only need for the binance library
-	// if os.Getenv("NET") == "testnet" || os.Getenv("NET") == "mocknet" {
-	// 	types.Network = types.TestNetwork
-	// }
 	// Read stdin for the private key
 	inBuf := bufio.NewReader(os.Stdin)
 	priKeyBytes, err := input.GetPassword("input node secret key:", inBuf)
@@ -66,7 +62,7 @@ func main() {
 		tssConf,
 		nil,
 		p2pConf.ExternalIP,
-		"", //TODO: password missing?
+		os.Getenv("PASSWORD"), //TODO: password missing?
 	)
 	if nil != err {
 		log.Fatal(err)

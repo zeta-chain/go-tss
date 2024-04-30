@@ -129,7 +129,7 @@ func (s *TssKeygenTestSuite) SetUpTest(c *C) {
 
 	for i := 0; i < s.partyNum; i++ {
 		baseHome := path.Join(os.TempDir(), strconv.Itoa(i))
-		fMgr, err := storage.NewFileStateMgr(baseHome, "") //TODO: password missing?
+		fMgr, err := storage.NewFileStateMgr(baseHome, "password") //TODO: password missing?
 		c.Assert(err, IsNil)
 		s.stateMgrs[i] = fMgr
 	}
