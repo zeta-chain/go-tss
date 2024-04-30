@@ -19,7 +19,6 @@ import (
 	crypto2 "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 
-	// "gitlab.com/thorchain/binance-sdk/common/types"
 	"github.com/cosmos/cosmos-sdk/types"
 
 	"github.com/zeta-chain/go-tss/messages"
