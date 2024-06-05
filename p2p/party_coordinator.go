@@ -32,7 +32,7 @@ type PartyCoordinator struct {
 	host               host.Host
 	stopChan           chan struct{}
 	timeout            time.Duration
-	peersGroup         map[string]*PeerStatus
+	peersGroup         map[string]*peerStatus
 	joinPartyGroupLock *sync.Mutex
 	streamMgr          *StreamMgr
 }
@@ -48,7 +48,7 @@ func NewPartyCoordinator(host host.Host, timeout time.Duration) *PartyCoordinato
 		host:               host,
 		stopChan:           make(chan struct{}),
 		timeout:            timeout,
-		peersGroup:         make(map[string]*PeerStatus),
+		peersGroup:         make(map[string]*peerStatus),
 		joinPartyGroupLock: &sync.Mutex{},
 		streamMgr:          NewStreamMgr(),
 	}
@@ -68,7 +68,7 @@ func (pc *PartyCoordinator) Stop() {
 func (pc *PartyCoordinator) processRespMsg(respMsg *messages.JoinPartyLeaderComm, stream network.Stream) {
 	pc.streamMgr.AddStream(respMsg.ID, stream)
 
-	remotePeer := stream.Conn().RemotePeer().String()
+	remotePeer := stream.Conn().RemotePeer()
 	pc.joinPartyGroupLock.Lock()
 	peerGroup, ok := pc.peersGroup[respMsg.ID]
 	pc.joinPartyGroupLock.Unlock()
@@ -133,13 +133,10 @@ func (pc *PartyCoordinator) HandleStream(stream network.Stream) {
 		pc.logger.Info().Msg("this party is not ready")
 		return
 	}
-	newFound, err := peerGroup.updatePeer(remotePeer)
+	_, err = peerGroup.updatePeer(remotePeer)
 	if err != nil {
 		pc.logger.Error().Err(err).Msg("receive msg from unknown peer")
 		return
-	}
-	if newFound {
-		peerGroup.newFound <- true
 	}
 }
 
@@ -155,13 +152,6 @@ func (pc *PartyCoordinator) HandleStreamWithLeader(stream network.Stream) {
 		return
 	}
 
-	var msgLeaderless messages.JoinPartyRequest
-	if err := proto.Unmarshal(payload, &msgLeaderless); err != nil {
-		logger.Err(err).Msg("fail to unmarshal join party request")
-		pc.streamMgr.AddStream("UNKNOWN", stream)
-		return
-	}
-
 	var msg messages.JoinPartyLeaderComm
 	err = proto.Unmarshal(payload, &msg)
 	if err != nil {
@@ -170,7 +160,7 @@ func (pc *PartyCoordinator) HandleStreamWithLeader(stream network.Stream) {
 		return
 	}
 
-	pc.logger.Trace().Msgf("received message type=%s", msg.MsgType)
+	pc.logger.Debug().Msgf("received message type=%s", msg.MsgType)
 
 	switch msg.MsgType {
 	case "request":
@@ -196,15 +186,10 @@ func (pc *PartyCoordinator) removePeerGroup(messageID string) {
 	delete(pc.peersGroup, messageID)
 }
 
-func (pc *PartyCoordinator) createJoinPartyGroups(messageID, leader string, peers []string, threshold int) (*PeerStatus, error) {
-	pIDs, err := pc.getPeerIDs(peers)
-	if err != nil {
-		pc.logger.Error().Err(err).Msg("fail to parse peer id")
-		return nil, err
-	}
+func (pc *PartyCoordinator) createJoinPartyGroups(messageID string, leaderID peer.ID, peerIDs []peer.ID, threshold int) (*peerStatus, error) {
 	pc.joinPartyGroupLock.Lock()
 	defer pc.joinPartyGroupLock.Unlock()
-	peerStatus := NewPeerStatus(pIDs, pc.host.ID(), leader, threshold)
+	peerStatus := newPeerStatus(peerIDs, pc.host.ID(), leaderID, threshold)
 	pc.peersGroup[messageID] = peerStatus
 	return peerStatus, nil
 }
@@ -225,7 +210,7 @@ func (pc *PartyCoordinator) sendResponseToAll(msg *messages.JoinPartyLeaderComm,
 	msg.MsgType = "response"
 	msgSend, err := proto.Marshal(msg)
 	if err != nil {
-		pc.logger.Error().Msg("fail to marshal the message")
+		pc.logger.Error().Err(err).Msg("error marshalling response")
 		return
 	}
 	var wg sync.WaitGroup
@@ -248,7 +233,7 @@ func (pc *PartyCoordinator) sendRequestToLeader(msg *messages.JoinPartyLeaderCom
 	msg.MsgType = "request"
 	msgSend, err := proto.Marshal(msg)
 	if err != nil {
-		pc.logger.Error().Msg("fail to marshal the message")
+		pc.logger.Error().Err(err).Msg("error marshalling request")
 		return err
 	}
 
@@ -280,30 +265,13 @@ func (pc *PartyCoordinator) sendRequestToAll(msgID string, msgSend []byte, peers
 func (pc *PartyCoordinator) sendMsgToPeer(msgBuf []byte, msgID string, remotePeer peer.ID, protoc protocol.ID, needResponse bool) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*4)
 	defer cancel()
-	var stream network.Stream
-	var streamError error
-	streamGetChan := make(chan struct{})
-	var err error
-	go func() {
-		defer close(streamGetChan)
 
-		pc.logger.Debug().Msgf("try to open stream to (%s) ", remotePeer)
-		stream, err = pc.host.NewStream(ctx, remotePeer, protoc)
-		if err != nil {
-			streamError = fmt.Errorf("fail to create stream to peer(%s):%w", remotePeer, err)
-		}
-	}()
-	select {
-	case <-streamGetChan:
-		if streamError != nil {
-			pc.logger.Error().Err(streamError).Msg("fail to open stream")
-			return streamError
-		}
-	case <-ctx.Done():
-		pc.logger.Error().Err(ctx.Err()).Msg("fail to open stream with context timeout")
-		return ctx.Err()
+	pc.logger.Debug().Msgf("try to open stream to (%s) ", remotePeer)
+	stream, err := pc.host.NewStream(ctx, remotePeer, protoc)
+	if err != nil {
+		streamError := fmt.Errorf("fail to create stream to peer(%s):%w", remotePeer, err)
+		return streamError
 	}
-
 	defer func() {
 		pc.streamMgr.AddStream(msgID, stream)
 		if err := stream.Close(); err != nil {
@@ -326,17 +294,8 @@ func (pc *PartyCoordinator) sendMsgToPeer(msgBuf []byte, msgID string, remotePee
 	return nil
 }
 
-func (pc *PartyCoordinator) joinPartyMember(msgID string, leader string, threshold int, sigChan chan string) ([]peer.ID, error) {
-	peerGroup, err := pc.createJoinPartyGroups(msgID, leader, []string{leader}, threshold)
-	if err != nil {
-		return nil, fmt.Errorf("fail to create join party:%w", err)
-	}
-
-	leaderPeerID, err := peer.Decode(leader)
-	if err != nil {
-		return nil, fmt.Errorf("fail to decode peer id(%s):%w", leader, err)
-	}
-	peerGroup.setLeader(leader)
+func (pc *PartyCoordinator) joinPartyMember(msgID string, peerGroup *peerStatus, sigChan chan string) ([]peer.ID, error) {
+	leaderID := peerGroup.getLeader()
 	msg := messages.JoinPartyLeaderComm{
 		ID: msgID,
 	}
@@ -352,48 +311,37 @@ func (pc *PartyCoordinator) joinPartyMember(msgID string, leader string, thresho
 				return
 			default:
 				pc.logger.Trace().Msg("sending request message to leader")
-				err := pc.sendRequestToLeader(&msg, leaderPeerID)
+				err := pc.sendRequestToLeader(&msg, leaderID)
 				if err != nil {
-					pc.logger.Debug().Err(err).Msg("error sending request to leader")
+					pc.logger.Error().Err(err).Msg("error sending request to leader")
 				}
 			}
 			time.Sleep(time.Millisecond * 500)
 		}
 	}()
-	// this is the total time TSS will wait for the party to form
+
 	var stopped bool
 	var sigNotify string
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		// now we wait for the leader to notify us who we do the keygen/keysign with
-		select {
-		case <-pc.stopChan:
-			// promptly tear down this goroutine if partyCoordinator is stopped
-			pc.logger.Debug().Msg("party coordinator stopped")
-			stopped = true
-			close(done)
-			return
-		case <-peerGroup.notify:
-			pc.logger.Debug().Msg("received a response from the leader")
-			close(done)
-			return
-		case <-time.After(pc.timeout):
-			// timeout
-			close(done)
-			pc.logger.Error().Msgf("timedout waiting for a response from the leader after %s", pc.timeout)
-			return
-		case result := <-sigChan:
-			sigNotify = result
-			close(done)
-			pc.logger.Trace().Msgf("received %s from sigChan", result)
-			return
-		}
-	}()
+	// now we wait for the leader to notify us who we do the keygen/keysign with
+	select {
+	case <-pc.stopChan:
+		// promptly tear down this goroutine if partyCoordinator is stopped
+		pc.logger.Debug().Msg("party coordinator stopped")
+		stopped = true
+	case <-peerGroup.notify:
+		pc.logger.Debug().Msg("received a response from the leader")
+	case <-time.After(pc.timeout):
+		pc.logger.Debug().Msgf("timed out waiting for a response from the leader after %s", pc.timeout)
+	case result := <-sigChan:
+		pc.logger.Debug().Msgf("received %s from sigChan", result)
+		sigNotify = result
+	}
+
+	close(done)
 	wg.Wait()
 
 	if peerGroup.getLeaderResponse() == nil {
-		leaderPk, err := conversion.GetPubKeyFromPeerID(leader)
+		leaderPk, err := conversion.GetPubKeyFromPeerID(leaderID.String())
 		if err != nil {
 			pc.logger.Error().Msg("received no response from the leader")
 		} else {
@@ -415,7 +363,7 @@ func (pc *PartyCoordinator) joinPartyMember(msgID string, leader string, thresho
 		return nil, err
 	}
 
-	if len(pIDs) < threshold {
+	if len(pIDs) < peerGroup.threshold {
 		return pIDs, errors.New("not enough peers")
 	}
 
@@ -432,45 +380,24 @@ func (pc *PartyCoordinator) joinPartyMember(msgID string, leader string, thresho
 	return pIDs, ErrJoinPartyTimeout
 }
 
-func (pc *PartyCoordinator) joinPartyLeader(msgID string, peers []string, threshold int, sigChan chan string) ([]peer.ID, error) {
-	peerGroup, err := pc.createJoinPartyGroups(msgID, pc.host.ID().String(), peers, threshold)
-	if err != nil {
-		pc.logger.Error().Err(err).Msg("fail to create the join party group")
-		return nil, err
-	}
-	peerGroup.setLeader(pc.host.ID().String())
-	allPeers, err := pc.getPeerIDs(peers)
-	if err != nil {
-		pc.logger.Error().Err(err).Msg("fail to parse peer id")
-		return nil, err
-	}
+func (pc *PartyCoordinator) joinPartyLeader(msgID string, peerGroup *peerStatus, sigChan chan string) ([]peer.ID, error) {
 	var sigNotify string
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for {
-			select {
-			case <-pc.stopChan:
-				// promptly tear down this goroutine if partyCoordinator is stopped
-				pc.logger.Trace().Msg("leader's party coordinator stopped")
-				return
-			case <-peerGroup.notify:
-				pc.logger.Debug().Msg("we have enough participants")
-				return
-			case <-time.After(pc.timeout / 2):
-				// timeout, reporting to peers before their timeout
-				pc.logger.Error().Msgf("leader timedout waiting for peers after %s", pc.timeout/2)
-				return
-			case result := <-sigChan:
-				sigNotify = result
-			}
-		}
-	}()
-	wg.Wait()
+	select {
+	case <-pc.stopChan:
+		// promptly tear down this goroutine if partyCoordinator is stopped
+		pc.logger.Debug().Msg("leader's party coordinator stopped")
+	case <-peerGroup.notify:
+		pc.logger.Debug().Msg("we have enough participants")
+	case <-time.After(pc.timeout / 2):
+		// timeout, reporting to peers before their timeout
+		pc.logger.Debug().Msgf("leader timedout waiting for peers after %s", pc.timeout/2)
+	case result := <-sigChan:
+		sigNotify = result
+	}
 	if sigNotify == "signature received" {
 		return nil, ErrSignReceived
 	}
+	allPeers := peerGroup.getAllPeers()
 	onlinePeers, _ := peerGroup.getPeersStatus()
 	onlinePeers = append(onlinePeers, pc.host.ID())
 
@@ -485,31 +412,47 @@ func (pc *PartyCoordinator) joinPartyLeader(msgID string, peers []string, thresh
 		PeerIDs: tssNodes,
 	}
 	// we put ourselves(leader) in the online list, so need threshold +1
-	if len(onlinePeers) < threshold+1 {
+	if len(onlinePeers) < peerGroup.threshold+1 {
 		// we notify the failure of the join party to everyone
 		msg.Type = messages.JoinPartyLeaderComm_Timeout
-		pc.logger.Trace().Msgf("sending timeout response to %d all peers", len(onlinePeers))
+		pc.logger.Debug().Msgf("sending timeout response to %d all peers", len(onlinePeers))
 		pc.sendResponseToAll(&msg, allPeers)
 		return onlinePeers, ErrJoinPartyTimeout
 	}
 	// we notify all the peers who to run keygen/keysign
 	// if a nodes is not in the list, it means he is not selected by the leader to run the tss
-	pc.logger.Trace().Msgf("sending success response to %d all peers", len(allPeers))
+	pc.logger.Debug().Msgf("sending success response to %d all peers", len(allPeers))
 	pc.sendResponseToAll(&msg, allPeers)
 	return onlinePeers, nil
 }
 
-func (pc *PartyCoordinator) JoinPartyWithLeader(msgID string, blockHeight int64, peers []string, threshold int, signChan chan string) ([]peer.ID, string, error) {
+func (pc *PartyCoordinator) JoinPartyWithLeader(msgID string, blockHeight int64, peers []string, threshold int, sigChan chan string) ([]peer.ID, string, error) {
 	leader, err := LeaderNode(msgID, blockHeight, peers)
 	if err != nil {
 		return nil, "", err
 	}
-	if pc.host.ID().String() == leader {
-		onlines, err := pc.joinPartyLeader(msgID, peers, threshold, signChan)
+	leaderID, err := peer.Decode(leader)
+	if err != nil {
+		return nil, "", err
+	}
+	peerIDs, err := pc.getPeerIDs(peers)
+	if err != nil {
+		return nil, "", err
+	}
+
+	peerGroup, err := pc.createJoinPartyGroups(msgID, leaderID, peerIDs, threshold)
+	if err != nil {
+		pc.logger.Error().Err(err).Msg("error creating peerStatus")
+		return nil, leader, err
+	}
+	defer pc.removePeerGroup(msgID)
+
+	if pc.host.ID() == leaderID {
+		onlines, err := pc.joinPartyLeader(msgID, peerGroup, sigChan)
 		return onlines, leader, err
 	}
 	// now we are just the normal peer
-	onlines, err := pc.joinPartyMember(msgID, leader, threshold, signChan)
+	onlines, err := pc.joinPartyMember(msgID, peerGroup, sigChan)
 	return onlines, leader, err
 }
 
@@ -523,8 +466,13 @@ func (pc *PartyCoordinator) JoinPartyWithRetry(msgID string, peers []string) ([]
 		pc.logger.Error().Msg("fail to marshal the message")
 		return nil, err
 	}
+	peerIDs, err := pc.getPeerIDs(peers)
+	if err != nil {
+		pc.logger.Error().Msg("fail to parse peer.IDs")
+		return nil, err
+	}
 
-	peerGroup, err := pc.createJoinPartyGroups(msg.ID, "NONE", peers, 1)
+	peerGroup, err := pc.createJoinPartyGroups(msg.ID, "NONE", peerIDs, 1)
 	if err != nil {
 		pc.logger.Error().Err(err).Msg("fail to create the join party group")
 		return nil, err
