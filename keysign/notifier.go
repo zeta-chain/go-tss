@@ -7,8 +7,8 @@ import (
 	"math/big"
 
 	"github.com/binance-chain/tss-lib/common"
+	"github.com/btcsuite/btcd/btcec"
 	sdk "github.com/cosmos/cosmos-sdk/types/bech32/legacybech32"
-	"github.com/tendermint/btcd/btcec"
 )
 
 // Notifier is design to receive keysign signature, success or failure
