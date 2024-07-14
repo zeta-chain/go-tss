@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	tsslibcommon "gitlab.com/thorchain/tss/tss-lib/common"
 	"github.com/libp2p/go-libp2p-core/peer"
+	tsslibcommon "gitlab.com/thorchain/tss/tss-lib/common"
 
 	"gitlab.com/thorchain/tss/go-tss/blame"
 	"gitlab.com/thorchain/tss/go-tss/common"
@@ -113,7 +113,7 @@ func (t *TssServer) generateSignature(msgID string, msgsToSign [][]byte, req key
 			t.logger.Error().Err(errJoinParty).Msgf("fail to convert the peerID to public key %s", leader)
 			blameLeader = blame.NewBlame(blame.TssSyncFail, []blame.Node{})
 		} else {
-			blameLeader = blame.NewBlame(blame.TssSyncFail, []blame.Node{{leaderPubKey, nil, nil}})
+			blameLeader = blame.NewBlame(blame.TssSyncFail, []blame.Node{{Pubkey: leaderPubKey, BlameData: nil, BlameSignature: nil}})
 		}
 
 		t.broadcastKeysignFailure(msgID, allPeersID)
@@ -179,7 +179,6 @@ func (t *TssServer) updateKeySignResult(result keysign.Response, timeSpent time.
 		return
 	}
 	t.tssMetrics.UpdateKeySign(timeSpent, false)
-	return
 }
 
 func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
@@ -288,10 +287,12 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 		// we received an valid signature indeed
 		if errWait == nil {
 			sigChan <- "signature received"
-			t.logger.Log().Msgf("for message %s we get the signature from the peer", msgID)
+			t.logger.Debug().Msgf("received signature for messageID (%s) from peer", msgID)
 			return
 		}
-		t.logger.Log().Msgf("we fail to get the valid signature with error %v", errWait)
+		if errWait != p2p.ErrSigGenerated {
+			t.logger.Error().Err(errWait).Msg("waitForSignatures returned error")
+		}
 	}()
 
 	// we generate the signature ourselves

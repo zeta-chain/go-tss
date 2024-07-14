@@ -17,7 +17,7 @@ import (
 )
 
 func init() {
-	ApplyDeadline = false
+	ApplyDeadline.Store(false)
 }
 
 func setupHosts(t *testing.T, n int) []host.Host {

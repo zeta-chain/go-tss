@@ -11,10 +11,10 @@ import (
 	"strings"
 	"sync"
 
-	"gitlab.com/thorchain/tss/tss-lib/ecdsa/keygen"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-peerstore/addr"
-	ma "github.com/multiformats/go-multiaddr"
+	maddr "github.com/multiformats/go-multiaddr"
+	"gitlab.com/thorchain/tss/tss-lib/ecdsa/keygen"
 
 	"gitlab.com/thorchain/tss/go-tss/conversion"
 )
@@ -154,13 +154,13 @@ func (fsm *FileStateMgr) RetrieveP2PAddresses() (addr.AddrList, error) {
 	}
 	fsm.writeLock.RUnlock()
 	data := strings.Split(string(input), "\n")
-	var peerAddresses []ma.Multiaddr
+	var peerAddresses []maddr.Multiaddr
 	for _, el := range data {
 		// we skip the empty entry
 		if len(el) == 0 {
 			continue
 		}
-		addr, err := ma.NewMultiaddr(el)
+		addr, err := maddr.NewMultiaddr(el)
 		if err != nil {
 			return nil, fmt.Errorf("invalid address in address book %w", err)
 		}

@@ -40,7 +40,7 @@ func setupHostsLocally(t *testing.T, n int) []host.Host {
 }
 
 func TestPartyCoordinator(t *testing.T) {
-	ApplyDeadline = false
+	ApplyDeadline.Store(false)
 	hosts := setupHostsLocally(t, 4)
 	var pcs []PartyCoordinator
 	var peers []string
@@ -80,7 +80,7 @@ func TestPartyCoordinator(t *testing.T) {
 }
 
 func TestPartyCoordinatorTimeOut(t *testing.T) {
-	ApplyDeadline = false
+	ApplyDeadline.Store(false)
 	timeout := time.Second
 	hosts := setupHosts(t, 4)
 	var pcs []*PartyCoordinator

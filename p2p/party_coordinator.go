@@ -340,6 +340,10 @@ func (pc *PartyCoordinator) joinPartyMember(msgID string, peerGroup *peerStatus,
 	close(done)
 	wg.Wait()
 
+	if sigNotify == "signature received" {
+		return nil, ErrSignReceived
+	}
+
 	if peerGroup.getLeaderResponse() == nil {
 		leaderPk, err := conversion.GetPubKeyFromPeerID(leaderID.String())
 		if err != nil {
@@ -348,10 +352,6 @@ func (pc *PartyCoordinator) joinPartyMember(msgID string, peerGroup *peerStatus,
 			pc.logger.Error().Msgf("received no response from the leader (%s)", leaderPk)
 		}
 		return nil, ErrLeaderNotReady
-	}
-
-	if sigNotify == "signature received" {
-		return nil, ErrSignReceived
 	}
 
 	onlineNodes := peerGroup.getLeaderResponse().PeerIDs
