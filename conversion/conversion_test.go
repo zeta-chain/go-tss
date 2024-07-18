@@ -6,11 +6,11 @@ import (
 	"sort"
 	"testing"
 
-	"gitlab.com/thorchain/tss/tss-lib/crypto"
 	"github.com/btcsuite/btcd/btcec"
 	coskey "github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
 	sdk "github.com/cosmos/cosmos-sdk/types/bech32/legacybech32"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"gitlab.com/thorchain/tss/tss-lib/crypto"
 	. "gopkg.in/check.v1"
 )
 
@@ -89,7 +89,6 @@ func (p *ConversionTestSuite) TestGetParties(c *C) {
 	c.Assert(err, NotNil)
 }
 
-//
 func (p *ConversionTestSuite) TestGetPeerIDFromPartyID(c *C) {
 	_, localParty, err := GetParties(p.testPubKeys, p.testPubKeys[0])
 	c.Assert(err, IsNil)
@@ -224,5 +223,5 @@ func (p *ConversionTestSuite) TestTssPubKey(c *C) {
 	pk, addr, err = GetTssPubKey(point)
 	c.Assert(err, IsNil)
 	c.Assert(pk, Equals, "thorpub1addwnpepq2dwek9hkrlxjxadrlmy9fr42gqyq6029q0hked46l3u6a9fxqel6tma5eu")
-	c.Assert(addr.String(), Equals, "bnb17l7cyxqzg4xymnl0alrhqwja276s3rns4256c2")
+	c.Assert(addr.String(), Equals, "thor17l7cyxqzg4xymnl0alrhqwja276s3rns3fjdvm")
 }

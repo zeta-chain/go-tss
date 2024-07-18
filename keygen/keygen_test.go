@@ -260,7 +260,7 @@ func (s *TssKeygenTestSuite) TestGenerateNewKeyWithStop(c *C) {
 			defer comm.CancelSubscribe(messages.TSSTaskDone, messageID)
 			if idx == 0 {
 				go func() {
-					time.Sleep(time.Millisecond * 2000)
+					time.Sleep(time.Millisecond * 1000)
 					close(keygenInstance.stopChan)
 				}()
 			}
