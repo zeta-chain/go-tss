@@ -49,7 +49,7 @@ type FileStateMgr struct {
 	writeLock   *sync.RWMutex
 	encryptMode bool
 	passkey     []byte
-	keyGen      *KeygenLocalState
+	keyGenState map[string]*KeygenLocalState
 }
 
 // NewFileStateMgr create a new instance of the FileStateMgr which implements LocalStateManager
@@ -72,7 +72,7 @@ func NewFileStateMgr(folder string, password string) (*FileStateMgr, error) {
 		writeLock:   &sync.RWMutex{},
 		encryptMode: encryptMode,
 		passkey:     key,
-		keyGen:      nil,
+		keyGenState: map[string]*KeygenLocalState{},
 	}, nil
 }
 
@@ -111,11 +111,11 @@ func (fsm *FileStateMgr) SaveLocalState(state KeygenLocalState) error {
 
 // GetLocalState read the local state from file system
 func (fsm *FileStateMgr) GetLocalState(pubKey string) (KeygenLocalState, error) {
-	if fsm.keyGen != nil {
-		return *fsm.keyGen, nil
-	}
 	if len(pubKey) == 0 {
 		return KeygenLocalState{}, errors.New("pub key is empty")
+	}
+	if val, ok := fsm.keyGenState[pubKey]; ok {
+		return *val, nil
 	}
 	filePathName, err := fsm.getFilePathName(pubKey)
 	if err != nil {
@@ -138,7 +138,9 @@ func (fsm *FileStateMgr) GetLocalState(pubKey string) (KeygenLocalState, error) 
 	if err := json.Unmarshal(pt, &localState); nil != err {
 		return KeygenLocalState{}, fmt.Errorf("fail to unmarshal KeygenLocalState:%x %w", pt, err)
 	}
-	fsm.keyGen = &localState
+	fsm.writeLock.Lock()
+	defer fsm.writeLock.Unlock()
+	fsm.keyGenState[pubKey] = &localState
 	return localState, nil
 }
 

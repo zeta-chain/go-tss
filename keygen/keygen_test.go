@@ -16,14 +16,14 @@ import (
 
 	"github.com/ipfs/go-log"
 
-	"gitlab.com/thorchain/tss/tss-lib/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
 	tcrypto "github.com/tendermint/tendermint/crypto"
 	"github.com/tendermint/tendermint/crypto/secp256k1"
+	"gitlab.com/thorchain/tss/tss-lib/crypto"
 
+	maddr "github.com/multiformats/go-multiaddr"
 	btsskeygen "gitlab.com/thorchain/tss/tss-lib/ecdsa/keygen"
 	btss "gitlab.com/thorchain/tss/tss-lib/tss"
-	maddr "github.com/multiformats/go-multiaddr"
 	. "gopkg.in/check.v1"
 
 	"gitlab.com/thorchain/tss/go-tss/common"
@@ -131,7 +131,7 @@ func (s *TssKeygenTestSuite) SetUpTest(c *C) {
 
 	for i := 0; i < s.partyNum; i++ {
 		baseHome := path.Join(os.TempDir(), strconv.Itoa(i))
-		fMgr, err := storage.NewFileStateMgr(baseHome)
+		fMgr, err := storage.NewFileStateMgr(baseHome, "password")
 		c.Assert(err, IsNil)
 		s.stateMgrs[i] = fMgr
 	}
