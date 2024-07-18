@@ -223,5 +223,5 @@ func (p *ConversionTestSuite) TestTssPubKey(c *C) {
 	pk, addr, err = GetTssPubKey(point)
 	c.Assert(err, IsNil)
 	c.Assert(pk, Equals, "thorpub1addwnpepq2dwek9hkrlxjxadrlmy9fr42gqyq6029q0hked46l3u6a9fxqel6tma5eu")
-	c.Assert(addr.String(), Equals, "bnb17l7cyxqzg4xymnl0alrhqwja276s3rns4256c2")
+	c.Assert(addr.String(), Equals, "thor17l7cyxqzg4xymnl0alrhqwja276s3rns3fjdvm")
 }
