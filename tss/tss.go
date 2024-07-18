@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 
+	tcrypto "github.com/cometbft/cometbft/crypto"
 	coskey "github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
 	sdk "github.com/cosmos/cosmos-sdk/types/bech32/legacybech32"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -14,7 +15,6 @@ import (
 	maddr "github.com/multiformats/go-multiaddr"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	tcrypto "github.com/tendermint/tendermint/crypto"
 	bkeygen "gitlab.com/thorchain/tss/tss-lib/ecdsa/keygen"
 
 	"gitlab.com/thorchain/tss/go-tss/common"

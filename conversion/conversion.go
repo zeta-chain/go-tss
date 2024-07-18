@@ -11,14 +11,14 @@ import (
 	"strconv"
 	"strings"
 
-	"gitlab.com/thorchain/tss/tss-lib/crypto"
-	btss "gitlab.com/thorchain/tss/tss-lib/tss"
 	"github.com/btcsuite/btcd/btcec"
 	coskey "github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
+	"github.com/cosmos/cosmos-sdk/types"
 	sdk "github.com/cosmos/cosmos-sdk/types/bech32/legacybech32"
 	crypto2 "github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
-	"gitlab.com/thorchain/binance-sdk/common/types"
+	"gitlab.com/thorchain/tss/tss-lib/crypto"
+	btss "gitlab.com/thorchain/tss/tss-lib/tss"
 
 	"gitlab.com/thorchain/tss/go-tss/messages"
 )

@@ -15,18 +15,18 @@ import (
 	"testing"
 	"time"
 
-	tsslibcommon "gitlab.com/thorchain/tss/tss-lib/common"
-	btss "gitlab.com/thorchain/tss/tss-lib/tss"
 	"github.com/ipfs/go-log"
 	"github.com/libp2p/go-libp2p-peerstore/addr"
 	zlog "github.com/rs/zerolog/log"
+	tsslibcommon "gitlab.com/thorchain/tss/tss-lib/common"
+	btss "gitlab.com/thorchain/tss/tss-lib/tss"
 
 	"gitlab.com/thorchain/tss/go-tss/conversion"
 
+	tcrypto "github.com/cometbft/cometbft/crypto"
+	"github.com/cometbft/cometbft/crypto/secp256k1"
 	"github.com/libp2p/go-libp2p-core/peer"
 	maddr "github.com/multiformats/go-multiaddr"
-	tcrypto "github.com/tendermint/tendermint/crypto"
-	"github.com/tendermint/tendermint/crypto/secp256k1"
 	. "gopkg.in/check.v1"
 
 	"gitlab.com/thorchain/tss/go-tss/common"

@@ -9,12 +9,12 @@ import (
 	"sync"
 	"time"
 
+	tcrypto "github.com/cometbft/cometbft/crypto"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	tsslibcommon "gitlab.com/thorchain/tss/tss-lib/common"
 	"gitlab.com/thorchain/tss/tss-lib/ecdsa/signing"
 	btss "gitlab.com/thorchain/tss/tss-lib/tss"
-	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
-	tcrypto "github.com/tendermint/tendermint/crypto"
 	"go.uber.org/atomic"
 
 	"gitlab.com/thorchain/tss/go-tss/blame"
