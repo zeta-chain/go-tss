@@ -15,7 +15,7 @@ import (
 
 	"github.com/btcsuite/btcd/btcec"
 	tcrypto "github.com/cometbft/cometbft/crypto"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"gitlab.com/thorchain/tss/tss-lib/ecdsa/keygen"

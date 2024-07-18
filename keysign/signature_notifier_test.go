@@ -1,7 +1,6 @@
 package keysign
 
 import (
-	"context"
 	"encoding/base64"
 	"encoding/json"
 	"os"
@@ -9,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/libp2p/go-libp2p-core/peer"
 	tnet "github.com/libp2p/go-libp2p-testing/net"
+	"github.com/libp2p/go-libp2p/core/peer"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
 	"github.com/stretchr/testify/assert"
 	tsslibcommon "gitlab.com/thorchain/tss/tss-lib/common"
@@ -31,7 +30,7 @@ func TestSignatureNotifierHappyPath(t *testing.T) {
 	id1 := tnet.RandIdentityOrFatal(t)
 	id2 := tnet.RandIdentityOrFatal(t)
 	id3 := tnet.RandIdentityOrFatal(t)
-	mn := mocknet.New(context.Background())
+	mn := mocknet.New()
 	// add peers to mock net
 
 	a1 := tnet.RandLocalTCPAddress()
@@ -102,7 +101,7 @@ func TestSignatureNotifierBroadcastFirst(t *testing.T) {
 	id1 := tnet.RandIdentityOrFatal(t)
 	id2 := tnet.RandIdentityOrFatal(t)
 	id3 := tnet.RandIdentityOrFatal(t)
-	mn := mocknet.New(context.Background())
+	mn := mocknet.New()
 	// add peers to mock net
 
 	a1 := tnet.RandLocalTCPAddress()

@@ -10,13 +10,14 @@ import (
 	"time"
 
 	libp2p "github.com/libp2p/go-libp2p"
-	"github.com/libp2p/go-libp2p-core/crypto"
-	"github.com/libp2p/go-libp2p-core/host"
-	"github.com/libp2p/go-libp2p-core/network"
-	"github.com/libp2p/go-libp2p-core/peer"
-	"github.com/libp2p/go-libp2p-core/protocol"
-	discovery "github.com/libp2p/go-libp2p-discovery"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
+	"github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/network"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/protocol"
+	discovery_routing "github.com/libp2p/go-libp2p/p2p/discovery/routing"
+	discovery_util "github.com/libp2p/go-libp2p/p2p/discovery/util"
 	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
 	maddr "github.com/multiformats/go-multiaddr"
 	"github.com/rs/zerolog"
@@ -251,8 +252,7 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 		return addrs
 	}
 
-	h, err := libp2p.New(ctx,
-		libp2p.ListenAddrs([]maddr.Multiaddr{c.listenAddr}...),
+	h, err := libp2p.New(libp2p.ListenAddrs([]maddr.Multiaddr{c.listenAddr}...),
 		libp2p.Identity(p2pPriKey),
 		libp2p.AddrsFactory(addressFactory),
 	)
@@ -290,8 +290,8 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 
 	// We use a rendezvous point "meet me here" to announce our location.
 	// This is like telling your friends to meet you at the Eiffel Tower.
-	routingDiscovery := discovery.NewRoutingDiscovery(kademliaDHT)
-	discovery.Advertise(ctx, routingDiscovery, c.rendezvous)
+	routingDiscovery := discovery_routing.NewRoutingDiscovery(kademliaDHT)
+	discovery_util.Advertise(ctx, routingDiscovery, c.rendezvous)
 	err = c.bootStrapConnectivityCheck()
 	if err != nil {
 		return err

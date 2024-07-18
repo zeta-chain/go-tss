@@ -12,7 +12,6 @@ import (
 
 	"github.com/cosmos/cosmos-sdk/client/input"
 	golog "github.com/ipfs/go-log"
-	"github.com/libp2p/go-libp2p-peerstore/addr"
 
 	"gitlab.com/thorchain/tss/go-tss/common"
 	"gitlab.com/thorchain/tss/go-tss/conversion"
@@ -55,7 +54,7 @@ func main() {
 	}
 	// init tss module
 	tss, err := tss.NewTss(
-		addr.AddrList(p2pConf.BootstrapPeers),
+		p2pConf.BootstrapPeers,
 		p2pConf.Port,
 		priKey,
 		p2pConf.RendezvousString,

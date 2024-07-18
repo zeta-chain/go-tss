@@ -9,7 +9,7 @@ import (
 
 	"github.com/cometbft/cometbft/crypto/secp256k1"
 	sdk "github.com/cosmos/cosmos-sdk/types/bech32/legacybech32"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/peer"
 	btss "gitlab.com/thorchain/tss/tss-lib/tss"
 	. "gopkg.in/check.v1"
 
