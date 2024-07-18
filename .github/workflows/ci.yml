@@ -1,0 +1,24 @@
+name: ci
+
+on:
+  push:
+    branches:
+      - master
+      - rebase-upstream
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        go-version: ["1.20", "1.22"]
+    name: test go ${{ matrix.go-version}}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+      - name: Test
+        run: go test ./...
