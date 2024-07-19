@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - master
-      - rebase-upstream
   pull_request:
 
 jobs:
@@ -21,4 +20,16 @@ jobs:
         with:
           go-version: ${{ matrix.go-version }}
       - name: Test
-        run: go test ./...
+        run: go test --race ./...
+  lint:
+    name: lint
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.22
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.56.2
