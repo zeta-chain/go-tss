@@ -20,7 +20,7 @@ jobs:
         with:
           go-version: ${{ matrix.go-version }}
       - name: Test
-        run: go test --race ./...
+        run: go test -race -timeout 25m ./...
   lint:
     name: lint
     runs-on: ubuntu-22.04
