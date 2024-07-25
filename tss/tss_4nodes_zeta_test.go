@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"runtime"
 	"strconv"
 	"sync"
 	"time"
@@ -164,7 +165,8 @@ func (s *FourNodeScaleZetaSuite) doTestKeySign(c *C, version string) {
 
 func (s *FourNodeScaleZetaSuite) doTestConcurrentKeySign(c *C, version string) {
 	// if this increases to 15, the tests will start to fail
-	const numMessages = 10
+	// it needs to be set quite low in CI since there are less CPUs
+	numMessages := runtime.NumCPU()
 	var allMessages [][]string
 	for i := 0; i < numMessages; i++ {
 		allMessages = append(allMessages, genMessages())
