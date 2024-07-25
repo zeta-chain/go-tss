@@ -8,6 +8,7 @@ import (
 	"os"
 	"path"
 	"runtime"
+	"sort"
 	"strconv"
 	"sync"
 	"time"
@@ -134,10 +135,14 @@ func randomHash() []byte {
 }
 
 func genMessages() []string {
-	return []string{
+	msgs := []string{
 		base64.StdEncoding.EncodeToString(randomHash()),
 		base64.StdEncoding.EncodeToString(randomHash()),
 	}
+	// input needs to be sorted otherwise you hit the race detector
+	// since the input slice is sorted in place
+	sort.Strings(msgs)
+	return msgs
 }
 
 // test key signing
