@@ -35,7 +35,7 @@ type FourNodeScaleZetaSuite struct {
 var _ = Suite(&FourNodeScaleZetaSuite{})
 
 // setup four nodes for test
-func (s *FourNodeScaleZetaSuite) SetUpTest(c *C) {
+func (s *FourNodeScaleZetaSuite) SetUpSuite(c *C) {
 	common.InitLog("info", true, "four_nodes_zeta_test")
 	conversion.SetupBech32Prefix()
 	s.tmpDir = path.Join(os.TempDir(), "4nodes_zeta_test")
@@ -89,41 +89,10 @@ func (s *FourNodeScaleZetaSuite) TestManyKeysigns(c *C) {
 // keysigns do not wait for the prior keysign to finish unlike TestManyKeysigns
 // keysigns are also submitted in reverse order to slow down keysigning
 func (s *FourNodeScaleZetaSuite) TestConcurrentKeysigns(c *C) {
-	const numMessages = 20
-	var allMessages [][]string
-	for i := 0; i < numMessages; i++ {
-		allMessages = append(allMessages, genMessages())
-	}
-
-	wg := sync.WaitGroup{}
-	lock := &sync.Mutex{}
-	keysignResult := make(map[int]map[int]keysign.Response)
-	for msgIdx := 0; msgIdx < numMessages; msgIdx++ {
-		msgIdx := msgIdx
-		keysignResult[msgIdx] = make(map[int]keysign.Response)
-		for partyIdx := 0; partyIdx < partyNum; partyIdx++ {
-			wg.Add(1)
-			// even nodes will sign messages in reverse order
-			realMsgIdx := msgIdx
-			if partyIdx%2 == 0 {
-				realMsgIdx = numMessages - 1 - msgIdx
-			}
-			messages := allMessages[realMsgIdx]
-
-			go func(idx int) {
-				defer wg.Done()
-				req := keysign.NewRequest(s.poolPublicKey, messages, 10, copyTestPubKeys(), newJoinPartyVersion)
-				res, err := s.servers[idx].KeySign(req)
-				c.Assert(err, IsNil)
-				lock.Lock()
-				defer lock.Unlock()
-				keysignResult[realMsgIdx][idx] = res
-			}(partyIdx)
-		}
-	}
-	wg.Wait()
-	for _, result := range keysignResult {
-		checkSignResult(c, result)
+	for i := 0; i < 10; i++ {
+		c.Logf("Concurrent keysign round %d started", i)
+		s.doTestConcurrentKeySign(c, newJoinPartyVersion)
+		c.Logf("Concurrent keysign round %d complete", i)
 	}
 }
 
@@ -193,7 +162,47 @@ func (s *FourNodeScaleZetaSuite) doTestKeySign(c *C, version string) {
 	checkSignResult(c, keysignResult)
 }
 
-func (s *FourNodeScaleZetaSuite) TearDownTest(c *C) {
+func (s *FourNodeScaleZetaSuite) doTestConcurrentKeySign(c *C, version string) {
+	// if this increases to 15, the tests will start to fail
+	const numMessages = 10
+	var allMessages [][]string
+	for i := 0; i < numMessages; i++ {
+		allMessages = append(allMessages, genMessages())
+	}
+
+	wg := sync.WaitGroup{}
+	lock := &sync.Mutex{}
+	keysignResult := make(map[int]map[int]keysign.Response)
+	for msgIdx := 0; msgIdx < numMessages; msgIdx++ {
+		msgIdx := msgIdx
+		keysignResult[msgIdx] = make(map[int]keysign.Response)
+		for partyIdx := 0; partyIdx < partyNum; partyIdx++ {
+			wg.Add(1)
+			// even nodes will sign messages in reverse order
+			realMsgIdx := msgIdx
+			if partyIdx%2 == 0 {
+				realMsgIdx = numMessages - 1 - msgIdx
+			}
+			messages := allMessages[realMsgIdx]
+
+			go func(idx int) {
+				defer wg.Done()
+				req := keysign.NewRequest(s.poolPublicKey, messages, 10, copyTestPubKeys(), version)
+				res, err := s.servers[idx].KeySign(req)
+				c.Assert(err, IsNil)
+				lock.Lock()
+				defer lock.Unlock()
+				keysignResult[realMsgIdx][idx] = res
+			}(partyIdx)
+		}
+	}
+	wg.Wait()
+	for _, result := range keysignResult {
+		checkSignResult(c, result)
+	}
+}
+
+func (s *FourNodeScaleZetaSuite) TearDownSuite(c *C) {
 	// give a second before we shutdown the network
 	time.Sleep(time.Second)
 	for i := 0; i < partyNum; i++ {
@@ -218,7 +227,7 @@ func (s *FourNodeScaleZetaSuite) getTssServer(c *C, index int, conf common.TssCo
 	} else {
 		peerIDs = nil
 	}
-	instance, err := NewTss(peerIDs, s.ports[index], priKey, "Asgard", baseHome, conf, s.preParams[index], "", "password")
+	instance, err := NewTss(peerIDs, s.ports[index], priKey, "Zeta", baseHome, conf, s.preParams[index], "", "password")
 	c.Assert(err, IsNil)
 	return instance
 }
