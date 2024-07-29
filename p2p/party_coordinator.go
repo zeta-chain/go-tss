@@ -66,16 +66,16 @@ func (pc *PartyCoordinator) Stop() {
 }
 
 func (pc *PartyCoordinator) processRespMsg(respMsg *messages.JoinPartyLeaderComm, stream network.Stream) {
-	pc.streamMgr.AddStream(respMsg.ID, stream)
-
 	remotePeer := stream.Conn().RemotePeer()
 	pc.joinPartyGroupLock.Lock()
 	peerGroup, ok := pc.peersGroup[respMsg.ID]
 	pc.joinPartyGroupLock.Unlock()
 	if !ok {
 		pc.logger.Info().Msgf("message ID from peer(%s) can not be found", remotePeer)
+		_ = stream.Close()
 		return
 	}
+	pc.streamMgr.AddStream(respMsg.ID, stream)
 	if remotePeer == peerGroup.getLeader() {
 		peerGroup.setLeaderResponse(respMsg)
 		peerGroup.notify <- true

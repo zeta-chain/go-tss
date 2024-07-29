@@ -113,7 +113,10 @@ func (fsm *FileStateMgr) GetLocalState(pubKey string) (KeygenLocalState, error) 
 	if len(pubKey) == 0 {
 		return KeygenLocalState{}, errors.New("pub key is empty")
 	}
-	if val, ok := fsm.keyGenState[pubKey]; ok {
+	fsm.writeLock.RLock()
+	val, ok := fsm.keyGenState[pubKey]
+	fsm.writeLock.RUnlock()
+	if ok {
 		return *val, nil
 	}
 	filePathName, err := fsm.getFilePathName(pubKey)

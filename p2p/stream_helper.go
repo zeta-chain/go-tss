@@ -47,8 +47,8 @@ func (sm *StreamMgr) ReleaseStream(msgID string) {
 	sm.streamLocker.RLock()
 	usedStreams, okStream := sm.unusedStreams[msgID]
 	unknownStreams, okUnknown := sm.unusedStreams["UNKNOWN"]
-	sm.streamLocker.RUnlock()
 	streams := append(usedStreams, unknownStreams...)
+	sm.streamLocker.RUnlock()
 	if okStream || okUnknown {
 		for _, el := range streams {
 			err := el.Reset()
@@ -58,6 +58,7 @@ func (sm *StreamMgr) ReleaseStream(msgID string) {
 		}
 		sm.streamLocker.Lock()
 		delete(sm.unusedStreams, msgID)
+		delete(sm.unusedStreams, "UNKNOWN")
 		sm.streamLocker.Unlock()
 	}
 }
