@@ -11,7 +11,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/btcsuite/btcd/btcec"
+	"github.com/btcsuite/btcd/btcec/v2"
+	secp "github.com/decred/dcrd/dcrec/secp256k1/v4"
+
 	coskey "github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
 	"github.com/cosmos/cosmos-sdk/types"
 	sdk "github.com/cosmos/cosmos-sdk/types/bech32/legacybech32"
@@ -142,20 +144,19 @@ func GetPreviousKeySignUicast(current string) string {
 	return messages.KEYSIGN2Unicast
 }
 
-func isOnCurve(x, y *big.Int) bool {
-	curve := btcec.S256()
-	return curve.IsOnCurve(x, y)
-}
-
 func GetTssPubKey(pubKeyPoint *crypto.ECPoint) (string, types.AccAddress, error) {
 	// we check whether the point is on curve according to Kudelski report
-	if pubKeyPoint == nil || !isOnCurve(pubKeyPoint.X(), pubKeyPoint.Y()) {
-		return "", types.AccAddress{}, errors.New("invalid points")
+	if pubKeyPoint == nil {
+		return "", types.AccAddress{}, errors.New("pub key is nil")
 	}
-	tssPubKey := btcec.PublicKey{
-		Curve: btcec.S256(),
-		X:     pubKeyPoint.X(),
-		Y:     pubKeyPoint.Y(),
+
+	tssPubKey := secp.NewPublicKey(
+		BigIntToFieldVal(pubKeyPoint.X()),
+		BigIntToFieldVal(pubKeyPoint.Y()),
+	)
+
+	if !tssPubKey.IsOnCurve() {
+		return "", types.AccAddress{}, errors.New("pub key is not on curve")
 	}
 
 	compressedPubkey := coskey.PubKey{
@@ -182,4 +183,18 @@ func GetThreshold(value int) (int, error) {
 	}
 	threshold := int(math.Ceil(float64(value)*2.0/3.0)) - 1
 	return threshold, nil
+}
+
+func BigIntToFieldVal(n *big.Int) *secp.FieldVal {
+	v := &secp.FieldVal{}
+	v.SetByteSlice(n.Bytes())
+
+	return v
+}
+
+func BigIntToScalar(n *big.Int) *secp.ModNScalar {
+	s := &btcec.ModNScalar{}
+	s.SetByteSlice(n.Bytes())
+
+	return s
 }

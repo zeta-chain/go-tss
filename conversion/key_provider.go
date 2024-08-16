@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/btcsuite/btcd/btcec"
+	"github.com/btcsuite/btcd/btcec/v2"
 	tcrypto "github.com/cometbft/cometbft/crypto"
 	"github.com/cometbft/cometbft/crypto/secp256k1"
 	coskey "github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
@@ -116,9 +116,10 @@ func CheckKeyOnCurve(pk string) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("fail to parse pub key(%s): %w", pk, err)
 	}
-	bPk, err := btcec.ParsePubKey(pubKey.Bytes(), btcec.S256())
+	bPk, err := btcec.ParsePubKey(pubKey.Bytes())
 	if err != nil {
 		return false, err
 	}
-	return isOnCurve(bPk.X, bPk.Y), nil
+
+	return bPk.IsOnCurve(), nil
 }

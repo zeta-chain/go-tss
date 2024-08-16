@@ -12,15 +12,17 @@ import (
 	"sync/atomic"
 	"time"
 
+	btccurve "github.com/btcsuite/btcd/btcec/v2/ecdsa"
+	"github.com/decred/dcrd/dcrec/secp256k1/v4"
+	"github.com/ipfs/go-log"
+	"github.com/olekukonko/tablewriter"
+	"github.com/pkg/errors"
+	"gitlab.com/thorchain/tss/go-tss/conversion"
 	"gitlab.com/thorchain/tss/tss-lib/common"
 	"gitlab.com/thorchain/tss/tss-lib/ecdsa/keygen"
 	"gitlab.com/thorchain/tss/tss-lib/ecdsa/signing"
 	"gitlab.com/thorchain/tss/tss-lib/test"
 	"gitlab.com/thorchain/tss/tss-lib/tss"
-	"github.com/btcsuite/btcd/btcec"
-	"github.com/ipfs/go-log"
-	"github.com/olekukonko/tablewriter"
-	"github.com/pkg/errors"
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
 )
@@ -177,18 +179,11 @@ outer:
 				}
 				r := new(big.Int).SetBytes(data.Signature.GetR())
 				s := new(big.Int).SetBytes(data.Signature.GetS())
-				var ok bool
-				if ok = ecdsa.Verify(
-					&pk,
-					msg.Bytes(),
-					r, s,
-				); !ok {
-					panic("ECDSA signature verification did not pass")
-				}
-				btcecSig := &btcec.Signature{R: r, S: s}
-				if ok = btcecSig.Verify(msg.Bytes(), (*btcec.PublicKey)(&pk)); !ok {
+
+				if !verify(msg.Bytes(), pk, r, s) {
 					panic("ECDSA signature verification 2 did not pass")
 				}
+
 				break outer
 			}
 		}
@@ -263,4 +258,23 @@ func loadKeyGenData(dir string, qty int, optionalStart ...int) ([]keygen.LocalPa
 
 func makeKeyGenDataFilePath(dir string, partyIndex int) string {
 	return fmt.Sprintf("%s/keygen_data_%d.json", dir, partyIndex)
+}
+
+func verify(message []byte, pk ecdsa.PublicKey, r, s *big.Int) bool {
+	ok := ecdsa.Verify(&pk, message, r, s)
+	if !ok {
+		return false
+	}
+
+	sig := btccurve.NewSignature(
+		conversion.BigIntToScalar(r),
+		conversion.BigIntToScalar(s),
+	)
+
+	pkTyped := secp256k1.NewPublicKey(
+		conversion.BigIntToFieldVal(pk.X),
+		conversion.BigIntToFieldVal(pk.Y),
+	)
+
+	return sig.Verify(message, pkTyped)
 }

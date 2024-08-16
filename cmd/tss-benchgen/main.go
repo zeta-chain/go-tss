@@ -12,12 +12,12 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ipfs/go-log"
+	"github.com/pkg/errors"
 	"gitlab.com/thorchain/tss/tss-lib/common"
 	"gitlab.com/thorchain/tss/tss-lib/ecdsa/keygen"
 	"gitlab.com/thorchain/tss/tss-lib/test"
 	"gitlab.com/thorchain/tss/tss-lib/tss"
-	"github.com/ipfs/go-log"
-	"github.com/pkg/errors"
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
 )

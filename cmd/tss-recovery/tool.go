@@ -11,11 +11,12 @@ import (
 	"math/big"
 	"os"
 
-	"gitlab.com/thorchain/tss/tss-lib/ecdsa/keygen"
-	"github.com/btcsuite/btcd/btcec"
+	"github.com/btcsuite/btcd/btcec/v2"
 	coskey "github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	bech32 "github.com/cosmos/cosmos-sdk/types/bech32/legacybech32"
+	"gitlab.com/thorchain/tss/go-tss/conversion"
+	"gitlab.com/thorchain/tss/tss-lib/ecdsa/keygen"
 )
 
 type (
@@ -55,11 +56,12 @@ func getTssPubKey(x, y *big.Int) (string, sdk.AccAddress, error) {
 	if x == nil || y == nil {
 		return "", sdk.AccAddress{}, errors.New("invalid points")
 	}
-	tssPubKey := btcec.PublicKey{
-		Curve: btcec.S256(),
-		X:     x,
-		Y:     y,
-	}
+
+	tssPubKey := btcec.NewPublicKey(
+		conversion.BigIntToFieldVal(x),
+		conversion.BigIntToFieldVal(y),
+	)
+
 	pubKeyCompressed := coskey.PubKey{
 		Key: tssPubKey.SerializeCompressed(),
 	}

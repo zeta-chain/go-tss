@@ -13,7 +13,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/btcsuite/btcd/btcec"
+	"github.com/btcsuite/btcd/btcec/v2"
 	tcrypto "github.com/cometbft/cometbft/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/rs/zerolog"
