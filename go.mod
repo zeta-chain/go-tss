@@ -5,7 +5,7 @@ go 1.20
 require (
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/bnb-chain/tss-lib v1.3.5
-	github.com/btcsuite/btcd v0.22.1
+	github.com/btcsuite/btcd v0.24.2 // indirect
 	github.com/cosmos/cosmos-sdk v0.47.10
 	github.com/davidlazar/go-crypto v0.0.0-20200604182044-b73af7476f6c // indirect
 	github.com/deckarep/golang-set v1.7.1
@@ -34,9 +34,9 @@ require (
 )
 
 require (
+	github.com/btcsuite/btcd/btcec/v2 v2.3.2
 	github.com/cometbft/cometbft v0.37.4
 	github.com/decred/dcrd/dcrec/edwards/v2 v2.0.0
-	github.com/tendermint/tendermint v0.34.0
 )
 
 require (
@@ -54,9 +54,8 @@ require (
 	github.com/benbjohnson/clock v1.3.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bgentry/speakeasy v0.1.1-0.20220910012023-760eaf8b6816 // indirect
-	github.com/btcsuite/btcd/btcec/v2 v2.3.2 // indirect
-	github.com/btcsuite/btcd/chaincfg/chainhash v1.0.1 // indirect
-	github.com/btcsuite/btcutil v1.0.3-0.20201208143702-a53e38424cce // indirect
+	github.com/btcsuite/btcd/btcutil v1.1.5 // indirect
+	github.com/btcsuite/btcd/chaincfg/chainhash v1.1.0 // indirect
 	github.com/cespare/xxhash v1.1.0 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/cockroachdb/errors v1.10.0 // indirect
@@ -224,3 +223,5 @@ replace (
 	github.com/gogo/protobuf => github.com/regen-network/protobuf v1.3.2-alpha.regen.4
 	github.com/libp2p/go-libp2p => github.com/zeta-chain/go-libp2p v0.0.0-20240710192637-567fbaacc2b4
 )
+
+replace github.com/bnb-chain/tss-lib => github.com/zeta-chain/tss-lib v0.0.0-20240819214903-774ccaf59fca

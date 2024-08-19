@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/bnb-chain/tss-lib/crypto"
-	"github.com/btcsuite/btcd/btcec"
+	"github.com/btcsuite/btcd/btcec/v2"
 	coskey "github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
 	sdk "github.com/cosmos/cosmos-sdk/types/bech32/legacybech32"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -201,15 +201,16 @@ func (p *ConversionTestSuite) TestSetupPartyIDMap(c *C) {
 }
 
 func (p *ConversionTestSuite) TestTssPubKey(c *C) {
-	sk, err := btcec.NewPrivateKey(btcec.S256())
+	sk, err := btcec.NewPrivateKey()
 	c.Assert(err, IsNil)
-	point, err := crypto.NewECPoint(btcec.S256(), sk.X, sk.Y)
+	ske := sk.ToECDSA()
+	point, err := crypto.NewECPoint(btcec.S256(), ske.X, ske.Y)
 	c.Assert(err, IsNil)
 	_, _, err = GetTssPubKeyECDSA(point)
 	c.Assert(err, IsNil)
 
 	// create an invalid point
-	invalidPoint := crypto.NewECPointNoCurveCheck(btcec.S256(), sk.X, new(big.Int).Add(sk.Y, big.NewInt(1)))
+	invalidPoint := crypto.NewECPointNoCurveCheck(btcec.S256(), ske.X, new(big.Int).Add(ske.Y, big.NewInt(1)))
 	_, _, err = GetTssPubKeyECDSA(invalidPoint)
 	c.Assert(err, NotNil)
 

@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/btcsuite/btcd/btcec"
+	"github.com/btcsuite/btcd/btcec/v2"
 	tcrypto "github.com/cometbft/cometbft/crypto"
 	"github.com/cometbft/cometbft/crypto/ed25519"
 	"github.com/cometbft/cometbft/crypto/secp256k1"
@@ -121,11 +121,11 @@ func CheckKeyOnCurve(pk string) (bool, error) {
 
 	switch pubKey.Type() {
 	case secp256k1.KeyType:
-		bPk, err := btcec.ParsePubKey(pubKey.Bytes(), btcec.S256())
+		bPk, err := btcec.ParsePubKey(pubKey.Bytes())
 		if err != nil {
 			return false, err
 		}
-		return isOnCurve(bPk.X, bPk.Y, btcec.S256()), nil
+		return isOnCurve(bPk.X(), bPk.Y(), btcec.S256()), nil
 	case ed25519.KeyType:
 		bPk, err := edwards.ParsePubKey(pubKey.Bytes())
 		if err != nil {

@@ -19,7 +19,7 @@ import (
 	"go.uber.org/atomic"
 
 	ecdsakg "github.com/bnb-chain/tss-lib/ecdsa/keygen"
-	"github.com/btcsuite/btcd/btcec"
+	"github.com/btcsuite/btcd/btcec/v2"
 	"gitlab.com/thorchain/tss/go-tss/blame"
 	"gitlab.com/thorchain/tss/go-tss/common"
 	"gitlab.com/thorchain/tss/go-tss/conversion"

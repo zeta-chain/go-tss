@@ -16,7 +16,7 @@ import (
 	"github.com/bnb-chain/tss-lib/ecdsa/keygen"
 	"github.com/bnb-chain/tss-lib/test"
 	"github.com/bnb-chain/tss-lib/tss"
-	"github.com/btcsuite/btcd/btcec"
+	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/ipfs/go-log"
 	"github.com/pkg/errors"
 	"golang.org/x/text/language"

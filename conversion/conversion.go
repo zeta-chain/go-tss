@@ -14,8 +14,7 @@ import (
 
 	"github.com/bnb-chain/tss-lib/crypto"
 	btss "github.com/bnb-chain/tss-lib/tss"
-	"github.com/btcsuite/btcd/btcec"
-	s256k1 "github.com/btcsuite/btcd/btcec"
+	"github.com/btcsuite/btcd/btcec/v2"
 	coseddkey "github.com/cosmos/cosmos-sdk/crypto/keys/ed25519"
 	coskey "github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
 	"github.com/cosmos/cosmos-sdk/types"
@@ -149,14 +148,14 @@ func isOnCurve(x, y *big.Int, curve elliptic.Curve) bool {
 
 func GetTssPubKeyECDSA(pubKeyPoint *crypto.ECPoint) (string, types.AccAddress, error) {
 	// we check whether the point is on curve according to Kudelski report
-	if pubKeyPoint == nil || !isOnCurve(pubKeyPoint.X(), pubKeyPoint.Y(), s256k1.S256()) {
+	if pubKeyPoint == nil || !isOnCurve(pubKeyPoint.X(), pubKeyPoint.Y(), btcec.S256()) {
 		return "", types.AccAddress{}, errors.New("[ECDSA] invalid points")
 	}
-	tssPubKey := btcec.PublicKey{
-		Curve: btcec.S256(),
-		X:     pubKeyPoint.X(),
-		Y:     pubKeyPoint.Y(),
-	}
+	X := &btcec.FieldVal{}
+	X.SetByteSlice(pubKeyPoint.X().Bytes())
+	Y := &btcec.FieldVal{}
+	Y.SetByteSlice(pubKeyPoint.Y().Bytes())
+	tssPubKey := btcec.NewPublicKey(X, Y)
 
 	compressedPubkey := coskey.PubKey{
 		Key: tssPubKey.SerializeCompressed(),

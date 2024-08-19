@@ -17,7 +17,7 @@ import (
 	"github.com/bnb-chain/tss-lib/ecdsa/signing"
 	"github.com/bnb-chain/tss-lib/test"
 	"github.com/bnb-chain/tss-lib/tss"
-	"github.com/btcsuite/btcd/btcec"
+	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/ipfs/go-log"
 	"github.com/olekukonko/tablewriter"
 	"github.com/pkg/errors"
@@ -176,6 +176,7 @@ outer:
 					X:     pkX,
 					Y:     pkY,
 				}
+
 				r := new(big.Int).SetBytes(data.GetR())
 				s := new(big.Int).SetBytes(data.GetS())
 				var ok bool
@@ -185,10 +186,6 @@ outer:
 					r, s,
 				); !ok {
 					panic("ECDSA signature verification did not pass")
-				}
-				btcecSig := &btcec.Signature{R: r, S: s}
-				if ok = btcecSig.Verify(msg.Bytes(), (*btcec.PublicKey)(&pk)); !ok {
-					panic("ECDSA signature verification 2 did not pass")
 				}
 				break outer
 			}
