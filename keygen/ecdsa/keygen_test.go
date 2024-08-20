@@ -16,13 +16,13 @@ import (
 
 	"github.com/ipfs/go-log"
 
-	"github.com/bnb-chain/tss-lib/crypto"
+	"github.com/bnb-chain/tss-lib/v2/crypto"
 	tcrypto "github.com/cometbft/cometbft/crypto"
 	"github.com/cometbft/cometbft/crypto/secp256k1"
 	"github.com/libp2p/go-libp2p/core/peer"
 
-	btsskeygen "github.com/bnb-chain/tss-lib/ecdsa/keygen"
-	btss "github.com/bnb-chain/tss-lib/tss"
+	btsskeygen "github.com/bnb-chain/tss-lib/v2/ecdsa/keygen"
+	btss "github.com/bnb-chain/tss-lib/v2/tss"
 	maddr "github.com/multiformats/go-multiaddr"
 	. "gopkg.in/check.v1"
 

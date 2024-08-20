@@ -7,7 +7,7 @@ import (
 	"math/big"
 	"path"
 
-	btss "github.com/bnb-chain/tss-lib/tss"
+	btss "github.com/bnb-chain/tss-lib/v2/tss"
 	"github.com/cometbft/cometbft/crypto/secp256k1"
 	sdk "github.com/cosmos/cosmos-sdk/types/bech32/legacybech32"
 	"github.com/libp2p/go-libp2p/core/peer"

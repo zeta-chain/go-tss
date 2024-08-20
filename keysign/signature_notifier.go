@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bnb-chain/tss-lib/common"
-	tsslibcommon "github.com/bnb-chain/tss-lib/common"
+	"github.com/bnb-chain/tss-lib/v2/common"
+	tsslibcommon "github.com/bnb-chain/tss-lib/v2/common"
 	"github.com/golang/protobuf/proto"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"

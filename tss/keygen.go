@@ -4,7 +4,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/bnb-chain/tss-lib/crypto"
+	"github.com/bnb-chain/tss-lib/v2/crypto"
 	"github.com/cosmos/cosmos-sdk/types"
 	"gitlab.com/thorchain/tss/go-tss/blame"
 	"gitlab.com/thorchain/tss/go-tss/common"

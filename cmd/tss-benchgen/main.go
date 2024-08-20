@@ -12,10 +12,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/bnb-chain/tss-lib/common"
-	"github.com/bnb-chain/tss-lib/ecdsa/keygen"
-	"github.com/bnb-chain/tss-lib/test"
-	"github.com/bnb-chain/tss-lib/tss"
+	"github.com/bnb-chain/tss-lib/v2/common"
+	"github.com/bnb-chain/tss-lib/v2/ecdsa/keygen"
+	"github.com/bnb-chain/tss-lib/v2/test"
+	"github.com/bnb-chain/tss-lib/v2/tss"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/ipfs/go-log"
 	"github.com/pkg/errors"
@@ -129,7 +129,7 @@ func runKeyGen(dir string, t, n int) {
 
 	errCh := make(chan *tss.Error, len(pIDs))
 	outCh := make(chan tss.Message, len(pIDs))
-	endCh := make(chan keygen.LocalPartySaveData, len(pIDs))
+	endCh := make(chan *keygen.LocalPartySaveData, len(pIDs))
 
 	updater := test.SharedPartyUpdater
 
@@ -202,7 +202,7 @@ outer:
 	}
 }
 
-func tryWriteKeyGenDataFile(dir string, index int, data keygen.LocalPartySaveData) {
+func tryWriteKeyGenDataFile(dir string, index int, data *keygen.LocalPartySaveData) {
 	fixtureFileName := makeKeyGenDataFilePath(dir, index)
 
 	// fixture file does not already exist?

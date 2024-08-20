@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/ecdsa"
+	"crypto/rand"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -12,11 +13,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/bnb-chain/tss-lib/common"
-	"github.com/bnb-chain/tss-lib/ecdsa/keygen"
-	"github.com/bnb-chain/tss-lib/ecdsa/signing"
-	"github.com/bnb-chain/tss-lib/test"
-	"github.com/bnb-chain/tss-lib/tss"
+	"github.com/bnb-chain/tss-lib/v2/common"
+	"github.com/bnb-chain/tss-lib/v2/ecdsa/keygen"
+	"github.com/bnb-chain/tss-lib/v2/ecdsa/signing"
+	"github.com/bnb-chain/tss-lib/v2/test"
+	"github.com/bnb-chain/tss-lib/v2/tss"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/ipfs/go-log"
 	"github.com/olekukonko/tablewriter"
@@ -119,13 +120,13 @@ func runSign(dir string, t int) {
 		panic(fmt.Errorf("wanted %d keys but got %d keys and %d signPIDs", q, len(keys), len(signPIDs)))
 	}
 
-	msg := common.GetRandomPrimeInt(256)
+	msg := common.GetRandomPrimeInt(rand.Reader, 256)
 	p2pCtx := tss.NewPeerContext(signPIDs)
 	parties := make([]*signing.LocalParty, 0, len(signPIDs))
 
 	errCh := make(chan *tss.Error, len(signPIDs))
 	outCh := make(chan tss.Message, len(signPIDs))
-	endCh := make(chan common.SignatureData, len(signPIDs))
+	endCh := make(chan *common.SignatureData, len(signPIDs))
 
 	updater := test.SharedPartyUpdater
 

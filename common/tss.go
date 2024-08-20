@@ -8,7 +8,7 @@ import (
 	"strings"
 	"sync"
 
-	btss "github.com/bnb-chain/tss-lib/tss"
+	btss "github.com/bnb-chain/tss-lib/v2/tss"
 	tcrypto "github.com/cometbft/cometbft/crypto"
 	"github.com/cometbft/cometbft/crypto/secp256k1"
 	"github.com/libp2p/go-libp2p/core/peer"

@@ -3,7 +3,7 @@ package messages
 import (
 	"fmt"
 
-	btss "github.com/bnb-chain/tss-lib/tss"
+	btss "github.com/bnb-chain/tss-lib/v2/tss"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 

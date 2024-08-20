@@ -12,8 +12,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/bnb-chain/tss-lib/crypto"
-	btss "github.com/bnb-chain/tss-lib/tss"
+	"github.com/bnb-chain/tss-lib/v2/crypto"
+	btss "github.com/bnb-chain/tss-lib/v2/tss"
 	"github.com/btcsuite/btcd/btcec/v2"
 	coseddkey "github.com/cosmos/cosmos-sdk/crypto/keys/ed25519"
 	coskey "github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"

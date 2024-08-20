@@ -3,7 +3,7 @@ package blame
 import (
 	"sync"
 
-	btss "github.com/bnb-chain/tss-lib/tss"
+	btss "github.com/bnb-chain/tss-lib/v2/tss"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"

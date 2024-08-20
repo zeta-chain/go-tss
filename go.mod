@@ -4,7 +4,6 @@ go 1.20
 
 require (
 	github.com/blang/semver v3.5.1+incompatible
-	github.com/bnb-chain/tss-lib v1.3.5
 	github.com/btcsuite/btcd v0.24.2 // indirect
 	github.com/cosmos/cosmos-sdk v0.47.10
 	github.com/davidlazar/go-crypto v0.0.0-20200604182044-b73af7476f6c // indirect
@@ -34,9 +33,10 @@ require (
 )
 
 require (
-	github.com/btcsuite/btcd/btcec/v2 v2.3.2
+	github.com/bnb-chain/tss-lib/v2 v2.0.0-00010101000000-000000000000
+	github.com/btcsuite/btcd/btcec/v2 v2.3.3
 	github.com/cometbft/cometbft v0.37.4
-	github.com/decred/dcrd/dcrec/edwards/v2 v2.0.0
+	github.com/decred/dcrd/dcrec/edwards/v2 v2.0.3
 )
 
 require (
@@ -164,7 +164,7 @@ require (
 	github.com/onsi/gomega v1.24.0 // indirect
 	github.com/opencontainers/runtime-spec v1.0.2 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
-	github.com/otiai10/primes v0.0.0-20180210170552-f6d2a1ba97c4 // indirect
+	github.com/otiai10/primes v0.0.0-20210501021515-f1b2be525a11 // indirect
 	github.com/pbnjay/memory v0.0.0-20210728143218-7b4eea64cf58 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/pelletier/go-toml/v2 v2.0.7 // indirect
@@ -220,8 +220,7 @@ require (
 
 replace (
 	github.com/agl/ed25519 => github.com/binance-chain/edwards25519 v0.0.0-20200305024217-f36fc4b53d43
+	github.com/bnb-chain/tss-lib/v2 => github.com/zeta-chain/tss-lib/v2 v2.0.0-20240821171246-2e65a5558b5a
 	github.com/gogo/protobuf => github.com/regen-network/protobuf v1.3.2-alpha.regen.4
 	github.com/libp2p/go-libp2p => github.com/zeta-chain/go-libp2p v0.0.0-20240710192637-567fbaacc2b4
 )
-
-replace github.com/bnb-chain/tss-lib => github.com/zeta-chain/tss-lib v0.0.0-20240819214903-774ccaf59fca

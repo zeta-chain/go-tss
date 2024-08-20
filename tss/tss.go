@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	bkeygen "github.com/bnb-chain/tss-lib/ecdsa/keygen"
+	bkeygen "github.com/bnb-chain/tss-lib/v2/ecdsa/keygen"
 	tcrypto "github.com/cometbft/cometbft/crypto"
 	coskey "github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
 	sdk "github.com/cosmos/cosmos-sdk/types/bech32/legacybech32"

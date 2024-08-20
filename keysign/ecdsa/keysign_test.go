@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
-	tsslibcommon "github.com/bnb-chain/tss-lib/common"
-	btss "github.com/bnb-chain/tss-lib/tss"
+	tsslibcommon "github.com/bnb-chain/tss-lib/v2/common"
+	btss "github.com/bnb-chain/tss-lib/v2/tss"
 	"github.com/ipfs/go-log"
 	zlog "github.com/rs/zerolog/log"
 

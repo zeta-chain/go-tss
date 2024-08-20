@@ -13,12 +13,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bnb-chain/tss-lib/crypto"
+	"github.com/bnb-chain/tss-lib/v2/crypto"
 	tcrypto "github.com/cometbft/cometbft/crypto"
 	"github.com/cometbft/cometbft/crypto/secp256k1"
 	"github.com/libp2p/go-libp2p/core/peer"
 
-	btss "github.com/bnb-chain/tss-lib/tss"
+	btss "github.com/bnb-chain/tss-lib/v2/tss"
 	maddr "github.com/multiformats/go-multiaddr"
 	. "gopkg.in/check.v1"
 

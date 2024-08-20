@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	tsslibcommon "github.com/bnb-chain/tss-lib/common"
+	tsslibcommon "github.com/bnb-chain/tss-lib/v2/common"
 	"github.com/libp2p/go-libp2p/core/peer"
 
 	sdk "github.com/cosmos/cosmos-sdk/types/bech32/legacybech32"

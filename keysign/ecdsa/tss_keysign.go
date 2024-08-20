@@ -10,15 +10,15 @@ import (
 	"sync"
 	"time"
 
-	tsslibcommon "github.com/bnb-chain/tss-lib/common"
-	"github.com/bnb-chain/tss-lib/ecdsa/signing"
-	btss "github.com/bnb-chain/tss-lib/tss"
+	tsslibcommon "github.com/bnb-chain/tss-lib/v2/common"
+	"github.com/bnb-chain/tss-lib/v2/ecdsa/signing"
+	btss "github.com/bnb-chain/tss-lib/v2/tss"
 	tcrypto "github.com/cometbft/cometbft/crypto"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"go.uber.org/atomic"
 
-	ecdsakg "github.com/bnb-chain/tss-lib/ecdsa/keygen"
+	ecdsakg "github.com/bnb-chain/tss-lib/v2/ecdsa/keygen"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"gitlab.com/thorchain/tss/go-tss/blame"
 	"gitlab.com/thorchain/tss/go-tss/common"
@@ -100,7 +100,7 @@ func (tKeySign *TssKeySign) SignMessage(msgsToSign [][]byte, localStateItem stor
 	}
 
 	outCh := make(chan btss.Message, 2*len(partiesID)*len(msgsToSign))
-	endCh := make(chan tsslibcommon.SignatureData, len(partiesID)*len(msgsToSign))
+	endCh := make(chan *tsslibcommon.SignatureData, len(partiesID)*len(msgsToSign))
 	errCh := make(chan struct{})
 
 	keySignPartyMap := new(sync.Map)
@@ -190,7 +190,7 @@ func (tKeySign *TssKeySign) SignMessage(msgsToSign [][]byte, localStateItem stor
 	return results, nil
 }
 
-func (tKeySign *TssKeySign) processKeySign(reqNum int, errChan chan struct{}, outCh <-chan btss.Message, endCh <-chan tsslibcommon.SignatureData) ([]*tsslibcommon.SignatureData, error) {
+func (tKeySign *TssKeySign) processKeySign(reqNum int, errChan chan struct{}, outCh <-chan btss.Message, endCh <-chan *tsslibcommon.SignatureData) ([]*tsslibcommon.SignatureData, error) {
 	defer tKeySign.logger.Debug().Msg("key sign finished")
 	tKeySign.logger.Debug().Msg("start to read messages from local party")
 	var signatures []*tsslibcommon.SignatureData
@@ -269,7 +269,7 @@ func (tKeySign *TssKeySign) processKeySign(reqNum int, errChan chan struct{}, ou
 
 		//nolint
 		case msg := <-endCh:
-			signatures = append(signatures, &msg)
+			signatures = append(signatures, msg)
 			if len(signatures) == reqNum {
 				tKeySign.logger.Debug().Msg("we have done the key sign")
 				err := tKeySign.tssCommonStruct.NotifyTaskDone()

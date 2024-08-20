@@ -12,10 +12,10 @@ import (
 
 	"go.uber.org/atomic"
 
-	tsslibcommon "github.com/bnb-chain/tss-lib/common"
-	eddsakeygen "github.com/bnb-chain/tss-lib/eddsa/keygen"
-	"github.com/bnb-chain/tss-lib/eddsa/signing"
-	btss "github.com/bnb-chain/tss-lib/tss"
+	tsslibcommon "github.com/bnb-chain/tss-lib/v2/common"
+	eddsakeygen "github.com/bnb-chain/tss-lib/v2/eddsa/keygen"
+	"github.com/bnb-chain/tss-lib/v2/eddsa/signing"
+	btss "github.com/bnb-chain/tss-lib/v2/tss"
 	tcrypto "github.com/cometbft/cometbft/crypto"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -100,7 +100,7 @@ func (tKeySign *EDDSAKeySign) SignMessage(msgsToSign [][]byte, localStateItem st
 	}
 
 	outCh := make(chan btss.Message, 2*len(partiesID)*len(msgsToSign))
-	endCh := make(chan tsslibcommon.SignatureData, len(partiesID)*len(msgsToSign))
+	endCh := make(chan *tsslibcommon.SignatureData, len(partiesID)*len(msgsToSign))
 	errCh := make(chan struct{})
 
 	keySignPartyMap := new(sync.Map)
@@ -188,7 +188,7 @@ func (tKeySign *EDDSAKeySign) SignMessage(msgsToSign [][]byte, localStateItem st
 	return results, nil
 }
 
-func (tKeySign *EDDSAKeySign) processKeySign(reqNum int, errChan chan struct{}, outCh <-chan btss.Message, endCh <-chan tsslibcommon.SignatureData) ([]*tsslibcommon.SignatureData, error) {
+func (tKeySign *EDDSAKeySign) processKeySign(reqNum int, errChan chan struct{}, outCh <-chan btss.Message, endCh <-chan *tsslibcommon.SignatureData) ([]*tsslibcommon.SignatureData, error) {
 	defer tKeySign.logger.Debug().Msg("key sign finished")
 	tKeySign.logger.Debug().Msg("start to read messages from local party")
 	var signatures []*tsslibcommon.SignatureData
@@ -264,7 +264,7 @@ func (tKeySign *EDDSAKeySign) processKeySign(reqNum int, errChan chan struct{}, 
 
 		//nolint
 		case msg := <-endCh:
-			signatures = append(signatures, &msg)
+			signatures = append(signatures, msg)
 			if len(signatures) == reqNum {
 				tKeySign.logger.Debug().Msg("we have done the key sign")
 				err := tKeySign.tssCommonStruct.NotifyTaskDone()

@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	bcrypto "github.com/bnb-chain/tss-lib/crypto"
-	eddsakg "github.com/bnb-chain/tss-lib/eddsa/keygen"
-	btss "github.com/bnb-chain/tss-lib/tss"
+	bcrypto "github.com/bnb-chain/tss-lib/v2/crypto"
+	eddsakg "github.com/bnb-chain/tss-lib/v2/eddsa/keygen"
+	btss "github.com/bnb-chain/tss-lib/v2/tss"
 	tcrypto "github.com/cometbft/cometbft/crypto"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -84,7 +84,7 @@ func (tKeyGen *EDDSAKeyGen) GenerateNewKey(keygenReq keygen.Request) (*bcrypto.E
 	ctx := btss.NewPeerContext(partiesID)
 	params := btss.NewParameters(btss.Edwards(), ctx, localPartyID, len(partiesID), threshold)
 	outCh := make(chan btss.Message, len(partiesID))
-	endCh := make(chan eddsakg.LocalPartySaveData, len(partiesID))
+	endCh := make(chan *eddsakg.LocalPartySaveData, len(partiesID))
 	errChan := make(chan struct{})
 
 	blameMgr := tKeyGen.tssCommonStruct.GetBlameMgr()
@@ -140,7 +140,7 @@ func (tKeyGen *EDDSAKeyGen) GenerateNewKey(keygenReq keygen.Request) (*bcrypto.E
 
 func (tKeyGen *EDDSAKeyGen) processKeyGen(errChan chan struct{},
 	outCh <-chan btss.Message,
-	endCh <-chan eddsakg.LocalPartySaveData,
+	endCh <-chan *eddsakg.LocalPartySaveData,
 	keyGenLocalStateItem storage.KeygenLocalState) (*bcrypto.ECPoint, error) {
 	defer tKeyGen.logger.Debug().Msg("finished keygen process")
 	tKeyGen.logger.Debug().Msg("start to read messages from local party")

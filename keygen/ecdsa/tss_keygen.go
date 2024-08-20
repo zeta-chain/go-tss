@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	bcrypto "github.com/bnb-chain/tss-lib/crypto"
-	bkg "github.com/bnb-chain/tss-lib/ecdsa/keygen"
-	btss "github.com/bnb-chain/tss-lib/tss"
+	bcrypto "github.com/bnb-chain/tss-lib/v2/crypto"
+	bkg "github.com/bnb-chain/tss-lib/v2/ecdsa/keygen"
+	btss "github.com/bnb-chain/tss-lib/v2/tss"
 	tcrypto "github.com/cometbft/cometbft/crypto"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -88,7 +88,7 @@ func (tKeyGen *TssKeyGen) GenerateNewKey(keygenReq keygen.Request) (*bcrypto.ECP
 	ctx := btss.NewPeerContext(partiesID)
 	params := btss.NewParameters(btcec.S256(), ctx, localPartyID, len(partiesID), threshold)
 	outCh := make(chan btss.Message, len(partiesID))
-	endCh := make(chan bkg.LocalPartySaveData, len(partiesID))
+	endCh := make(chan *bkg.LocalPartySaveData, len(partiesID))
 	errChan := make(chan struct{})
 	if tKeyGen.preParams == nil {
 		tKeyGen.logger.Error().Err(err).Msg("error, empty pre-parameters")
@@ -147,7 +147,7 @@ func (tKeyGen *TssKeyGen) GenerateNewKey(keygenReq keygen.Request) (*bcrypto.ECP
 
 func (tKeyGen *TssKeyGen) processKeyGen(errChan chan struct{},
 	outCh <-chan btss.Message,
-	endCh <-chan bkg.LocalPartySaveData,
+	endCh <-chan *bkg.LocalPartySaveData,
 	keyGenLocalStateItem storage.KeygenLocalState) (*bcrypto.ECPoint, error) {
 	defer tKeyGen.logger.Debug().Msg("finished keygen process")
 	tKeyGen.logger.Debug().Msg("start to read messages from local party")

@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	btsskeygen "github.com/bnb-chain/tss-lib/ecdsa/keygen"
+	btsskeygen "github.com/bnb-chain/tss-lib/v2/ecdsa/keygen"
 	maddr "github.com/multiformats/go-multiaddr"
 	. "gopkg.in/check.v1"
 

@@ -13,12 +13,12 @@ import (
 	"testing"
 	"time"
 
-	btss "github.com/bnb-chain/tss-lib/tss"
+	btss "github.com/bnb-chain/tss-lib/v2/tss"
 
 	"gitlab.com/thorchain/tss/go-tss/conversion"
 	"gitlab.com/thorchain/tss/go-tss/keysign"
 
-	tsslibcommon "github.com/bnb-chain/tss-lib/common"
+	tsslibcommon "github.com/bnb-chain/tss-lib/v2/common"
 	tcrypto "github.com/cometbft/cometbft/crypto"
 	"github.com/cometbft/cometbft/crypto/secp256k1"
 	"github.com/libp2p/go-libp2p/core/peer"
