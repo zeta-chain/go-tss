@@ -124,7 +124,7 @@ func (tKeySign *TssKeySign) SignMessage(msgsToSign [][]byte, localStateItem stor
 		if err != nil {
 			return nil, fmt.Errorf("fail to unmarshal the local saved data")
 		}
-		ret := localData.ValidateWithProof()
+		ret := localData.Validate()
 		if !ret {
 			return nil, errors.New("fail to valid the keygen saved data")
 		}
