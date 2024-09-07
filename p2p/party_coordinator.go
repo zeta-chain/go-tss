@@ -72,7 +72,7 @@ func (pc *PartyCoordinator) processRespMsg(respMsg *messages.JoinPartyLeaderComm
 	pc.joinPartyGroupLock.Unlock()
 	if !ok {
 		pc.logger.Info().Msgf("message ID from peer(%s) can not be found", remotePeer)
-		_ = stream.Close()
+		_ = stream.Reset()
 		return
 	}
 	pc.streamMgr.AddStream(respMsg.ID, stream)
@@ -95,6 +95,7 @@ func (pc *PartyCoordinator) processReqMsg(requestMsg *messages.JoinPartyLeaderCo
 	peerGroup, ok := pc.peersGroup[requestMsg.ID]
 	pc.joinPartyGroupLock.Unlock()
 	if !ok {
+		_ = stream.Reset()
 		pc.logger.Info().Msg("this party is not ready")
 		return
 	}
@@ -130,6 +131,7 @@ func (pc *PartyCoordinator) HandleStream(stream network.Stream) {
 	peerGroup, ok := pc.peersGroup[msg.ID]
 	pc.joinPartyGroupLock.Unlock()
 	if !ok {
+		_ = stream.Reset()
 		pc.logger.Info().Msg("this party is not ready")
 		return
 	}
@@ -180,7 +182,7 @@ func (pc *PartyCoordinator) HandleStreamWithLeader(stream network.Stream) {
 	}
 }
 
-func (pc *PartyCoordinator) removePeerGroup(messageID string) {
+func (pc *PartyCoordinator) RemovePeerGroup(messageID string) {
 	pc.joinPartyGroupLock.Lock()
 	defer pc.joinPartyGroupLock.Unlock()
 	delete(pc.peersGroup, messageID)
@@ -445,7 +447,7 @@ func (pc *PartyCoordinator) JoinPartyWithLeader(msgID string, blockHeight int64,
 		pc.logger.Error().Err(err).Msg("error creating peerStatus")
 		return nil, leader, err
 	}
-	defer pc.removePeerGroup(msgID)
+	defer pc.RemovePeerGroup(msgID)
 
 	if pc.host.ID() == leaderID {
 		onlines, err := pc.joinPartyLeader(msgID, peerGroup, sigChan)
@@ -477,7 +479,7 @@ func (pc *PartyCoordinator) JoinPartyWithRetry(msgID string, peers []string) ([]
 		pc.logger.Error().Err(err).Msg("fail to create the join party group")
 		return nil, err
 	}
-	defer pc.removePeerGroup(msg.ID)
+	defer pc.RemovePeerGroup(msg.ID)
 	_, offline := peerGroup.getPeersStatus()
 	var wg sync.WaitGroup
 	done := make(chan struct{})

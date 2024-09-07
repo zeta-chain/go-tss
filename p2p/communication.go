@@ -177,13 +177,16 @@ func (c *Communication) readFromStream(stream network.Stream) {
 		if nil == channel {
 			c.logger.Debug().Msgf("no MsgID %s found for this message", wrappedMsg.MsgID)
 			c.logger.Debug().Msgf("no MsgID %s found for this message", wrappedMsg.MessageType)
-			_ = stream.Close()
+			_ = stream.Reset()
 			return
 		}
 		c.streamMgr.AddStream(wrappedMsg.MsgID, stream)
-		channel <- &Message{
+		select {
+		case <-time.After(10 * time.Second):
+			c.logger.Warn().Msgf("timeout to send message to channel: protocol ID: %s, msg type %s,  peer ID %s", stream.Protocol(), wrappedMsg.MessageType.String(), peerID)
+		case channel <- &Message{
 			PeerID:  stream.Conn().RemotePeer(),
-			Payload: dataBuf,
+			Payload: dataBuf}:
 		}
 
 	}
