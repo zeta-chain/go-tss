@@ -155,10 +155,16 @@ func TestSignatureNotifierBroadcastFirst(t *testing.T) {
 		p1, p2,
 	}))
 
-	n1.notifierLock.Lock()
-	assert.Contains(t, n1.notifiers, messageID)
-	notifier := n1.notifiers[messageID]
-	n1.notifierLock.Unlock()
+	var notifier *notifier
+	var ok bool
+	assert.Eventually(t, func() bool {
+		n1.notifierLock.Lock()
+		defer n1.notifierLock.Unlock()
+
+		notifier, ok = n1.notifiers[messageID]
+		return ok
+	}, time.Second, time.Millisecond*100)
+
 	assert.False(t, notifier.readyToProcess())
 	assert.Equal(t, defaultNotifierTTL, notifier.ttl)
 

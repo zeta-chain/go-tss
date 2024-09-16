@@ -173,7 +173,7 @@ func (c *Communication) readFromStream(stream network.Stream) {
 			return
 		}
 		c.logger.Debug().Msgf(">>>>>>>[%s] %s", wrappedMsg.MessageType, string(wrappedMsg.Payload))
-		channel := c.getSubscriber(wrappedMsg.MessageType, wrappedMsg.MsgID)
+		channel := c.getSubscriberWithRetry(wrappedMsg.MessageType, wrappedMsg.MsgID)
 		if nil == channel {
 			c.logger.Debug().Msgf("no MsgID %s found for this message", wrappedMsg.MsgID)
 			c.logger.Debug().Msgf("no MsgID %s found for this message", wrappedMsg.MessageType)
@@ -443,6 +443,19 @@ func (c *Communication) getSubscriber(topic messages.THORChainTSSMessageType, ms
 		return nil
 	}
 	return messageIDSubscribers.GetSubscriber(msgID)
+}
+
+// getSubscriberWithRetry tries to get a subscriber a few times to avoid race conditions
+func (c *Communication) getSubscriberWithRetry(topic messages.THORChainTSSMessageType, msgID string) chan *Message {
+	var res chan *Message
+	for i := 0; i < 3; i++ {
+		res = c.getSubscriber(topic, msgID)
+		if res != nil {
+			return res
+		}
+		time.Sleep(time.Millisecond * 50)
+	}
+	return res
 }
 
 func (c *Communication) CancelSubscribe(topic messages.THORChainTSSMessageType, msgID string) {
