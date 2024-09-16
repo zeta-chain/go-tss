@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"sync"
 	"time"
 
 	"github.com/bnb-chain/tss-lib/common"
@@ -27,6 +28,7 @@ type notifier struct {
 	processed   bool
 	lastUpdated time.Time
 	ttl         time.Duration
+	lock        sync.RWMutex
 }
 
 // newNotifier create a new instance of notifier.
@@ -42,11 +44,14 @@ func newNotifier(messageID string, messages [][]byte, poolPubKey string, signatu
 		resp:        make(chan []*common.SignatureData, 1),
 		lastUpdated: time.Now(),
 		ttl:         defaultNotifierTTL,
+		lock:        sync.RWMutex{},
 	}, nil
 }
 
 // readyToProcess ensures we have everything we need to process the signatures
 func (n *notifier) readyToProcess() bool {
+	n.lock.RLock()
+	defer n.lock.RUnlock()
 	return len(n.messageID) > 0 &&
 		len(n.messages) > 0 &&
 		len(n.poolPubKey) > 0 &&
@@ -57,6 +62,8 @@ func (n *notifier) readyToProcess() bool {
 // updateUnset will incrementally update the internal state of notifier with any new values
 // provided that are not nil/empty.
 func (n *notifier) updateUnset(messages [][]byte, poolPubKey string, signatures []*common.SignatureData) {
+	n.lock.Lock()
+	defer n.lock.Unlock()
 	n.lastUpdated = time.Now()
 	if n.messages == nil {
 		n.messages = messages
@@ -75,7 +82,9 @@ func (n *notifier) updateUnset(messages [][]byte, poolPubKey string, signatures 
 // go-tss respect the payload it receives , assume the payload had been hashed already by whoever send it in.
 func (n *notifier) verifySignature(data *common.SignatureData, msg []byte) error {
 	// we should be able to use any of the pubkeys to verify the signature
+	n.lock.RLock()
 	pubKey, err := sdk.UnmarshalPubKey(sdk.AccPK, n.poolPubKey)
+	n.lock.RUnlock()
 	if err != nil {
 		return fmt.Errorf("fail to get pubkey from bech32 pubkey string(%s):%w", n.poolPubKey, err)
 	}
@@ -117,6 +126,8 @@ func (n *notifier) verifySignature(data *common.SignatureData, msg []byte) error
 // return value bool , true indicated we already gather all the signature from keysign party, and they are all match
 // false means we are still waiting for more signature from keysign party
 func (n *notifier) processSignature(data []*common.SignatureData) error {
+	n.lock.RLock()
+	defer n.lock.RUnlock()
 	// only need to verify the signature when data is not nil
 	// when data is nil , which means keysign  failed, there is no signature to be verified in that case
 	// for gg20, it wrap the signature R,S into ECSignature structure
