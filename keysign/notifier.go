@@ -5,11 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"sync"
 	"time"
 
+	"github.com/bnb-chain/tss-lib/common"
+	"github.com/cometbft/cometbft/crypto/ed25519"
+	"github.com/cometbft/cometbft/crypto/secp256k1"
 	sdk "github.com/cosmos/cosmos-sdk/types/bech32/legacybech32"
+	"github.com/decred/dcrd/dcrec/edwards/v2"
 	"github.com/tendermint/btcd/btcec"
-	"gitlab.com/thorchain/tss/tss-lib/common"
 )
 
 const defaultNotifierTTL = time.Second * 30
@@ -19,15 +23,16 @@ type notifier struct {
 	messageID   string
 	messages    [][]byte // the message
 	poolPubKey  string
-	signatures  []*common.ECSignature
-	resp        chan []*common.ECSignature
+	signatures  []*common.SignatureData
+	resp        chan []*common.SignatureData
 	processed   bool
 	lastUpdated time.Time
 	ttl         time.Duration
+	lock        sync.RWMutex
 }
 
 // newNotifier create a new instance of notifier.
-func newNotifier(messageID string, messages [][]byte, poolPubKey string, signatures []*common.ECSignature) (*notifier, error) {
+func newNotifier(messageID string, messages [][]byte, poolPubKey string, signatures []*common.SignatureData) (*notifier, error) {
 	if len(messageID) == 0 {
 		return nil, errors.New("messageID is empty")
 	}
@@ -36,14 +41,17 @@ func newNotifier(messageID string, messages [][]byte, poolPubKey string, signatu
 		messages:    messages,
 		poolPubKey:  poolPubKey,
 		signatures:  signatures,
-		resp:        make(chan []*common.ECSignature, 1),
+		resp:        make(chan []*common.SignatureData, 1),
 		lastUpdated: time.Now(),
 		ttl:         defaultNotifierTTL,
+		lock:        sync.RWMutex{},
 	}, nil
 }
 
 // readyToProcess ensures we have everything we need to process the signatures
 func (n *notifier) readyToProcess() bool {
+	n.lock.RLock()
+	defer n.lock.RUnlock()
 	return len(n.messageID) > 0 &&
 		len(n.messages) > 0 &&
 		len(n.poolPubKey) > 0 &&
@@ -53,7 +61,9 @@ func (n *notifier) readyToProcess() bool {
 
 // updateUnset will incrementally update the internal state of notifier with any new values
 // provided that are not nil/empty.
-func (n *notifier) updateUnset(messages [][]byte, poolPubKey string, signatures []*common.ECSignature) {
+func (n *notifier) updateUnset(messages [][]byte, poolPubKey string, signatures []*common.SignatureData) {
+	n.lock.Lock()
+	defer n.lock.Unlock()
 	n.lastUpdated = time.Now()
 	if n.messages == nil {
 		n.messages = messages
@@ -70,27 +80,54 @@ func (n *notifier) updateUnset(messages [][]byte, poolPubKey string, signatures 
 // There is a method call VerifyBytes in crypto.PubKey, but we can't use that method to verify the signature, because it always hash the message
 // first and then verify the hash of the message against the signature , which is not the case in tss
 // go-tss respect the payload it receives , assume the payload had been hashed already by whoever send it in.
-func (n *notifier) verifySignature(data *common.ECSignature, msg []byte) error {
+func (n *notifier) verifySignature(data *common.SignatureData, msg []byte) error {
 	// we should be able to use any of the pubkeys to verify the signature
+	n.lock.RLock()
 	pubKey, err := sdk.UnmarshalPubKey(sdk.AccPK, n.poolPubKey)
+	n.lock.RUnlock()
 	if err != nil {
 		return fmt.Errorf("fail to get pubkey from bech32 pubkey string(%s):%w", n.poolPubKey, err)
 	}
-	pub, err := btcec.ParsePubKey(pubKey.Bytes(), btcec.S256())
-	if err != nil {
-		return err
+
+	switch pubKey.Type() {
+	case secp256k1.KeyType:
+		pub, err := btcec.ParsePubKey(pubKey.Bytes(), btcec.S256())
+		if err != nil {
+			return err
+		}
+		verified := ecdsa.Verify(pub.ToECDSA(), msg, new(big.Int).SetBytes(data.R), new(big.Int).SetBytes(data.S))
+		if !verified {
+			return fmt.Errorf("signature did not verify")
+		}
+		return nil
+
+	case ed25519.KeyType:
+		bPk, err := edwards.ParsePubKey(pubKey.Bytes())
+		if err != nil {
+			return fmt.Errorf("invalid ed25519 key with error %w", err)
+		}
+		newSig, err := edwards.ParseSignature(data.Signature)
+		if err != nil {
+			return err
+		}
+
+		verified := edwards.Verify(bPk, msg, newSig.R, newSig.S)
+		if !verified {
+			return fmt.Errorf("signature did not verify")
+		}
+		return nil
+	default:
+		return errors.New("invalid pubkey type")
 	}
-	verified := ecdsa.Verify(pub.ToECDSA(), msg, new(big.Int).SetBytes(data.R), new(big.Int).SetBytes(data.S))
-	if !verified {
-		return fmt.Errorf("signature did not verify")
-	}
-	return nil
+
 }
 
 // processSignature is to verify whether the signature is valid
 // return value bool , true indicated we already gather all the signature from keysign party, and they are all match
 // false means we are still waiting for more signature from keysign party
-func (n *notifier) processSignature(data []*common.ECSignature) error {
+func (n *notifier) processSignature(data []*common.SignatureData) error {
+	n.lock.RLock()
+	defer n.lock.RUnlock()
 	// only need to verify the signature when data is not nil
 	// when data is nil , which means keysign  failed, there is no signature to be verified in that case
 	// for gg20, it wrap the signature R,S into ECSignature structure
@@ -117,6 +154,6 @@ func (n *notifier) processSignature(data []*common.ECSignature) error {
 }
 
 // getResponseChannel the final signature gathered from keysign party will be returned from the channel
-func (n *notifier) getResponseChannel() <-chan []*common.ECSignature {
+func (n *notifier) getResponseChannel() <-chan []*common.SignatureData {
 	return n.resp
 }

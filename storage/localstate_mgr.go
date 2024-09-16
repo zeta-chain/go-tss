@@ -18,15 +18,25 @@ import (
 
 	"github.com/libp2p/go-libp2p/core/peer"
 	maddr "github.com/multiformats/go-multiaddr"
-	"gitlab.com/thorchain/tss/tss-lib/ecdsa/keygen"
 
+	"github.com/bnb-chain/tss-lib/ecdsa/keygen"
 	"gitlab.com/thorchain/tss/go-tss/conversion"
 )
 
 const keyFragmentSeed = "TSS_FRAGMENT_SEED"
 
+type LocalPartySaveData interface {
+}
+
 // KeygenLocalState is a structure used to represent the data we saved locally for different keygen
 type KeygenLocalState struct {
+	PubKey          string   `json:"pub_key"`
+	LocalData       []byte   `json:"local_data"`
+	ParticipantKeys []string `json:"participant_keys"` // the paticipant of last key gen
+	LocalPartyKey   string   `json:"local_party_key"`
+}
+
+type KeygenLocalStateOld struct {
 	PubKey          string                    `json:"pub_key"`
 	LocalData       keygen.LocalPartySaveData `json:"local_data"`
 	ParticipantKeys []string                  `json:"participant_keys"` // the paticipant of last key gen
@@ -138,7 +148,20 @@ func (fsm *FileStateMgr) GetLocalState(pubKey string) (KeygenLocalState, error) 
 	}
 	var localState KeygenLocalState
 	if err := json.Unmarshal(pt, &localState); nil != err {
-		return KeygenLocalState{}, fmt.Errorf("fail to unmarshal KeygenLocalState:%x %w", pt, err)
+		// try unmarshalling with the old format
+		var localStateOld KeygenLocalStateOld
+		if err := json.Unmarshal(pt, &localStateOld); nil != err {
+			return KeygenLocalState{}, fmt.Errorf("fail to unmarshal KeygenLocalState with backwards compatibility: %w", err)
+		}
+
+		localState.PubKey = localStateOld.PubKey
+		localState.ParticipantKeys = localStateOld.ParticipantKeys
+		localState.LocalPartyKey = localStateOld.LocalPartyKey
+		localState.LocalData, err = json.Marshal(localStateOld.LocalData)
+
+		if err != nil {
+			return KeygenLocalState{}, fmt.Errorf("fail to marshal KeygenLocalState.LocalData for backwards compatibility: %w", err)
+		}
 	}
 	fsm.writeLock.Lock()
 	defer fsm.writeLock.Unlock()

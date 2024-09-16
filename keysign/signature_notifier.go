@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bnb-chain/tss-lib/common"
+	tsslibcommon "github.com/bnb-chain/tss-lib/common"
 	"github.com/golang/protobuf/proto"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
@@ -13,7 +15,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	tsslibcommon "gitlab.com/thorchain/tss/tss-lib/common"
 
 	"gitlab.com/thorchain/tss/go-tss/messages"
 	"gitlab.com/thorchain/tss/go-tss/p2p"
@@ -24,7 +25,7 @@ var signatureNotifierProtocol protocol.ID = "/p2p/signatureNotifier"
 type signatureItem struct {
 	messageID     string
 	peerID        peer.ID
-	signatureData []*tsslibcommon.ECSignature
+	signatureData []*common.SignatureData
 }
 
 // SignatureNotifier is design to notify the
@@ -121,10 +122,10 @@ func (s *SignatureNotifier) handleStream(stream network.Stream) {
 		return
 	}
 	s.streamMgr.AddStream(msg.ID, stream)
-	var signatures []*tsslibcommon.ECSignature
+	var signatures []*common.SignatureData
 	if len(msg.Signatures) > 0 && msg.KeysignStatus == messages.KeysignSignature_Success {
 		for _, el := range msg.Signatures {
-			var signature tsslibcommon.ECSignature
+			var signature common.SignatureData
 			if err := proto.Unmarshal(el, &signature); err != nil {
 				logger.Error().Err(err).Msg("fail to unmarshal signature data")
 				return
@@ -185,11 +186,11 @@ func (s *SignatureNotifier) sendOneMsgToPeer(m *signatureItem) error {
 }
 
 // BroadcastSignature sending the keysign signature to all other peers
-func (s *SignatureNotifier) BroadcastSignature(messageID string, sig []*tsslibcommon.ECSignature, peers []peer.ID) error {
+func (s *SignatureNotifier) BroadcastSignature(messageID string, sig []*tsslibcommon.SignatureData, peers []peer.ID) error {
 	return s.broadcastCommon(messageID, sig, peers)
 }
 
-func (s *SignatureNotifier) broadcastCommon(messageID string, sig []*tsslibcommon.ECSignature, peers []peer.ID) error {
+func (s *SignatureNotifier) broadcastCommon(messageID string, sig []*tsslibcommon.SignatureData, peers []peer.ID) error {
 	wg := sync.WaitGroup{}
 	for _, p := range peers {
 		if p == s.host.ID() {
@@ -233,7 +234,7 @@ func (s *SignatureNotifier) removeNotifier(n *notifier) {
 // hold on to the signatures until this node enters WaitForSignatures. alternatively, we may begin to
 // WaitForSignature first, in which case we should wait for signatures via broadcast. once all components
 // are set (see readyToProcess()), we can process the signature
-func (s *SignatureNotifier) createOrUpdateNotifier(messageID string, messages [][]byte, poolPubKey string, signatures []*tsslibcommon.ECSignature, timeout time.Duration) (*notifier, error) {
+func (s *SignatureNotifier) createOrUpdateNotifier(messageID string, messages [][]byte, poolPubKey string, signatures []*tsslibcommon.SignatureData, timeout time.Duration) (*notifier, error) {
 	s.notifierLock.Lock()
 	defer s.notifierLock.Unlock()
 	n, ok := s.notifiers[messageID]
@@ -260,7 +261,7 @@ func (s *SignatureNotifier) createOrUpdateNotifier(messageID string, messages []
 }
 
 // WaitForSignature wait until keysign finished and signature is available
-func (s *SignatureNotifier) WaitForSignature(messageID string, message [][]byte, poolPubKey string, timeout time.Duration, sigChan chan string) ([]*tsslibcommon.ECSignature, error) {
+func (s *SignatureNotifier) WaitForSignature(messageID string, message [][]byte, poolPubKey string, timeout time.Duration, sigChan chan string) ([]*tsslibcommon.SignatureData, error) {
 	s.logger.Debug().Msg("waiting for signature")
 	n, err := s.createOrUpdateNotifier(messageID, message, poolPubKey, nil, timeout+time.Second)
 	if err != nil {

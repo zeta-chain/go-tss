@@ -7,10 +7,10 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/bnb-chain/tss-lib/ecdsa/keygen"
 	tnet "github.com/libp2p/go-libp2p-testing/net"
 	"github.com/libp2p/go-libp2p/core/peer"
 	maddr "github.com/multiformats/go-multiaddr"
-	"gitlab.com/thorchain/tss/tss-lib/ecdsa/keygen"
 	. "gopkg.in/check.v1"
 
 	"gitlab.com/thorchain/tss/go-tss/conversion"
@@ -23,7 +23,6 @@ var _ = Suite(&FileStateMgrTestSuite{})
 func TestPackage(t *testing.T) { TestingT(t) }
 
 func (s *FileStateMgrTestSuite) SetUpTest(c *C) {
-	_ = os.Setenv(keyFragmentSeed, "vSeb9Pw5GEAcZHVX1AgxPPWeyPLWTfWkGWNXeDKFO2zHoqDsRnVVoLE4fEIcO14d")
 	conversion.SetupBech32Prefix()
 }
 
@@ -48,8 +47,7 @@ func (s *FileStateMgrTestSuite) TestNewFileStateMgr(c *C) {
 
 func (s *FileStateMgrTestSuite) TestSaveLocalState(c *C) {
 	stateItem := KeygenLocalState{
-		PubKey:    "wasdfasdfasdfasdfasdfasdf",
-		LocalData: keygen.NewLocalPartySaveData(5),
+		PubKey: "wasdfasdfasdfasdfasdfasdf",
 		ParticipantKeys: []string{
 			"A", "B", "C",
 		},
@@ -116,7 +114,7 @@ func (s *FileStateMgrTestSuite) TestEncryption(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(fsm, NotNil)
 
-	stateItem := KeygenLocalState{
+	stateItem := KeygenLocalStateOld{
 		PubKey:    "wasdfasdfasdfasdfasdfasdf",
 		LocalData: keygen.NewLocalPartySaveData(5),
 		ParticipantKeys: []string{

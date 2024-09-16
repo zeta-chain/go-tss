@@ -1,4 +1,4 @@
-package keysign
+package ecdsa
 
 import (
 	"encoding/base64"
@@ -15,12 +15,13 @@ import (
 	"testing"
 	"time"
 
+	tsslibcommon "github.com/bnb-chain/tss-lib/common"
+	btss "github.com/bnb-chain/tss-lib/tss"
 	"github.com/ipfs/go-log"
 	zlog "github.com/rs/zerolog/log"
-	tsslibcommon "gitlab.com/thorchain/tss/tss-lib/common"
-	btss "gitlab.com/thorchain/tss/tss-lib/tss"
 
 	"gitlab.com/thorchain/tss/go-tss/conversion"
+	"gitlab.com/thorchain/tss/go-tss/keysign"
 
 	tcrypto "github.com/cometbft/cometbft/crypto"
 	"github.com/cometbft/cometbft/crypto/secp256k1"
@@ -34,65 +35,53 @@ import (
 	"gitlab.com/thorchain/tss/go-tss/storage"
 )
 
-var (
-	testPubKeys = []string{
-		"thorpub1addwnpepq2ryyje5zr09lq7gqptjwnxqsy2vcdngvwd6z7yt5yjcnyj8c8cn559xe69", // peerID is 16Uiu2HAm4TmEzUqy3q3Dv7HvdoSboHk5sFj2FH3npiN5vDbJC6gh
-		"thorpub1addwnpepqfjcw5l4ay5t00c32mmlky7qrppepxzdlkcwfs2fd5u73qrwna0vzag3y4j", // peerID is 16Uiu2HAm2FzqoUdS6Y9Esg2EaGcAG5rVe1r6BFNnmmQr2H3bqafa
-		"thorpub1addwnpepqtdklw8tf3anjz7nn5fly3uvq2e67w2apn560s4smmrt9e3x52nt2svmmu3", // peerID is 16Uiu2HAmACG5DtqmQsHtXg4G2sLS65ttv84e7MrL4kapkjfmhxAp
-		"thorpub1addwnpepqtspqyy6gk22u37ztra4hq3hdakc0w0k60sfy849mlml2vrpfr0wvm6uz09", // peerID is 16Uiu2HAmAWKWf5vnpiAhfdSQebTbbB3Bg35qtyG7Hr4ce23VFA8V
-	}
-	testPriKeyArr = []string{
-		"6LABmWB4iXqkqOJ9H0YFEA2CSSx6bA7XAKGyI/TDtas=",
-		"528pkgjuCWfHx1JihEjiIXS7jfTS/viEdAbjqVvSifQ=",
-		"JFB2LIJZtK+KasK00NcNil4PRJS4c4liOnK0nDalhqc=",
-		"vLMGhVXMOXQVnAE3BUU8fwNj/q0ZbndKkwmxfS5EN9Y=",
-	}
-
-	testNodePrivkey = []string{
-		"ZThiMDAxOTk2MDc4ODk3YWE0YThlMjdkMWY0NjA1MTAwZDgyNDkyYzdhNmMwZWQ3MDBhMWIyMjNmNGMzYjVhYg==",
-		"ZTc2ZjI5OTIwOGVlMDk2N2M3Yzc1MjYyODQ0OGUyMjE3NGJiOGRmNGQyZmVmODg0NzQwNmUzYTk1YmQyODlmNA==",
-		"MjQ1MDc2MmM4MjU5YjRhZjhhNmFjMmI0ZDBkNzBkOGE1ZTBmNDQ5NGI4NzM4OTYyM2E3MmI0OWMzNmE1ODZhNw==",
-		"YmNiMzA2ODU1NWNjMzk3NDE1OWMwMTM3MDU0NTNjN2YwMzYzZmVhZDE5NmU3NzRhOTMwOWIxN2QyZTQ0MzdkNg==",
-	}
-	targets = []string{
-		"16Uiu2HAmACG5DtqmQsHtXg4G2sLS65ttv84e7MrL4kapkjfmhxAp", "16Uiu2HAm4TmEzUqy3q3Dv7HvdoSboHk5sFj2FH3npiN5vDbJC6gh",
-		"16Uiu2HAm2FzqoUdS6Y9Esg2EaGcAG5rVe1r6BFNnmmQr2H3bqafa",
-	}
-)
-
-func TestPackage(t *testing.T) {
+func TestOldPackage(t *testing.T) {
 	TestingT(t)
 }
 
-type MockLocalStateManager struct {
+type MockLocalStateOldManager struct {
 	file string
 }
 
-func (m *MockLocalStateManager) SaveLocalState(state storage.KeygenLocalState) error {
+func (m *MockLocalStateOldManager) SaveLocalState(state storage.KeygenLocalState) error {
 	return nil
 }
 
-func (m *MockLocalStateManager) GetLocalState(pubKey string) (storage.KeygenLocalState, error) {
+func (m *MockLocalStateOldManager) GetLocalState(pubKey string) (storage.KeygenLocalState, error) {
 	buf, err := ioutil.ReadFile(m.file)
 	if err != nil {
 		return storage.KeygenLocalState{}, err
 	}
 	var state storage.KeygenLocalState
-	if err := json.Unmarshal(buf, &state); err != nil {
-		return storage.KeygenLocalState{}, err
+	if err := json.Unmarshal(buf, &state); nil != err {
+		fmt.Printf("Unmarshal KeygenLocalState err %s\n", err.Error())
+
+		var stateOld storage.KeygenLocalStateOld
+		if err := json.Unmarshal(buf, &stateOld); nil != err {
+			return storage.KeygenLocalState{}, fmt.Errorf("fail to unmarshal KeygenLocalState with backwards compatibility: %w", err)
+		}
+
+		state.PubKey = stateOld.PubKey
+		state.ParticipantKeys = stateOld.ParticipantKeys
+		state.LocalPartyKey = stateOld.LocalPartyKey
+		state.LocalData, err = json.Marshal(stateOld.LocalData)
+
+		if err != nil {
+			return storage.KeygenLocalState{}, fmt.Errorf("fail to marshal KeygenLocalState.LocalData for backwards compatibility: %w", err)
+		}
 	}
 	return state, nil
 }
 
-func (s *MockLocalStateManager) SaveAddressBook(address map[peer.ID][]maddr.Multiaddr) error {
+func (s *MockLocalStateOldManager) SaveAddressBook(address map[peer.ID][]maddr.Multiaddr) error {
 	return nil
 }
 
-func (s *MockLocalStateManager) RetrieveP2PAddresses() ([]maddr.Multiaddr, error) {
+func (s *MockLocalStateOldManager) RetrieveP2PAddresses() ([]maddr.Multiaddr, error) {
 	return nil, os.ErrNotExist
 }
 
-type TssKeysignTestSuite struct {
+type TssECDSAKeysignOldTestSuite struct {
 	comms        []*p2p.Communication
 	partyNum     int
 	stateMgrs    []storage.LocalStateManager
@@ -100,9 +89,9 @@ type TssKeysignTestSuite struct {
 	targetPeers  []peer.ID
 }
 
-var _ = Suite(&TssKeysignTestSuite{})
+var _ = Suite(&TssECDSAKeysignOldTestSuite{})
 
-func (s *TssKeysignTestSuite) SetUpSuite(c *C) {
+func (s *TssECDSAKeysignOldTestSuite) SetUpSuite(c *C) {
 	conversion.SetupBech32Prefix()
 	common.InitLog("info", true, "keysign_test")
 
@@ -123,7 +112,7 @@ func (s *TssKeysignTestSuite) SetUpSuite(c *C) {
 	}
 }
 
-func (s *TssKeysignTestSuite) SetUpTest(c *C) {
+func (s *TssECDSAKeysignOldTestSuite) SetUpTest(c *C) {
 	if testing.Short() {
 		c.Skip("skip the test")
 		return
@@ -154,28 +143,28 @@ func (s *TssKeysignTestSuite) SetUpTest(c *C) {
 	}
 
 	for i := 0; i < s.partyNum; i++ {
-		f := &MockLocalStateManager{
-			file: fmt.Sprintf("../test_data/keysign_data/%d.json", i),
+		f := &MockLocalStateOldManager{
+			file: fmt.Sprintf("../../test_data/keysign_data/ecdsa-old/%d.json", i),
 		}
 		s.stateMgrs[i] = f
 	}
 }
 
-func (s *TssKeysignTestSuite) TestSignMessage(c *C) {
+func (s *TssECDSAKeysignOldTestSuite) TestSignMessage(c *C) {
 	if testing.Short() {
 		c.Skip("skip the test")
 		return
 	}
 	log.SetLogLevel("tss-lib", "info")
 	sort.Strings(testPubKeys)
-	req := NewRequest("thorpub1addwnpepqv6xp3fmm47dfuzglywqvpv8fdjv55zxte4a26tslcezns5czv586u2fw33", []string{"helloworld-test", "t"}, 10, testPubKeys, "")
+	req := keysign.NewRequest("thorpub1addwnpepqv6xp3fmm47dfuzglywqvpv8fdjv55zxte4a26tslcezns5czv586u2fw33", []string{"helloworld-test", "t"}, 10, testPubKeys, "")
 	sort.Strings(req.Messages)
 	dat := []byte(strings.Join(req.Messages, ","))
 	messageID, err := common.MsgToHashString(dat)
 	c.Assert(err, IsNil)
 	wg := sync.WaitGroup{}
 	lock := &sync.Mutex{}
-	keysignResult := make(map[int][]*tsslibcommon.ECSignature)
+	keysignResult := make(map[int][]*tsslibcommon.SignatureData)
 	conf := common.TssConfig{
 		KeyGenTimeout:   90 * time.Second,
 		KeySignTimeout:  90 * time.Second,
@@ -236,37 +225,13 @@ func (s *TssKeysignTestSuite) TestSignMessage(c *C) {
 	}
 }
 
-func observeAndStop(c *C, tssKeySign *TssKeySign, stopChan chan struct{}) {
-	for {
-		select {
-		case <-stopChan:
-			return
-		case <-time.After(time.Millisecond):
-			blameMgr := tssKeySign.tssCommonStruct.GetBlameMgr()
-			lastMsg := blameMgr.GetLastMsg()
-			if lastMsg != nil && len(lastMsg.Type()) > 4 {
-				a := lastMsg.Type()
-				idx := strings.Index(a, "Round")
-				start := idx + len("Round")
-				round := a[start : start+1]
-				roundD, err := strconv.Atoi(round)
-				c.Assert(err, IsNil)
-				if roundD > 4 {
-					close(tssKeySign.stopChan)
-				}
-
-			}
-		}
-	}
-}
-
-func (s *TssKeysignTestSuite) TestSignMessageWithStop(c *C) {
+func (s *TssECDSAKeysignOldTestSuite) TestSignMessageWithStop(c *C) {
 	if testing.Short() {
 		c.Skip("skip the test")
 		return
 	}
 	sort.Strings(testPubKeys)
-	req := NewRequest("thorpub1addwnpepqv6xp3fmm47dfuzglywqvpv8fdjv55zxte4a26tslcezns5czv586u2fw33", []string{"helloworld-test", "t"}, 10, testPubKeys, "")
+	req := keysign.NewRequest("thorpub1addwnpepqv6xp3fmm47dfuzglywqvpv8fdjv55zxte4a26tslcezns5czv586u2fw33", []string{"helloworld-test", "t"}, 10, testPubKeys, "")
 	sort.Strings(req.Messages)
 	dat := []byte(strings.Join(req.Messages, ","))
 	messageID, err := common.MsgToHashString(dat)
@@ -326,42 +291,13 @@ func (s *TssKeysignTestSuite) TestSignMessageWithStop(c *C) {
 	wg.Wait()
 }
 
-func rejectSendToOnePeer(c *C, tssKeySign *TssKeySign, stopChan chan struct{}, targetPeers []peer.ID) {
-	for {
-		select {
-		case <-stopChan:
-			return
-		case <-time.After(time.Millisecond):
-			lastMsg := tssKeySign.tssCommonStruct.GetBlameMgr().GetLastMsg()
-			if lastMsg != nil && len(lastMsg.Type()) > 6 {
-				a := lastMsg.Type()
-				idx := strings.Index(a, "Round")
-				start := idx + len("Round")
-				round := a[start : start+1]
-				roundD, err := strconv.Atoi(round)
-				c.Assert(err, IsNil)
-				if roundD > 6 {
-					tssKeySign.tssCommonStruct.P2PPeersLock.Lock()
-					peersID := tssKeySign.tssCommonStruct.P2PPeers
-					sort.Slice(peersID, func(i, j int) bool {
-						return peersID[i].String() > peersID[j].String()
-					})
-					tssKeySign.tssCommonStruct.P2PPeers = targetPeers
-					tssKeySign.tssCommonStruct.P2PPeersLock.Unlock()
-					return
-				}
-			}
-		}
-	}
-}
-
-func (s *TssKeysignTestSuite) TestSignMessageRejectOnePeer(c *C) {
+func (s *TssECDSAKeysignOldTestSuite) TestSignMessageRejectOnePeer(c *C) {
 	if testing.Short() {
 		c.Skip("skip the test")
 		return
 	}
 	sort.Strings(testPubKeys)
-	req := NewRequest("thorpub1addwnpepqv6xp3fmm47dfuzglywqvpv8fdjv55zxte4a26tslcezns5czv586u2fw33", []string{"helloworld-test", "t"}, 10, testPubKeys, "")
+	req := keysign.NewRequest("thorpub1addwnpepqv6xp3fmm47dfuzglywqvpv8fdjv55zxte4a26tslcezns5czv586u2fw33", []string{"helloworld-test", "t"}, 10, testPubKeys, "")
 	sort.Strings(req.Messages)
 	dat := []byte(strings.Join(req.Messages, ","))
 	messageID, err := common.MsgToHashString(dat)
@@ -411,7 +347,7 @@ func (s *TssKeysignTestSuite) TestSignMessageRejectOnePeer(c *C) {
 	wg.Wait()
 }
 
-func (s *TssKeysignTestSuite) TearDownSuite(c *C) {
+func (s *TssECDSAKeysignOldTestSuite) TearDownSuite(c *C) {
 	for i, _ := range s.comms {
 		tempFilePath := path.Join(os.TempDir(), strconv.Itoa(i))
 		err := os.RemoveAll(tempFilePath)
@@ -419,7 +355,7 @@ func (s *TssKeysignTestSuite) TearDownSuite(c *C) {
 	}
 }
 
-func (s *TssKeysignTestSuite) TearDownTest(c *C) {
+func (s *TssECDSAKeysignOldTestSuite) TearDownTest(c *C) {
 	if testing.Short() {
 		c.Skip("skip the test")
 		return
@@ -430,7 +366,7 @@ func (s *TssKeysignTestSuite) TearDownTest(c *C) {
 	}
 }
 
-func (s *TssKeysignTestSuite) TestCloseKeySignnotifyChannel(c *C) {
+func (s *TssECDSAKeysignOldTestSuite) TestCloseKeySignnotifyChannel(c *C) {
 	conf := common.TssConfig{}
 	keySignInstance := NewTssKeySign("", conf, nil, nil, "test", s.nodePrivKeys[0], s.comms[0], s.stateMgrs[0], 1)
 

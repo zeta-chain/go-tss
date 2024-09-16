@@ -12,10 +12,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"gitlab.com/thorchain/tss/tss-lib/common"
-	"gitlab.com/thorchain/tss/tss-lib/ecdsa/keygen"
-	"gitlab.com/thorchain/tss/tss-lib/test"
-	"gitlab.com/thorchain/tss/tss-lib/tss"
+	"github.com/bnb-chain/tss-lib/common"
+	"github.com/bnb-chain/tss-lib/ecdsa/keygen"
+	"github.com/bnb-chain/tss-lib/test"
+	"github.com/bnb-chain/tss-lib/tss"
+	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/ipfs/go-log"
 	"github.com/pkg/errors"
 	"golang.org/x/text/language"
@@ -134,8 +135,7 @@ func runKeyGen(dir string, t, n int) {
 
 	// init the parties
 	for i := 0; i < len(pIDs); i++ {
-		params := tss.NewParameters(p2pCtx, pIDs[i], len(pIDs), t)
-		params.UNSAFE_setKGIgnoreH1H2Dupes(true)
+		params := tss.NewParameters(btcec.S256(), p2pCtx, pIDs[i], len(pIDs), t)
 		P := keygen.NewLocalParty(params, outCh, endCh, preParamTestData).(*keygen.LocalParty)
 		parties = append(parties, P)
 		go func(P *keygen.LocalParty) {

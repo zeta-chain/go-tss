@@ -195,6 +195,7 @@ func TestNewPartyCoordinatorTimeOut(t *testing.T) {
 	var expected []string
 	for _, el := range pcs[:3] {
 		expected = append(expected, el.host.ID().String())
+		sort.Strings(expected)
 		wg.Add(1)
 		go func(coordinator *PartyCoordinator) {
 			defer wg.Done()
@@ -206,7 +207,6 @@ func TestNewPartyCoordinatorTimeOut(t *testing.T) {
 				onlinePeersStr = append(onlinePeersStr, el.String())
 			}
 			sort.Strings(onlinePeersStr)
-			sort.Strings(expected)
 			sort.Strings(expected[:3])
 			assert.EqualValues(t, expected, onlinePeersStr)
 		}(el)

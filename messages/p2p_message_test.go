@@ -4,7 +4,7 @@ import (
 	"math/big"
 	"testing"
 
-	btss "gitlab.com/thorchain/tss/tss-lib/tss"
+	btss "github.com/bnb-chain/tss-lib/tss"
 	. "gopkg.in/check.v1"
 )
 

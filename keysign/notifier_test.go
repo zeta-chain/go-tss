@@ -5,8 +5,7 @@ import (
 	"encoding/json"
 	"os"
 
-	tsslibcommon "gitlab.com/thorchain/tss/tss-lib/common"
-	"gitlab.com/thorchain/tss/tss-lib/ecdsa/signing"
+	tsslibcommon "github.com/bnb-chain/tss-lib/common"
 	. "gopkg.in/check.v1"
 
 	"gitlab.com/thorchain/tss/go-tss/common"
@@ -56,7 +55,7 @@ func (NotifierTestSuite) TestNotifierHappyPath(c *C) {
 	content, err := os.ReadFile(sigFile)
 	c.Assert(err, IsNil)
 	c.Assert(content, NotNil)
-	var signature signing.SignatureData
+	var signature tsslibcommon.SignatureData
 	err = json.Unmarshal(content, &signature)
 	c.Assert(err, IsNil)
 
@@ -64,20 +63,20 @@ func (NotifierTestSuite) TestNotifierHappyPath(c *C) {
 	contentInvalid, err := os.ReadFile(sigInvalidFile)
 	c.Assert(err, IsNil)
 	c.Assert(contentInvalid, NotNil)
-	var sigInvalid signing.SignatureData
+	var sigInvalid tsslibcommon.SignatureData
 	c.Assert(json.Unmarshal(contentInvalid, &sigInvalid), IsNil)
 	// valid keysign peer , but invalid signature we should continue to listen
-	err = n.processSignature([]*tsslibcommon.ECSignature{sigInvalid.GetSignature()})
+	err = n.processSignature([]*tsslibcommon.SignatureData{&sigInvalid})
 	c.Assert(err, NotNil)
 	c.Assert(n.processed, Equals, false)
 	// valid signature from a keysign peer , we should accept it and bail out
-	err = n.processSignature([]*tsslibcommon.ECSignature{signature.GetSignature()})
+	err = n.processSignature([]*tsslibcommon.SignatureData{&signature})
 	c.Assert(err, IsNil)
 	c.Assert(n.processed, Equals, true)
 
 	result := <-n.getResponseChannel()
 	c.Assert(result, NotNil)
-	c.Assert(signature.GetSignature().String() == result[0].String(), Equals, true)
+	c.Assert(signature.String() == result[0].String(), Equals, true)
 }
 
 func (NotifierTestSuite) TestNotifierUpdateUnset(c *C) {
@@ -105,7 +104,7 @@ func (NotifierTestSuite) TestNotifierUpdateUnset(c *C) {
 	c.Assert(n.signatures, IsNil)
 	c.Assert(n.readyToProcess(), Equals, false)
 
-	fakeSigs := []*tsslibcommon.ECSignature{{Signature: []byte("signature")}}
+	fakeSigs := []*tsslibcommon.SignatureData{{Signature: []byte("signature")}}
 	n.updateUnset(nil, "", fakeSigs)
 
 	c.Assert(n.messages, DeepEquals, fakeMessages)
