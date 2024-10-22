@@ -10,11 +10,14 @@ import (
 	"time"
 
 	libp2p "github.com/libp2p/go-libp2p"
+	dht "github.com/libp2p/go-libp2p-kad-dht"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
+	discovery_routing "github.com/libp2p/go-libp2p/p2p/discovery/routing"
+	discovery_util "github.com/libp2p/go-libp2p/p2p/discovery/util"
 	rcmgr "github.com/libp2p/go-libp2p/p2p/host/resource-manager"
 	"github.com/libp2p/go-libp2p/p2p/net/connmgr"
 	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
@@ -252,7 +255,7 @@ func (c *Communication) bootStrapConnectivityCheck() error {
 }
 
 func (c *Communication) startChannel(privKeyBytes []byte) error {
-	// ctx := context.Background()
+	ctx := context.Background()
 	p2pPriKey, err := crypto.UnmarshalSecp256k1PrivateKey(privKeyBytes)
 	if err != nil {
 		c.logger.Error().Msgf("error is %f", err)
@@ -317,18 +320,18 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 	c.host = h
 	c.logger.Info().Msgf("Host created, we are: %s, at: %s", h.ID(), h.Addrs())
 	h.SetStreamHandler(TSSProtocolID, c.handleStream)
-	// // Start a DHT, for use in peer discovery. We can't just make a new DHT
-	// // client because we want each peer to maintain its own local copy of the
-	// // DHT, so that the bootstrapping node of the DHT can go down without
-	// // inhibiting future peer discovery.
-	// kademliaDHT, err := dht.New(ctx, h, dht.Mode(dht.ModeServer))
-	// if err != nil {
-	// 	return fmt.Errorf("fail to create DHT: %w", err)
-	// }
-	// c.logger.Debug().Msg("Bootstrapping the DHT")
-	// if err = kademliaDHT.Bootstrap(ctx); err != nil {
-	// 	return fmt.Errorf("fail to bootstrap DHT: %w", err)
-	// }
+	// Start a DHT, for use in peer discovery. We can't just make a new DHT
+	// client because we want each peer to maintain its own local copy of the
+	// DHT, so that the bootstrapping node of the DHT can go down without
+	// inhibiting future peer discovery.
+	kademliaDHT, err := dht.New(ctx, h, dht.Mode(dht.ModeServer))
+	if err != nil {
+		return fmt.Errorf("fail to create DHT: %w", err)
+	}
+	c.logger.Debug().Msg("Bootstrapping the DHT")
+	if err = kademliaDHT.Bootstrap(ctx); err != nil {
+		return fmt.Errorf("fail to bootstrap DHT: %w", err)
+	}
 
 	var connectionErr error
 	for i := 0; i < 5; i++ {
@@ -345,8 +348,22 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 
 	// We use a rendezvous point "meet me here" to announce our location.
 	// This is like telling your friends to meet you at the Eiffel Tower.
-	// routingDiscovery := discovery_routing.NewRoutingDiscovery(kademliaDHT)
-	// discovery_util.Advertise(ctx, routingDiscovery, c.rendezvous)
+	routingDiscovery := discovery_routing.NewRoutingDiscovery(kademliaDHT)
+	discovery_util.Advertise(ctx, routingDiscovery, c.rendezvous)
+
+	// Create a goroutine to shut down the DHT after 5 minutes
+	go func() {
+		select {
+		case <-time.After(5 * time.Minute):
+			c.logger.Info().Msg("Closing Kademlia DHT after 5 minutes")
+			if err := kademliaDHT.Close(); err != nil {
+				c.logger.Error().Err(err).Msg("Failed to close Kademlia DHT")
+			}
+		case <-ctx.Done():
+			c.logger.Info().Msg("Context done, not waiting for 5 minutes to close DHT")
+		}
+	}()
+
 	err = c.bootStrapConnectivityCheck()
 	if err != nil {
 		return err
