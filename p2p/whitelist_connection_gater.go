@@ -31,18 +31,18 @@ func NewWhitelistConnectionGater(whitelistedPeers []string, disableWhitelist boo
 }
 
 func (wg *WhitelistConnectionGater) InterceptPeerDial(p peer.ID) (allow bool) {
-	wg.logger.Info().Msgf("InterceptPeerDial %s", p.String(), wg.disableWhitelist)
+	wg.logger.Info().Msgf("InterceptPeerDial %s", p.String())
 	if !wg.disableWhitelist {
-		wg.logger.Info().Msgf("peer allowed", wg.whitelistedPeers[p.String()])
+		wg.logger.Info().Msgf("peer allowed %t", wg.whitelistedPeers[p.String()])
 		return wg.whitelistedPeers[p.String()]
 	}
 	return true
 }
 
 func (wg *WhitelistConnectionGater) InterceptAddrDial(p peer.ID, m maddr.Multiaddr) (allow bool) {
-	wg.logger.Info().Msgf("InterceptAddrDial %s", p.String(), wg.disableWhitelist)
+	wg.logger.Info().Msgf("InterceptAddrDial %s", p.String())
 	if !wg.disableWhitelist {
-		wg.logger.Info().Msgf("peer allowed", wg.whitelistedPeers[p.String()])
+		wg.logger.Info().Msgf("peer allowed %t", wg.whitelistedPeers[p.String()])
 		return wg.whitelistedPeers[p.String()]
 	}
 	// Not checking addresses here, just allowing based on peer ID
@@ -54,9 +54,9 @@ func (wg *WhitelistConnectionGater) InterceptAccept(network.ConnMultiaddrs) (all
 }
 
 func (wg *WhitelistConnectionGater) InterceptSecured(direction network.Direction, p peer.ID, _ network.ConnMultiaddrs) (allow bool) {
-	wg.logger.Info().Msgf("InterceptSecured %s", p.String(), wg.disableWhitelist)
+	wg.logger.Info().Msgf("InterceptSecured %s", p.String())
 	if !wg.disableWhitelist {
-		wg.logger.Info().Msgf("peer allowed", wg.whitelistedPeers[p.String()])
+		wg.logger.Info().Msgf("peer allowed %t", wg.whitelistedPeers[p.String()])
 		return wg.whitelistedPeers[p.String()]
 	}
 	// _, allow = wg.whitelistedPeers[p]
