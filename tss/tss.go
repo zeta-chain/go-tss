@@ -10,6 +10,7 @@ import (
 	tcrypto "github.com/cometbft/cometbft/crypto"
 	coskey "github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
 	sdk "github.com/cosmos/cosmos-sdk/types/bech32/legacybech32"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/libp2p/go-libp2p/core/peer"
 	maddr "github.com/multiformats/go-multiaddr"
 	"github.com/rs/zerolog"
@@ -82,6 +83,9 @@ func NewTss(
 		bootstrapPeers = savedPeers
 		bootstrapPeers = append(bootstrapPeers, cmdBootstrapPeers...)
 	}
+	spew.Dump("cmdBootstrampPeers", cmdBootstrapPeers)
+	spew.Dump("savedPeers", savedPeers)
+	spew.Dump("bootstrapPeers", bootstrapPeers)
 	comm, err := p2p.NewCommunication(rendezvous, bootstrapPeers, p2pPort, externalIP)
 	if err != nil {
 		return nil, fmt.Errorf("fail to create communication layer: %w", err)

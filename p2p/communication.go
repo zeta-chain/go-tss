@@ -287,7 +287,9 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 
 	limiter := rcmgr.NewFixedLimiter(limits)
 
-	m, err := rcmgr.NewResourceManager(limiter, rcmgr.WithAllowlistedMultiaddrs(c.bootstrapPeers), rcmgr.WithMetrics(NewResourceMetricReporter()))
+	//m, err := rcmgr.NewResourceManager(limiter, rcmgr.WithAllowlistedMultiaddrs(c.bootstrapPeers), rcmgr.WithMetrics(NewResourceMetricReporter()))
+	m, err := rcmgr.NewResourceManager(limiter, rcmgr.WithMetrics(NewResourceMetricReporter()))
+
 	if err != nil {
 		return err
 	}
