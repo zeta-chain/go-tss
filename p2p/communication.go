@@ -59,10 +59,19 @@ type Communication struct {
 	BroadcastMsgChan chan *messages.BroadcastMsgChan
 	externalAddr     maddr.Multiaddr
 	streamMgr        *StreamMgr
+	whitelistedPeers []string
+	disableWhitelist bool
 }
 
 // NewCommunication create a new instance of Communication
-func NewCommunication(rendezvous string, bootstrapPeers []maddr.Multiaddr, port int, externalIP string) (*Communication, error) {
+func NewCommunication(
+	rendezvous string,
+	bootstrapPeers []maddr.Multiaddr,
+	port int,
+	externalIP string,
+	whitelistedPeers []string,
+	disableWhitelist bool,
+) (*Communication, error) {
 	addr, err := maddr.NewMultiaddr(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", port))
 	if err != nil {
 		return nil, fmt.Errorf("fail to create listen addr: %w", err)
@@ -87,6 +96,8 @@ func NewCommunication(rendezvous string, bootstrapPeers []maddr.Multiaddr, port 
 		BroadcastMsgChan: make(chan *messages.BroadcastMsgChan, 1024),
 		externalAddr:     externalAddr,
 		streamMgr:        NewStreamMgr(),
+		whitelistedPeers: whitelistedPeers,
+		disableWhitelist: disableWhitelist,
 	}, nil
 }
 
@@ -298,7 +309,7 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 		libp2p.AddrsFactory(addressFactory),
 		libp2p.ResourceManager(m),
 		libp2p.ConnectionManager(cmgr),
-		libp2p.ConnectionGater(&WhitelistConnectionGater{whitelistedPeers: make(map[peer.ID]bool), logger: c.logger}),
+		libp2p.ConnectionGater(NewWhitelistConnectionGater(c.whitelistedPeers, c.disableWhitelist, c.logger)),
 	)
 	if err != nil {
 		return fmt.Errorf("fail to create p2p host: %w", err)

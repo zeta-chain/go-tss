@@ -59,6 +59,8 @@ func NewTss(
 	preParams *bkeygen.LocalPreParams,
 	externalIP string,
 	tssPassword string,
+	whitelistedPeers []string,
+	disableWhitelist bool,
 ) (*TssServer, error) {
 	pk := coskey.PubKey{
 		Key: priKey.PubKey().Bytes()[:],
@@ -74,6 +76,10 @@ func NewTss(
 		return nil, fmt.Errorf("fail to create file state manager")
 	}
 
+	if !disableWhitelist && (whitelistedPeers == nil || len(whitelistedPeers) == 0) {
+		return nil, fmt.Errorf("whitelisted peers missing")
+	}
+
 	var bootstrapPeers []maddr.Multiaddr
 	savedPeers, err := stateManager.RetrieveP2PAddresses()
 	if err != nil {
@@ -82,7 +88,7 @@ func NewTss(
 		bootstrapPeers = savedPeers
 		bootstrapPeers = append(bootstrapPeers, cmdBootstrapPeers...)
 	}
-	comm, err := p2p.NewCommunication(rendezvous, bootstrapPeers, p2pPort, externalIP)
+	comm, err := p2p.NewCommunication(rendezvous, bootstrapPeers, p2pPort, externalIP, whitelistedPeers, disableWhitelist)
 	if err != nil {
 		return nil, fmt.Errorf("fail to create communication layer: %w", err)
 	}
