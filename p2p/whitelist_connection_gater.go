@@ -14,29 +14,29 @@ type WhitelistConnectionGater struct {
 	logger           zerolog.Logger
 }
 
-func (wg WhitelistConnectionGater) InterceptPeerDial(p peer.ID) (allow bool) {
+func (wg *WhitelistConnectionGater) InterceptPeerDial(p peer.ID) (allow bool) {
 	wg.logger.Info().Msgf("InterceptPeerDial %s", p.String())
 	// _, allow = wg.whitelistedPeers[p]
 	return true
 }
 
-func (wg WhitelistConnectionGater) InterceptAddrDial(p peer.ID, m maddr.Multiaddr) (allow bool) {
+func (wg *WhitelistConnectionGater) InterceptAddrDial(p peer.ID, m maddr.Multiaddr) (allow bool) {
 	wg.logger.Info().Msgf("InterceptAddrDial %s", p.String())
 	// Not checking addresses here, just allowing based on peer ID
 	return true
 }
 
-func (wg WhitelistConnectionGater) InterceptAccept(network.ConnMultiaddrs) (allow bool) {
+func (wg *WhitelistConnectionGater) InterceptAccept(network.ConnMultiaddrs) (allow bool) {
 	return true
 }
 
-func (wg WhitelistConnectionGater) InterceptSecured(direction network.Direction, p peer.ID, _ network.ConnMultiaddrs) (allow bool) {
+func (wg *WhitelistConnectionGater) InterceptSecured(direction network.Direction, p peer.ID, _ network.ConnMultiaddrs) (allow bool) {
 	wg.logger.Info().Msgf("InterceptSecured %s", p.String())
 	// _, allow = wg.whitelistedPeers[p]
 	return true
 }
 
-func (wg WhitelistConnectionGater) InterceptUpgraded(network.Conn) (bool, control.DisconnectReason) {
+func (wg *WhitelistConnectionGater) InterceptUpgraded(network.Conn) (bool, control.DisconnectReason) {
 	// Allow connection upgrades
 	return true, 0
 }
