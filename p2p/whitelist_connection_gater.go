@@ -23,6 +23,7 @@ func NewWhitelistConnectionGater(whitelistedPeers []string, disableWhitelist boo
 	}
 
 	for _, p := range whitelistedPeers {
+		logger.Info().Msgf("Adding peer %s to whitelist", p)
 		gater.whitelistedPeers[p] = true
 	}
 
