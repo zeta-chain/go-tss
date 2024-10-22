@@ -31,8 +31,9 @@ func (wg WhitelistConnectionGater) InterceptAccept(network.ConnMultiaddrs) (allo
 }
 
 func (wg WhitelistConnectionGater) InterceptSecured(direction network.Direction, p peer.ID, _ network.ConnMultiaddrs) (allow bool) {
-	_, allow = wg.whitelistedPeers[p]
-	return allow
+	wg.logger.Info().Msgf("InterceptSecured %s", p.String())
+	// _, allow = wg.whitelistedPeers[p]
+	return true
 }
 
 func (wg WhitelistConnectionGater) InterceptUpgraded(network.Conn) (bool, control.DisconnectReason) {
