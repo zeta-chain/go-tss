@@ -301,7 +301,7 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 		libp2p.AddrsFactory(addressFactory),
 		libp2p.ResourceManager(m),
 		libp2p.ConnectionManager(cmgr),
-		libp2p.ConnectionGater(&WhitelistConnectionGater{whitelistedPeers: make(map[peer.ID]bool)}),
+		libp2p.ConnectionGater(&WhitelistConnectionGater{whitelistedPeers: make(map[peer.ID]bool), logger: c.logger}),
 	)
 	if err != nil {
 		return fmt.Errorf("fail to create p2p host: %w", err)
