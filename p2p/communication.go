@@ -10,14 +10,11 @@ import (
 	"time"
 
 	libp2p "github.com/libp2p/go-libp2p"
-	dht "github.com/libp2p/go-libp2p-kad-dht"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
-	discovery_routing "github.com/libp2p/go-libp2p/p2p/discovery/routing"
-	discovery_util "github.com/libp2p/go-libp2p/p2p/discovery/util"
 	rcmgr "github.com/libp2p/go-libp2p/p2p/host/resource-manager"
 	"github.com/libp2p/go-libp2p/p2p/net/connmgr"
 	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
@@ -62,10 +59,11 @@ type Communication struct {
 	BroadcastMsgChan chan *messages.BroadcastMsgChan
 	externalAddr     maddr.Multiaddr
 	streamMgr        *StreamMgr
+	whitelistedPeers []peer.ID
 }
 
 // NewCommunication create a new instance of Communication
-func NewCommunication(rendezvous string, bootstrapPeers []maddr.Multiaddr, port int, externalIP string) (*Communication, error) {
+func NewCommunication(rendezvous string, bootstrapPeers []maddr.Multiaddr, port int, externalIP string, whitelistedPeers []peer.ID) (*Communication, error) {
 	addr, err := maddr.NewMultiaddr(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", port))
 	if err != nil {
 		return nil, fmt.Errorf("fail to create listen addr: %w", err)
@@ -90,6 +88,7 @@ func NewCommunication(rendezvous string, bootstrapPeers []maddr.Multiaddr, port 
 		BroadcastMsgChan: make(chan *messages.BroadcastMsgChan, 1024),
 		externalAddr:     externalAddr,
 		streamMgr:        NewStreamMgr(),
+		whitelistedPeers: whitelistedPeers,
 	}, nil
 }
 
@@ -244,7 +243,7 @@ func (c *Communication) bootStrapConnectivityCheck() error {
 }
 
 func (c *Communication) startChannel(privKeyBytes []byte) error {
-	ctx := context.Background()
+	c.logger.Warn().Msgf("No DHT enabled")
 	p2pPriKey, err := crypto.UnmarshalSecp256k1PrivateKey(privKeyBytes)
 	if err != nil {
 		c.logger.Error().Msgf("error is %f", err)
@@ -312,14 +311,6 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 	// client because we want each peer to maintain its own local copy of the
 	// DHT, so that the bootstrapping node of the DHT can go down without
 	// inhibiting future peer discovery.
-	kademliaDHT, err := dht.New(ctx, h, dht.Mode(dht.ModeServer))
-	if err != nil {
-		return fmt.Errorf("fail to create DHT: %w", err)
-	}
-	c.logger.Debug().Msg("Bootstrapping the DHT")
-	if err = kademliaDHT.Bootstrap(ctx); err != nil {
-		return fmt.Errorf("fail to bootstrap DHT: %w", err)
-	}
 
 	var connectionErr error
 	for i := 0; i < 5; i++ {
@@ -334,30 +325,27 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 		return fmt.Errorf("fail to connect to bootstrap peer: %w", connectionErr)
 	}
 
-	// We use a rendezvous point "meet me here" to announce our location.
-	// This is like telling your friends to meet you at the Eiffel Tower.
-	routingDiscovery := discovery_routing.NewRoutingDiscovery(kademliaDHT)
-	discovery_util.Advertise(ctx, routingDiscovery, c.rendezvous)
-
-	// Create a goroutine to shut down the DHT after 5 minutes
-	go func() {
-		select {
-		case <-time.After(5 * time.Minute):
-			c.logger.Info().Msg("Closing Kademlia DHT after 5 minutes")
-			if err := kademliaDHT.Close(); err != nil {
-				c.logger.Error().Err(err).Msg("Failed to close Kademlia DHT")
-			}
-		case <-ctx.Done():
-			c.logger.Info().Msg("Context done, not waiting for 5 minutes to close DHT")
-		}
-	}()
-
 	err = c.bootStrapConnectivityCheck()
 	if err != nil {
 		return err
 	}
 
 	c.logger.Info().Msg("Successfully announced!")
+
+	c.logger.Info().Msg("Start peer discovery/gossip...")
+	//c.bootstrapPeers
+	bootstrapPeerAddrInfos := make([]peer.AddrInfo, 0, len(c.bootstrapPeers))
+	for _, addr := range c.bootstrapPeers {
+		peerInfo, err := peer.AddrInfoFromP2pAddr(addr)
+		if err != nil {
+			c.logger.Error().Err(err).Msgf("fail to convert multiaddr to peer info: %s", addr)
+			continue
+		}
+		bootstrapPeerAddrInfos = append(bootstrapPeerAddrInfos, *peerInfo)
+	}
+	discovery := NewPeerDiscovery(c.host, bootstrapPeerAddrInfos)
+	discovery.Start(context.Background())
+
 	return nil
 }
 
