@@ -64,7 +64,6 @@ func main() {
 		p2pConf.ExternalIP,
 		os.Getenv("PASSWORD"),
 		[]string{},
-		true,
 	)
 	if nil != err {
 		log.Fatal(err)

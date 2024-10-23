@@ -63,7 +63,6 @@ type Communication struct {
 	externalAddr     maddr.Multiaddr
 	streamMgr        *StreamMgr
 	whitelistedPeers []string
-	disableWhitelist bool
 }
 
 // NewCommunication create a new instance of Communication
@@ -73,7 +72,6 @@ func NewCommunication(
 	port int,
 	externalIP string,
 	whitelistedPeers []string,
-	disableWhitelist bool,
 ) (*Communication, error) {
 	addr, err := maddr.NewMultiaddr(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", port))
 	if err != nil {
@@ -100,7 +98,6 @@ func NewCommunication(
 		externalAddr:     externalAddr,
 		streamMgr:        NewStreamMgr(),
 		whitelistedPeers: whitelistedPeers,
-		disableWhitelist: disableWhitelist,
 	}, nil
 }
 
@@ -312,7 +309,7 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 		libp2p.AddrsFactory(addressFactory),
 		libp2p.ResourceManager(m),
 		libp2p.ConnectionManager(cmgr),
-		libp2p.ConnectionGater(NewWhitelistConnectionGater(c.whitelistedPeers, c.disableWhitelist, c.logger)),
+		libp2p.ConnectionGater(NewWhitelistConnectionGater(c.whitelistedPeers, c.logger)),
 	)
 	if err != nil {
 		return fmt.Errorf("fail to create p2p host: %w", err)
@@ -350,19 +347,6 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 	// This is like telling your friends to meet you at the Eiffel Tower.
 	routingDiscovery := discovery_routing.NewRoutingDiscovery(kademliaDHT)
 	discovery_util.Advertise(ctx, routingDiscovery, c.rendezvous)
-
-	// Create a goroutine to shut down the DHT after 5 minutes
-	go func() {
-		select {
-		case <-time.After(5 * time.Minute):
-			c.logger.Info().Msg("Closing Kademlia DHT after 5 minutes")
-			if err := kademliaDHT.Close(); err != nil {
-				c.logger.Error().Err(err).Msg("Failed to close Kademlia DHT")
-			}
-		case <-ctx.Done():
-			c.logger.Info().Msg("Context done, not waiting for 5 minutes to close DHT")
-		}
-	}()
 
 	err = c.bootStrapConnectivityCheck()
 	if err != nil {
