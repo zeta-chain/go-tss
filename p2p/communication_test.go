@@ -18,7 +18,7 @@ type CommunicationTestSuite struct{}
 var _ = Suite(&CommunicationTestSuite{})
 
 func (CommunicationTestSuite) TestBasicCommunication(c *C) {
-	comm, err := NewCommunication("rendezvous", nil, 6668, "")
+	comm, err := NewCommunication("rendezvous", nil, 6668, "", []string{}, true)
 	c.Assert(err, IsNil)
 	c.Assert(comm, NotNil)
 	comm.SetSubscribe(messages.TSSKeyGenMsg, "hello", make(chan *Message))
@@ -47,7 +47,7 @@ func (CommunicationTestSuite) TestEstablishP2pCommunication(c *C) {
 	c.Assert(err, IsNil)
 	privKey, err := base64.StdEncoding.DecodeString(bootstrapPrivKey)
 	c.Assert(err, IsNil)
-	comm, err := NewCommunication("commTest", nil, 2220, fakeExternalIP)
+	comm, err := NewCommunication("commTest", nil, 2220, fakeExternalIP, []string{}, true)
 	c.Assert(err, IsNil)
 	c.Assert(comm.Start(privKey), IsNil)
 
@@ -55,7 +55,7 @@ func (CommunicationTestSuite) TestEstablishP2pCommunication(c *C) {
 	sk1, _, err := crypto.GenerateSecp256k1Key(rand.Reader)
 	sk1raw, _ := sk1.Raw()
 	c.Assert(err, IsNil)
-	comm2, err := NewCommunication("commTest", []maddr.Multiaddr{validMultiAddr}, 2221, "")
+	comm2, err := NewCommunication("commTest", []maddr.Multiaddr{validMultiAddr}, 2221, "", []string{}, true)
 	c.Assert(err, IsNil)
 	err = comm2.Start(sk1raw)
 	c.Assert(err, IsNil)
@@ -69,14 +69,14 @@ func (CommunicationTestSuite) TestEstablishP2pCommunication(c *C) {
 	invalidAddr := "/ip4/127.0.0.1/tcp/2220/p2p/" + id.String()
 	invalidMultiAddr, err := maddr.NewMultiaddr(invalidAddr)
 	c.Assert(err, IsNil)
-	comm3, err := NewCommunication("commTest", []maddr.Multiaddr{invalidMultiAddr}, 2222, "")
+	comm3, err := NewCommunication("commTest", []maddr.Multiaddr{invalidMultiAddr}, 2222, "", []string{}, true)
 	c.Assert(err, IsNil)
 	err = comm3.Start(sk1raw)
 	c.Assert(err, ErrorMatches, "fail to connect to bootstrap peer: fail to connect to any peer")
 	defer comm3.Stop()
 
 	// we connect to one invalid and one valid address
-	comm4, err := NewCommunication("commTest", []maddr.Multiaddr{invalidMultiAddr, validMultiAddr}, 2223, "")
+	comm4, err := NewCommunication("commTest", []maddr.Multiaddr{invalidMultiAddr, validMultiAddr}, 2223, "", []string{}, true)
 	c.Assert(err, IsNil)
 	err = comm4.Start(sk1raw)
 	c.Assert(err, IsNil)
