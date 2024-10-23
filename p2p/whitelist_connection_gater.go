@@ -49,7 +49,7 @@ func (wg *WhitelistConnectionGater) InterceptUpgraded(network.Conn) (bool, contr
 	return true, 0
 }
 
-func (wg *WhitelistConnectionGater) peerAllowed(p string, interceptor string) bool {
+func (wg *WhitelistConnectionGater) peerAllowed(interceptor, p string) bool {
 	allowed := wg.whitelistedPeers[p]
 
 	if allowed {
