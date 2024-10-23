@@ -88,7 +88,10 @@ func NewTss(
 		bootstrapPeers = append(bootstrapPeers, cmdBootstrapPeers...)
 	}
 
-	// TODO: make this cleaner
+	whitelistedPeerSet := make(map[string]bool)
+	for _, w := range whitelistedPeers {
+		whitelistedPeerSet[w] = true
+	}
 	var whitelistedBootstrapPeers []maddr.Multiaddr
 	for _, b := range bootstrapPeers {
 		peer, err := peer.AddrInfoFromP2pAddr(b)
@@ -96,10 +99,8 @@ func NewTss(
 			return nil, err
 		}
 
-		for _, w := range whitelistedPeers {
-			if w == peer.ID.String() {
-				whitelistedBootstrapPeers = append(whitelistedBootstrapPeers, b)
-			}
+		if whitelistedPeerSet[peer.ID.String()] {
+			whitelistedBootstrapPeers = append(whitelistedBootstrapPeers, b)
 		}
 	}
 
