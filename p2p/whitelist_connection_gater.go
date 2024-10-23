@@ -1,9 +1,6 @@
 package p2p
 
 import (
-	"fmt"
-	"strings"
-
 	"github.com/libp2p/go-libp2p/core/control"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/rs/zerolog"
@@ -53,15 +50,11 @@ func (wg *WhitelistConnectionGater) InterceptAddrDial(p peer.ID, m maddr.Multiad
 }
 
 func (wg *WhitelistConnectionGater) InterceptAccept(m network.ConnMultiaddrs) (allow bool) {
-	hasAllowedPort := hasAllowedPort(m, "6668")
-	wg.logger.Info().Msgf("InterceptAccept %t", hasAllowedPort)
-
 	return true
 }
 
 func (wg *WhitelistConnectionGater) InterceptSecured(direction network.Direction, p peer.ID, m network.ConnMultiaddrs) (allow bool) {
-	hasAllowedPort := hasAllowedPort(m, "6668")
-	wg.logger.Info().Msgf("InterceptSecured %t %s", hasAllowedPort, p.String())
+	wg.logger.Info().Msgf("InterceptSecured %s", p.String())
 	if !wg.disableWhitelist {
 		wg.logger.Info().Msgf("peer allowed %t", wg.whitelistedPeers[p.String()])
 		return wg.whitelistedPeers[p.String()]
@@ -73,10 +66,4 @@ func (wg *WhitelistConnectionGater) InterceptSecured(direction network.Direction
 func (wg *WhitelistConnectionGater) InterceptUpgraded(network.Conn) (bool, control.DisconnectReason) {
 	// Allow connection upgrades
 	return true, 0
-}
-
-// Helper function to check if multiaddr has the correct TCP port
-func hasAllowedPort(multiaddrs network.ConnMultiaddrs, allowedPort string) bool {
-	fmt.Println("multiaddrs", multiaddrs.RemoteMultiaddr().String(), multiaddrs.RemoteMultiaddr().Protocols())
-	return strings.Contains(multiaddrs.RemoteMultiaddr().String(), "/tcp/"+allowedPort)
 }

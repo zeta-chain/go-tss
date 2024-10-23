@@ -76,7 +76,7 @@ func NewTss(
 		return nil, fmt.Errorf("fail to create file state manager")
 	}
 
-	if !disableWhitelist && (whitelistedPeers == nil || len(whitelistedPeers) == 0) {
+	if !disableWhitelist && len(whitelistedPeers) == 0 {
 		return nil, fmt.Errorf("whitelisted peers missing")
 	}
 
@@ -88,7 +88,23 @@ func NewTss(
 		bootstrapPeers = savedPeers
 		bootstrapPeers = append(bootstrapPeers, cmdBootstrapPeers...)
 	}
-	comm, err := p2p.NewCommunication(rendezvous, bootstrapPeers, p2pPort, externalIP, whitelistedPeers, disableWhitelist)
+
+	// TODO: make this cleaner
+	var whitelistedBootstrapPeers []maddr.Multiaddr
+	for _, b := range bootstrapPeers {
+		peer, err := peer.AddrInfoFromP2pAddr(b)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, w := range whitelistedPeers {
+			if w == peer.ID.String() {
+				whitelistedBootstrapPeers = append(whitelistedBootstrapPeers, b)
+			}
+		}
+	}
+
+	comm, err := p2p.NewCommunication(rendezvous, whitelistedBootstrapPeers, p2pPort, externalIP, whitelistedPeers, disableWhitelist)
 	if err != nil {
 		return nil, fmt.Errorf("fail to create communication layer: %w", err)
 	}
