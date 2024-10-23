@@ -24,6 +24,7 @@ import (
 )
 
 const keyFragmentSeed = "TSS_FRAGMENT_SEED"
+const addressBookName = "address_book"
 
 type LocalPartySaveData interface {
 }
@@ -173,7 +174,7 @@ func (fsm *FileStateMgr) SaveAddressBook(address map[peer.ID][]maddr.Multiaddr) 
 	if len(fsm.folder) < 1 {
 		return errors.New("base file path is invalid")
 	}
-	filePathName := filepath.Join(fsm.folder, "address_book.seed")
+	filePathName := filepath.Join(fsm.folder, addressBookName)
 	var buf bytes.Buffer
 
 	for peer, addrs := range address {
@@ -191,41 +192,32 @@ func (fsm *FileStateMgr) SaveAddressBook(address map[peer.ID][]maddr.Multiaddr) 
 	}
 	fsm.writeLock.Lock()
 	defer fsm.writeLock.Unlock()
-	return ioutil.WriteFile(filePathName, buf.Bytes(), 0o600)
+	return os.WriteFile(filePathName, buf.Bytes(), 0o600)
 }
 
+// RetrieveP2PAddresses loads addresses from both the seed address book
+// and state address book
 func (fsm *FileStateMgr) RetrieveP2PAddresses() ([]maddr.Multiaddr, error) {
 	if len(fsm.folder) < 1 {
 		return nil, errors.New("base file path is invalid")
 	}
-	filePathName := filepath.Join(fsm.folder, "address_book.seed")
-	filePathName = filepath.Clean(filePathName)
 
-	_, err := os.Stat(filePathName)
-	if err != nil {
-		return nil, err
-	}
 	fsm.writeLock.RLock()
-	input, err := ioutil.ReadFile(filePathName)
-	if err != nil {
-		fsm.writeLock.RUnlock()
+	defer fsm.writeLock.RUnlock()
+
+	seedPath := filepath.Join(fsm.folder, "address_book.seed")
+	seedAddresses, err := loadAddressBook(seedPath)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return nil, err
 	}
-	fsm.writeLock.RUnlock()
-	data := strings.Split(string(input), "\n")
-	var peerAddresses []maddr.Multiaddr
-	for _, el := range data {
-		// we skip the empty entry
-		if len(el) == 0 {
-			continue
-		}
-		addr, err := maddr.NewMultiaddr(el)
-		if err != nil {
-			return nil, fmt.Errorf("invalid address in address book %w", err)
-		}
-		peerAddresses = append(peerAddresses, addr)
+
+	savePath := filepath.Join(fsm.folder, addressBookName)
+	savedAddresses, err := loadAddressBook(savePath)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return seedAddresses, err
 	}
-	return peerAddresses, nil
+
+	return append(seedAddresses, savedAddresses...), nil
 }
 
 func (fsm *FileStateMgr) encryptFragment(plainText []byte) ([]byte, error) {
@@ -286,4 +278,30 @@ func getFragmentSeed(password string) ([]byte, error) {
 	h.Write([]byte(seedStr))
 	seed := h.Sum(nil)
 	return seed, nil
+}
+
+func loadAddressBook(path string) ([]maddr.Multiaddr, error) {
+	path = filepath.Clean(path)
+	_, err := os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+	input, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	data := strings.Split(string(input), "\n")
+	var peerAddresses []maddr.Multiaddr
+	for _, el := range data {
+		// we skip the empty entry
+		if len(el) == 0 {
+			continue
+		}
+		addr, err := maddr.NewMultiaddr(el)
+		if err != nil {
+			return nil, fmt.Errorf("invalid address in address book: %w", err)
+		}
+		peerAddresses = append(peerAddresses, addr)
+	}
+	return peerAddresses, nil
 }
