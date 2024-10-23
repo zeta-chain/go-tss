@@ -136,17 +136,23 @@ func (s *EddsaKeysignTestSuite) SetUpTest(c *C) {
 	bootstrapPeer := "/ip4/127.0.0.1/tcp/15666/p2p/16Uiu2HAm4TmEzUqy3q3Dv7HvdoSboHk5sFj2FH3npiN5vDbJC6gh"
 	multiAddr, err := maddr.NewMultiaddr(bootstrapPeer)
 	c.Assert(err, IsNil)
+	whitelistedPeers := []string{}
+	for _, pk := range testPubKeys {
+		peer, err := conversion.Bech32PubkeyToPeerID(pk)
+		c.Assert(err, IsNil)
+		whitelistedPeers = append(whitelistedPeers, peer.String())
+	}
 	for i := 0; i < s.partyNum; i++ {
 		buf, err := base64.StdEncoding.DecodeString(testPriKeyArr[i])
 		c.Assert(err, IsNil)
 		if i == 0 {
-			comm, err := p2p.NewCommunication("asgard", nil, ports[i], "", []string{})
+			comm, err := p2p.NewCommunication("asgard", nil, ports[i], "", whitelistedPeers)
 			c.Assert(err, IsNil)
 			c.Assert(comm.Start(buf), IsNil)
 			s.comms[i] = comm
 			continue
 		}
-		comm, err := p2p.NewCommunication("asgard", []maddr.Multiaddr{multiAddr}, ports[i], "", []string{})
+		comm, err := p2p.NewCommunication("asgard", []maddr.Multiaddr{multiAddr}, ports[i], "", whitelistedPeers)
 		c.Assert(err, IsNil)
 		c.Assert(comm.Start(buf), IsNil)
 		s.comms[i] = comm

@@ -369,7 +369,13 @@ func (s *FourNodeTestSuite) getTssServer(c *C, index int, conf common.TssConfig,
 	} else {
 		peerIDs = nil
 	}
-	instance, err := NewTss(peerIDs, s.ports[index], priKey, "Asgard", baseHome, conf, s.preParams[index], "", "password", []string{})
+	whitelistedPeers := []string{}
+	for _, pk := range testPubKeys {
+		peer, err := conversion.Bech32PubkeyToPeerID(pk)
+		c.Assert(err, IsNil)
+		whitelistedPeers = append(whitelistedPeers, peer.String())
+	}
+	instance, err := NewTss(peerIDs, s.ports[index], priKey, "Asgard", baseHome, conf, s.preParams[index], "", "password", whitelistedPeers)
 	c.Assert(err, IsNil)
 	return instance
 }
