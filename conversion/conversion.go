@@ -212,3 +212,15 @@ func GetEDDSAPrivateKeyRawBytes(privateKey crypto2.PrivKey) ([]byte, error) {
 	copy(keyBytesArray[:], pk[:])
 	return keyBytesArray[:], nil
 }
+
+func Bech32PubkeyToPeerID(pubKey string) (peer.ID, error) {
+	bech32PubKey, err := sdk.UnmarshalPubKey(sdk.AccPK, pubKey)
+	if err != nil {
+		return "", err
+	}
+	secp256k1PubKey, err := crypto2.UnmarshalSecp256k1PublicKey(bech32PubKey.Bytes())
+	if err != nil {
+		return "", err
+	}
+	return peer.IDFromPublicKey(secp256k1PubKey)
+}

@@ -59,10 +59,11 @@ type Communication struct {
 	BroadcastMsgChan chan *messages.BroadcastMsgChan
 	externalAddr     maddr.Multiaddr
 	streamMgr        *StreamMgr
+	whitelistedPeers []peer.ID
 }
 
 // NewCommunication create a new instance of Communication
-func NewCommunication(rendezvous string, bootstrapPeers []maddr.Multiaddr, port int, externalIP string) (*Communication, error) {
+func NewCommunication(rendezvous string, bootstrapPeers []maddr.Multiaddr, port int, externalIP string, whitelistedPeers []peer.ID) (*Communication, error) {
 	addr, err := maddr.NewMultiaddr(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", port))
 	if err != nil {
 		return nil, fmt.Errorf("fail to create listen addr: %w", err)
@@ -87,6 +88,7 @@ func NewCommunication(rendezvous string, bootstrapPeers []maddr.Multiaddr, port 
 		BroadcastMsgChan: make(chan *messages.BroadcastMsgChan, 1024),
 		externalAddr:     externalAddr,
 		streamMgr:        NewStreamMgr(),
+		whitelistedPeers: whitelistedPeers,
 	}, nil
 }
 
@@ -329,6 +331,21 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 	}
 
 	c.logger.Info().Msg("Successfully announced!")
+
+	c.logger.Info().Msg("Start peer discovery/gossip...")
+	//c.bootstrapPeers
+	bootstrapPeerAddrInfos := make([]peer.AddrInfo, 0, len(c.bootstrapPeers))
+	for _, addr := range c.bootstrapPeers {
+		peerInfo, err := peer.AddrInfoFromP2pAddr(addr)
+		if err != nil {
+			c.logger.Error().Err(err).Msgf("fail to convert multiaddr to peer info: %s", addr)
+			continue
+		}
+		bootstrapPeerAddrInfos = append(bootstrapPeerAddrInfos, *peerInfo)
+	}
+	discovery := NewPeerDiscovery(c.host, bootstrapPeerAddrInfos)
+	discovery.Start(context.Background())
+
 	return nil
 }
 
