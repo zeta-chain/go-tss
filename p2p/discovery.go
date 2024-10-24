@@ -11,16 +11,19 @@ import (
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
 const DiscoveryProtocol = "/tss/discovery/1.0.0"
-const GossipInterval = 10 * time.Second
+const GossipInterval = 5 * time.Second
 
 type PeerDiscovery struct {
 	host           host.Host
 	knownPeers     map[peer.ID]peer.AddrInfo
 	bootstrapPeers []peer.AddrInfo
 	mu             sync.RWMutex
+	logger         zerolog.Logger
 }
 
 func NewPeerDiscovery(h host.Host, bootstrapPeers []peer.AddrInfo) *PeerDiscovery {
@@ -28,6 +31,7 @@ func NewPeerDiscovery(h host.Host, bootstrapPeers []peer.AddrInfo) *PeerDiscover
 		host:           h,
 		knownPeers:     make(map[peer.ID]peer.AddrInfo),
 		bootstrapPeers: bootstrapPeers,
+		logger:         log.With().Str("module", "peer-discovery").Logger(),
 	}
 
 	// Set up discovery protocol handler
@@ -38,6 +42,7 @@ func NewPeerDiscovery(h host.Host, bootstrapPeers []peer.AddrInfo) *PeerDiscover
 
 // Start begins the discovery process
 func (pd *PeerDiscovery) Start(ctx context.Context) {
+	pd.logger.Info().Msgf("Starting peer discovery with bootstrap peers: %v", pd.bootstrapPeers)
 	// Connect to bootstrap peers first
 	for _, pinfo := range pd.bootstrapPeers {
 		if err := pd.host.Connect(ctx, pinfo); err != nil {
@@ -45,6 +50,7 @@ func (pd *PeerDiscovery) Start(ctx context.Context) {
 			continue
 		}
 		pd.addPeer(pinfo)
+
 	}
 
 	// Start periodic gossip
@@ -76,6 +82,7 @@ func (pd *PeerDiscovery) GetPeers() []peer.AddrInfo {
 
 // handleDiscovery handles incoming discovery streams
 func (pd *PeerDiscovery) handleDiscovery(s network.Stream) {
+	pd.logger.Info().Msgf("Received discovery stream from %s", s.Conn().RemotePeer())
 	defer s.Close()
 
 	ma := s.Conn().RemoteMultiaddr()
@@ -128,7 +135,7 @@ func (pd *PeerDiscovery) gossipPeers(ctx context.Context) {
 
 		// Read peer info from stream
 		// This is a simplified example - implement proper serialization
-		buf := make([]byte, 1024)
+		buf := make([]byte, 1024*1024)
 		n, err := s.Read(buf)
 		if err != nil {
 			s.Close()
@@ -138,6 +145,7 @@ func (pd *PeerDiscovery) gossipPeers(ctx context.Context) {
 		// Parse received peer info and add to known peers
 		peerData := string(buf[:n])
 		for _, line := range strings.Split(peerData, "\n") {
+			pd.logger.Info().Msgf("read line: %s", line)
 			if line == "" {
 				continue
 			}
