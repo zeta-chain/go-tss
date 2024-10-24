@@ -62,7 +62,7 @@ type Communication struct {
 	BroadcastMsgChan chan *messages.BroadcastMsgChan
 	externalAddr     maddr.Multiaddr
 	streamMgr        *StreamMgr
-	whitelistedPeers []string
+	whitelistedPeers []peer.ID
 }
 
 // NewCommunication create a new instance of Communication
@@ -71,7 +71,7 @@ func NewCommunication(
 	bootstrapPeers []maddr.Multiaddr,
 	port int,
 	externalIP string,
-	whitelistedPeers []string,
+	whitelistedPeers []peer.ID,
 ) (*Communication, error) {
 	addr, err := maddr.NewMultiaddr(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", port))
 	if err != nil {

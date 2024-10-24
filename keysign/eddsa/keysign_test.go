@@ -136,11 +136,11 @@ func (s *EddsaKeysignTestSuite) SetUpTest(c *C) {
 	bootstrapPeer := "/ip4/127.0.0.1/tcp/15666/p2p/16Uiu2HAm4TmEzUqy3q3Dv7HvdoSboHk5sFj2FH3npiN5vDbJC6gh"
 	multiAddr, err := maddr.NewMultiaddr(bootstrapPeer)
 	c.Assert(err, IsNil)
-	whitelistedPeers := []string{}
+	whitelistedPeers := []peer.ID{}
 	for _, pk := range testPubKeys {
 		peer, err := conversion.Bech32PubkeyToPeerID(pk)
 		c.Assert(err, IsNil)
-		whitelistedPeers = append(whitelistedPeers, peer.String())
+		whitelistedPeers = append(whitelistedPeers, peer)
 	}
 	for i := 0; i < s.partyNum; i++ {
 		buf, err := base64.StdEncoding.DecodeString(testPriKeyArr[i])

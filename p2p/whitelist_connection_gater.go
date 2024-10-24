@@ -10,14 +10,14 @@ import (
 )
 
 type WhitelistConnectionGater struct {
-	whitelistedPeers map[string]bool
+	whitelistedPeers map[peer.ID]bool
 	logger           zerolog.Logger
 }
 
-func NewWhitelistConnectionGater(whitelistedPeers []string, logger zerolog.Logger) *WhitelistConnectionGater {
+func NewWhitelistConnectionGater(whitelistedPeers []peer.ID, logger zerolog.Logger) *WhitelistConnectionGater {
 	gater := &WhitelistConnectionGater{
 		logger:           logger,
-		whitelistedPeers: make(map[string]bool),
+		whitelistedPeers: make(map[peer.ID]bool),
 	}
 
 	for _, p := range whitelistedPeers {
@@ -29,11 +29,11 @@ func NewWhitelistConnectionGater(whitelistedPeers []string, logger zerolog.Logge
 }
 
 func (wg *WhitelistConnectionGater) InterceptPeerDial(p peer.ID) (allow bool) {
-	return wg.peerAllowed("InterceptPeerDial", p.String())
+	return wg.peerAllowed("InterceptPeerDial", p, nil)
 }
 
 func (wg *WhitelistConnectionGater) InterceptAddrDial(p peer.ID, m maddr.Multiaddr) (allow bool) {
-	return wg.peerAllowed("InterceptAddrDial", p.String())
+	return wg.peerAllowed("InterceptAddrDial", p, &m)
 }
 
 func (wg *WhitelistConnectionGater) InterceptAccept(m network.ConnMultiaddrs) (allow bool) {
@@ -41,7 +41,8 @@ func (wg *WhitelistConnectionGater) InterceptAccept(m network.ConnMultiaddrs) (a
 }
 
 func (wg *WhitelistConnectionGater) InterceptSecured(direction network.Direction, p peer.ID, m network.ConnMultiaddrs) (allow bool) {
-	return wg.peerAllowed("InterceptSecured", p.String())
+	remoteMultiAddr := m.RemoteMultiaddr()
+	return wg.peerAllowed("InterceptSecured", p, &remoteMultiAddr)
 }
 
 func (wg *WhitelistConnectionGater) InterceptUpgraded(network.Conn) (bool, control.DisconnectReason) {
@@ -49,14 +50,29 @@ func (wg *WhitelistConnectionGater) InterceptUpgraded(network.Conn) (bool, contr
 	return true, 0
 }
 
-func (wg *WhitelistConnectionGater) peerAllowed(interceptor, p string) bool {
+func (wg *WhitelistConnectionGater) peerAllowed(interceptor string, p peer.ID, remoteAddr *maddr.Multiaddr) bool {
 	allowed := wg.whitelistedPeers[p]
 
+	var event *zerolog.Event
 	if allowed {
-		// TODO: switch to debug
-		wg.logger.Info().Msgf("%s: peer %s allowed", interceptor, p)
+		event = wg.logger.Debug() // log allowed peers at Debug level
 	} else {
-		wg.logger.Info().Msgf("%s: peer %s denied", interceptor, p)
+		event = wg.logger.Info() // log denied peers at Info level
+	}
+
+	event = event.
+		Str("interceptor", interceptor).
+		Str("peer", p.String()).
+		Bool("allowed", allowed)
+
+	if remoteAddr != nil {
+		event.Str("remote_address", (*remoteAddr).String())
+	}
+
+	if allowed {
+		event.Msg("Peer allowed")
+	} else {
+		event.Msg("Peer denied")
 	}
 
 	return allowed

@@ -59,7 +59,7 @@ func NewTss(
 	preParams *bkeygen.LocalPreParams,
 	externalIP string,
 	tssPassword string,
-	whitelistedPeers []string,
+	whitelistedPeers []peer.ID,
 ) (*TssServer, error) {
 	pk := coskey.PubKey{
 		Key: priKey.PubKey().Bytes()[:],
@@ -88,7 +88,7 @@ func NewTss(
 		bootstrapPeers = append(bootstrapPeers, cmdBootstrapPeers...)
 	}
 
-	whitelistedPeerSet := make(map[string]bool)
+	whitelistedPeerSet := make(map[peer.ID]bool)
 	for _, w := range whitelistedPeers {
 		whitelistedPeerSet[w] = true
 	}
@@ -99,7 +99,7 @@ func NewTss(
 			return nil, err
 		}
 
-		if whitelistedPeerSet[peer.ID.String()] {
+		if whitelistedPeerSet[peer.ID] {
 			whitelistedBootstrapPeers = append(whitelistedBootstrapPeers, b)
 		}
 	}

@@ -139,11 +139,11 @@ func (s *TssECDSAKeysignTestSuite) SetUpTest(c *C) {
 	multiAddr, err := maddr.NewMultiaddr(bootstrapPeer)
 	c.Assert(err, IsNil)
 
-	whitelistedPeers := []string{}
+	whitelistedPeers := []peer.ID{}
 	for _, pk := range testPubKeys {
 		peer, err := conversion.Bech32PubkeyToPeerID(pk)
 		c.Assert(err, IsNil)
-		whitelistedPeers = append(whitelistedPeers, peer.String())
+		whitelistedPeers = append(whitelistedPeers, peer)
 	}
 	for i := 0; i < s.partyNum; i++ {
 		buf, err := base64.StdEncoding.DecodeString(testPriKeyArr[i])
