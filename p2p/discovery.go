@@ -78,6 +78,14 @@ func (pd *PeerDiscovery) GetPeers() []peer.AddrInfo {
 func (pd *PeerDiscovery) handleDiscovery(s network.Stream) {
 	defer s.Close()
 
+	ma := s.Conn().RemoteMultiaddr()
+	ai, err := peer.AddrInfoFromP2pAddr(ma)
+	if err != nil {
+		fmt.Printf("Failed to parse peer address: %s\n", err)
+		return
+	}
+	pd.addPeer(*ai)
+
 	// Share our known peers
 	peers := pd.GetPeers()
 	for _, p := range peers {
