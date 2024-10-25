@@ -2,9 +2,9 @@ package p2p
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
-	"strings"
 	"sync"
 	"time"
 
@@ -96,16 +96,26 @@ func (pd *PeerDiscovery) handleDiscovery(s network.Stream) {
 
 	// Share our known peers
 	peers := pd.GetPeers()
-	for _, p := range peers {
-		// Send peer info (implement your own serialization format)
-		// This is a simplified example
-		addrStr := p.Addrs[0].String() + "," + p.ID.String() + "\n"
-		_, err := s.Write([]byte(addrStr))
-		if err != nil {
-			pd.logger.Error().Err(err).Msgf("Failed to write to stream")
-		}
+	//for _, p := range peers {
+	//	data, err := p.MarshalJSON()
+	//	if err != nil {
+	//		pd.logger.Error().Err(err).Msgf("Failed to marshal peer")
+	//		continue
+	//	}
+	//	_, err = s.Write(data)
+	//	if err != nil {
+	//		pd.logger.Error().Err(err).Msgf("Failed to write to stream")
+	//	}
+	//}
+	data, err := json.Marshal(peers)
+	if err != nil {
+		pd.logger.Error().Err(err).Msgf("Failed to marshal peers")
+		return
 	}
-
+	_, err = s.Write(data)
+	if err != nil {
+		pd.logger.Error().Err(err).Msgf("Failed to write to stream")
+	}
 }
 
 // startGossip periodically shares peer information
@@ -160,33 +170,39 @@ func (pd *PeerDiscovery) gossipPeers(ctx context.Context) {
 		}
 
 		// Parse received peer info and add to known peers
-		peerData := string(buf)
-		pd.logger.Info().Msgf("Received peer data: %s", peerData)
-		for _, line := range strings.Split(peerData, "\n") {
-			pd.logger.Info().Msgf("read line: %s", line)
-			if line == "" {
-				continue
-			}
-			parts := strings.Split(line, ",")
-			if len(parts) != 2 {
-				continue
-			}
-
-			addr, err := multiaddr.NewMultiaddr(parts[0])
-			if err != nil {
-				continue
-			}
-
-			id, err := peer.Decode(parts[1])
-			if err != nil {
-				continue
-			}
-
-			pd.addPeer(peer.AddrInfo{
-				ID:    id,
-				Addrs: []multiaddr.Multiaddr{addr},
-			})
+		pd.logger.Info().Msgf("Received peer data: %s", string(buf))
+		var peers []peer.AddrInfo
+		err = json.Unmarshal(buf, &peers)
+		if err != nil {
+			s.Close()
+			fmt.Printf("Failed to unmarshal peer data: %s\n", err)
+			continue
 		}
+		//for _, line := range strings.Split(peerData, "\n") {
+		//	pd.logger.Info().Msgf("read line: %s", line)
+		//	if line == "" {
+		//		continue
+		//	}
+		//	parts := strings.Split(line, ",")
+		//	if len(parts) != 2 {
+		//		continue
+		//	}
+		//
+		//	addr, err := multiaddr.NewMultiaddr(parts[0])
+		//	if err != nil {
+		//		continue
+		//	}
+		//
+		//	id, err := peer.Decode(parts[1])
+		//	if err != nil {
+		//		continue
+		//	}
+		//
+		//	pd.addPeer(peer.AddrInfo{
+		//		ID:    id,
+		//		Addrs: []multiaddr.Multiaddr{addr},
+		//	})
+		//}
 		s.Close()
 	}
 }
