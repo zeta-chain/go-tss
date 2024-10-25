@@ -159,7 +159,7 @@ func (pd *PeerDiscovery) gossipPeers(ctx context.Context) {
 		}
 
 		// Parse received peer info and add to known peers
-		peerData := string(buf[:n])
+		peerData := string(buf)
 		pd.logger.Info().Msgf("Received peer data: %s", peerData)
 		for _, line := range strings.Split(peerData, "\n") {
 			pd.logger.Info().Msgf("read line: %s", line)
