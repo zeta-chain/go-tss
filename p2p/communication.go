@@ -46,7 +46,6 @@ type Message struct {
 
 // Communication use p2p to broadcast messages among all the TSS nodes
 type Communication struct {
-	rendezvous       string // based on group
 	bootstrapPeers   []maddr.Multiaddr
 	logger           zerolog.Logger
 	listenAddr       maddr.Multiaddr
@@ -62,7 +61,7 @@ type Communication struct {
 }
 
 // NewCommunication create a new instance of Communication
-func NewCommunication(rendezvous string, bootstrapPeers []maddr.Multiaddr, port int, externalIP string) (*Communication, error) {
+func NewCommunication(bootstrapPeers []maddr.Multiaddr, port int, externalIP string) (*Communication, error) {
 	addr, err := maddr.NewMultiaddr(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", port))
 	if err != nil {
 		return nil, fmt.Errorf("fail to create listen addr: %w", err)
@@ -75,7 +74,7 @@ func NewCommunication(rendezvous string, bootstrapPeers []maddr.Multiaddr, port 
 		}
 	}
 	return &Communication{
-		rendezvous:       rendezvous,
+
 		bootstrapPeers:   bootstrapPeers,
 		logger:           log.With().Str("module", "communication").Logger(),
 		listenAddr:       addr,

@@ -53,7 +53,7 @@ func NewTss(
 	cmdBootstrapPeers []maddr.Multiaddr,
 	p2pPort int,
 	priKey tcrypto.PrivKey,
-	rendezvous,
+
 	baseFolder string,
 	conf common.TssConfig,
 	preParams *bkeygen.LocalPreParams,
@@ -83,7 +83,7 @@ func NewTss(
 		bootstrapPeers = savedPeers
 		bootstrapPeers = append(bootstrapPeers, cmdBootstrapPeers...)
 	}
-	comm, err := p2p.NewCommunication(rendezvous, bootstrapPeers, p2pPort, externalIP)
+	comm, err := p2p.NewCommunication(bootstrapPeers, p2pPort, externalIP)
 	if err != nil {
 		return nil, fmt.Errorf("fail to create communication layer: %w", err)
 	}
