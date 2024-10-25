@@ -122,6 +122,7 @@ func (pd *PeerDiscovery) startGossip(ctx context.Context) {
 func (pd *PeerDiscovery) gossipPeers(ctx context.Context) {
 	pd.logger.Info().Msgf("Gossiping known peers")
 	peers := pd.GetPeers()
+	pd.logger.Info().Msgf("current peers: %v", peers)
 
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
@@ -149,6 +150,7 @@ func (pd *PeerDiscovery) gossipPeers(ctx context.Context) {
 
 		// Parse received peer info and add to known peers
 		peerData := string(buf[:n])
+		pd.logger.Info().Msgf("Received peer data: %s", peerData)
 		for _, line := range strings.Split(peerData, "\n") {
 			pd.logger.Info().Msgf("read line: %s", line)
 			if line == "" {
