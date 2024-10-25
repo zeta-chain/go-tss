@@ -89,7 +89,7 @@ func (pd *PeerDiscovery) handleDiscovery(s network.Stream) {
 	ma := s.Conn().RemoteMultiaddr()
 	ai, err := peer.AddrInfoFromP2pAddr(ma)
 	if err != nil {
-		fmt.Printf("Failed to parse peer address: %s\n", err)
+		fmt.Printf("Failed to parse peer address(%s): %s\n", ma, err)
 		return
 	}
 	pd.addPeer(*ai)
@@ -105,6 +105,7 @@ func (pd *PeerDiscovery) handleDiscovery(s network.Stream) {
 			pd.logger.Error().Err(err).Msgf("Failed to write to stream")
 		}
 	}
+
 }
 
 // startGossip periodically shares peer information
