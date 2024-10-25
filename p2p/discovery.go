@@ -113,20 +113,25 @@ func (pd *PeerDiscovery) startGossip(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+
 			pd.gossipPeers(ctx)
 		}
 	}
 }
 
 func (pd *PeerDiscovery) gossipPeers(ctx context.Context) {
+	pd.logger.Info().Msgf("Gossiping known peers")
 	peers := pd.GetPeers()
 
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
 	for _, p := range peers {
 		if p.ID == pd.host.ID() {
 			continue
 		}
 
 		// Open discovery stream
+
 		s, err := pd.host.NewStream(ctx, p.ID, DiscoveryProtocol)
 		if err != nil {
 			fmt.Printf("Failed to open discovery stream to %s: %s\n", p.ID, err)
