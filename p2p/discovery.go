@@ -16,7 +16,8 @@ import (
 )
 
 const DiscoveryProtocol = "/tss/discovery/1.0.0"
-const GossipInterval = 10 * time.Second
+
+var GossipInterval = 10 * time.Second
 
 type PeerDiscovery struct {
 	host           host.Host
