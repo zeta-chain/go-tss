@@ -131,8 +131,12 @@ func (pd *PeerDiscovery) gossipPeers(ctx context.Context) {
 			continue
 		}
 
-		// Open discovery stream
+		err := pd.host.Connect(ctx, p)
+		if err != nil {
+			pd.logger.Error().Err(err).Msgf("Failed to connect to peer %s", p)
+		}
 
+		// Open discovery stream
 		s, err := pd.host.NewStream(ctx, p.ID, DiscoveryProtocol)
 		if err != nil {
 			fmt.Printf("Failed to open discovery stream to %s: %s\n", p.ID, err)
