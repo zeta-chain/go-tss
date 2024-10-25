@@ -87,12 +87,12 @@ func (pd *PeerDiscovery) handleDiscovery(s network.Stream) {
 	defer s.Close()
 
 	ma := s.Conn().RemoteMultiaddr()
-	ai, err := peer.AddrInfoFromP2pAddr(ma)
-	if err != nil {
-		fmt.Printf("Failed to parse peer address(%s): %s\n", ma, err)
-		return
+
+	ai := peer.AddrInfo{
+		ID:    s.Conn().RemotePeer(),
+		Addrs: []multiaddr.Multiaddr{ma},
 	}
-	pd.addPeer(*ai)
+	pd.addPeer(ai)
 
 	// Share our known peers
 	peers := pd.GetPeers()
@@ -100,7 +100,7 @@ func (pd *PeerDiscovery) handleDiscovery(s network.Stream) {
 		// Send peer info (implement your own serialization format)
 		// This is a simplified example
 		addrStr := p.Addrs[0].String() + "," + p.ID.String() + "\n"
-		_, err = s.Write([]byte(addrStr))
+		_, err := s.Write([]byte(addrStr))
 		if err != nil {
 			pd.logger.Error().Err(err).Msgf("Failed to write to stream")
 		}
