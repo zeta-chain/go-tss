@@ -3,6 +3,7 @@ package p2p
 import (
 	"context"
 	"fmt"
+	"io"
 	"strings"
 	"sync"
 	"time"
@@ -99,7 +100,10 @@ func (pd *PeerDiscovery) handleDiscovery(s network.Stream) {
 		// Send peer info (implement your own serialization format)
 		// This is a simplified example
 		addrStr := p.Addrs[0].String() + "," + p.ID.String() + "\n"
-		s.Write([]byte(addrStr))
+		_, err = s.Write([]byte(addrStr))
+		if err != nil {
+			pd.logger.Error().Err(err).Msgf("Failed to write to stream")
+		}
 	}
 }
 
@@ -135,6 +139,7 @@ func (pd *PeerDiscovery) gossipPeers(ctx context.Context) {
 		if err != nil {
 			pd.logger.Error().Err(err).Msgf("Failed to connect to peer %s", p)
 		}
+		pd.logger.Info().Msgf("Connected to peer %s", p)
 
 		// Open discovery stream
 		s, err := pd.host.NewStream(ctx, p.ID, DiscoveryProtocol)
@@ -142,13 +147,14 @@ func (pd *PeerDiscovery) gossipPeers(ctx context.Context) {
 			fmt.Printf("Failed to open discovery stream to %s: %s\n", p.ID, err)
 			continue
 		}
+		pd.logger.Info().Msgf("Opened discovery stream to %s", p)
 
 		// Read peer info from stream
 		// This is a simplified example - implement proper serialization
-		buf := make([]byte, 1024*1024)
-		n, err := s.Read(buf)
+		buf, err := io.ReadAll(s)
 		if err != nil {
 			s.Close()
+			fmt.Printf("Failed to read from stream: %s\n", err)
 			continue
 		}
 
