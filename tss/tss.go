@@ -59,7 +59,7 @@ func NewTss(
 	preParams *bkeygen.LocalPreParams,
 	externalIP string,
 	tssPassword string,
-	whitelistedPeers []peer.ID,
+
 ) (*TssServer, error) {
 	pk := coskey.PubKey{
 		Key: priKey.PubKey().Bytes()[:],
@@ -83,7 +83,7 @@ func NewTss(
 		bootstrapPeers = savedPeers
 		bootstrapPeers = append(bootstrapPeers, cmdBootstrapPeers...)
 	}
-	comm, err := p2p.NewCommunication(rendezvous, bootstrapPeers, p2pPort, externalIP, whitelistedPeers)
+	comm, err := p2p.NewCommunication(rendezvous, bootstrapPeers, p2pPort, externalIP)
 	if err != nil {
 		return nil, fmt.Errorf("fail to create communication layer: %w", err)
 	}
