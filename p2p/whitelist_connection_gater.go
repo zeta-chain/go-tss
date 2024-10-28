@@ -62,7 +62,7 @@ func (wg *WhitelistConnectionGater) peerAllowed(interceptor string, p peer.ID, r
 
 	event = event.
 		Str("interceptor", interceptor).
-		Str("peer", p.String()).
+		Stringer("peer", p).
 		Bool("allowed", allowed)
 
 	if remoteAddr != nil {

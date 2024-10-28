@@ -18,7 +18,6 @@ import (
 	coseddkey "github.com/cosmos/cosmos-sdk/crypto/keys/ed25519"
 	coskey "github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
 	"github.com/cosmos/cosmos-sdk/types"
-	"github.com/cosmos/cosmos-sdk/types/bech32/legacybech32"
 	sdk "github.com/cosmos/cosmos-sdk/types/bech32/legacybech32"
 	crypto2 "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -215,7 +214,7 @@ func GetEDDSAPrivateKeyRawBytes(privateKey crypto2.PrivKey) ([]byte, error) {
 }
 
 func Bech32PubkeyToPeerID(pubKey string) (peer.ID, error) {
-	bech32PubKey, err := legacybech32.UnmarshalPubKey(legacybech32.AccPK, pubKey)
+	bech32PubKey, err := sdk.UnmarshalPubKey(sdk.AccPK, pubKey)
 	if err != nil {
 		return "", err
 	}
