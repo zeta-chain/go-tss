@@ -59,6 +59,7 @@ func NewTss(
 	preParams *bkeygen.LocalPreParams,
 	externalIP string,
 	tssPassword string,
+	whitelistedPeers []peer.ID,
 ) (*TssServer, error) {
 	pk := coskey.PubKey{
 		Key: priKey.PubKey().Bytes()[:],
@@ -74,6 +75,10 @@ func NewTss(
 		return nil, fmt.Errorf("fail to create file state manager")
 	}
 
+	if len(whitelistedPeers) == 0 {
+		return nil, fmt.Errorf("whitelisted peers missing")
+	}
+
 	var bootstrapPeers []maddr.Multiaddr
 	savedPeers, err := stateManager.RetrieveP2PAddresses()
 	if err != nil {
@@ -82,7 +87,24 @@ func NewTss(
 		bootstrapPeers = savedPeers
 		bootstrapPeers = append(bootstrapPeers, cmdBootstrapPeers...)
 	}
-	comm, err := p2p.NewCommunication(rendezvous, bootstrapPeers, p2pPort, externalIP)
+
+	whitelistedPeerSet := make(map[peer.ID]bool)
+	for _, w := range whitelistedPeers {
+		whitelistedPeerSet[w] = true
+	}
+	var whitelistedBootstrapPeers []maddr.Multiaddr
+	for _, b := range bootstrapPeers {
+		peer, err := peer.AddrInfoFromP2pAddr(b)
+		if err != nil {
+			return nil, err
+		}
+
+		if whitelistedPeerSet[peer.ID] {
+			whitelistedBootstrapPeers = append(whitelistedBootstrapPeers, b)
+		}
+	}
+
+	comm, err := p2p.NewCommunication(rendezvous, whitelistedBootstrapPeers, p2pPort, externalIP, whitelistedPeers)
 	if err != nil {
 		return nil, fmt.Errorf("fail to create communication layer: %w", err)
 	}
