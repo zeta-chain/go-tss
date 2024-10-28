@@ -21,7 +21,9 @@ func NewWhitelistConnectionGater(whitelistedPeers []peer.ID, logger zerolog.Logg
 	}
 
 	for _, p := range whitelistedPeers {
-		logger.Info().Msgf("Adding peer %s to whitelist", p)
+		logger.Info().
+			Stringer("peer", p).
+			Msg("Adding peer to whitelist")
 		gater.whitelistedPeers[p] = true
 	}
 
