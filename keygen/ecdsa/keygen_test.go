@@ -114,17 +114,23 @@ func (s *TssECDSAKeygenTestSuite) SetUpTest(c *C) {
 	multiAddr, err := maddr.NewMultiaddr(bootstrapPeer)
 	c.Assert(err, IsNil)
 	s.preParams = getPreparams(c)
+	whitelistedPeers := []peer.ID{}
+	for _, pk := range testPubKeys {
+		peer, err := conversion.Bech32PubkeyToPeerID(pk)
+		c.Assert(err, IsNil)
+		whitelistedPeers = append(whitelistedPeers, peer)
+	}
 	for i := 0; i < s.partyNum; i++ {
 		buf, err := base64.StdEncoding.DecodeString(testPriKeyArr[i])
 		c.Assert(err, IsNil)
 		if i == 0 {
-			comm, err := p2p.NewCommunication(nil, ports[i], "")
+			comm, err := p2p.NewCommunication(nil, ports[i], "", whitelistedPeers)
 			c.Assert(err, IsNil)
 			c.Assert(comm.Start(buf[:]), IsNil)
 			s.comms[i] = comm
 			continue
 		}
-		comm, err := p2p.NewCommunication([]maddr.Multiaddr{multiAddr}, ports[i], "")
+		comm, err := p2p.NewCommunication([]maddr.Multiaddr{multiAddr}, ports[i], "", whitelistedPeers)
 		c.Assert(err, IsNil)
 		c.Assert(comm.Start(buf[:]), IsNil)
 		s.comms[i] = comm

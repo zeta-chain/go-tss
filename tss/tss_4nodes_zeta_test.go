@@ -14,6 +14,7 @@ import (
 	"time"
 
 	btsskeygen "github.com/bnb-chain/tss-lib/ecdsa/keygen"
+	"github.com/libp2p/go-libp2p/core/peer"
 	maddr "github.com/multiformats/go-multiaddr"
 	. "gopkg.in/check.v1"
 
@@ -234,7 +235,13 @@ func (s *FourNodeScaleZetaSuite) getTssServer(c *C, index int, conf common.TssCo
 	} else {
 		peerIDs = nil
 	}
-	instance, err := NewTss(peerIDs, s.ports[index], priKey, baseHome, conf, s.preParams[index], "", "password")
+	whitelistedPeers := []peer.ID{}
+	for _, pk := range testPubKeys {
+		peer, err := conversion.Bech32PubkeyToPeerID(pk)
+		c.Assert(err, IsNil)
+		whitelistedPeers = append(whitelistedPeers, peer)
+	}
+	instance, err := NewTss(peerIDs, s.ports[index], priKey, baseHome, conf, s.preParams[index], "", "password", whitelistedPeers)
 	c.Assert(err, IsNil)
 	return instance
 }

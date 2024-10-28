@@ -58,10 +58,16 @@ type Communication struct {
 	BroadcastMsgChan chan *messages.BroadcastMsgChan
 	externalAddr     maddr.Multiaddr
 	streamMgr        *StreamMgr
+	whitelistedPeers []peer.ID
 }
 
 // NewCommunication create a new instance of Communication
-func NewCommunication(bootstrapPeers []maddr.Multiaddr, port int, externalIP string) (*Communication, error) {
+func NewCommunication(
+	bootstrapPeers []maddr.Multiaddr,
+	port int,
+	externalIP string,
+	whitelistedPeers []peer.ID,
+) (*Communication, error) {
 	addr, err := maddr.NewMultiaddr(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", port))
 	if err != nil {
 		return nil, fmt.Errorf("fail to create listen addr: %w", err)
@@ -86,6 +92,7 @@ func NewCommunication(bootstrapPeers []maddr.Multiaddr, port int, externalIP str
 		BroadcastMsgChan: make(chan *messages.BroadcastMsgChan, 1024),
 		externalAddr:     externalAddr,
 		streamMgr:        NewStreamMgr(),
+		whitelistedPeers: whitelistedPeers,
 	}, nil
 }
 
@@ -297,6 +304,7 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 		libp2p.AddrsFactory(addressFactory),
 		libp2p.ResourceManager(m),
 		libp2p.ConnectionManager(cmgr),
+		libp2p.ConnectionGater(NewWhitelistConnectionGater(c.whitelistedPeers, c.logger)),
 		libp2p.DisableRelay(),
 	)
 	if err != nil {

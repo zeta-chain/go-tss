@@ -12,6 +12,8 @@ import (
 
 	"github.com/cosmos/cosmos-sdk/client/input"
 	golog "github.com/ipfs/go-log"
+	"github.com/libp2p/go-libp2p/core/peer"
+
 	"gitlab.com/thorchain/tss/go-tss/common"
 	"gitlab.com/thorchain/tss/go-tss/conversion"
 	"gitlab.com/thorchain/tss/go-tss/p2p"
@@ -56,12 +58,12 @@ func main() {
 		p2pConf.BootstrapPeers,
 		p2pConf.Port,
 		priKey,
-
 		baseFolder,
 		tssConf,
 		nil,
 		p2pConf.ExternalIP,
 		os.Getenv("PASSWORD"),
+		[]peer.ID{},
 	)
 	if nil != err {
 		log.Fatal(err)

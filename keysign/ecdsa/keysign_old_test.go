@@ -126,17 +126,23 @@ func (s *TssECDSAKeysignOldTestSuite) SetUpTest(c *C) {
 	bootstrapPeer := "/ip4/127.0.0.1/tcp/17666/p2p/16Uiu2HAm4TmEzUqy3q3Dv7HvdoSboHk5sFj2FH3npiN5vDbJC6gh"
 	multiAddr, err := maddr.NewMultiaddr(bootstrapPeer)
 	c.Assert(err, IsNil)
+	whitelistedPeers := []peer.ID{}
+	for _, pk := range testPubKeys {
+		peer, err := conversion.Bech32PubkeyToPeerID(pk)
+		c.Assert(err, IsNil)
+		whitelistedPeers = append(whitelistedPeers, peer)
+	}
 	for i := 0; i < s.partyNum; i++ {
 		buf, err := base64.StdEncoding.DecodeString(testPriKeyArr[i])
 		c.Assert(err, IsNil)
 		if i == 0 {
-			comm, err := p2p.NewCommunication(nil, ports[i], "")
+			comm, err := p2p.NewCommunication(nil, ports[i], "", whitelistedPeers)
 			c.Assert(err, IsNil)
 			c.Assert(comm.Start(buf), IsNil)
 			s.comms[i] = comm
 			continue
 		}
-		comm, err := p2p.NewCommunication([]maddr.Multiaddr{multiAddr}, ports[i], "")
+		comm, err := p2p.NewCommunication([]maddr.Multiaddr{multiAddr}, ports[i], "", whitelistedPeers)
 		c.Assert(err, IsNil)
 		c.Assert(comm.Start(buf), IsNil)
 		s.comms[i] = comm
