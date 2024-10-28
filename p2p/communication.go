@@ -348,6 +348,19 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 	routingDiscovery := discovery_routing.NewRoutingDiscovery(kademliaDHT)
 	discovery_util.Advertise(ctx, routingDiscovery, c.rendezvous)
 
+	// Create a goroutine to shut down the DHT after 5 minutes
+	go func() {
+		select {
+		case <-time.After(5 * time.Minute):
+			c.logger.Info().Msg("Closing Kademlia DHT after 5 minutes")
+			if err := kademliaDHT.Close(); err != nil {
+				c.logger.Error().Err(err).Msg("Failed to close Kademlia DHT")
+			}
+		case <-ctx.Done():
+			c.logger.Info().Msg("Context done, not waiting for 5 minutes to close DHT")
+		}
+	}()
+
 	err = c.bootStrapConnectivityCheck()
 	if err != nil {
 		return err
