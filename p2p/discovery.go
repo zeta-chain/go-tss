@@ -161,6 +161,7 @@ func (pd *PeerDiscovery) gossipPeers(ctx context.Context) {
 			defer wg.Done()
 			defer func() { <-sem }()
 
+			p := p // capture outside loop variable by value
 			err := pd.host.Connect(ctx, p)
 			if err != nil {
 				pd.logger.Error().Err(err).Msgf("Failed to connect to peer %s", p)
