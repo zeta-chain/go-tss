@@ -55,6 +55,11 @@ func (pd *PeerDiscovery) Start(ctx context.Context) {
 		pd.addPeer(pinfo)
 	}
 
+	//before periodic gossip, start two rounds of warmup; this is to ensure keygen/keysign unit test
+	// success where there might not be enough time for gossip to propagate before the keygen starts.
+	pd.gossipPeers(ctx)
+	time.Sleep(1 * time.Second)
+	pd.gossipPeers(ctx)
 	// Start periodic gossip
 	go pd.startGossip(ctx)
 }
