@@ -25,6 +25,7 @@ type PeerDiscovery struct {
 	bootstrapPeers []peer.AddrInfo
 	mu             sync.RWMutex
 	logger         zerolog.Logger
+	closeChan      chan struct{}
 }
 
 func NewPeerDiscovery(h host.Host, bootstrapPeers []peer.AddrInfo) *PeerDiscovery {
@@ -33,6 +34,7 @@ func NewPeerDiscovery(h host.Host, bootstrapPeers []peer.AddrInfo) *PeerDiscover
 		knownPeers:     make(map[peer.ID]peer.AddrInfo),
 		bootstrapPeers: bootstrapPeers,
 		logger:         log.With().Str("module", "peer-discovery").Logger(),
+		closeChan:      make(chan struct{}),
 	}
 
 	// Set up discovery protocol handler
@@ -55,6 +57,10 @@ func (pd *PeerDiscovery) Start(ctx context.Context) {
 
 	// Start periodic gossip
 	go pd.startGossip(ctx)
+}
+
+func (pd *PeerDiscovery) Stop() {
+	close(pd.closeChan)
 }
 
 // addPeer adds a peer to known peers
@@ -113,10 +119,15 @@ func (pd *PeerDiscovery) startGossip(ctx context.Context) {
 
 	for {
 		select {
+		case _, ok := <-pd.closeChan:
+			if !ok {
+				pd.logger.Info().Msg("Peer discovery stopped")
+				return
+			}
+			pd.logger.Warn().Msgf("Should not receive from closed channel!")
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-
 			pd.gossipPeers(ctx)
 		}
 	}
@@ -156,7 +167,7 @@ func (pd *PeerDiscovery) gossipPeers(ctx context.Context) {
 			pd.logger.Error().Err(err).Msgf("Failed to read from stream")
 			continue
 		}
-		pd.logger.Info().Msgf("Received peer data: %s", string(buf))
+		pd.logger.Debug().Msgf("Received peer data: %s", string(buf))
 
 		// Parse received peer info and add to known peers
 		var recvPeers []peer.AddrInfo

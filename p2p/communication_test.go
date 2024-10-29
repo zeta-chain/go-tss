@@ -7,6 +7,7 @@ import (
 
 	"github.com/libp2p/go-libp2p/core/peer"
 	maddr "github.com/multiformats/go-multiaddr"
+	"github.com/rs/zerolog"
 	"gitlab.com/thorchain/tss/go-tss/messages"
 
 	"github.com/libp2p/go-libp2p/core/crypto"
@@ -39,6 +40,9 @@ func checkExist(a []maddr.Multiaddr, b string) bool {
 }
 
 func (CommunicationTestSuite) TestEstablishP2pCommunication(c *C) {
+	// Set the log level to Info
+	zerolog.SetGlobalLevel(zerolog.InfoLevel)
+
 	bootstrapPeerID, err := peer.Decode("16Uiu2HAm4TmEzUqy3q3Dv7HvdoSboHk5sFj2FH3npiN5vDbJC6gh")
 	c.Assert(err, IsNil)
 	sk1, _, err := crypto.GenerateSecp256k1Key(rand.Reader)
@@ -97,7 +101,7 @@ func (CommunicationTestSuite) TestEstablishP2pCommunication(c *C) {
 	c.Assert(checkExist(ps.Addrs(comm.host.ID()), fakeExternalMultiAddr), Equals, true)
 
 	// same as above, just without whitelisted peers
-	comm5, err := NewCommunication("commTest", []maddr.Multiaddr{invalidMultiAddr, validMultiAddr}, 2224, "", []peer.ID{})
+	comm5, err := NewCommunication([]maddr.Multiaddr{invalidMultiAddr, validMultiAddr}, 2224, "", []peer.ID{})
 	c.Assert(err, IsNil)
 	err = comm5.Start(sk1raw)
 	c.Assert(err, ErrorMatches, "fail to connect to bootstrap peer: fail to connect to any peer")

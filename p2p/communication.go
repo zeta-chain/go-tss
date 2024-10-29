@@ -59,6 +59,7 @@ type Communication struct {
 	externalAddr     maddr.Multiaddr
 	streamMgr        *StreamMgr
 	whitelistedPeers []peer.ID
+	discovery        *PeerDiscovery
 }
 
 // NewCommunication create a new instance of Communication
@@ -350,6 +351,7 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 		bootstrapPeerAddrInfos = append(bootstrapPeerAddrInfos, *peerInfo)
 	}
 	discovery := NewPeerDiscovery(c.host, bootstrapPeerAddrInfos)
+	c.discovery = discovery
 	discovery.Start(context.Background())
 
 	return nil
@@ -420,6 +422,9 @@ func (c *Communication) Start(priKeyBytes []byte) error {
 
 // Stop communication
 func (c *Communication) Stop() error {
+	if c.discovery != nil {
+		c.discovery.Stop()
+	}
 	// we need to stop the handler and the p2p services firstly, then terminate the our communication threads
 	if err := c.host.Close(); err != nil {
 		c.logger.Err(err).Msg("fail to close host network")
