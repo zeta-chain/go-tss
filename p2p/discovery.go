@@ -17,7 +17,9 @@ import (
 
 const DiscoveryProtocol = "/tss/discovery/1.0.0"
 
-var GossipInterval = 10 * time.Second
+const MaxGossipConcurrency = 50
+
+var GossipInterval = 30 * time.Second
 
 type PeerDiscovery struct {
 	host           host.Host
@@ -143,51 +145,59 @@ func (pd *PeerDiscovery) gossipPeers(ctx context.Context) {
 	peers := pd.GetPeers()
 	pd.logger.Debug().Msgf("current peers: %v", peers)
 
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, MaxGossipConcurrency) // Limit concurrency
+
 	for _, p := range peers {
 		if p.ID == pd.host.ID() {
 			continue
 		}
 
-		err := pd.host.Connect(ctx, p)
-		if err != nil {
-			pd.logger.Error().Err(err).Msgf("Failed to connect to peer %s", p)
-		}
-		pd.logger.Debug().Msgf("Connected to peer %s", p)
+		sem <- struct{}{}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			defer func() { <-sem }()
 
-		// Open discovery stream
-		s, err := pd.host.NewStream(ctx, p.ID, DiscoveryProtocol)
-		if err != nil {
-			pd.logger.Error().Err(err).Msgf("Failed to open discovery stream to %s", p)
-			continue
-		}
-		pd.logger.Debug().Msgf("Opened discovery stream to %s", p)
+			err := pd.host.Connect(ctx, p)
+			if err != nil {
+				pd.logger.Error().Err(err).Msgf("Failed to connect to peer %s", p)
+			}
+			pd.logger.Debug().Msgf("Connected to peer %s", p)
 
-		// Read peer info from stream
-		// This is a simplified example - implement proper serialization
-		limitedReader := io.LimitReader(s, 1<<20) // Limit to 1MB
-		buf, err := io.ReadAll(limitedReader)
-		if err != nil {
-			s.Close()
-			pd.logger.Error().Err(err).Msgf("Failed to read from stream")
-			continue
-		}
-		pd.logger.Debug().Msgf("Received peer data: %s", string(buf))
+			// Open discovery stream
+			s, err := pd.host.NewStream(ctx, p.ID, DiscoveryProtocol)
+			if err != nil {
+				pd.logger.Error().Err(err).Msgf("Failed to open discovery stream to %s", p)
+				return
+			}
+			defer s.Close()
+			pd.logger.Debug().Msgf("Opened discovery stream to %s", p)
 
-		// Parse received peer info and add to known peers
-		var recvPeers []peer.AddrInfo
-		err = json.Unmarshal(buf, &recvPeers)
-		if err != nil {
-			s.Close()
-			pd.logger.Error().Err(err).Msgf("Failed to unmarshal peer data")
-			continue
-		}
-		for _, p := range recvPeers {
-			pd.logger.Debug().Msgf("Adding peer %s", p)
-			pd.addPeer(p)
-		}
+			// Read peer info from stream
+			// This is a simplified example - implement proper serialization
+			limitedReader := io.LimitReader(s, 1<<20) // Limit to 1MB
+			buf, err := io.ReadAll(limitedReader)
+			if err != nil {
+				pd.logger.Error().Err(err).Msgf("Failed to read from stream")
+				return
+			}
+			pd.logger.Debug().Msgf("Received peer data: %s", string(buf))
 
-		s.Close()
+			// Parse received peer info and add to known peers
+			var recvPeers []peer.AddrInfo
+			err = json.Unmarshal(buf, &recvPeers)
+			if err != nil {
+				pd.logger.Error().Err(err).Msgf("Failed to unmarshal peer data")
+				return
+			}
+			for _, p := range recvPeers {
+				pd.logger.Debug().Msgf("Adding peer %s", p)
+				pd.addPeer(p)
+			}
+		}()
 	}
+	wg.Wait()
 }

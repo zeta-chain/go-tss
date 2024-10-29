@@ -13,6 +13,10 @@ import (
 )
 
 func TestDiscovery(t *testing.T) {
+	OldGossipInterval := GossipInterval
+	defer func() {
+		GossipInterval = OldGossipInterval
+	}()
 	GossipInterval = 1 * time.Second
 	bootstrapPeer := "/ip4/127.0.0.1/tcp/2220/p2p/16Uiu2HAm4TmEzUqy3q3Dv7HvdoSboHk5sFj2FH3npiN5vDbJC6gh"
 	bootstrapPeerID, err := peer.Decode("16Uiu2HAm4TmEzUqy3q3Dv7HvdoSboHk5sFj2FH3npiN5vDbJC6gh")
@@ -75,8 +79,8 @@ func TestDiscovery(t *testing.T) {
 
 	time.Sleep(5 * time.Second)
 
-	assert.Equal(t, len(comm.host.Peerstore().Peers()), 4)
-	assert.Equal(t, len(comm2.host.Peerstore().Peers()), 4)
-	assert.Equal(t, len(comm3.host.Peerstore().Peers()), 4)
-	assert.Equal(t, len(comm4.host.Peerstore().Peers()), 4)
+	assert.Equal(t, 4, len(comm.host.Peerstore().Peers()))
+	assert.Equal(t, 4, len(comm2.host.Peerstore().Peers()))
+	assert.Equal(t, 4, len(comm3.host.Peerstore().Peers()))
+	assert.Equal(t, 4, len(comm4.host.Peerstore().Peers()))
 }
