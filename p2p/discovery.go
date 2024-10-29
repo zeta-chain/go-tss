@@ -145,7 +145,7 @@ func (pd *PeerDiscovery) gossipPeers(ctx context.Context) {
 	peers := pd.GetPeers()
 	pd.logger.Debug().Msgf("current peers: %v", peers)
 
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, MaxGossipConcurrency) // Limit concurrency
