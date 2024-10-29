@@ -166,7 +166,8 @@ func (pd *PeerDiscovery) gossipPeers(ctx context.Context) {
 
 		// Read peer info from stream
 		// This is a simplified example - implement proper serialization
-		buf, err := io.ReadAll(s)
+		limitedReader := io.LimitReader(s, 1<<20) // Limit to 1MB
+		buf, err := io.ReadAll(limitedReader)
 		if err != nil {
 			s.Close()
 			pd.logger.Error().Err(err).Msgf("Failed to read from stream")
