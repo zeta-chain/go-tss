@@ -78,7 +78,13 @@ func (pd *PeerDiscovery) addPeer(pinfo peer.AddrInfo) {
 	if pinfo.ID == pd.host.ID() {
 		return // Don't add ourselves
 	}
-	pd.knownPeers[pinfo.ID] = pinfo
+	oldPinfo, ok := pd.knownPeers[pinfo.ID]
+	if ok {
+		oldPinfo.Addrs = append(oldPinfo.Addrs, pinfo.Addrs...)
+	} else {
+		oldPinfo = pinfo
+	}
+	pd.knownPeers[pinfo.ID] = oldPinfo
 }
 
 // GetPeers returns all known peers
