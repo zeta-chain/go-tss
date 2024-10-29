@@ -164,6 +164,7 @@ func (pd *PeerDiscovery) gossipPeers(ctx context.Context) {
 			err := pd.host.Connect(ctx, p)
 			if err != nil {
 				pd.logger.Error().Err(err).Msgf("Failed to connect to peer %s", p)
+				return
 			}
 			pd.logger.Debug().Msgf("Connected to peer %s", p)
 
