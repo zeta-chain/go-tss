@@ -150,18 +150,17 @@ func (pd *PeerDiscovery) gossipPeers(ctx context.Context) {
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, MaxGossipConcurrency) // Limit concurrency
 
-	for _, pp := range peers {
-		if pp.ID == pd.host.ID() {
+	for _, p := range peers {
+		if p.ID == pd.host.ID() {
 			continue
 		}
 
 		sem <- struct{}{}
 		wg.Add(1)
-		go func() {
+		go func(p peer.AddrInfo) {
 			defer wg.Done()
 			defer func() { <-sem }()
 
-			p := pp // capture outside loop variable by value
 			err := pd.host.Connect(ctx, p)
 			if err != nil {
 				pd.logger.Error().Err(err).Msgf("Failed to connect to peer %s", p)
@@ -199,7 +198,7 @@ func (pd *PeerDiscovery) gossipPeers(ctx context.Context) {
 				pd.logger.Debug().Msgf("Adding peer %s", p)
 				pd.addPeer(p)
 			}
-		}()
+		}(p)
 	}
 	wg.Wait()
 }
