@@ -7,7 +7,6 @@ import (
 
 	"github.com/libp2p/go-libp2p/core/peer"
 	maddr "github.com/multiformats/go-multiaddr"
-	"github.com/rs/zerolog"
 	"gitlab.com/thorchain/tss/go-tss/messages"
 
 	"github.com/libp2p/go-libp2p/core/crypto"
@@ -40,8 +39,6 @@ func checkExist(a []maddr.Multiaddr, b string) bool {
 }
 
 func (CommunicationTestSuite) TestEstablishP2pCommunication(c *C) {
-	// Set the log level to Info
-	zerolog.SetGlobalLevel(zerolog.InfoLevel)
 
 	bootstrapPeerID, err := peer.Decode("16Uiu2HAm4TmEzUqy3q3Dv7HvdoSboHk5sFj2FH3npiN5vDbJC6gh")
 	c.Assert(err, IsNil)

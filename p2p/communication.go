@@ -248,7 +248,7 @@ func (c *Communication) bootStrapConnectivityCheck() error {
 }
 
 func (c *Communication) startChannel(privKeyBytes []byte) error {
-	c.logger.Warn().Msgf("No DHT enabled")
+	c.logger.Info().Msgf("No DHT enabled; use private gossip instead.")
 	p2pPriKey, err := crypto.UnmarshalSecp256k1PrivateKey(privKeyBytes)
 	if err != nil {
 		c.logger.Error().Msgf("error is %f", err)
