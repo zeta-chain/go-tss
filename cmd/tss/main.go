@@ -58,7 +58,6 @@ func main() {
 		p2pConf.BootstrapPeers,
 		p2pConf.Port,
 		priKey,
-		p2pConf.RendezvousString,
 		baseFolder,
 		tssConf,
 		nil,

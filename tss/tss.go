@@ -53,7 +53,6 @@ func NewTss(
 	cmdBootstrapPeers []maddr.Multiaddr,
 	p2pPort int,
 	priKey tcrypto.PrivKey,
-	rendezvous,
 	baseFolder string,
 	conf common.TssConfig,
 	preParams *bkeygen.LocalPreParams,
@@ -104,7 +103,7 @@ func NewTss(
 		}
 	}
 
-	comm, err := p2p.NewCommunication(rendezvous, whitelistedBootstrapPeers, p2pPort, externalIP, whitelistedPeers)
+	comm, err := p2p.NewCommunication(whitelistedBootstrapPeers, p2pPort, externalIP, whitelistedPeers)
 	if err != nil {
 		return nil, fmt.Errorf("fail to create communication layer: %w", err)
 	}
@@ -253,17 +252,16 @@ func (t *TssServer) GetLocalPeerID() string {
 }
 
 // GetKnownPeers return the the ID and IP address of all peers.
-func (t *TssServer) GetKnownPeers() []PeerInfo {
-	infos := []PeerInfo{}
+func (t *TssServer) GetKnownPeers() []peer.AddrInfo {
+	var infos []peer.AddrInfo
 	host := t.p2pCommunication.GetHost()
 
 	for _, conn := range host.Network().Conns() {
-		peer := conn.RemotePeer()
+		p := conn.RemotePeer()
 		addrs := conn.RemoteMultiaddr()
-		ip, _ := addrs.ValueForProtocol(maddr.P_IP4)
-		pi := PeerInfo{
-			ID:      peer.String(),
-			Address: ip,
+		pi := peer.AddrInfo{
+			p,
+			[]maddr.Multiaddr{addrs},
 		}
 		infos = append(infos, pi)
 	}
