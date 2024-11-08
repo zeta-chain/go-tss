@@ -11,6 +11,7 @@ import (
 	tcrypto "github.com/cometbft/cometbft/crypto"
 	coskey "github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
 	sdk "github.com/cosmos/cosmos-sdk/types/bech32/legacybech32"
+	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	maddr "github.com/multiformats/go-multiaddr"
 	"github.com/rs/zerolog"
@@ -266,4 +267,9 @@ func (t *TssServer) GetKnownPeers() []peer.AddrInfo {
 		infos = append(infos, pi)
 	}
 	return infos
+}
+
+// GetP2PHost return the libp2p host of the Communicator inside TssServer
+func (t *TssServer) GetP2PHost() host.Host {
+	return t.p2pCommunication.GetHost()
 }
