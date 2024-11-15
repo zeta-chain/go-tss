@@ -83,4 +83,9 @@ func TestDiscovery(t *testing.T) {
 	assert.Equal(t, 4, len(comm2.host.Peerstore().Peers()))
 	assert.Equal(t, 4, len(comm3.host.Peerstore().Peers()))
 	assert.Equal(t, 4, len(comm4.host.Peerstore().Peers()))
+
+	assert.Equal(t, 3, len(comm.discovery.knownPeers))
+	for peer, knownPeers := range comm.discovery.knownPeers {
+		assert.LessOrEqual(t, len(knownPeers.Addrs), 4, "%s has more than 4 addresses (%d)?", peer.String(), len(knownPeers.Addrs))
+	}
 }
