@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"slices"
 	"sync"
 	"time"
 
@@ -85,7 +84,7 @@ func (pd *PeerDiscovery) addPeer(pinfo peer.AddrInfo) {
 	oldPinfo, ok := pd.knownPeers[pinfo.ID]
 	if ok {
 		for _, addr := range pinfo.Addrs {
-			if !slices.Contains(oldPinfo.Addrs, addr) {
+			if !multiaddr.Contains(oldPinfo.Addrs, addr) {
 				oldPinfo.Addrs = append(oldPinfo.Addrs, addr)
 			}
 		}
