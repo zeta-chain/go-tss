@@ -51,6 +51,7 @@ type LocalStateManager interface {
 	GetLocalState(pubKey string) (KeygenLocalState, error)
 	SaveAddressBook(addressBook map[peer.ID][]maddr.Multiaddr) error
 	RetrieveP2PAddresses() ([]maddr.Multiaddr, error)
+	RetrieveBootstrapAddresses() ([]maddr.Multiaddr, error)
 }
 
 // FileStateMgr save the local state to file
@@ -197,7 +198,7 @@ func (fsm *FileStateMgr) SaveAddressBook(address map[peer.ID][]maddr.Multiaddr) 
 
 // RetrieveP2PAddresses loads addresses from both the seed address book
 // and state address book
-func (fsm *FileStateMgr) RetrieveP2PAddresses() ([]maddr.Multiaddr, error) {
+func (fsm *FileStateMgr) RetrieveBootstrapAddresses() ([]maddr.Multiaddr, error) {
 	if len(fsm.folder) < 1 {
 		return nil, errors.New("base file path is invalid")
 	}
@@ -210,6 +211,20 @@ func (fsm *FileStateMgr) RetrieveP2PAddresses() ([]maddr.Multiaddr, error) {
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return nil, err
 	}
+
+	return seedAddresses, nil
+}
+
+// RetrieveP2PAddresses loads addresses from both the seed address book
+// and state address book
+func (fsm *FileStateMgr) RetrieveP2PAddresses() ([]maddr.Multiaddr, error) {
+	seedAddresses, err := fsm.RetrieveBootstrapAddresses()
+	if err != nil {
+		return nil, fmt.Errorf("retrieve bootstrap addresses: %w", err)
+	}
+
+	fsm.writeLock.RLock()
+	defer fsm.writeLock.RUnlock()
 
 	savePath := filepath.Join(fsm.folder, addressBookName)
 	savedAddresses, err := loadAddressBook(savePath)

@@ -89,6 +89,10 @@ func (s *MockLocalStateManager) SaveAddressBook(address map[peer.ID][]maddr.Mult
 	return nil
 }
 
+func (s *MockLocalStateManager) RetrieveBootstrapAddresses() ([]maddr.Multiaddr, error) {
+	return nil, os.ErrNotExist
+}
+
 func (s *MockLocalStateManager) RetrieveP2PAddresses() ([]maddr.Multiaddr, error) {
 	return nil, os.ErrNotExist
 }
