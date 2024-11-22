@@ -80,7 +80,7 @@ func NewTss(
 	}
 
 	var bootstrapPeers []maddr.Multiaddr
-	savedPeers, err := stateManager.RetrieveP2PAddresses()
+	savedPeers, err := stateManager.RetrieveBootstrapAddresses()
 	if err != nil {
 		bootstrapPeers = cmdBootstrapPeers
 	} else {

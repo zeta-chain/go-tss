@@ -95,7 +95,7 @@ func (s *FileStateMgrTestSuite) TestSaveAddressBook(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(fsm, NotNil)
 	c.Assert(fsm.SaveAddressBook(testAddresses), IsNil)
-	filePathName := filepath.Join(f, "address_book.seed")
+	filePathName := filepath.Join(f, addressBookName)
 	_, err = os.Stat(filePathName)
 	c.Assert(err, IsNil)
 	item, err := fsm.RetrieveP2PAddresses()
