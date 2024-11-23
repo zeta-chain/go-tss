@@ -212,16 +212,20 @@ func (pd *PeerDiscovery) gossipPeers(ctx context.Context) {
 			defer wg.Done()
 			defer func() { <-sem }()
 
-			err := pd.host.Connect(ctx, p)
-			if err != nil {
-				pd.logger.Error().Err(err).
-					Stringer("to", p.ID).
-					Msg("Failed to connect to peer")
-				return
+			// only connect to peer if no active connections
+			// to prevent interruptions if address is changing
+			if len(pd.host.Network().ConnsToPeer(p.ID)) == 0 {
+				err := pd.host.Connect(ctx, p)
+				if err != nil {
+					pd.logger.Error().Err(err).
+						Stringer("to", p.ID).
+						Msg("Failed to connect to peer")
+					return
+				}
+				pd.logger.Debug().
+					Stringer("to", p).
+					Msg("Connected to peer")
 			}
-			pd.logger.Debug().
-				Stringer("to", p).
-				Msg("Connected to peer")
 
 			// Open discovery stream
 			s, err := pd.host.NewStream(ctx, p.ID, DiscoveryProtocol)
