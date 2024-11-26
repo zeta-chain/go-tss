@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"sort"
 	"sync"
 	"time"
 
@@ -11,32 +12,48 @@ import (
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
+	"golang.org/x/sync/errgroup"
 )
 
-const DiscoveryProtocol = "/tss/discovery/1.0.0"
+const (
+	DiscoveryProtocol     = "/tss/discovery/1.0.0"
+	DefaultGossipInterval = 30 * time.Second
+)
 
-const MaxGossipConcurrency = 50
-
-var GossipInterval = 30 * time.Second
+const (
+	maxGossipConcurrency = 50
+	maxGossipTimeout     = 10 * time.Second
+)
 
 type PeerDiscovery struct {
 	host           host.Host
 	knownPeers     map[peer.ID]peer.AddrInfo
 	bootstrapPeers []peer.AddrInfo
+	gossipInterval time.Duration
+	closeChan      chan struct{}
 	mu             sync.RWMutex
 	logger         zerolog.Logger
-	closeChan      chan struct{}
 }
 
-func NewPeerDiscovery(h host.Host, bootstrapPeers []peer.AddrInfo) *PeerDiscovery {
+func NewPeerDiscovery(
+	h host.Host,
+	bootstrapPeers []peer.AddrInfo,
+	gossipInterval time.Duration,
+	logger zerolog.Logger,
+) *PeerDiscovery {
+	if gossipInterval == 0 {
+		gossipInterval = DefaultGossipInterval
+	}
+
 	pd := &PeerDiscovery{
 		host:           h,
 		knownPeers:     make(map[peer.ID]peer.AddrInfo),
 		bootstrapPeers: bootstrapPeers,
-		logger:         log.With().Str("module", "peer-discovery").Logger(),
 		closeChan:      make(chan struct{}),
+		gossipInterval: gossipInterval,
+		logger:         logger.With().Str("module", "peer_discovery").Logger(),
 	}
 
 	// Set up discovery protocol handler
@@ -48,6 +65,7 @@ func NewPeerDiscovery(h host.Host, bootstrapPeers []peer.AddrInfo) *PeerDiscover
 // Start begins the discovery process
 func (pd *PeerDiscovery) Start(ctx context.Context) {
 	pd.logger.Info().Msg("Starting peer discovery with bootstrap peers")
+
 	// Connect to bootstrap peers first
 	for _, pinfo := range pd.bootstrapPeers {
 		if err := pd.host.Connect(ctx, pinfo); err != nil {
@@ -57,45 +75,47 @@ func (pd *PeerDiscovery) Start(ctx context.Context) {
 				Msgf("Failed to connect to bootstrap peer")
 			continue
 		}
-		pd.addPeer(pinfo)
+
+		pd.ensurePeer(pinfo)
 	}
 
-	//before periodic gossip, start two rounds of warmup; this is to ensure keygen/keysign unit test
-	// success where there might not be enough time for gossip to propagate before the keygen starts.
-	pd.gossipPeers(ctx)
-	time.Sleep(1 * time.Second)
-	pd.gossipPeers(ctx)
 	// Start periodic gossip
-	go pd.startGossip(ctx)
+	go pd.gossipWorker(ctx)
 }
 
 func (pd *PeerDiscovery) Stop() {
 	close(pd.closeChan)
 }
 
-// addPeer adds a peer to known peers
-func (pd *PeerDiscovery) addPeer(pinfo peer.AddrInfo) {
+// ensurePeer ensures peer in knownPeers. Might update existing peer's addresses.
+func (pd *PeerDiscovery) ensurePeer(remote peer.AddrInfo) {
+	// noop
+	if remote.ID == pd.host.ID() {
+		return
+	}
+
 	pd.mu.Lock()
 	defer pd.mu.Unlock()
 
-	if pinfo.ID == pd.host.ID() {
-		return // Don't add ourselves
+	existing, ok := pd.knownPeers[remote.ID]
+
+	// first time seeing this peer
+	if !ok {
+		pd.knownPeers[remote.ID] = remote
+		return
 	}
-	oldPinfo, ok := pd.knownPeers[pinfo.ID]
-	if ok {
-		for _, addr := range pinfo.Addrs {
-			if !multiaddr.Contains(oldPinfo.Addrs, addr) {
-				oldPinfo.Addrs = append(oldPinfo.Addrs, addr)
-			}
+
+	// existing peer might have a new address
+	for _, addr := range remote.Addrs {
+		if !multiaddr.Contains(existing.Addrs, addr) {
+			existing.Addrs = append(existing.Addrs, addr)
 		}
-	} else {
-		oldPinfo = pinfo
 	}
-	pd.knownPeers[pinfo.ID] = oldPinfo
+
+	pd.knownPeers[remote.ID] = existing
 }
 
-// GetPeers returns all known peers
-func (pd *PeerDiscovery) GetPeers() []peer.AddrInfo {
+func (pd *PeerDiscovery) getKnownPeers() []peer.AddrInfo {
 	pd.mu.RLock()
 	defer pd.mu.RUnlock()
 
@@ -103,40 +123,58 @@ func (pd *PeerDiscovery) GetPeers() []peer.AddrInfo {
 	for _, p := range pd.knownPeers {
 		peers = append(peers, p)
 	}
+
+	// sort peers by id (in place) to make response deterministic
+	sort.Slice(peers, func(a, b int) bool { return peers[a].ID < peers[b].ID })
+
 	return peers
 }
 
-// handleDiscovery handles incoming discovery streams
+// handleDiscovery handles incoming discovery streams. How it works:
+// - save remote peer info into known peers
+// - share known peers with remote peer
 func (pd *PeerDiscovery) handleDiscovery(s network.Stream) {
-	pd.logger.Debug().
-		Stringer("from_peer", s.Conn().RemotePeer()).
-		Msgf("Received discovery stream")
-	defer s.Close()
-
-	ma := s.Conn().RemoteMultiaddr()
-
-	ai := peer.AddrInfo{
-		ID:    s.Conn().RemotePeer(),
-		Addrs: []multiaddr.Multiaddr{ma},
+	lf := map[string]any{
+		"stream.remote_peer_id":   s.Conn().RemotePeer().String(),
+		"stream.remote_peer_addr": s.Conn().RemoteMultiaddr().String(),
+		"stream.id":               s.ID(),
 	}
-	pd.addPeer(ai)
 
-	// Share our known peers
-	peers := pd.GetPeers()
-	data, err := json.Marshal(peers)
+	pd.logger.Debug().Fields(lf).Msg("Received PeerDiscovery.handleDiscovery stream")
+
+	defer func() {
+		if err := s.Close(); err != nil {
+			pd.logger.Error().Err(err).Fields(lf).Msg("Unable to close PeerDiscovery.handleDiscovery stream")
+			return
+		}
+
+		pd.logger.Debug().Fields(lf).Msg("Closed PeerDiscovery.handleDiscovery stream")
+	}()
+
+	// Add remote caller to known peers ...
+	pd.ensurePeer(peer.AddrInfo{
+		ID:    s.Conn().RemotePeer(),
+		Addrs: []multiaddr.Multiaddr{s.Conn().RemoteMultiaddr()},
+	})
+
+	// ... and share known peers with remote caller
+	response, err := json.Marshal(pd.getKnownPeers())
 	if err != nil {
-		pd.logger.Error().Err(err).Msgf("Failed to marshal peers")
+		pd.logger.Error().Err(err).Fields(lf).Msg("Failed to marshal peers")
 		return
 	}
-	_, err = s.Write(data)
-	if err != nil {
-		pd.logger.Error().Err(err).Msgf("Failed to write to stream")
+
+	if _, err = s.Write(response); err != nil {
+		pd.logger.Error().Err(err).Fields(lf).Msg("Failed to write to stream")
 	}
 }
 
-// startGossip periodically shares peer information
-func (pd *PeerDiscovery) startGossip(ctx context.Context) {
-	ticker := time.NewTicker(GossipInterval)
+// gossipWorker periodically gossips known peers with connected peers
+func (pd *PeerDiscovery) gossipWorker(ctx context.Context) {
+	// initial run
+	pd.gossipPeers(ctx)
+
+	ticker := time.NewTicker(pd.gossipInterval)
 	defer ticker.Stop()
 
 	for {
@@ -156,80 +194,90 @@ func (pd *PeerDiscovery) startGossip(ctx context.Context) {
 }
 
 func (pd *PeerDiscovery) gossipPeers(ctx context.Context) {
-	pd.logger.Debug().Msgf("Gossiping known peers")
-	peers := pd.GetPeers()
+	peers := pd.getKnownPeers()
+
 	pd.logger.Debug().
 		Array("peers", zerolog.Arr().Interface(peers)).
-		Msgf("current peers")
+		Msg("Gossiping known peers")
 
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, maxGossipTimeout)
 	defer cancel()
-	var wg sync.WaitGroup
-	sem := make(chan struct{}, MaxGossipConcurrency) // Limit concurrency
 
-	for _, p := range peers {
-		if p.ID == pd.host.ID() {
+	var errg errgroup.Group
+
+	errg.SetLimit(maxGossipConcurrency)
+
+	for i := range peers {
+		remotePeer := peers[i]
+
+		// skip self. should not happen, but let's be safe
+		if pd.host.ID() == remotePeer.ID {
 			continue
 		}
 
-		sem <- struct{}{}
-		wg.Add(1)
-		go func(p peer.AddrInfo) {
-			defer wg.Done()
-			defer func() { <-sem }()
+		errg.Go(func() error {
+			if err := pd.gossipPeer(ctx, remotePeer); err != nil {
+				pd.logger.Error().Err(err).Msg("Failed to gossip peer")
+			}
 
-			err := pd.host.Connect(ctx, p)
-			if err != nil {
-				pd.logger.Error().Err(err).
-					Stringer("to", p.ID).
-					Msg("Failed to connect to peer")
-				return
-			}
-			pd.logger.Debug().
-				Stringer("to", p).
-				Msg("Connected to peer")
-
-			// Open discovery stream
-			s, err := pd.host.NewStream(ctx, p.ID, DiscoveryProtocol)
-			if err != nil {
-				pd.logger.Error().Err(err).
-					Stringer("to", p).
-					Msg("Failed to open discovery stream to peer")
-				return
-			}
-			defer s.Close()
-			pd.logger.Debug().
-				Stringer("to", p).
-				Msg("Opened discovery stream to peer")
-
-			// Read peer info from stream
-			// This is a simplified example - implement proper serialization
-			limitedReader := io.LimitReader(s, 1<<20) // Limit to 1MB
-			buf, err := io.ReadAll(limitedReader)
-			if err != nil {
-				pd.logger.Error().Err(err).
-					Stringer("from", p).
-					Msg("Failed to read from stream")
-				return
-			}
-			pd.logger.Debug().Msgf("Received peer data: %s", string(buf))
-
-			// Parse received peer info and add to known peers
-			var recvPeers []peer.AddrInfo
-			err = json.Unmarshal(buf, &recvPeers)
-			if err != nil {
-				pd.logger.Error().Err(err).
-					Stringer("from", p).
-					Msg("Failed to unmarshal peer data received")
-				return
-			}
-			for _, p := range recvPeers {
-				pd.logger.Debug().
-					Stringer("peer", p).
-					Msg("Adding peer")
-				pd.addPeer(p)
-			}
-		}(p)
+			return nil
+		})
 	}
-	wg.Wait()
+
+	// none of the gossiping should fail, only log errors
+	_ = errg.Wait()
+}
+
+func (pd *PeerDiscovery) gossipPeer(ctx context.Context, p peer.AddrInfo) (err error) {
+	if err = pd.host.Connect(ctx, p); err != nil {
+		return errors.Wrap(err, "failed to connect to peer")
+	}
+
+	lf := map[string]any{
+		"gossip.remote_peer_id":      p.ID.String(),
+		"gossip.remote_peer_address": p.Addrs,
+	}
+
+	pd.logger.Debug().Fields(lf).Msg("Connected to peer")
+
+	s, err := pd.host.NewStream(ctx, p.ID, DiscoveryProtocol)
+	if err != nil {
+		return errors.Wrap(err, "failed to open discovery stream to peer")
+	}
+
+	defer func() {
+		if err = s.Close(); err != nil {
+			pd.logger.Error().Err(err).Fields(lf).Msg("Unable to close gossip stream")
+			err = errors.Wrap(err, "unable to close gossip stream")
+		}
+	}()
+
+	pd.logger.Debug().Fields(lf).Str("gossip.stream_id", s.ID()).Msg("Opened discovery stream to peer")
+
+	// Read peer info from stream
+	// This is a simplified example - implement proper serialization
+	limitedReader := io.LimitReader(s, 1<<20) // Limit to 1MB
+	buf, err := io.ReadAll(limitedReader)
+	if err != nil {
+		return errors.Wrap(err, "failed to read from stream")
+	}
+
+	pd.logger.Debug().Bytes("gossip.response", buf).Msg("Received peer data")
+
+	// Parse received peer info and add to known peers
+	var recvPeers []peer.AddrInfo
+	if err = json.Unmarshal(buf, &recvPeers); err != nil {
+		return errors.Wrap(err, "failed to unmarshal peer data received")
+	}
+
+	for _, remotePeer := range recvPeers {
+		pd.logger.Debug().
+			Stringer("gossip.remote_peer_id", p.ID).
+			Interface("gossip.remote_peer_address", p.Addrs).
+			Msg("Ensuring peer")
+
+		pd.ensurePeer(remotePeer)
+	}
+
+	return nil
 }

@@ -15,8 +15,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	maddr "github.com/multiformats/go-multiaddr"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
-
 	"gitlab.com/thorchain/tss/go-tss/common"
 	"gitlab.com/thorchain/tss/go-tss/conversion"
 	"gitlab.com/thorchain/tss/go-tss/keygen"
@@ -49,6 +47,19 @@ type PeerInfo struct {
 	Address string
 }
 
+// TssServer options
+type options struct {
+	logger zerolog.Logger
+}
+
+// Opt option for TssServer.
+// Options approach keeps API backward compatible
+type Opt func(*options)
+
+func WithLogger(logger zerolog.Logger) Opt {
+	return func(o *options) { o.logger = logger }
+}
+
 // NewTss create a new instance of Tss
 func NewTss(
 	cmdBootstrapPeers []maddr.Multiaddr,
@@ -60,7 +71,13 @@ func NewTss(
 	externalIP string,
 	tssPassword string,
 	whitelistedPeers []peer.ID,
+	opts ...Opt,
 ) (*TssServer, error) {
+	var tssOptions options
+	for _, fn := range opts {
+		fn(&tssOptions)
+	}
+
 	pk := coskey.PubKey{
 		Key: priKey.PubKey().Bytes()[:],
 	}
@@ -104,7 +121,15 @@ func NewTss(
 		}
 	}
 
-	comm, err := p2p.NewCommunication(whitelistedBootstrapPeers, p2pPort, externalIP, whitelistedPeers)
+	comm, err := p2p.NewCommunication(
+		whitelistedBootstrapPeers,
+		p2pPort,
+		externalIP,
+		whitelistedPeers,
+		p2p.WithLogger(tssOptions.logger),
+		p2p.WithGossipInterval(p2p.DefaultGossipInterval),
+	)
+
 	if err != nil {
 		return nil, fmt.Errorf("fail to create communication layer: %w", err)
 	}
@@ -133,13 +158,15 @@ func NewTss(
 	pc := p2p.NewPartyCoordinator(comm.GetHost(), conf.PartyTimeout)
 	sn := keysign.NewSignatureNotifier(comm.GetHost())
 	sn.Start()
+
 	metrics := monitor.NewMetric()
 	if conf.EnableMonitor {
 		metrics.Enable()
 	}
-	tssServer := TssServer{
+
+	return &TssServer{
 		conf:              conf,
-		logger:            log.With().Str("module", "tss").Logger(),
+		logger:            tssOptions.logger.With().Str("module", "tss").Logger(),
 		p2pCommunication:  comm,
 		localNodePubKey:   pubKey,
 		preParams:         preParams,
@@ -150,9 +177,7 @@ func NewTss(
 		signatureNotifier: sn,
 		privateKey:        priKey,
 		tssMetrics:        metrics,
-	}
-
-	return &tssServer, nil
+	}, nil
 }
 
 // Start Tss server
@@ -210,41 +235,37 @@ func (t *TssServer) requestToMsgId(request interface{}) (string, error) {
 	return common.MsgToHashString(dat)
 }
 
-func (t *TssServer) joinParty(msgID, version string, blockHeight int64, participants []string, threshold int, sigChan chan string) ([]peer.ID, string, error) {
+func (t *TssServer) joinParty(
+	msgID, version string,
+	blockHeight int64,
+	participants []string,
+	threshold int,
+	sigChan chan string,
+) ([]peer.ID, string, error) {
 	oldJoinParty, err := conversion.VersionLTCheck(version, messages.NEWJOINPARTYVERSION)
+	switch {
+	case err != nil:
+		return nil, "", fmt.Errorf("fail to parse the version with error: %w", err)
+	case oldJoinParty:
+		// zetachain has only one version supported
+		return nil, "", fmt.Errorf("only %q party version is supported", messages.NEWJOINPARTYVERSION)
+	case len(participants) == 0:
+		return nil, "", errors.New("no participants can be found")
+	}
+
+	t.logger.Info().Msg("we apply the join party with a leader")
+
+	peersID, err := conversion.GetPeerIDsFromPubKeys(participants)
 	if err != nil {
-		return nil, "", fmt.Errorf("fail to parse the version with error:%w", err)
+		return nil, "", errors.New("fail to convert the public key to peer ID")
 	}
-	if oldJoinParty {
-		t.logger.Info().Msg("we apply the leadless join party")
-		peerIDs, err := conversion.GetPeerIDsFromPubKeys(participants)
-		if err != nil {
-			return nil, "NONE", fmt.Errorf("fail to convert pub key to peer id: %w", err)
-		}
-		var peersIDStr []string
-		for _, el := range peerIDs {
-			peersIDStr = append(peersIDStr, el.String())
-		}
-		onlines, err := t.partyCoordinator.JoinPartyWithRetry(msgID, peersIDStr)
-		return onlines, "NONE", err
-	} else {
-		t.logger.Info().Msg("we apply the join party with a leader")
 
-		if len(participants) == 0 {
-			t.logger.Error().Msg("we fail to have any participants or passed by request")
-			return nil, "", errors.New("no participants can be found")
-		}
-		peersID, err := conversion.GetPeerIDsFromPubKeys(participants)
-		if err != nil {
-			return nil, "", errors.New("fail to convert the public key to peer ID")
-		}
-		var peersIDStr []string
-		for _, el := range peersID {
-			peersIDStr = append(peersIDStr, el.String())
-		}
-
-		return t.partyCoordinator.JoinPartyWithLeader(msgID, blockHeight, peersIDStr, threshold, sigChan)
+	var peersIDStr []string
+	for _, el := range peersID {
+		peersIDStr = append(peersIDStr, el.String())
 	}
+
+	return t.partyCoordinator.JoinPartyWithLeader(msgID, blockHeight, peersIDStr, threshold, sigChan)
 }
 
 // GetLocalPeerID return the local peer
