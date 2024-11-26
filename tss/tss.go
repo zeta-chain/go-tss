@@ -15,6 +15,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	maddr "github.com/multiformats/go-multiaddr"
 	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"gitlab.com/thorchain/tss/go-tss/common"
 	"gitlab.com/thorchain/tss/go-tss/conversion"
 	"gitlab.com/thorchain/tss/go-tss/keygen"
@@ -73,7 +74,10 @@ func NewTss(
 	whitelistedPeers []peer.ID,
 	opts ...Opt,
 ) (*TssServer, error) {
-	var tssOptions options
+	tssOptions := options{
+		logger: log.Logger,
+	}
+
 	for _, fn := range opts {
 		fn(&tssOptions)
 	}

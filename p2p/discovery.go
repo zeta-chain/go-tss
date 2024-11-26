@@ -246,13 +246,13 @@ func (pd *PeerDiscovery) gossipPeer(ctx context.Context, p peer.AddrInfo) (err e
 	}
 
 	defer func() {
-		if err = s.Close(); err != nil {
-			pd.logger.Error().Err(err).Fields(lf).Msg("Unable to close gossip stream")
-			err = errors.Wrap(err, "unable to close gossip stream")
+		if errClose := s.Close(); errClose != nil {
+			pd.logger.Error().Err(errClose).Fields(lf).Msg("Unable to close gossip stream")
 		}
 	}()
 
-	pd.logger.Debug().Fields(lf).Str("gossip.stream_id", s.ID()).Msg("Opened discovery stream to peer")
+	lf["gossip.stream_id"] = s.ID()
+	pd.logger.Debug().Fields(lf).Msg("Opened discovery stream to peer")
 
 	// Read peer info from stream
 	// This is a simplified example - implement proper serialization
@@ -272,8 +272,8 @@ func (pd *PeerDiscovery) gossipPeer(ctx context.Context, p peer.AddrInfo) (err e
 
 	for _, remotePeer := range recvPeers {
 		pd.logger.Debug().
-			Stringer("gossip.remote_peer_id", p.ID).
-			Interface("gossip.remote_peer_address", p.Addrs).
+			Stringer("gossip.received_peer_id", p.ID).
+			Interface("gossip.received_peer_address", p.Addrs).
 			Msg("Ensuring peer")
 
 		pd.ensurePeer(remotePeer)
