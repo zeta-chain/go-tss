@@ -229,6 +229,12 @@ func (pd *PeerDiscovery) gossipPeers(ctx context.Context) {
 }
 
 func (pd *PeerDiscovery) gossipPeer(ctx context.Context, p peer.AddrInfo) (err error) {
+	defer func() {
+		if pn := recover(); pn != nil {
+			err = errors.Errorf("panic during gossipPeer: %+v", pn)
+		}
+	}()
+
 	if err = pd.host.Connect(ctx, p); err != nil {
 		return errors.Wrap(err, "failed to connect to peer")
 	}
