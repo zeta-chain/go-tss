@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	libp2p "github.com/libp2p/go-libp2p"
+	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
@@ -21,7 +21,6 @@ import (
 	maddr "github.com/multiformats/go-multiaddr"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-
 	"gitlab.com/thorchain/tss/go-tss/messages"
 )
 
@@ -60,6 +59,24 @@ type Communication struct {
 	streamMgr        *StreamMgr
 	whitelistedPeers []peer.ID
 	discovery        *PeerDiscovery
+	gossipInterval   time.Duration
+}
+
+// communicationConfig is the configuration for Communication.
+// Opt approach is used to keep API backward compatible
+type communicationConfig struct {
+	logger         zerolog.Logger
+	gossipInterval time.Duration
+}
+
+type CommOpt func(c *communicationConfig)
+
+func WithLogger(logger zerolog.Logger) CommOpt {
+	return func(c *communicationConfig) { c.logger = logger }
+}
+
+func WithGossipInterval(interval time.Duration) CommOpt {
+	return func(c *communicationConfig) { c.gossipInterval = interval }
 }
 
 // NewCommunication create a new instance of Communication
@@ -68,22 +85,33 @@ func NewCommunication(
 	port int,
 	externalIP string,
 	whitelistedPeers []peer.ID,
+	opts ...CommOpt,
 ) (*Communication, error) {
+	config := communicationConfig{
+		logger:         log.Logger,
+		gossipInterval: DefaultGossipInterval,
+	}
+
+	for _, opt := range opts {
+		opt(&config)
+	}
+
 	addr, err := maddr.NewMultiaddr(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", port))
 	if err != nil {
 		return nil, fmt.Errorf("fail to create listen addr: %w", err)
 	}
+
 	var externalAddr maddr.Multiaddr = nil
-	if len(externalIP) != 0 {
+	if externalIP != "" {
 		externalAddr, err = maddr.NewMultiaddr(fmt.Sprintf("/ip4/%s/tcp/%d", externalIP, port))
 		if err != nil {
-			return nil, fmt.Errorf("fail to create listen with given external IP: %w", err)
+			return nil, fmt.Errorf("fail to create listen with given external IP %q: %w", externalIP, err)
 		}
 	}
-	return &Communication{
 
+	return &Communication{
 		bootstrapPeers:   bootstrapPeers,
-		logger:           log.With().Str("module", "communication").Logger(),
+		logger:           config.logger.With().Str("module", "peer_communication").Logger(),
 		listenAddr:       addr,
 		wg:               &sync.WaitGroup{},
 		stopChan:         make(chan struct{}),
@@ -94,6 +122,7 @@ func NewCommunication(
 		externalAddr:     externalAddr,
 		streamMgr:        NewStreamMgr(),
 		whitelistedPeers: whitelistedPeers,
+		gossipInterval:   config.gossipInterval,
 	}, nil
 }
 
@@ -205,7 +234,7 @@ func (c *Communication) handleStream(stream network.Stream) {
 
 func (c *Communication) bootStrapConnectivityCheck() error {
 	if len(c.bootstrapPeers) == 0 {
-		c.logger.Error().Msg("we do not have the bootstrap node set, quit the connectivity check")
+		c.logger.Warn().Msg("we do not have the bootstrap node set, quit the connectivity check")
 		return nil
 	}
 
@@ -248,11 +277,11 @@ func (c *Communication) bootStrapConnectivityCheck() error {
 }
 
 func (c *Communication) startChannel(privKeyBytes []byte) error {
-	c.logger.Info().Msgf("No DHT enabled; use private gossip instead.")
+	c.logger.Info().Msg("No DHT enabled; use private gossip instead.")
+
 	p2pPriKey, err := crypto.UnmarshalSecp256k1PrivateKey(privKeyBytes)
 	if err != nil {
-		c.logger.Error().Msgf("error is %f", err)
-		return err
+		return fmt.Errorf("unable to unmarshal private key: %w", err)
 	}
 
 	addressFactory := func(addrs []maddr.Multiaddr) []maddr.Multiaddr {
@@ -340,7 +369,7 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 	c.logger.Info().Msg("Successfully announced!")
 
 	c.logger.Info().Msg("Start peer discovery/gossip...")
-	//c.bootstrapPeers
+
 	bootstrapPeerAddrInfos := make([]peer.AddrInfo, 0, len(c.bootstrapPeers))
 	for _, addr := range c.bootstrapPeers {
 		peerInfo, err := peer.AddrInfoFromP2pAddr(addr)
@@ -350,9 +379,9 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 		}
 		bootstrapPeerAddrInfos = append(bootstrapPeerAddrInfos, *peerInfo)
 	}
-	discovery := NewPeerDiscovery(c.host, bootstrapPeerAddrInfos)
-	c.discovery = discovery
-	discovery.Start(context.Background())
+
+	c.discovery = NewPeerDiscovery(c.host, bootstrapPeerAddrInfos, c.gossipInterval, c.logger)
+	c.discovery.Start(context.Background())
 
 	return nil
 }
