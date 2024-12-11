@@ -25,13 +25,13 @@ import (
 )
 
 type FourNodeScaleZetaSuite struct {
-	servers       []*TssServer
-	ports         []int
-	preParams     []*btsskeygen.LocalPreParams
-	bootstrapPeer string
-	tssConfig     common.TssConfig
-	poolPublicKey string
-	tmpDir        string
+	servers        []*TssServer
+	ports          []int
+	preParams      []*btsskeygen.LocalPreParams
+	bootstrapPeers []maddr.Multiaddr
+	tssConfig      common.TssConfig
+	poolPublicKey  string
+	tmpDir         string
 }
 
 // Run with go test -v -gocheck.vv -gocheck.f FourNodeScaleZetaSuite .
@@ -39,14 +39,16 @@ var _ = Suite(&FourNodeScaleZetaSuite{})
 
 // setup four nodes for test
 func (s *FourNodeScaleZetaSuite) SetUpSuite(c *C) {
+	var err error
 	common.InitLog("info", true, "four_nodes_zeta_test")
 	conversion.SetupBech32Prefix()
 	s.tmpDir = path.Join(os.TempDir(), "4nodes_zeta_test")
 	os.RemoveAll(s.tmpDir)
 	s.ports = []int{
-		17666, 17667, 17668, 17669,
+		21666, 21667, 21668, 21669,
 	}
-	s.bootstrapPeer = "/ip4/127.0.0.1/tcp/17666/p2p/16Uiu2HAmACG5DtqmQsHtXg4G2sLS65ttv84e7MrL4kapkjfmhxAp"
+	s.bootstrapPeers, err = conversion.TestBootstrapAddrs(s.ports, testPubKeys)
+	c.Assert(err, IsNil)
 	s.preParams = getPreparams(c)
 	s.servers = make([]*TssServer, partyNum)
 	s.tssConfig = common.TssConfig{
@@ -62,9 +64,9 @@ func (s *FourNodeScaleZetaSuite) SetUpSuite(c *C) {
 		go func(idx int) {
 			defer wg.Done()
 			if idx == 0 {
-				s.servers[idx] = s.getTssServer(c, idx, s.tssConfig, "")
+				s.servers[idx] = s.getTssServer(c, idx, s.tssConfig)
 			} else {
-				s.servers[idx] = s.getTssServer(c, idx, s.tssConfig, s.bootstrapPeer)
+				s.servers[idx] = s.getTssServer(c, idx, s.tssConfig)
 			}
 		}(i)
 
@@ -219,7 +221,7 @@ func (s *FourNodeScaleZetaSuite) TearDownSuite(c *C) {
 	os.RemoveAll(s.tmpDir)
 }
 
-func (s *FourNodeScaleZetaSuite) getTssServer(c *C, index int, conf common.TssConfig, bootstrap string) *TssServer {
+func (s *FourNodeScaleZetaSuite) getTssServer(c *C, index int, conf common.TssConfig) *TssServer {
 	priKey, err := conversion.GetPriKey(testPriKeyArr[index])
 	c.Assert(err, IsNil)
 	baseHome := path.Join(s.tmpDir, strconv.Itoa(index))
@@ -227,21 +229,13 @@ func (s *FourNodeScaleZetaSuite) getTssServer(c *C, index int, conf common.TssCo
 		err := os.MkdirAll(baseHome, os.ModePerm)
 		c.Assert(err, IsNil)
 	}
-	var peerIDs []maddr.Multiaddr
-	if len(bootstrap) > 0 {
-		multiAddr, err := maddr.NewMultiaddr(bootstrap)
-		c.Assert(err, IsNil)
-		peerIDs = []maddr.Multiaddr{multiAddr}
-	} else {
-		peerIDs = nil
-	}
 	whitelistedPeers := []peer.ID{}
 	for _, pk := range testPubKeys {
 		peer, err := conversion.Bech32PubkeyToPeerID(pk)
 		c.Assert(err, IsNil)
 		whitelistedPeers = append(whitelistedPeers, peer)
 	}
-	instance, err := NewTss(peerIDs, s.ports[index], priKey, baseHome, conf, s.preParams[index], "", "password", whitelistedPeers)
+	instance, err := NewTss(s.bootstrapPeers, s.ports[index], priKey, baseHome, conf, s.preParams[index], "", "password", whitelistedPeers)
 	c.Assert(err, IsNil)
 	return instance
 }
