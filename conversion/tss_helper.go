@@ -2,6 +2,7 @@ package conversion
 
 import (
 	"errors"
+	"fmt"
 	"math/rand"
 
 	"github.com/blang/semver"
@@ -9,6 +10,7 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types/bech32/legacybech32"
 	atypes "github.com/cosmos/cosmos-sdk/x/auth/vesting/types"
 	"github.com/libp2p/go-libp2p/core/peer"
+	maddr "github.com/multiformats/go-multiaddr"
 )
 
 // GetRandomPubKey for test
@@ -54,4 +56,21 @@ func VersionLTCheck(currentVer, expectedVer string) (bool, error) {
 		return false, errors.New("fail to parse the current version")
 	}
 	return v.LT(c), nil
+}
+
+// TestBootstrapPeers generates a list of bootstrap addresses for local tests
+func TestBootstrapAddrs(ports []int, testPubKeys []string) ([]maddr.Multiaddr, error) {
+	res := make([]maddr.Multiaddr, len(ports))
+	for i := 0; i < len(ports); i++ {
+		peerId, err := Bech32PubkeyToPeerID(testPubKeys[i])
+		if err != nil {
+			return nil, fmt.Errorf("pubkey for peer %d is not valid %w", i, err)
+		}
+		peerAddr, err := maddr.NewMultiaddr(fmt.Sprintf("/ip4/127.0.0.1/tcp/%d/p2p/%s", ports[i], peerId.String()))
+		if err != nil {
+			return nil, fmt.Errorf("peer addr %d is not valid %w", i, err)
+		}
+		res[i] = peerAddr
+	}
+	return res, nil
 }

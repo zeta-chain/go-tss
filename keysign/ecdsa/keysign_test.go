@@ -135,9 +135,6 @@ func (s *TssECDSAKeysignTestSuite) SetUpTest(c *C) {
 	s.partyNum = 4
 	s.comms = make([]*p2p.Communication, s.partyNum)
 	s.stateMgrs = make([]storage.LocalStateManager, s.partyNum)
-	bootstrapPeer := "/ip4/127.0.0.1/tcp/17666/p2p/16Uiu2HAm4TmEzUqy3q3Dv7HvdoSboHk5sFj2FH3npiN5vDbJC6gh"
-	multiAddr, err := maddr.NewMultiaddr(bootstrapPeer)
-	c.Assert(err, IsNil)
 
 	whitelistedPeers := []peer.ID{}
 	for _, pk := range testPubKeys {
@@ -145,6 +142,8 @@ func (s *TssECDSAKeysignTestSuite) SetUpTest(c *C) {
 		c.Assert(err, IsNil)
 		whitelistedPeers = append(whitelistedPeers, peer)
 	}
+	bootstrapPeers, err := conversion.TestBootstrapAddrs(ports, testPubKeys)
+	c.Assert(err, IsNil)
 	for i := 0; i < s.partyNum; i++ {
 		buf, err := base64.StdEncoding.DecodeString(testPriKeyArr[i])
 		c.Assert(err, IsNil)
@@ -155,7 +154,7 @@ func (s *TssECDSAKeysignTestSuite) SetUpTest(c *C) {
 			s.comms[i] = comm
 			continue
 		}
-		comm, err := p2p.NewCommunication([]maddr.Multiaddr{multiAddr}, ports[i], "", whitelistedPeers)
+		comm, err := p2p.NewCommunication(bootstrapPeers, ports[i], "", whitelistedPeers)
 		c.Assert(err, IsNil)
 		c.Assert(comm.Start(buf), IsNil)
 		s.comms[i] = comm

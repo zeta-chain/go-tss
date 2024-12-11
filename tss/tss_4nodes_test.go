@@ -61,23 +61,25 @@ func TestPackage(t *testing.T) {
 }
 
 type FourNodeTestSuite struct {
-	servers       []*TssServer
-	ports         []int
-	preParams     []*btsskeygen.LocalPreParams
-	bootstrapPeer string
-	tssConfig     common.TssConfig
+	servers        []*TssServer
+	ports          []int
+	preParams      []*btsskeygen.LocalPreParams
+	bootstrapPeers []maddr.Multiaddr
+	tssConfig      common.TssConfig
 }
 
 var _ = Suite(&FourNodeTestSuite{})
 
 // setup four nodes for test
 func (s *FourNodeTestSuite) SetUpTest(c *C) {
+	var err error
 	common.InitLog("info", true, "four_nodes_test")
 	conversion.SetupBech32Prefix()
 	s.ports = []int{
-		16666, 16667, 16668, 16669,
+		20666, 20667, 20668, 20669,
 	}
-	s.bootstrapPeer = "/ip4/127.0.0.1/tcp/16666/p2p/16Uiu2HAmACG5DtqmQsHtXg4G2sLS65ttv84e7MrL4kapkjfmhxAp"
+	s.bootstrapPeers, err = conversion.TestBootstrapAddrs(s.ports, testPubKeys)
+	c.Assert(err, IsNil)
 	s.preParams = getPreparams(c)
 	s.servers = make([]*TssServer, partyNum)
 	s.tssConfig = common.TssConfig{
@@ -93,9 +95,9 @@ func (s *FourNodeTestSuite) SetUpTest(c *C) {
 		go func(idx int) {
 			defer wg.Done()
 			if idx == 0 {
-				s.servers[idx] = s.getTssServer(c, idx, s.tssConfig, "")
+				s.servers[idx] = s.getTssServer(c, idx, s.tssConfig)
 			} else {
-				s.servers[idx] = s.getTssServer(c, idx, s.tssConfig, s.bootstrapPeer)
+				s.servers[idx] = s.getTssServer(c, idx, s.tssConfig)
 			}
 		}(i)
 
@@ -315,9 +317,9 @@ func (s *FourNodeTestSuite) doTestBlame(c *C, version string, algo common.Algo) 
 		if shutdownIdx == 0 {
 			// don't use a boostrap peer if we are shutting down the first server b/c the first
 			// server is the bootstrap peer, so it doesn't work
-			s.servers[shutdownIdx] = s.getTssServer(c, shutdownIdx, s.tssConfig, "")
+			s.servers[shutdownIdx] = s.getTssServer(c, shutdownIdx, s.tssConfig)
 		} else {
-			s.servers[shutdownIdx] = s.getTssServer(c, shutdownIdx, s.tssConfig, s.bootstrapPeer)
+			s.servers[shutdownIdx] = s.getTssServer(c, shutdownIdx, s.tssConfig)
 		}
 		c.Assert(s.servers[shutdownIdx].Start(), IsNil)
 
@@ -354,7 +356,7 @@ func (s *FourNodeTestSuite) TearDownTest(c *C) {
 	}
 }
 
-func (s *FourNodeTestSuite) getTssServer(c *C, index int, conf common.TssConfig, bootstrap string) *TssServer {
+func (s *FourNodeTestSuite) getTssServer(c *C, index int, conf common.TssConfig) *TssServer {
 	priKey, err := conversion.GetPriKey(testPriKeyArr[index])
 	c.Assert(err, IsNil)
 	baseHome := path.Join(os.TempDir(), "4nodes_test", strconv.Itoa(index))
@@ -362,21 +364,13 @@ func (s *FourNodeTestSuite) getTssServer(c *C, index int, conf common.TssConfig,
 		err := os.MkdirAll(baseHome, os.ModePerm)
 		c.Assert(err, IsNil)
 	}
-	var peerIDs []maddr.Multiaddr
-	if len(bootstrap) > 0 {
-		multiAddr, err := maddr.NewMultiaddr(bootstrap)
-		c.Assert(err, IsNil)
-		peerIDs = []maddr.Multiaddr{multiAddr}
-	} else {
-		peerIDs = nil
-	}
 	whitelistedPeers := []peer.ID{}
 	for _, pk := range testPubKeys {
 		peer, err := conversion.Bech32PubkeyToPeerID(pk)
 		c.Assert(err, IsNil)
 		whitelistedPeers = append(whitelistedPeers, peer)
 	}
-	instance, err := NewTss(peerIDs, s.ports[index], priKey, baseHome, conf, s.preParams[index], "", "password", whitelistedPeers)
+	instance, err := NewTss(s.bootstrapPeers, s.ports[index], priKey, baseHome, conf, s.preParams[index], "", "password", whitelistedPeers)
 	c.Assert(err, IsNil)
 	return instance
 }
