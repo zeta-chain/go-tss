@@ -10,6 +10,9 @@ import (
 	"github.com/zeta-chain/go-tss/messages"
 )
 
+// NoLeader will be dropped.
+const NoLeader = "NONE"
+
 type peerStatus struct {
 	peersResponse  map[peer.ID]bool
 	peerStatusLock *sync.RWMutex
@@ -94,7 +97,7 @@ func (ps *peerStatus) updatePeer(peerNode peer.ID) (bool, error) {
 		return false, errors.New("key not found")
 	}
 
-	if ps.leader == "NONE" {
+	if ps.leader == NoLeader {
 		if !val {
 			ps.peersResponse[peerNode] = true
 			return true, nil

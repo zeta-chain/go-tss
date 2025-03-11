@@ -110,7 +110,7 @@ func (t *Server) generateSignature(
 		}
 		t.tssMetrics.KeysignJoinParty(joinPartyTime, false)
 		// this indicate we are processing the leaderness join party
-		if leader == "NONE" {
+		if leader == p2p.NoLeader {
 			if onlinePeers == nil {
 				t.logger.Error().Err(errJoinParty).Msg("error before we start join party")
 				t.broadcastKeysignFailure(msgID, allPeersID)

@@ -14,6 +14,7 @@ import (
 	"github.com/zeta-chain/go-tss/keygen/ecdsa"
 	"github.com/zeta-chain/go-tss/keygen/eddsa"
 	"github.com/zeta-chain/go-tss/messages"
+	"github.com/zeta-chain/go-tss/p2p"
 )
 
 func (t *Server) Keygen(req keygen.Request) (keygen.Response, error) {
@@ -89,7 +90,7 @@ func (t *Server) Keygen(req keygen.Request) (keygen.Response, error) {
 		t.tssMetrics.KeygenJoinParty(joinPartyTime, false)
 		t.tssMetrics.UpdateKeyGen(0, false)
 		// this indicate we are processing the leaderless join party
-		if leader == "NONE" {
+		if leader == p2p.NoLeader {
 			if onlinePeers == nil {
 				t.logger.Error().Err(err).Msg("error before we start join party")
 				return keygen.Response{
@@ -259,7 +260,7 @@ func (t *Server) KeygenAllAlgo(req keygen.Request) ([]keygen.Response, error) {
 		t.tssMetrics.KeygenJoinParty(joinPartyTime, false)
 		t.tssMetrics.UpdateKeyGen(0, false)
 		// this indicate we are processing the leaderless join party
-		if leader == "NONE" {
+		if leader == p2p.NoLeader {
 			if onlinePeers == nil {
 				t.logger.Error().Err(err).Msg("error before we start join party")
 				return []keygen.Response{{

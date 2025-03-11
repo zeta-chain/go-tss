@@ -499,7 +499,7 @@ func (pc *PartyCoordinator) JoinPartyWithRetry(msgID string, peers []string) ([]
 		return nil, err
 	}
 
-	peerGroup, err := pc.createJoinPartyGroups(msg.ID, "NONE", peerIDs, 1)
+	peerGroup, err := pc.createJoinPartyGroups(msg.ID, NoLeader, peerIDs, 1)
 	if err != nil {
 		pc.logger.Error().Err(err).Msg("fail to create the join party group")
 		return nil, err

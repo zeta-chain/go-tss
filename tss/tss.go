@@ -229,14 +229,14 @@ func (t *Server) joinParty(
 		t.logger.Info().Msg("we apply the leadless join party")
 		peerIDs, err := conversion.GetPeerIDsFromPubKeys(participants)
 		if err != nil {
-			return nil, "NONE", fmt.Errorf("fail to convert pub key to peer id: %w", err)
+			return nil, p2p.NoLeader, fmt.Errorf("fail to convert pub key to peer id: %w", err)
 		}
 		var peersIDStr []string
 		for _, el := range peerIDs {
 			peersIDStr = append(peersIDStr, el.String())
 		}
 		onlines, err := t.partyCoordinator.JoinPartyWithRetry(msgID, peersIDStr)
-		return onlines, "NONE", err
+		return onlines, p2p.NoLeader, err
 	} else {
 		t.logger.Info().Msg("we apply the join party with a leader")
 
