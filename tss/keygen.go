@@ -156,9 +156,9 @@ func (t *Server) Keygen(req keygen.Request) (keygen.Response, error) {
 		blameNodes := *blameMgr.GetBlame()
 		t.logger.Error().Err(err).Msgf("failed to generate key, blaming: %+v", blameNodes.BlameNodes)
 		return keygen.NewResponse(common.ECDSA, "", "", common.Fail, blameNodes), err
-	} else {
-		t.tssMetrics.UpdateKeyGen(keygenTime, true)
 	}
+
+	t.tssMetrics.UpdateKeyGen(keygenTime, true)
 
 	var newPubKey string
 	var addr types.AccAddress
@@ -331,9 +331,9 @@ func (t *Server) KeygenAllAlgo(req keygen.Request) ([]keygen.Response, error) {
 			blameMgr := instance.GetTssCommonStruct().GetBlameMgr()
 			blameNode = *blameMgr.GetBlame()
 			break
-		} else {
-			t.tssMetrics.UpdateKeyGen(keygenTime, true)
 		}
+
+		t.tssMetrics.UpdateKeyGen(keygenTime, true)
 
 		blameNodes := *blameMgr.GetBlame()
 		var newPubKey string

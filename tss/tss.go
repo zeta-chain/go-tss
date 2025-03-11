@@ -225,6 +225,7 @@ func (t *Server) joinParty(
 	if err != nil {
 		return nil, "", fmt.Errorf("fail to parse the version with error:%w", err)
 	}
+
 	if oldJoinParty {
 		t.logger.Info().Msg("we apply the leadless join party")
 		peerIDs, err := conversion.GetPeerIDsFromPubKeys(participants)
@@ -237,24 +238,25 @@ func (t *Server) joinParty(
 		}
 		onlines, err := t.partyCoordinator.JoinPartyWithRetry(msgID, peersIDStr)
 		return onlines, p2p.NoLeader, err
-	} else {
-		t.logger.Info().Msg("we apply the join party with a leader")
-
-		if len(participants) == 0 {
-			t.logger.Error().Msg("we fail to have any participants or passed by request")
-			return nil, "", errors.New("no participants can be found")
-		}
-		peersID, err := conversion.GetPeerIDsFromPubKeys(participants)
-		if err != nil {
-			return nil, "", errors.New("fail to convert the public key to peer ID")
-		}
-		var peersIDStr []string
-		for _, el := range peersID {
-			peersIDStr = append(peersIDStr, el.String())
-		}
-
-		return t.partyCoordinator.JoinPartyWithLeader(msgID, blockHeight, peersIDStr, threshold, sigChan)
 	}
+
+	t.logger.Info().Msg("we apply the join party with a leader")
+	if len(participants) == 0 {
+		t.logger.Error().Msg("we fail to have any participants or passed by request")
+		return nil, "", errors.New("no participants can be found")
+	}
+
+	peersID, err := conversion.GetPeerIDsFromPubKeys(participants)
+	if err != nil {
+		return nil, "", errors.New("fail to convert the public key to peer ID")
+	}
+
+	var peersIDStr []string
+	for _, el := range peersID {
+		peersIDStr = append(peersIDStr, el.String())
+	}
+
+	return t.partyCoordinator.JoinPartyWithLeader(msgID, blockHeight, peersIDStr, threshold, sigChan)
 }
 
 // GetLocalPeerID return the local peer
