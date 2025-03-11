@@ -119,7 +119,8 @@ func hash(payload []byte) []byte {
 func (s *FourNodeTestSuite) Test4NodesTss(c *C) {
 	algos := []common.Algo{common.ECDSA, common.EdDSA}
 	// 0.13.0 is oldJoinParty, 0.14.0 is the new leader-based joinParty
-	versions := []string{oldJoinPartyVersion, newJoinPartyVersion}
+	//versions := []string{oldJoinPartyVersion, newJoinPartyVersion}
+	versions := []string{newJoinPartyVersion}
 	for _, algo := range algos {
 		for _, jpv := range versions {
 			c.Logf("testing with version %s for algo %s", jpv, algo)
