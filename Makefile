@@ -1,11 +1,9 @@
-module = gitlab.com/thorchain/tss/go-tss
+module = github.com/zeta-chain/go-tss
 
-.PHONY: clear tools install test test-watch lint-pre lint lint-verbose protob build docker-gitlab-login docker-gitlab-push docker-gitlab-build
+help: ## List of commands
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
 all: lint build
-
-clear:
-	clear
 
 tools:
 	go install ./cmd/tss-recovery
@@ -22,13 +20,6 @@ go.sum: go.mod
 test:
 	@go test --race -timeout 30m ./...
 
-test-watch: clear
-	@gow -c test -tags testnet -mod=readonly ./...
-
-unittest:
-	@go test --race -v -coverprofile=coverage.out -timeout 30m ./...
-	@go tool cover -func=coverage.out
-
 lint-pre:
 	@gofumpt -l cmd common keygen keysign messages p2p storage tss # for display
 	@test -z "$(shell gofumpt -l cmd common keygen keysign messages p2p storage tss)" # cause error
@@ -40,11 +31,10 @@ lint: lint-pre
 lint-verbose: lint-pre
 	@golangci-lint run -v
 
-protob:
+codegen:
 	protoc --go_out=module=$(module):. ./messages/*.proto
 
-build: protob
+build: codegen
 	go build ./...
 
-docker-build:
-	docker build -t registry.gitlab.com/thorchain/tss/go-tss .
+.PHONY: all tools install test lint-pre lint lint-verbose codegen build
