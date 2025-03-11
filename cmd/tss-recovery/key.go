@@ -24,7 +24,7 @@ type CryptoJSON struct {
 
 type EncryptedKey struct {
 	Crypto  CryptoJSON `json:"crypto"`
-	Id      string     `json:"id"`
+	ID      string     `json:"id"`
 	Version int        `json:"version"`
 }
 
@@ -76,7 +76,7 @@ func exportKeyStore(privKey []byte, password string) (*EncryptedKey, error) {
 	}
 	return &EncryptedKey{
 		Crypto:  cryptoStruct,
-		Id:      id.String(),
+		ID:      id.String(),
 		Version: 1,
 	}, nil
 }

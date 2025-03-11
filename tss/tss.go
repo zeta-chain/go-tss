@@ -174,20 +174,13 @@ func (t *TssServer) Stop() {
 	t.logger.Info().Msg("The tss and p2p server has been stopped successfully")
 }
 
-func (t *TssServer) setJoinPartyChan(jpc chan struct{}) {
-	t.joinPartyChan = jpc
-}
-func (t *TssServer) unsetJoinPartyChan() {
-	t.joinPartyChan = nil
-}
-
 func (t *TssServer) notifyJoinPartyChan() {
 	if t.joinPartyChan != nil {
 		t.joinPartyChan <- struct{}{}
 	}
 }
 
-func (t *TssServer) requestToMsgId(request interface{}) (string, error) {
+func (t *TssServer) requestToMsgID(request any) (string, error) {
 	var dat []byte
 	var keys []string
 	switch value := request.(type) {

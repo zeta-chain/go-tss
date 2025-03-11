@@ -246,7 +246,7 @@ func loadKeyGenData(
 		bz, err := ioutil.ReadFile(fixtureFilePath)
 		if err != nil {
 			return nil, nil, errors.Wrapf(err,
-				"could not open the test fixture for party %d in the expected location: %s. run keygen tests first.",
+				"could not open the test fixture for party %d in the expected location: %s. run keygen tests first",
 				i, fixtureFilePath)
 		}
 		var key keygen.LocalPartySaveData

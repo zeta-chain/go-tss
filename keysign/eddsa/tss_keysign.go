@@ -73,7 +73,7 @@ func (tKeySign *EDDSAKeySign) startBatchSigning(keySignPartyMap *sync.Map, msgNu
 	var keySignWg sync.WaitGroup
 	ret := atomic.NewBool(true)
 	keySignWg.Add(msgNum)
-	keySignPartyMap.Range(func(key, value interface{}) bool {
+	keySignPartyMap.Range(func(_, value any) bool {
 		eachParty := value.(btss.Party)
 		go func(eachParty btss.Party) {
 			defer keySignWg.Done()
@@ -125,14 +125,14 @@ func (tKeySign *EDDSAKeySign) SignMessage(
 		partiesID, eachLocalPartyID, err := conversion.GetParties(parties, localStateItem.LocalPartyKey)
 		ctx := btss.NewPeerContext(partiesID)
 		if err != nil {
-			return nil, fmt.Errorf("error to create parties in batch signging %w\n", err)
+			return nil, fmt.Errorf("error to create parties in batch signing %w", err)
 		}
 		eachLocalPartyID.Moniker = moniker
 		params := btss.NewParameters(btss.Edwards(), ctx, eachLocalPartyID, len(partiesID), threshold)
 		var localData eddsakeygen.LocalPartySaveData
 		err = json.Unmarshal(localStateItem.LocalData, &localData)
 		if err != nil {
-			return nil, fmt.Errorf("fail to unmarshal the local saved data %w\n", err)
+			return nil, fmt.Errorf("fail to unmarshal the local saved data %w", err)
 		}
 		keySignParty := signing.NewLocalParty(m, params, localData, outCh, endCh)
 		keySignPartyMap.Store(moniker, keySignParty)

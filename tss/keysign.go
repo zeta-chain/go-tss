@@ -218,7 +218,7 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 		Str("msg", strings.Join(req.Messages, ",")).
 		Msg("received keysign request")
 	emptyResp := keysign.Response{}
-	msgID, err := t.requestToMsgId(req)
+	msgID, err := t.requestToMsgID(req)
 	if err != nil {
 		return emptyResp, err
 	}

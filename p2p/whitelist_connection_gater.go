@@ -37,12 +37,12 @@ func (wg *WhitelistConnectionGater) InterceptAddrDial(p peer.ID, m maddr.Multiad
 	return wg.peerAllowed("InterceptAddrDial", p, &m)
 }
 
-func (wg *WhitelistConnectionGater) InterceptAccept(m network.ConnMultiaddrs) (allow bool) {
+func (wg *WhitelistConnectionGater) InterceptAccept(_ network.ConnMultiaddrs) (allow bool) {
 	return true
 }
 
 func (wg *WhitelistConnectionGater) InterceptSecured(
-	direction network.Direction,
+	_ network.Direction,
 	p peer.ID,
 	m network.ConnMultiaddrs,
 ) (allow bool) {

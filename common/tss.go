@@ -101,12 +101,11 @@ func NewBulkWireMsg(msg []byte, id string, r *btss.MessageRouting) BulkWireMsg {
 }
 
 type tssJob struct {
-	wireBytes      []byte
-	msgIdentifier  string
-	partyID        *btss.PartyID
-	isBroadcast    bool
-	localParty     btss.Party
-	acceptedShares map[blame.RoundInfo][]string
+	wireBytes     []byte
+	msgIdentifier string
+	partyID       *btss.PartyID
+	isBroadcast   bool
+	localParty    btss.Party
 }
 
 func newJob(party btss.Party, wireBytes []byte, msgIdentifier string, from *btss.PartyID, isBroadcast bool) *tssJob {

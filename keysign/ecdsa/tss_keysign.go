@@ -74,7 +74,7 @@ func (tKeySign *TssKeySign) startBatchSigning(keySignPartyMap *sync.Map, msgNum 
 	var keySignWg sync.WaitGroup
 	ret := atomic.NewBool(true)
 	keySignWg.Add(msgNum)
-	keySignPartyMap.Range(func(key, value interface{}) bool {
+	keySignPartyMap.Range(func(_, value any) bool {
 		eachParty := value.(btss.Party)
 		go func(eachParty btss.Party) {
 			defer keySignWg.Done()

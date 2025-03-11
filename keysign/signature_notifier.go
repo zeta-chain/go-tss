@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/bnb-chain/tss-lib/common"
-	tsslibcommon "github.com/bnb-chain/tss-lib/common"
 	"github.com/golang/protobuf/proto"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
@@ -188,7 +187,7 @@ func (s *SignatureNotifier) sendOneMsgToPeer(m *signatureItem) error {
 // BroadcastSignature sending the keysign signature to all other peers
 func (s *SignatureNotifier) BroadcastSignature(
 	messageID string,
-	sig []*tsslibcommon.SignatureData,
+	sig []*common.SignatureData,
 	peers []peer.ID,
 ) error {
 	return s.broadcastCommon(messageID, sig, peers)
@@ -196,7 +195,7 @@ func (s *SignatureNotifier) BroadcastSignature(
 
 func (s *SignatureNotifier) broadcastCommon(
 	messageID string,
-	sig []*tsslibcommon.SignatureData,
+	sig []*common.SignatureData,
 	peers []peer.ID,
 ) error {
 	wg := sync.WaitGroup{}
@@ -246,7 +245,7 @@ func (s *SignatureNotifier) createOrUpdateNotifier(
 	messageID string,
 	messages [][]byte,
 	poolPubKey string,
-	signatures []*tsslibcommon.SignatureData,
+	signatures []*common.SignatureData,
 	timeout time.Duration,
 ) (*notifier, error) {
 	s.notifierLock.Lock()
@@ -281,7 +280,7 @@ func (s *SignatureNotifier) WaitForSignature(
 	poolPubKey string,
 	timeout time.Duration,
 	sigChan chan string,
-) ([]*tsslibcommon.SignatureData, error) {
+) ([]*common.SignatureData, error) {
 	s.logger.Debug().Msg("waiting for signature")
 	n, err := s.createOrUpdateNotifier(messageID, message, poolPubKey, nil, timeout+time.Second)
 	if err != nil {

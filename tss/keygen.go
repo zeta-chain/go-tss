@@ -20,7 +20,7 @@ func (t *TssServer) Keygen(req keygen.Request) (keygen.Response, error) {
 	t.tssKeyGenLocker.Lock()
 	defer t.tssKeyGenLocker.Unlock()
 	status := common.Success
-	msgID, err := t.requestToMsgId(req)
+	msgID, err := t.requestToMsgID(req)
 	if err != nil {
 		return keygen.Response{}, err
 	}
@@ -191,7 +191,7 @@ func (t *TssServer) KeygenAllAlgo(req keygen.Request) ([]keygen.Response, error)
 	t.tssKeyGenLocker.Lock()
 	defer t.tssKeyGenLocker.Unlock()
 	status := common.Success
-	msgID, err := t.requestToMsgId(req)
+	msgID, err := t.requestToMsgID(req)
 	if err != nil {
 		return nil, err
 	}
