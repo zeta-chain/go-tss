@@ -201,7 +201,7 @@ func (s *EddsaKeysignTestSuite) TestSignMessage(c *C) {
 			defer wg.Done()
 			comm := s.comms[idx]
 			stopChan := make(chan struct{})
-			keysignIns := NewTssKeySign(comm.GetLocalPeerID(),
+			keysignIns := New(comm.GetLocalPeerID(),
 				conf,
 				comm.BroadcastMsgChan,
 				stopChan, messageID,
@@ -258,7 +258,7 @@ func (s *EddsaKeysignTestSuite) TearDownTest(c *C) {
 
 func (s *EddsaKeysignTestSuite) TestCloseKeySignnotifyChannel(c *C) {
 	conf := common.TssConfig{}
-	keySignInstance := NewTssKeySign("", conf, nil, nil, "test", s.nodePrivKeys[0], s.comms[0], s.stateMgrs[0], 1)
+	keySignInstance := New("", conf, nil, nil, "test", s.nodePrivKeys[0], s.comms[0], s.stateMgrs[0], 1)
 
 	taskDone := messages.TssTaskNotifier{TaskDone: true}
 	taskDoneBytes, err := json.Marshal(taskDone)

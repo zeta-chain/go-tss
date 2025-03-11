@@ -27,7 +27,7 @@ import (
 	"github.com/zeta-chain/go-tss/storage"
 )
 
-type EDDSAKeySign struct {
+type KeySign struct {
 	logger          zerolog.Logger
 	tssCommonStruct *common.TssCommon
 	stopChan        chan struct{} // channel to indicate whether we should stop
@@ -37,7 +37,7 @@ type EDDSAKeySign struct {
 	stateManager    storage.LocalStateManager
 }
 
-func NewTssKeySign(
+func New(
 	localP2PID string,
 	conf common.TssConfig,
 	broadcastChan chan *messages.BroadcastMsgChan,
@@ -47,9 +47,9 @@ func NewTssKeySign(
 	p2pComm *p2p.Communication,
 	stateManager storage.LocalStateManager,
 	msgNum int,
-) *EDDSAKeySign {
+) *KeySign {
 	logItems := []string{"keySign", msgID}
-	return &EDDSAKeySign{
+	return &KeySign{
 		logger:          log.With().Strs("module", logItems).Logger(),
 		tssCommonStruct: common.NewTssCommon(localP2PID, broadcastChan, conf, msgID, privKey, msgNum),
 		stopChan:        stopChan,
@@ -60,15 +60,15 @@ func NewTssKeySign(
 	}
 }
 
-func (tKeySign *EDDSAKeySign) GetTssKeySignChannels() chan *p2p.Message {
+func (tKeySign *KeySign) GetTssKeySignChannels() chan *p2p.Message {
 	return tKeySign.tssCommonStruct.TssMsg
 }
 
-func (tKeySign *EDDSAKeySign) GetTssCommonStruct() *common.TssCommon {
+func (tKeySign *KeySign) GetTssCommonStruct() *common.TssCommon {
 	return tKeySign.tssCommonStruct
 }
 
-func (tKeySign *EDDSAKeySign) startBatchSigning(keySignPartyMap *sync.Map, msgNum int) bool {
+func (tKeySign *KeySign) startBatchSigning(keySignPartyMap *sync.Map, msgNum int) bool {
 	// start the batch sign
 	var keySignWg sync.WaitGroup
 	ret := atomic.NewBool(true)
@@ -91,7 +91,7 @@ func (tKeySign *EDDSAKeySign) startBatchSigning(keySignPartyMap *sync.Map, msgNu
 }
 
 // signMessage
-func (tKeySign *EDDSAKeySign) SignMessage(
+func (tKeySign *KeySign) SignMessage(
 	msgsToSign [][]byte,
 	localStateItem storage.KeygenLocalState,
 	parties []string,
@@ -202,7 +202,7 @@ func (tKeySign *EDDSAKeySign) SignMessage(
 	return results, nil
 }
 
-func (tKeySign *EDDSAKeySign) processKeySign(
+func (tKeySign *KeySign) processKeySign(
 	reqNum int,
 	errChan chan struct{},
 	outCh <-chan btss.Message,

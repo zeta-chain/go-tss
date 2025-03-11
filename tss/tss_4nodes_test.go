@@ -61,7 +61,7 @@ func TestPackage(t *testing.T) {
 }
 
 type FourNodeTestSuite struct {
-	servers        []*TssServer
+	servers        []*Server
 	ports          []int
 	preParams      []*btsskeygen.LocalPreParams
 	bootstrapPeers []maddr.Multiaddr
@@ -81,7 +81,7 @@ func (s *FourNodeTestSuite) SetUpTest(c *C) {
 	s.bootstrapPeers, err = conversion.TestBootstrapAddrs(s.ports, testPubKeys)
 	c.Assert(err, IsNil)
 	s.preParams = getPreparams(c)
-	s.servers = make([]*TssServer, partyNum)
+	s.servers = make([]*Server, partyNum)
 	s.tssConfig = common.TssConfig{
 		KeyGenTimeout:   90 * time.Second,
 		KeySignTimeout:  90 * time.Second,
@@ -362,7 +362,7 @@ func (s *FourNodeTestSuite) TearDownTest(c *C) {
 	}
 }
 
-func (s *FourNodeTestSuite) getTssServer(c *C, index int, conf common.TssConfig) *TssServer {
+func (s *FourNodeTestSuite) getTssServer(c *C, index int, conf common.TssConfig) *Server {
 	priKey, err := conversion.GetPriKey(testPriKeyArr[index])
 	c.Assert(err, IsNil)
 	baseHome := path.Join(os.TempDir(), "4nodes_test", strconv.Itoa(index))
@@ -376,7 +376,7 @@ func (s *FourNodeTestSuite) getTssServer(c *C, index int, conf common.TssConfig)
 		c.Assert(err, IsNil)
 		whitelistedPeers = append(whitelistedPeers, peer)
 	}
-	instance, err := NewTss(
+	instance, err := New(
 		s.bootstrapPeers,
 		s.ports[index],
 		priKey,

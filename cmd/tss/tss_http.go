@@ -18,16 +18,16 @@ import (
 	"github.com/zeta-chain/go-tss/tss"
 )
 
-// TssHttpServer provide http endpoint for tss server
-type TssHttpServer struct {
+// HTTPServer provide http endpoint for tss server
+type HTTPServer struct {
 	logger    zerolog.Logger
-	tssServer tss.Server
+	tssServer tss.IServer
 	s         *http.Server
 }
 
-// NewTssHttpServer should only listen to the loopback
-func NewTssHttpServer(tssAddr string, t tss.Server) *TssHttpServer {
-	hs := &TssHttpServer{
+// NewHTTPServer should only listen to the loopback
+func NewHTTPServer(tssAddr string, t tss.IServer) *HTTPServer {
+	hs := &HTTPServer{
 		logger:    log.With().Str("module", "http").Logger(),
 		tssServer: t,
 	}
@@ -40,7 +40,7 @@ func NewTssHttpServer(tssAddr string, t tss.Server) *TssHttpServer {
 }
 
 // NewHandler registers the API routes and returns a new HTTP handler
-func (t *TssHttpServer) tssNewHandler() http.Handler {
+func (t *HTTPServer) tssNewHandler() http.Handler {
 	router := mux.NewRouter()
 	router.Handle("/keygen", http.HandlerFunc(t.keygenHandler)).Methods(http.MethodPost)
 	router.Handle("/keygenall", http.HandlerFunc(t.keygenAllHandler)).Methods(http.MethodPost)
@@ -52,7 +52,7 @@ func (t *TssHttpServer) tssNewHandler() http.Handler {
 	return router
 }
 
-func (t *TssHttpServer) keygenHandler(w http.ResponseWriter, r *http.Request) {
+func (t *HTTPServer) keygenHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
@@ -88,7 +88,7 @@ func (t *TssHttpServer) keygenHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (t *TssHttpServer) keygenAllHandler(w http.ResponseWriter, r *http.Request) {
+func (t *HTTPServer) keygenAllHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
@@ -124,7 +124,7 @@ func (t *TssHttpServer) keygenAllHandler(w http.ResponseWriter, r *http.Request)
 	}
 }
 
-func (t *TssHttpServer) keySignHandler(w http.ResponseWriter, r *http.Request) {
+func (t *HTTPServer) keySignHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
@@ -163,7 +163,7 @@ func (t *TssHttpServer) keySignHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (t *TssHttpServer) Start() error {
+func (t *HTTPServer) Start() error {
 	if t.s == nil {
 		return errors.New("invalid http server instance")
 	}
@@ -193,7 +193,7 @@ func logMiddleware() mux.MiddlewareFunc {
 	}
 }
 
-func (t *TssHttpServer) Stop() error {
+func (t *HTTPServer) Stop() error {
 	c, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	err := t.s.Shutdown(c)
@@ -204,11 +204,11 @@ func (t *TssHttpServer) Stop() error {
 	return err
 }
 
-func (t *TssHttpServer) pingHandler(w http.ResponseWriter, _ *http.Request) {
+func (t *HTTPServer) pingHandler(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func (t *TssHttpServer) getP2pIDHandler(w http.ResponseWriter, _ *http.Request) {
+func (t *HTTPServer) getP2pIDHandler(w http.ResponseWriter, _ *http.Request) {
 	localPeerID := t.tssServer.GetLocalPeerID()
 	_, err := w.Write([]byte(localPeerID))
 	if err != nil {

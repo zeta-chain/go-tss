@@ -26,7 +26,7 @@ import (
 	"github.com/zeta-chain/go-tss/storage"
 )
 
-func (t *TssServer) waitForSignatures(
+func (t *Server) waitForSignatures(
 	msgID, poolPubKey string,
 	msgsToSign [][]byte,
 	sigChan chan string,
@@ -44,7 +44,7 @@ func (t *TssServer) waitForSignatures(
 	return t.batchSignatures(data, msgsToSign), nil
 }
 
-func (t *TssServer) generateSignature(
+func (t *Server) generateSignature(
 	msgID string,
 	msgsToSign [][]byte,
 	req keysign.Request,
@@ -204,7 +204,7 @@ func (t *TssServer) generateSignature(
 	return t.batchSignatures(signatureData, msgsToSign), nil
 }
 
-func (t *TssServer) updateKeySignResult(result keysign.Response, timeSpent time.Duration) {
+func (t *Server) updateKeySignResult(result keysign.Response, timeSpent time.Duration) {
 	if result.Status == common.Success {
 		t.tssMetrics.UpdateKeySign(timeSpent, true)
 		return
@@ -212,7 +212,7 @@ func (t *TssServer) updateKeySignResult(result keysign.Response, timeSpent time.
 	t.tssMetrics.UpdateKeySign(timeSpent, false)
 }
 
-func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
+func (t *Server) KeySign(req keysign.Request) (keysign.Response, error) {
 	t.logger.Info().Str("pool pub key", req.PoolPubKey).
 		Str("signer pub keys", strings.Join(req.SignerPubKeys, ",")).
 		Str("msg", strings.Join(req.Messages, ",")).
@@ -246,7 +246,7 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 		)
 	case ed25519.KeyType:
 		algo = common.EdDSA
-		keysignInstance = eddsa.NewTssKeySign(
+		keysignInstance = eddsa.New(
 			t.p2pCommunication.GetLocalPeerID(),
 			t.conf,
 			t.p2pCommunication.BroadcastMsgChan,
@@ -391,13 +391,13 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 	return generatedSig, errGen
 }
 
-func (t *TssServer) broadcastKeysignFailure(messageID string, peers []peer.ID) {
+func (t *Server) broadcastKeysignFailure(messageID string, peers []peer.ID) {
 	if err := t.signatureNotifier.BroadcastFailed(messageID, peers); err != nil {
 		t.logger.Err(err).Msg("fail to broadcast keysign failure")
 	}
 }
 
-func (t *TssServer) batchSignatures(sigs []*tsslibcommon.SignatureData, msgsToSign [][]byte) keysign.Response {
+func (t *Server) batchSignatures(sigs []*tsslibcommon.SignatureData, msgsToSign [][]byte) keysign.Response {
 	var signatures []keysign.Signature
 	for i, sig := range sigs {
 		msg := base64.StdEncoding.EncodeToString(msgsToSign[i])

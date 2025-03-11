@@ -72,7 +72,7 @@ func NewCommunication(
 	if err != nil {
 		return nil, fmt.Errorf("fail to create listen addr: %w", err)
 	}
-	var externalAddr maddr.Multiaddr = nil
+	var externalAddr maddr.Multiaddr
 	if len(externalIP) != 0 {
 		externalAddr, err = maddr.NewMultiaddr(fmt.Sprintf("/ip4/%s/tcp/%d", externalIP, port))
 		if err != nil {

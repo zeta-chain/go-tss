@@ -16,7 +16,7 @@ import (
 	"github.com/zeta-chain/go-tss/messages"
 )
 
-func (t *TssServer) Keygen(req keygen.Request) (keygen.Response, error) {
+func (t *Server) Keygen(req keygen.Request) (keygen.Response, error) {
 	t.tssKeyGenLocker.Lock()
 	defer t.tssKeyGenLocker.Unlock()
 	status := common.Success
@@ -40,7 +40,7 @@ func (t *TssServer) Keygen(req keygen.Request) (keygen.Response, error) {
 			t.privateKey,
 			t.p2pCommunication)
 	case common.EdDSA:
-		keygenInstance = eddsa.NewTssKeyGen(
+		keygenInstance = eddsa.New(
 			t.p2pCommunication.GetLocalPeerID(),
 			t.conf,
 			t.localNodePubKey,
@@ -185,7 +185,7 @@ func (t *TssServer) Keygen(req keygen.Request) (keygen.Response, error) {
 	), nil
 }
 
-func (t *TssServer) KeygenAllAlgo(req keygen.Request) ([]keygen.Response, error) {
+func (t *Server) KeygenAllAlgo(req keygen.Request) ([]keygen.Response, error) {
 	// this is the algo we currently support
 	algos := []common.Algo{common.ECDSA, common.EdDSA}
 	t.tssKeyGenLocker.Lock()
@@ -208,7 +208,7 @@ func (t *TssServer) KeygenAllAlgo(req keygen.Request) ([]keygen.Response, error)
 		t.privateKey,
 		t.p2pCommunication)
 
-	eddsaKeygenInstance := eddsa.NewTssKeyGen(
+	eddsaKeygenInstance := eddsa.New(
 		t.p2pCommunication.GetLocalPeerID(),
 		t.conf,
 		t.localNodePubKey,

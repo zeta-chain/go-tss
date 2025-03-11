@@ -27,8 +27,19 @@ import (
 	"github.com/zeta-chain/go-tss/storage"
 )
 
-// TssServer is the structure that can provide all keysign and key gen features
-type TssServer struct {
+// IServer define the necessary functionality should be provide by a TSS Server implementation.
+type IServer interface {
+	Start() error
+	Stop()
+	GetLocalPeerID() string
+	GetKnownPeers() []peer.AddrInfo
+	Keygen(req keygen.Request) (keygen.Response, error)
+	KeygenAllAlgo(req keygen.Request) ([]keygen.Response, error)
+	KeySign(req keysign.Request) (keysign.Response, error)
+}
+
+// Server is the structure that can provide all keysign and key gen features
+type Server struct {
 	conf              common.TssConfig
 	logger            zerolog.Logger
 	p2pCommunication  *p2p.Communication
@@ -49,8 +60,8 @@ type PeerInfo struct {
 	Address string
 }
 
-// NewTss create a new instance of Tss
-func NewTss(
+// New constructs Server.
+func New(
 	cmdBootstrapPeers []maddr.Multiaddr,
 	p2pPort int,
 	priKey tcrypto.PrivKey,
@@ -60,7 +71,7 @@ func NewTss(
 	externalIP string,
 	tssPassword string,
 	whitelistedPeers []peer.ID,
-) (*TssServer, error) {
+) (*Server, error) {
 	pk := coskey.PubKey{
 		Key: priKey.PubKey().Bytes()[:],
 	}
@@ -137,7 +148,7 @@ func NewTss(
 	if conf.EnableMonitor {
 		metrics.Enable()
 	}
-	tssServer := TssServer{
+	tssServer := Server{
 		conf:              conf,
 		logger:            log.With().Str("module", "tss").Logger(),
 		p2pCommunication:  comm,
@@ -156,13 +167,13 @@ func NewTss(
 }
 
 // Start Tss server
-func (t *TssServer) Start() error {
+func (t *Server) Start() error {
 	t.logger.Info().Msg("starting the tss servers")
 	return nil
 }
 
 // Stop Tss server
-func (t *TssServer) Stop() {
+func (t *Server) Stop() {
 	close(t.stopChan)
 	// stop the p2p and finish the p2p wait group
 	err := t.p2pCommunication.Stop()
@@ -174,13 +185,13 @@ func (t *TssServer) Stop() {
 	t.logger.Info().Msg("The tss and p2p server has been stopped successfully")
 }
 
-func (t *TssServer) notifyJoinPartyChan() {
+func (t *Server) notifyJoinPartyChan() {
 	if t.joinPartyChan != nil {
 		t.joinPartyChan <- struct{}{}
 	}
 }
 
-func (t *TssServer) requestToMsgID(request any) (string, error) {
+func (t *Server) requestToMsgID(request any) (string, error) {
 	var dat []byte
 	var keys []string
 	switch value := request.(type) {
@@ -203,7 +214,7 @@ func (t *TssServer) requestToMsgID(request any) (string, error) {
 	return common.MsgToHashString(dat)
 }
 
-func (t *TssServer) joinParty(
+func (t *Server) joinParty(
 	msgID, version string,
 	blockHeight int64,
 	participants []string,
@@ -247,12 +258,12 @@ func (t *TssServer) joinParty(
 }
 
 // GetLocalPeerID return the local peer
-func (t *TssServer) GetLocalPeerID() string {
+func (t *Server) GetLocalPeerID() string {
 	return t.p2pCommunication.GetLocalPeerID()
 }
 
 // GetKnownPeers return the the ID and IP address of all peers.
-func (t *TssServer) GetKnownPeers() []peer.AddrInfo {
+func (t *Server) GetKnownPeers() []peer.AddrInfo {
 	var infos []peer.AddrInfo
 	host := t.p2pCommunication.GetHost()
 
@@ -268,7 +279,7 @@ func (t *TssServer) GetKnownPeers() []peer.AddrInfo {
 	return infos
 }
 
-// GetP2PHost return the libp2p host of the Communicator inside TssServer
-func (t *TssServer) GetP2PHost() host.Host {
+// GetP2PHost return the libp2p host of the Communicator inside Server
+func (t *Server) GetP2PHost() host.Host {
 	return t.p2pCommunication.GetHost()
 }

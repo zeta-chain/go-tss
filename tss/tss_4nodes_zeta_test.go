@@ -25,7 +25,7 @@ import (
 )
 
 type FourNodeScaleZetaSuite struct {
-	servers        []*TssServer
+	servers        []*Server
 	ports          []int
 	preParams      []*btsskeygen.LocalPreParams
 	bootstrapPeers []maddr.Multiaddr
@@ -50,7 +50,7 @@ func (s *FourNodeScaleZetaSuite) SetUpSuite(c *C) {
 	s.bootstrapPeers, err = conversion.TestBootstrapAddrs(s.ports, testPubKeys)
 	c.Assert(err, IsNil)
 	s.preParams = getPreparams(c)
-	s.servers = make([]*TssServer, partyNum)
+	s.servers = make([]*Server, partyNum)
 	s.tssConfig = common.TssConfig{
 		KeyGenTimeout:   90 * time.Second,
 		KeySignTimeout:  90 * time.Second,
@@ -221,7 +221,7 @@ func (s *FourNodeScaleZetaSuite) TearDownSuite(c *C) {
 	os.RemoveAll(s.tmpDir)
 }
 
-func (s *FourNodeScaleZetaSuite) getTssServer(c *C, index int, conf common.TssConfig) *TssServer {
+func (s *FourNodeScaleZetaSuite) getTssServer(c *C, index int, conf common.TssConfig) *Server {
 	priKey, err := conversion.GetPriKey(testPriKeyArr[index])
 	c.Assert(err, IsNil)
 	baseHome := path.Join(s.tmpDir, strconv.Itoa(index))
@@ -235,7 +235,7 @@ func (s *FourNodeScaleZetaSuite) getTssServer(c *C, index int, conf common.TssCo
 		c.Assert(err, IsNil)
 		whitelistedPeers = append(whitelistedPeers, peer)
 	}
-	instance, err := NewTss(
+	instance, err := New(
 		s.bootstrapPeers,
 		s.ports[index],
 		priKey,

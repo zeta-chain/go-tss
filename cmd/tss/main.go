@@ -54,7 +54,7 @@ func main() {
 		log.Fatal(err)
 	}
 	// init tss module
-	tss, err := tss.NewTss(
+	tss, err := tss.New(
 		p2pConf.BootstrapPeers,
 		p2pConf.Port,
 		priKey,
@@ -68,7 +68,7 @@ func main() {
 	if nil != err {
 		log.Fatal(err)
 	}
-	s := NewTssHttpServer(tssAddr, tss)
+	s := NewHTTPServer(tssAddr, tss)
 	go func() {
 		if err := s.Start(); err != nil {
 			fmt.Println(err)
