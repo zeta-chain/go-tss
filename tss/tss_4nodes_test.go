@@ -173,7 +173,13 @@ func (s *FourNodeTestSuite) doTestKeygenAndKeySign(c *C, version string, algo co
 		}
 	}
 
-	keysignReqWithErr := keysign.NewRequest(poolPubKey, []string{"helloworld", "helloworld2"}, 10, copyTestPubKeys(), version)
+	keysignReqWithErr := keysign.NewRequest(
+		poolPubKey,
+		[]string{"helloworld", "helloworld2"},
+		10,
+		copyTestPubKeys(),
+		version,
+	)
 	resp, err := s.servers[0].KeySign(keysignReqWithErr)
 	c.Assert(err, NotNil)
 	c.Assert(resp.Signatures, HasLen, 0)
@@ -370,7 +376,17 @@ func (s *FourNodeTestSuite) getTssServer(c *C, index int, conf common.TssConfig)
 		c.Assert(err, IsNil)
 		whitelistedPeers = append(whitelistedPeers, peer)
 	}
-	instance, err := NewTss(s.bootstrapPeers, s.ports[index], priKey, baseHome, conf, s.preParams[index], "", "password", whitelistedPeers)
+	instance, err := NewTss(
+		s.bootstrapPeers,
+		s.ports[index],
+		priKey,
+		baseHome,
+		conf,
+		s.preParams[index],
+		"",
+		"password",
+		whitelistedPeers,
+	)
 	c.Assert(err, IsNil)
 	return instance
 }

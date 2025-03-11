@@ -71,10 +71,19 @@ func (t *TssServer) Keygen(req keygen.Request) (keygen.Response, error) {
 	sigChan := make(chan string)
 	blameMgr := keygenInstance.GetTssCommonStruct().GetBlameMgr()
 	joinPartyStartTime := time.Now()
-	onlinePeers, leader, errJoinParty := t.joinParty(msgID, req.Version, req.BlockHeight, req.Keys, len(req.Keys)-1, sigChan)
+	onlinePeers, leader, errJoinParty := t.joinParty(
+		msgID,
+		req.Version,
+		req.BlockHeight,
+		req.Keys,
+		len(req.Keys)-1,
+		sigChan,
+	)
 	joinPartyTime := time.Since(joinPartyStartTime)
 	if errJoinParty != nil {
-		t.logger.Error().Err(errJoinParty).Msgf("failed to joinParty after %s, onlinePeers=%v", joinPartyTime, onlinePeers)
+		t.logger.Error().
+			Err(errJoinParty).
+			Msgf("failed to joinParty after %s, onlinePeers=%v", joinPartyTime, onlinePeers)
 
 		t.tssMetrics.KeygenJoinParty(joinPartyTime, false)
 		t.tssMetrics.UpdateKeyGen(0, false)
@@ -97,7 +106,6 @@ func (t *TssServer) Keygen(req keygen.Request) (keygen.Response, error) {
 				Status: common.Fail,
 				Blame:  blameNodes,
 			}, nil
-
 		}
 
 		var blameLeader blame.Blame
@@ -129,7 +137,6 @@ func (t *TssServer) Keygen(req keygen.Request) (keygen.Response, error) {
 			Status: common.Fail,
 			Blame:  blameNodes,
 		}, nil
-
 	}
 
 	t.logger.Info().Msg("joinParty succeeded, keygen party formed")
@@ -238,7 +245,14 @@ func (t *TssServer) KeygenAllAlgo(req keygen.Request) ([]keygen.Response, error)
 	// since all the keygen algorithms share the join party, so we need to use the ecdsa algo's blame manager
 	blameMgr := keygenInstances[common.ECDSA].GetTssCommonStruct().GetBlameMgr()
 	joinPartyStartTime := time.Now()
-	onlinePeers, leader, errJoinParty := t.joinParty(msgID, req.Version, req.BlockHeight, req.Keys, len(req.Keys)-1, sigChan)
+	onlinePeers, leader, errJoinParty := t.joinParty(
+		msgID,
+		req.Version,
+		req.BlockHeight,
+		req.Keys,
+		len(req.Keys)-1,
+		sigChan,
+	)
 	joinPartyTime := time.Since(joinPartyStartTime)
 	if errJoinParty != nil {
 		t.tssMetrics.KeygenJoinParty(joinPartyTime, false)
@@ -262,7 +276,6 @@ func (t *TssServer) KeygenAllAlgo(req keygen.Request) ([]keygen.Response, error)
 				Status: common.Fail,
 				Blame:  blameNodes,
 			}}, nil
-
 		}
 
 		var blameLeader blame.Blame
@@ -293,7 +306,6 @@ func (t *TssServer) KeygenAllAlgo(req keygen.Request) ([]keygen.Response, error)
 			Status: common.Fail,
 			Blame:  blameNodes,
 		}}, nil
-
 	}
 
 	t.tssMetrics.KeygenJoinParty(joinPartyTime, true)

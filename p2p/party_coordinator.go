@@ -13,10 +13,9 @@ import (
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	"google.golang.org/protobuf/proto"
-
 	"github.com/zeta-chain/go-tss/conversion"
 	"github.com/zeta-chain/go-tss/messages"
+	"google.golang.org/protobuf/proto"
 )
 
 var (
@@ -188,7 +187,12 @@ func (pc *PartyCoordinator) RemovePeerGroup(messageID string) {
 	delete(pc.peersGroup, messageID)
 }
 
-func (pc *PartyCoordinator) createJoinPartyGroups(messageID string, leaderID peer.ID, peerIDs []peer.ID, threshold int) (*peerStatus, error) {
+func (pc *PartyCoordinator) createJoinPartyGroups(
+	messageID string,
+	leaderID peer.ID,
+	peerIDs []peer.ID,
+	threshold int,
+) (*peerStatus, error) {
 	pc.joinPartyGroupLock.Lock()
 	defer pc.joinPartyGroupLock.Unlock()
 	peerStatus := newPeerStatus(peerIDs, pc.host.ID(), leaderID, threshold)
@@ -264,7 +268,13 @@ func (pc *PartyCoordinator) sendRequestToAll(msgID string, msgSend []byte, peers
 	wg.Wait()
 }
 
-func (pc *PartyCoordinator) sendMsgToPeer(msgBuf []byte, msgID string, remotePeer peer.ID, protoc protocol.ID, needResponse bool) error {
+func (pc *PartyCoordinator) sendMsgToPeer(
+	msgBuf []byte,
+	msgID string,
+	remotePeer peer.ID,
+	protoc protocol.ID,
+	needResponse bool,
+) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*4)
 	defer cancel()
 
@@ -296,7 +306,11 @@ func (pc *PartyCoordinator) sendMsgToPeer(msgBuf []byte, msgID string, remotePee
 	return nil
 }
 
-func (pc *PartyCoordinator) joinPartyMember(msgID string, peerGroup *peerStatus, sigChan chan string) ([]peer.ID, error) {
+func (pc *PartyCoordinator) joinPartyMember(
+	msgID string,
+	peerGroup *peerStatus,
+	sigChan chan string,
+) ([]peer.ID, error) {
 	leaderID := peerGroup.getLeader()
 	msg := messages.JoinPartyLeaderComm{
 		ID: msgID,
@@ -382,7 +396,11 @@ func (pc *PartyCoordinator) joinPartyMember(msgID string, peerGroup *peerStatus,
 	return pIDs, ErrJoinPartyTimeout
 }
 
-func (pc *PartyCoordinator) joinPartyLeader(msgID string, peerGroup *peerStatus, sigChan chan string) ([]peer.ID, error) {
+func (pc *PartyCoordinator) joinPartyLeader(
+	msgID string,
+	peerGroup *peerStatus,
+	sigChan chan string,
+) ([]peer.ID, error) {
 	var sigNotify string
 	select {
 	case <-pc.stopChan:
@@ -428,7 +446,13 @@ func (pc *PartyCoordinator) joinPartyLeader(msgID string, peerGroup *peerStatus,
 	return onlinePeers, nil
 }
 
-func (pc *PartyCoordinator) JoinPartyWithLeader(msgID string, blockHeight int64, peers []string, threshold int, sigChan chan string) ([]peer.ID, string, error) {
+func (pc *PartyCoordinator) JoinPartyWithLeader(
+	msgID string,
+	blockHeight int64,
+	peers []string,
+	threshold int,
+	sigChan chan string,
+) ([]peer.ID, string, error) {
 	leader, err := LeaderNode(msgID, blockHeight, peers)
 	if err != nil {
 		return nil, "", err

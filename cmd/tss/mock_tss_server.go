@@ -39,7 +39,13 @@ func (mts *MockTssServer) Keygen(req keygen.Request) (keygen.Response, error) {
 	if mts.failToKeyGen {
 		return keygen.Response{}, errors.New("you ask for it")
 	}
-	return keygen.NewResponse(common.ECDSA, conversion.GetRandomPubKey(), "whatever", common.Success, blame.Blame{}), nil
+	return keygen.NewResponse(
+		common.ECDSA,
+		conversion.GetRandomPubKey(),
+		"whatever",
+		common.Success,
+		blame.Blame{},
+	), nil
 }
 
 func (mts *MockTssServer) KeygenAllAlgo(req keygen.Request) ([]keygen.Response, error) {

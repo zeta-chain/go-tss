@@ -21,7 +21,6 @@ import (
 	maddr "github.com/multiformats/go-multiaddr"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-
 	"github.com/zeta-chain/go-tss/messages"
 )
 
@@ -186,12 +185,12 @@ func (c *Communication) readFromStream(stream network.Stream) {
 		c.streamMgr.AddStream(wrappedMsg.MsgID, stream)
 		select {
 		case <-time.After(10 * time.Second):
-			c.logger.Warn().Msgf("timeout to send message to channel: protocol ID: %s, msg type %s,  peer ID %s", stream.Protocol(), wrappedMsg.MessageType.String(), peerID)
+			c.logger.Warn().
+				Msgf("timeout to send message to channel: protocol ID: %s, msg type %s,  peer ID %s", stream.Protocol(), wrappedMsg.MessageType.String(), peerID)
 		case channel <- &Message{
 			PeerID:  stream.Conn().RemotePeer(),
 			Payload: dataBuf}:
 		}
-
 	}
 }
 
@@ -289,7 +288,11 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 
 	limiter := rcmgr.NewFixedLimiter(limits)
 
-	m, err := rcmgr.NewResourceManager(limiter, rcmgr.WithAllowlistedMultiaddrs(c.bootstrapPeers), rcmgr.WithMetrics(NewResourceMetricReporter()))
+	m, err := rcmgr.NewResourceManager(
+		limiter,
+		rcmgr.WithAllowlistedMultiaddrs(c.bootstrapPeers),
+		rcmgr.WithMetrics(NewResourceMetricReporter()),
+	)
 	if err != nil {
 		return err
 	}

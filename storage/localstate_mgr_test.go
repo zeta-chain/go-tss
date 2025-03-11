@@ -42,7 +42,11 @@ func (s *FileStateMgrTestSuite) TestNewFileStateMgr(c *C) {
 	c.Assert(err, NotNil)
 	fileName, err = fsm.getFilePathName("thorpub1addwnpepqf90u7n3nr2jwsw4t2gzhzqfdlply8dlzv3mdj4dr22uvhe04azq5gac3gq")
 	c.Assert(err, IsNil)
-	c.Assert(fileName, Equals, filepath.Join(f, "localstate-thorpub1addwnpepqf90u7n3nr2jwsw4t2gzhzqfdlply8dlzv3mdj4dr22uvhe04azq5gac3gq.json"))
+	c.Assert(
+		fileName,
+		Equals,
+		filepath.Join(f, "localstate-thorpub1addwnpepqf90u7n3nr2jwsw4t2gzhzqfdlply8dlzv3mdj4dr22uvhe04azq5gac3gq.json"),
+	)
 }
 
 func (s *FileStateMgrTestSuite) TestSaveLocalState(c *C) {

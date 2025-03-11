@@ -12,7 +12,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-
 	"github.com/zeta-chain/go-tss/keygen"
 	"github.com/zeta-chain/go-tss/keysign"
 	"github.com/zeta-chain/go-tss/tss"

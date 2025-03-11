@@ -16,7 +16,6 @@ import (
 	maddr "github.com/multiformats/go-multiaddr"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-
 	"github.com/zeta-chain/go-tss/common"
 	"github.com/zeta-chain/go-tss/conversion"
 	"github.com/zeta-chain/go-tss/keygen"
@@ -210,7 +209,13 @@ func (t *TssServer) requestToMsgId(request interface{}) (string, error) {
 	return common.MsgToHashString(dat)
 }
 
-func (t *TssServer) joinParty(msgID, version string, blockHeight int64, participants []string, threshold int, sigChan chan string) ([]peer.ID, string, error) {
+func (t *TssServer) joinParty(
+	msgID, version string,
+	blockHeight int64,
+	participants []string,
+	threshold int,
+	sigChan chan string,
+) ([]peer.ID, string, error) {
 	oldJoinParty, err := conversion.VersionLTCheck(version, messages.NEWJOINPARTYVERSION)
 	if err != nil {
 		return nil, "", fmt.Errorf("fail to parse the version with error:%w", err)

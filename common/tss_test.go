@@ -30,8 +30,24 @@ import (
 var (
 	testBlamePrivKey = "YmNiMzA2ODU1NWNjMzk3NDE1OWMwMTM3MDU0NTNjN2YwMzYzZmVhZDE5NmU3NzRhOTMwOWIxN2QyZTQ0MzdkNg=="
 	testSenderPubKey = "thorpub1addwnpepqtspqyy6gk22u37ztra4hq3hdakc0w0k60sfy849mlml2vrpfr0wvm6uz09"
-	testPubKeys      = [...]string{"thorpub1addwnpepqtdklw8tf3anjz7nn5fly3uvq2e67w2apn560s4smmrt9e3x52nt2svmmu3", "thorpub1addwnpepqtspqyy6gk22u37ztra4hq3hdakc0w0k60sfy849mlml2vrpfr0wvm6uz09", "thorpub1addwnpepq2ryyje5zr09lq7gqptjwnxqsy2vcdngvwd6z7yt5yjcnyj8c8cn559xe69", "thorpub1addwnpepqfjcw5l4ay5t00c32mmlky7qrppepxzdlkcwfs2fd5u73qrwna0vzag3y4j"}
-	testBlamePubKeys = []string{"thorpub1addwnpepqtr5p8tllhp4xaxmu77zhqen24pmrdlnekzevshaqkyzdqljm6rejnnt02t", "thorpub1addwnpepqtspqyy6gk22u37ztra4hq3hdakc0w0k60sfy849mlml2vrpfr0wvm6uz09", "thorpub1addwnpepqga4nded5hhnwsrwmrns803w7vu9mffp9r6dz4l6smaww2l5useuq6vkttg", "thorpub1addwnpepq28hfdpu3rdgvj8skzhlm8hyt5nlwwc8pjrzvn253j86e4dujj6jsmuf25q", "thorpub1addwnpepqfuq0xc67052h288r6flp67l0ny9mg6u3sxhsrlukyfg0fe9j6q36ysd33y", "thorpub1addwnpepq0jszts80udfl4pkfk6cp93647yl6fhu6pk486uwjdz2sf94qvu0kw0t6ug", "thorpub1addwnpepqw6mmffk69n5taaqhq3wsc8mvdpsrdnx960kujeh4jwm9lj8nuyux9hz5e4", "thorpub1addwnpepq0pdhm2jatzg2vy6fyw89vs6q374zayqd5498wn8ww780grq256ygq7hhjt", "thorpub1addwnpepqggwmlgd8u9t2sx4a0styqwhzrvdhpvdww7sqwnweyrh25rjwwm9q65kx9s", "thorpub1addwnpepqtssltyjvms8pa7k4yg85lnrjqtvvr2ecr36rhm7pa4ztf55tnuzzgvegpk"}
+	testPubKeys      = [...]string{
+		"thorpub1addwnpepqtdklw8tf3anjz7nn5fly3uvq2e67w2apn560s4smmrt9e3x52nt2svmmu3",
+		"thorpub1addwnpepqtspqyy6gk22u37ztra4hq3hdakc0w0k60sfy849mlml2vrpfr0wvm6uz09",
+		"thorpub1addwnpepq2ryyje5zr09lq7gqptjwnxqsy2vcdngvwd6z7yt5yjcnyj8c8cn559xe69",
+		"thorpub1addwnpepqfjcw5l4ay5t00c32mmlky7qrppepxzdlkcwfs2fd5u73qrwna0vzag3y4j",
+	}
+	testBlamePubKeys = []string{
+		"thorpub1addwnpepqtr5p8tllhp4xaxmu77zhqen24pmrdlnekzevshaqkyzdqljm6rejnnt02t",
+		"thorpub1addwnpepqtspqyy6gk22u37ztra4hq3hdakc0w0k60sfy849mlml2vrpfr0wvm6uz09",
+		"thorpub1addwnpepqga4nded5hhnwsrwmrns803w7vu9mffp9r6dz4l6smaww2l5useuq6vkttg",
+		"thorpub1addwnpepq28hfdpu3rdgvj8skzhlm8hyt5nlwwc8pjrzvn253j86e4dujj6jsmuf25q",
+		"thorpub1addwnpepqfuq0xc67052h288r6flp67l0ny9mg6u3sxhsrlukyfg0fe9j6q36ysd33y",
+		"thorpub1addwnpepq0jszts80udfl4pkfk6cp93647yl6fhu6pk486uwjdz2sf94qvu0kw0t6ug",
+		"thorpub1addwnpepqw6mmffk69n5taaqhq3wsc8mvdpsrdnx960kujeh4jwm9lj8nuyux9hz5e4",
+		"thorpub1addwnpepq0pdhm2jatzg2vy6fyw89vs6q374zayqd5498wn8ww780grq256ygq7hhjt",
+		"thorpub1addwnpepqggwmlgd8u9t2sx4a0styqwhzrvdhpvdww7sqwnweyrh25rjwwm9q65kx9s",
+		"thorpub1addwnpepqtssltyjvms8pa7k4yg85lnrjqtvvr2ecr36rhm7pa4ztf55tnuzzgvegpk",
+	}
 )
 
 func TestPackage(t *testing.T) { TestingT(t) }
@@ -125,7 +141,13 @@ func (t *TssTestSuite) TestTssProcessOutCh(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func fabricateTssMsg(c *C, privKey tcrypto.PrivKey, partyID *btss.PartyID, roundInfo, msg, msgID string, msgType messages.THORChainTSSMessageType) (*messages.WrappedMessage, []byte) {
+func fabricateTssMsg(
+	c *C,
+	privKey tcrypto.PrivKey,
+	partyID *btss.PartyID,
+	roundInfo, msg, msgID string,
+	msgType messages.THORChainTSSMessageType,
+) (*messages.WrappedMessage, []byte) {
 	routingInfo := btss.MessageRouting{
 		From:                    partyID,
 		To:                      nil,
@@ -172,12 +194,26 @@ func fabricateVerMsg(c *C, hash, hashKey string) *messages.WrappedMessage {
 	return &wrappedMsg
 }
 
-func (t *TssTestSuite) testVerMsgDuplication(c *C, privKey tcrypto.PrivKey, tssCommonStruct *TssCommon, senderID *btss.PartyID, partiesID []*btss.PartyID) {
+func (t *TssTestSuite) testVerMsgDuplication(
+	c *C,
+	privKey tcrypto.PrivKey,
+	tssCommonStruct *TssCommon,
+	senderID *btss.PartyID,
+	partiesID []*btss.PartyID,
+) {
 	testMsg := "testVerMsgDuplication"
 	roundInfo := "round testVerMsgDuplication"
 	tssCommonStruct.msgID = "123"
 	msgKey := fmt.Sprintf("%s-%s", senderID.Id, roundInfo)
-	wrappedMsg, _ := fabricateTssMsg(c, privKey, senderID, roundInfo, testMsg, tssCommonStruct.msgID, messages.TSSKeyGenMsg)
+	wrappedMsg, _ := fabricateTssMsg(
+		c,
+		privKey,
+		senderID,
+		roundInfo,
+		testMsg,
+		tssCommonStruct.msgID,
+		messages.TSSKeyGenMsg,
+	)
 	err := tssCommonStruct.ProcessOneMessage(wrappedMsg, tssCommonStruct.PartyIDtoP2PID[partiesID[1].Id].String())
 	c.Assert(err, IsNil)
 	localItem := tssCommonStruct.TryGetLocalCacheItem(msgKey)
@@ -187,7 +223,12 @@ func (t *TssTestSuite) testVerMsgDuplication(c *C, privKey tcrypto.PrivKey, tssC
 	c.Assert(localItem.ConfirmedList, HasLen, 1)
 }
 
-func setupProcessVerMsgEnv(c *C, privKey tcrypto.PrivKey, keyPool []string, partyNum int) (*TssCommon, []*btss.PartyID, []*btss.PartyID) {
+func setupProcessVerMsgEnv(
+	c *C,
+	privKey tcrypto.PrivKey,
+	keyPool []string,
+	partyNum int,
+) (*TssCommon, []*btss.PartyID, []*btss.PartyID) {
 	conf := TssConfig{}
 	tssCommonStruct := NewTssCommon("", nil, conf, "test", privKey, 1)
 	localTestPubKeys := make([]string, partyNum)
@@ -221,13 +262,27 @@ func setupProcessVerMsgEnv(c *C, privKey tcrypto.PrivKey, keyPool []string, part
 	return tssCommonStruct, peerPartiesID, partiesID
 }
 
-func (t *TssTestSuite) testDropMsgOwner(c *C, privKey tcrypto.PrivKey, tssCommonStruct *TssCommon, senderID *btss.PartyID, peerPartiesID []*btss.PartyID) {
+func (t *TssTestSuite) testDropMsgOwner(
+	c *C,
+	privKey tcrypto.PrivKey,
+	tssCommonStruct *TssCommon,
+	senderID *btss.PartyID,
+	peerPartiesID []*btss.PartyID,
+) {
 	testMsg := "testDropMsgOwner"
 	roundInfo := "round testDropMsgOwner"
 	msgHash, err := conversion.BytesToHashString([]byte(testMsg))
 	c.Assert(err, IsNil)
 	msgKey := fmt.Sprintf("%s-%s", senderID.Id, roundInfo)
-	senderMsg, expectedSignature := fabricateTssMsg(c, privKey, senderID, roundInfo, testMsg, "123", messages.TSSKeyGenMsg)
+	senderMsg, expectedSignature := fabricateTssMsg(
+		c,
+		privKey,
+		senderID,
+		roundInfo,
+		testMsg,
+		"123",
+		messages.TSSKeyGenMsg,
+	)
 
 	senderPeer, err := conversion.GetPeerIDFromPartyID(senderID)
 	c.Assert(err, IsNil)
@@ -326,7 +381,12 @@ func (t *TssTestSuite) testProcessTaskDone(c *C, tssCommonStruct *TssCommon) {
 	wg.Done()
 }
 
-func (t *TssTestSuite) testVerMsgAndUpdateFromPeer(c *C, tssCommonStruct *TssCommon, senderID *btss.PartyID, partiesID []*btss.PartyID) {
+func (t *TssTestSuite) testVerMsgAndUpdateFromPeer(
+	c *C,
+	tssCommonStruct *TssCommon,
+	senderID *btss.PartyID,
+	partiesID []*btss.PartyID,
+) {
 	testMsg := "testVerMsgAndUpdate2"
 	roundInfo := "round testVerMsgAndUpdate2"
 	msgHash, err := conversion.BytesToHashString([]byte(testMsg))
@@ -344,7 +404,12 @@ func (t *TssTestSuite) testVerMsgAndUpdateFromPeer(c *C, tssCommonStruct *TssCom
 	c.Assert(localItem.ConfirmedList, HasLen, 1)
 }
 
-func (t *TssTestSuite) testVerMsgAndUpdate(c *C, tssCommonStruct *TssCommon, senderID *btss.PartyID, partiesID []*btss.PartyID) {
+func (t *TssTestSuite) testVerMsgAndUpdate(
+	c *C,
+	tssCommonStruct *TssCommon,
+	senderID *btss.PartyID,
+	partiesID []*btss.PartyID,
+) {
 	testMsg := "testVerMsgAndUpdate"
 	roundInfo := "round testVerMsgAndUpdate"
 	msgKey := fmt.Sprintf("%s-%s", senderID.Id, roundInfo)
@@ -405,7 +470,10 @@ func (t *TssTestSuite) TestProcessVerMessage(c *C) {
 }
 
 func (t *TssTestSuite) TestTssCommon(c *C) {
-	pk, err := sdk.UnmarshalPubKey(sdk.AccPK, "thorpub1addwnpepqtdklw8tf3anjz7nn5fly3uvq2e67w2apn560s4smmrt9e3x52nt2svmmu3")
+	pk, err := sdk.UnmarshalPubKey(
+		sdk.AccPK,
+		"thorpub1addwnpepqtdklw8tf3anjz7nn5fly3uvq2e67w2apn560s4smmrt9e3x52nt2svmmu3",
+	)
 	c.Assert(err, IsNil)
 	peerID, err := conversion.GetPeerIDFromSecp256PubKey(pk.Bytes())
 	c.Assert(err, IsNil)
@@ -421,7 +489,15 @@ func (t *TssTestSuite) TestTssCommon(c *C) {
 	}()
 	bi, err := MsgToHashInt([]byte("whatever"), ECDSA)
 	c.Assert(err, IsNil)
-	wrapMsg, _ := fabricateTssMsg(c, sk, btss.NewPartyID("1,", "test", bi), "roundInfo", "message", "123", messages.TSSKeyGenMsg)
+	wrapMsg, _ := fabricateTssMsg(
+		c,
+		sk,
+		btss.NewPartyID("1,", "test", bi),
+		"roundInfo",
+		"message",
+		"123",
+		messages.TSSKeyGenMsg,
+	)
 	buf, err := json.Marshal(wrapMsg)
 	c.Assert(err, IsNil)
 	pMsg := &p2p.Message{
@@ -445,7 +521,15 @@ func (t *TssTestSuite) TestProcessInvalidMsgBlame(c *C) {
 	testMsg := "testVerMsgDuplication"
 	roundInfo := "round testMessage"
 	tssCommonStruct.msgID = "123"
-	wrappedMsg, _ := fabricateTssMsg(c, t.privKey, sender, roundInfo, testMsg, tssCommonStruct.msgID, messages.TSSKeyGenMsg)
+	wrappedMsg, _ := fabricateTssMsg(
+		c,
+		t.privKey,
+		sender,
+		roundInfo,
+		testMsg,
+		tssCommonStruct.msgID,
+		messages.TSSKeyGenMsg,
+	)
 
 	var wiredMsg messages.WireMessage
 	err := json.Unmarshal(wrappedMsg.Payload, &wiredMsg)

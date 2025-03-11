@@ -10,8 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"go.uber.org/atomic"
-
 	tsslibcommon "github.com/bnb-chain/tss-lib/common"
 	eddsakeygen "github.com/bnb-chain/tss-lib/eddsa/keygen"
 	"github.com/bnb-chain/tss-lib/eddsa/signing"
@@ -19,13 +17,13 @@ import (
 	tcrypto "github.com/cometbft/cometbft/crypto"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-
 	"github.com/zeta-chain/go-tss/blame"
 	"github.com/zeta-chain/go-tss/common"
 	"github.com/zeta-chain/go-tss/conversion"
 	"github.com/zeta-chain/go-tss/messages"
 	"github.com/zeta-chain/go-tss/p2p"
 	"github.com/zeta-chain/go-tss/storage"
+	"go.uber.org/atomic"
 )
 
 type EDDSAKeySign struct {
@@ -38,10 +36,17 @@ type EDDSAKeySign struct {
 	stateManager    storage.LocalStateManager
 }
 
-func NewTssKeySign(localP2PID string,
+func NewTssKeySign(
+	localP2PID string,
 	conf common.TssConfig,
 	broadcastChan chan *messages.BroadcastMsgChan,
-	stopChan chan struct{}, msgID string, privKey tcrypto.PrivKey, p2pComm *p2p.Communication, stateManager storage.LocalStateManager, msgNum int) *EDDSAKeySign {
+	stopChan chan struct{},
+	msgID string,
+	privKey tcrypto.PrivKey,
+	p2pComm *p2p.Communication,
+	stateManager storage.LocalStateManager,
+	msgNum int,
+) *EDDSAKeySign {
 	logItems := []string{"keySign", msgID}
 	return &EDDSAKeySign{
 		logger:          log.With().Strs("module", logItems).Logger(),
@@ -75,7 +80,8 @@ func (tKeySign *EDDSAKeySign) startBatchSigning(keySignPartyMap *sync.Map, msgNu
 				tKeySign.logger.Error().Err(err).Msg("fail to start key sign party")
 				ret.Store(false)
 			}
-			tKeySign.logger.Info().Msgf("local party(%s) %s is ready", eachParty.PartyID().Id, eachParty.PartyID().Moniker)
+			tKeySign.logger.Info().
+				Msgf("local party(%s) %s is ready", eachParty.PartyID().Id, eachParty.PartyID().Moniker)
 		}(eachParty)
 		return true
 	})
@@ -84,7 +90,11 @@ func (tKeySign *EDDSAKeySign) startBatchSigning(keySignPartyMap *sync.Map, msgNu
 }
 
 // signMessage
-func (tKeySign *EDDSAKeySign) SignMessage(msgsToSign [][]byte, localStateItem storage.KeygenLocalState, parties []string) ([]*tsslibcommon.SignatureData, error) {
+func (tKeySign *EDDSAKeySign) SignMessage(
+	msgsToSign [][]byte,
+	localStateItem storage.KeygenLocalState,
+	parties []string,
+) ([]*tsslibcommon.SignatureData, error) {
 	partiesID, localPartyID, err := conversion.GetParties(parties, localStateItem.LocalPartyKey)
 	tKeySign.localParty = localPartyID
 	if err != nil {
@@ -145,7 +155,10 @@ func (tKeySign *EDDSAKeySign) SignMessage(msgsToSign [][]byte, localStateItem st
 
 	blameMgr.SetPartyInfo(keySignPartyMap, partyIDMap)
 	tKeySign.tssCommonStruct.P2PPeersLock.Lock()
-	tKeySign.tssCommonStruct.P2PPeers = conversion.GetPeersID(tKeySign.tssCommonStruct.PartyIDtoP2PID, tKeySign.tssCommonStruct.GetLocalPeerID())
+	tKeySign.tssCommonStruct.P2PPeers = conversion.GetPeersID(
+		tKeySign.tssCommonStruct.PartyIDtoP2PID,
+		tKeySign.tssCommonStruct.GetLocalPeerID(),
+	)
 	tKeySign.tssCommonStruct.P2PPeersLock.Unlock()
 	var keySignWg sync.WaitGroup
 	keySignWg.Add(2)
@@ -188,7 +201,12 @@ func (tKeySign *EDDSAKeySign) SignMessage(msgsToSign [][]byte, localStateItem st
 	return results, nil
 }
 
-func (tKeySign *EDDSAKeySign) processKeySign(reqNum int, errChan chan struct{}, outCh <-chan btss.Message, endCh <-chan tsslibcommon.SignatureData) ([]*tsslibcommon.SignatureData, error) {
+func (tKeySign *EDDSAKeySign) processKeySign(
+	reqNum int,
+	errChan chan struct{},
+	outCh <-chan btss.Message,
+	endCh <-chan tsslibcommon.SignatureData,
+) ([]*tsslibcommon.SignatureData, error) {
 	defer tKeySign.logger.Debug().Msg("key sign finished")
 	tKeySign.logger.Debug().Msg("start to read messages from local party")
 	var signatures []*tsslibcommon.SignatureData
@@ -242,7 +260,10 @@ func (tKeySign *EDDSAKeySign) processKeySign(reqNum int, errChan chan struct{}, 
 
 			// if we cannot find the blame node, we check whether everyone send me the share
 			if len(blameMgr.GetBlame().BlameNodes) == 0 {
-				blameNodesMisingShare, isUnicast, err := blameMgr.TssMissingShareBlame(messages.EDDSAKEYSIGNROUNDS, messages.EDDSAKEYSIGN)
+				blameNodesMisingShare, isUnicast, err := blameMgr.TssMissingShareBlame(
+					messages.EDDSAKEYSIGNROUNDS,
+					messages.EDDSAKEYSIGN,
+				)
 				if err != nil {
 					tKeySign.logger.Error().Err(err).Msg("fail to get the node of missing share ")
 				}

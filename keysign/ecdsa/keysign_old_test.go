@@ -58,7 +58,10 @@ func (m *MockLocalStateOldManager) GetLocalState(pubKey string) (storage.KeygenL
 
 		var stateOld storage.KeygenLocalStateOld
 		if err := json.Unmarshal(buf, &stateOld); nil != err {
-			return storage.KeygenLocalState{}, fmt.Errorf("fail to unmarshal KeygenLocalState with backwards compatibility: %w", err)
+			return storage.KeygenLocalState{}, fmt.Errorf(
+				"fail to unmarshal KeygenLocalState with backwards compatibility: %w",
+				err,
+			)
 		}
 
 		state.PubKey = stateOld.PubKey
@@ -67,7 +70,10 @@ func (m *MockLocalStateOldManager) GetLocalState(pubKey string) (storage.KeygenL
 		state.LocalData, err = json.Marshal(stateOld.LocalData)
 
 		if err != nil {
-			return storage.KeygenLocalState{}, fmt.Errorf("fail to marshal KeygenLocalState.LocalData for backwards compatibility: %w", err)
+			return storage.KeygenLocalState{}, fmt.Errorf(
+				"fail to marshal KeygenLocalState.LocalData for backwards compatibility: %w",
+				err,
+			)
 		}
 	}
 	return state, nil
@@ -162,7 +168,13 @@ func (s *TssECDSAKeysignOldTestSuite) TestSignMessage(c *C) {
 	}
 	log.SetLogLevel("tss-lib", "info")
 	sort.Strings(testPubKeys)
-	req := keysign.NewRequest("thorpub1addwnpepqv6xp3fmm47dfuzglywqvpv8fdjv55zxte4a26tslcezns5czv586u2fw33", []string{"helloworld-test", "t"}, 10, testPubKeys, "")
+	req := keysign.NewRequest(
+		"thorpub1addwnpepqv6xp3fmm47dfuzglywqvpv8fdjv55zxte4a26tslcezns5czv586u2fw33",
+		[]string{"helloworld-test", "t"},
+		10,
+		testPubKeys,
+		"",
+	)
 	sort.Strings(req.Messages)
 	dat := []byte(strings.Join(req.Messages, ","))
 	messageID, err := common.MsgToHashString(dat)
@@ -236,7 +248,13 @@ func (s *TssECDSAKeysignOldTestSuite) TestSignMessageWithStop(c *C) {
 		return
 	}
 	sort.Strings(testPubKeys)
-	req := keysign.NewRequest("thorpub1addwnpepqv6xp3fmm47dfuzglywqvpv8fdjv55zxte4a26tslcezns5czv586u2fw33", []string{"helloworld-test", "t"}, 10, testPubKeys, "")
+	req := keysign.NewRequest(
+		"thorpub1addwnpepqv6xp3fmm47dfuzglywqvpv8fdjv55zxte4a26tslcezns5czv586u2fw33",
+		[]string{"helloworld-test", "t"},
+		10,
+		testPubKeys,
+		"",
+	)
 	sort.Strings(req.Messages)
 	dat := []byte(strings.Join(req.Messages, ","))
 	messageID, err := common.MsgToHashString(dat)
@@ -284,7 +302,8 @@ func (s *TssECDSAKeysignOldTestSuite) TestSignMessageWithStop(c *C) {
 			_, err = keysignIns.SignMessage(msgsToSign, localState, req.SignerPubKeys)
 			c.Assert(err, NotNil)
 			lastMsg := keysignIns.tssCommonStruct.GetBlameMgr().GetLastMsg()
-			zlog.Info().Msgf("%s------->last message %v, broadcast? %v", keysignIns.tssCommonStruct.GetLocalPeerID(), lastMsg.Type(), lastMsg.IsBroadcast())
+			zlog.Info().
+				Msgf("%s------->last message %v, broadcast? %v", keysignIns.tssCommonStruct.GetLocalPeerID(), lastMsg.Type(), lastMsg.IsBroadcast())
 			// we skip the node 1 as we force it to stop
 			if idx != 1 {
 				blames := keysignIns.GetTssCommonStruct().GetBlameMgr().GetBlame().BlameNodes
@@ -302,7 +321,13 @@ func (s *TssECDSAKeysignOldTestSuite) TestSignMessageRejectOnePeer(c *C) {
 		return
 	}
 	sort.Strings(testPubKeys)
-	req := keysign.NewRequest("thorpub1addwnpepqv6xp3fmm47dfuzglywqvpv8fdjv55zxte4a26tslcezns5czv586u2fw33", []string{"helloworld-test", "t"}, 10, testPubKeys, "")
+	req := keysign.NewRequest(
+		"thorpub1addwnpepqv6xp3fmm47dfuzglywqvpv8fdjv55zxte4a26tslcezns5czv586u2fw33",
+		[]string{"helloworld-test", "t"},
+		10,
+		testPubKeys,
+		"",
+	)
 	sort.Strings(req.Messages)
 	dat := []byte(strings.Join(req.Messages, ","))
 	messageID, err := common.MsgToHashString(dat)
@@ -345,7 +370,8 @@ func (s *TssECDSAKeysignOldTestSuite) TestSignMessageRejectOnePeer(c *C) {
 			msgsToSign = append(msgsToSign, []byte(req.Messages[1]))
 			_, err = keysignIns.SignMessage(msgsToSign, localState, req.SignerPubKeys)
 			lastMsg := keysignIns.tssCommonStruct.GetBlameMgr().GetLastMsg()
-			zlog.Info().Msgf("%s------->last message %v, broadcast? %v", keysignIns.tssCommonStruct.GetLocalPeerID(), lastMsg.Type(), lastMsg.IsBroadcast())
+			zlog.Info().
+				Msgf("%s------->last message %v, broadcast? %v", keysignIns.tssCommonStruct.GetLocalPeerID(), lastMsg.Type(), lastMsg.IsBroadcast())
 			c.Assert(err, IsNil)
 		}(i)
 	}

@@ -10,24 +10,26 @@ import (
 	"time"
 
 	tsslibcommon "github.com/bnb-chain/tss-lib/common"
-	"github.com/libp2p/go-libp2p/core/peer"
-
+	"github.com/cometbft/cometbft/crypto/ed25519"
+	"github.com/cometbft/cometbft/crypto/secp256k1"
 	sdk "github.com/cosmos/cosmos-sdk/types/bech32/legacybech32"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/zeta-chain/go-tss/blame"
 	"github.com/zeta-chain/go-tss/common"
 	"github.com/zeta-chain/go-tss/conversion"
 	"github.com/zeta-chain/go-tss/keysign"
+	"github.com/zeta-chain/go-tss/keysign/ecdsa"
+	"github.com/zeta-chain/go-tss/keysign/eddsa"
 	"github.com/zeta-chain/go-tss/messages"
 	"github.com/zeta-chain/go-tss/p2p"
 	"github.com/zeta-chain/go-tss/storage"
-
-	"github.com/cometbft/cometbft/crypto/ed25519"
-	"github.com/cometbft/cometbft/crypto/secp256k1"
-	"github.com/zeta-chain/go-tss/keysign/ecdsa"
-	"github.com/zeta-chain/go-tss/keysign/eddsa"
 )
 
-func (t *TssServer) waitForSignatures(msgID, poolPubKey string, msgsToSign [][]byte, sigChan chan string) (keysign.Response, error) {
+func (t *TssServer) waitForSignatures(
+	msgID, poolPubKey string,
+	msgsToSign [][]byte,
+	sigChan chan string,
+) (keysign.Response, error) {
 	// TSS keysign include both form party and keysign itself, thus we wait twice of the timeout
 	data, err := t.signatureNotifier.WaitForSignature(msgID, msgsToSign, poolPubKey, t.conf.KeySignTimeout, sigChan)
 	if err != nil {
@@ -41,7 +43,17 @@ func (t *TssServer) waitForSignatures(msgID, poolPubKey string, msgsToSign [][]b
 	return t.batchSignatures(data, msgsToSign), nil
 }
 
-func (t *TssServer) generateSignature(msgID string, msgsToSign [][]byte, req keysign.Request, threshold int, allParticipants []string, localStateItem storage.KeygenLocalState, blameMgr *blame.Manager, keysignInstance keysign.TssKeySign, sigChan chan string) (keysign.Response, error) {
+func (t *TssServer) generateSignature(
+	msgID string,
+	msgsToSign [][]byte,
+	req keysign.Request,
+	threshold int,
+	allParticipants []string,
+	localStateItem storage.KeygenLocalState,
+	blameMgr *blame.Manager,
+	keysignInstance keysign.TssKeySign,
+	sigChan chan string,
+) (keysign.Response, error) {
 	allPeersID, err := conversion.GetPeerIDsFromPubKeys(allParticipants)
 	if err != nil {
 		t.logger.Error().Msg("invalid block height or public key")
@@ -63,7 +75,8 @@ func (t *TssServer) generateSignature(msgID string, msgsToSign [][]byte, req key
 		allParticipants = req.SignerPubKeys
 		myPk, err := conversion.GetPubKeyFromPeerID(t.p2pCommunication.GetHost().ID().String())
 		if err != nil {
-			t.logger.Info().Msgf("fail to convert the p2p id(%s) to pubkey, turn to wait for signature", t.p2pCommunication.GetHost().ID().String())
+			t.logger.Info().
+				Msgf("fail to convert the p2p id(%s) to pubkey, turn to wait for signature", t.p2pCommunication.GetHost().ID().String())
 			return keysign.Response{}, p2p.ErrNotActiveSigner
 		}
 		isSignMember := false
@@ -77,11 +90,17 @@ func (t *TssServer) generateSignature(msgID string, msgsToSign [][]byte, req key
 			t.logger.Info().Msgf("we(%s) are not the active signer", t.p2pCommunication.GetHost().ID().String())
 			return keysign.Response{}, p2p.ErrNotActiveSigner
 		}
-
 	}
 
 	joinPartyStartTime := time.Now()
-	onlinePeers, leader, errJoinParty := t.joinParty(msgID, req.Version, req.BlockHeight, allParticipants, threshold, sigChan)
+	onlinePeers, leader, errJoinParty := t.joinParty(
+		msgID,
+		req.Version,
+		req.BlockHeight,
+		allParticipants,
+		threshold,
+		sigChan,
+	)
 	joinPartyTime := time.Since(joinPartyStartTime)
 	if errJoinParty != nil {
 		// we received the signature from waiting for signature
@@ -128,12 +147,13 @@ func (t *TssServer) generateSignature(msgID string, msgsToSign [][]byte, req key
 
 		t.broadcastKeysignFailure(msgID, allPeersID)
 		// make sure we blame the leader as well
-		t.logger.Error().Err(errJoinParty).Msgf("messagesID(%s)fail to form keysign party with online:%v", msgID, onlinePeers)
+		t.logger.Error().
+			Err(errJoinParty).
+			Msgf("messagesID(%s)fail to form keysign party with online:%v", msgID, onlinePeers)
 		return keysign.Response{
 			Status: common.Fail,
 			Blame:  blameLeader,
 		}, nil
-
 	}
 	t.tssMetrics.KeysignJoinParty(joinPartyTime, true)
 	isKeySignMember := false
@@ -268,7 +288,11 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 	for _, val := range req.Messages {
 		msgToSign, err := base64.StdEncoding.DecodeString(val)
 		if err != nil {
-			return keysign.Response{}, fmt.Errorf("fail to decode message(%s): %w", strings.Join(req.Messages, ","), err)
+			return keysign.Response{}, fmt.Errorf(
+				"fail to decode message(%s): %w",
+				strings.Join(req.Messages, ","),
+				err,
+			)
 		}
 		msgsToSign = append(msgsToSign, msgToSign)
 	}
@@ -336,7 +360,17 @@ func (t *TssServer) KeySign(req keysign.Request) (keysign.Response, error) {
 	// we generate the signature ourselves
 	go func() {
 		defer wg.Done()
-		generatedSig, errGen = t.generateSignature(msgID, msgsToSign, req, threshold, localStateItem.ParticipantKeys, localStateItem, blameMgr, keysignInstance, sigChan)
+		generatedSig, errGen = t.generateSignature(
+			msgID,
+			msgsToSign,
+			req,
+			threshold,
+			localStateItem.ParticipantKeys,
+			localStateItem,
+			blameMgr,
+			keysignInstance,
+			sigChan,
+		)
 	}()
 	wg.Wait()
 	close(sigChan)

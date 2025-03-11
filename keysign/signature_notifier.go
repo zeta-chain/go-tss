@@ -15,7 +15,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-
 	"github.com/zeta-chain/go-tss/messages"
 	"github.com/zeta-chain/go-tss/p2p"
 )
@@ -186,11 +185,19 @@ func (s *SignatureNotifier) sendOneMsgToPeer(m *signatureItem) error {
 }
 
 // BroadcastSignature sending the keysign signature to all other peers
-func (s *SignatureNotifier) BroadcastSignature(messageID string, sig []*tsslibcommon.SignatureData, peers []peer.ID) error {
+func (s *SignatureNotifier) BroadcastSignature(
+	messageID string,
+	sig []*tsslibcommon.SignatureData,
+	peers []peer.ID,
+) error {
 	return s.broadcastCommon(messageID, sig, peers)
 }
 
-func (s *SignatureNotifier) broadcastCommon(messageID string, sig []*tsslibcommon.SignatureData, peers []peer.ID) error {
+func (s *SignatureNotifier) broadcastCommon(
+	messageID string,
+	sig []*tsslibcommon.SignatureData,
+	peers []peer.ID,
+) error {
 	wg := sync.WaitGroup{}
 	for _, p := range peers {
 		if p == s.host.ID() {
@@ -234,7 +241,13 @@ func (s *SignatureNotifier) removeNotifier(n *notifier) {
 // hold on to the signatures until this node enters WaitForSignatures. alternatively, we may begin to
 // WaitForSignature first, in which case we should wait for signatures via broadcast. once all components
 // are set (see readyToProcess()), we can process the signature
-func (s *SignatureNotifier) createOrUpdateNotifier(messageID string, messages [][]byte, poolPubKey string, signatures []*tsslibcommon.SignatureData, timeout time.Duration) (*notifier, error) {
+func (s *SignatureNotifier) createOrUpdateNotifier(
+	messageID string,
+	messages [][]byte,
+	poolPubKey string,
+	signatures []*tsslibcommon.SignatureData,
+	timeout time.Duration,
+) (*notifier, error) {
 	s.notifierLock.Lock()
 	defer s.notifierLock.Unlock()
 	n, ok := s.notifiers[messageID]
@@ -261,7 +274,13 @@ func (s *SignatureNotifier) createOrUpdateNotifier(messageID string, messages []
 }
 
 // WaitForSignature wait until keysign finished and signature is available
-func (s *SignatureNotifier) WaitForSignature(messageID string, message [][]byte, poolPubKey string, timeout time.Duration, sigChan chan string) ([]*tsslibcommon.SignatureData, error) {
+func (s *SignatureNotifier) WaitForSignature(
+	messageID string,
+	message [][]byte,
+	poolPubKey string,
+	timeout time.Duration,
+	sigChan chan string,
+) ([]*tsslibcommon.SignatureData, error) {
 	s.logger.Debug().Msg("waiting for signature")
 	n, err := s.createOrUpdateNotifier(messageID, message, poolPubKey, nil, timeout+time.Second)
 	if err != nil {

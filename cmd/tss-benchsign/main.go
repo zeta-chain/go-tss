@@ -67,7 +67,10 @@ func main() {
 		os.Exit(1)
 	}
 	if _, err := os.Stat(makeKeyGenDataFilePath(dir, *endQuorum-1)); os.IsNotExist(err) {
-		fmt.Printf("Error: insufficient shares for the specified quorum; run tss-benchgen and generate at least %d shares.\n", *endQuorum)
+		fmt.Printf(
+			"Error: insufficient shares for the specified quorum; run tss-benchgen and generate at least %d shares.\n",
+			*endQuorum,
+		)
 		os.Exit(1)
 	}
 
@@ -228,7 +231,11 @@ func printSummary(results [][]result) {
 
 // ----- //
 
-func loadKeyGenData(dir string, qty int, optionalStart ...int) ([]keygen.LocalPartySaveData, tss.SortedPartyIDs, error) {
+func loadKeyGenData(
+	dir string,
+	qty int,
+	optionalStart ...int,
+) ([]keygen.LocalPartySaveData, tss.SortedPartyIDs, error) {
 	keys := make([]keygen.LocalPartySaveData, 0, qty)
 	start := 0
 	if 0 < len(optionalStart) {

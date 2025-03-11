@@ -135,5 +135,4 @@ func CheckKeyOnCurve(pk string) (bool, error) {
 	default:
 		return false, fmt.Errorf("fail to parse pub key(%s): %w", pk, err)
 	}
-
 }

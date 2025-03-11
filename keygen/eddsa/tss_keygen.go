@@ -13,7 +13,6 @@ import (
 	tcrypto "github.com/cometbft/cometbft/crypto"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-
 	"github.com/zeta-chain/go-tss/blame"
 	"github.com/zeta-chain/go-tss/common"
 	"github.com/zeta-chain/go-tss/conversion"
@@ -106,7 +105,10 @@ func (tKeyGen *EDDSAKeyGen) GenerateNewKey(keygenReq keygen.Request) (*bcrypto.E
 	tKeyGen.tssCommonStruct.SetPartyInfo(partyInfo)
 	blameMgr.SetPartyInfo(keyGenPartyMap, partyIDMap)
 	tKeyGen.tssCommonStruct.P2PPeersLock.Lock()
-	tKeyGen.tssCommonStruct.P2PPeers = conversion.GetPeersID(tKeyGen.tssCommonStruct.PartyIDtoP2PID, tKeyGen.tssCommonStruct.GetLocalPeerID())
+	tKeyGen.tssCommonStruct.P2PPeers = conversion.GetPeersID(
+		tKeyGen.tssCommonStruct.PartyIDtoP2PID,
+		tKeyGen.tssCommonStruct.GetLocalPeerID(),
+	)
 	tKeyGen.tssCommonStruct.P2PPeersLock.Unlock()
 	var keyGenWg sync.WaitGroup
 	keyGenWg.Add(2)
@@ -187,7 +189,10 @@ func (tKeyGen *EDDSAKeyGen) processKeyGen(errChan chan struct{},
 
 			// if we cannot find the blame node, we check whether everyone send me the share
 			if len(blameMgr.GetBlame().BlameNodes) == 0 {
-				blameNodesMisingShare, isUnicast, err := blameMgr.TssMissingShareBlame(messages.EDDSAKEYGENROUNDS, messages.EDDSAKEYGEN)
+				blameNodesMisingShare, isUnicast, err := blameMgr.TssMissingShareBlame(
+					messages.EDDSAKEYGENROUNDS,
+					messages.EDDSAKEYGEN,
+				)
 				if err != nil {
 					tKeyGen.logger.Error().Err(err).Msg("fail to get the node of missing share ")
 				}

@@ -175,7 +175,13 @@ func (s *TssECDSAKeysignTestSuite) TestSignMessage(c *C) {
 	}
 	log.SetLogLevel("tss-lib", "info")
 	sort.Strings(testPubKeys)
-	req := keysign.NewRequest("thorpub1addwnpepqv6xp3fmm47dfuzglywqvpv8fdjv55zxte4a26tslcezns5czv586u2fw33", []string{"helloworld-test", "t"}, 10, testPubKeys, "")
+	req := keysign.NewRequest(
+		"thorpub1addwnpepqv6xp3fmm47dfuzglywqvpv8fdjv55zxte4a26tslcezns5czv586u2fw33",
+		[]string{"helloworld-test", "t"},
+		10,
+		testPubKeys,
+		"",
+	)
 	sort.Strings(req.Messages)
 	dat := []byte(strings.Join(req.Messages, ","))
 	messageID, err := common.MsgToHashString(dat)
@@ -273,7 +279,13 @@ func (s *TssECDSAKeysignTestSuite) TestSignMessageWithStop(c *C) {
 		return
 	}
 	sort.Strings(testPubKeys)
-	req := keysign.NewRequest("thorpub1addwnpepqv6xp3fmm47dfuzglywqvpv8fdjv55zxte4a26tslcezns5czv586u2fw33", []string{"helloworld-test", "t"}, 10, testPubKeys, "")
+	req := keysign.NewRequest(
+		"thorpub1addwnpepqv6xp3fmm47dfuzglywqvpv8fdjv55zxte4a26tslcezns5czv586u2fw33",
+		[]string{"helloworld-test", "t"},
+		10,
+		testPubKeys,
+		"",
+	)
 	sort.Strings(req.Messages)
 	dat := []byte(strings.Join(req.Messages, ","))
 	messageID, err := common.MsgToHashString(dat)
@@ -321,7 +333,8 @@ func (s *TssECDSAKeysignTestSuite) TestSignMessageWithStop(c *C) {
 			_, err = keysignIns.SignMessage(msgsToSign, localState, req.SignerPubKeys)
 			c.Assert(err, NotNil)
 			lastMsg := keysignIns.tssCommonStruct.GetBlameMgr().GetLastMsg()
-			zlog.Info().Msgf("%s------->last message %v, broadcast? %v", keysignIns.tssCommonStruct.GetLocalPeerID(), lastMsg.Type(), lastMsg.IsBroadcast())
+			zlog.Info().
+				Msgf("%s------->last message %v, broadcast? %v", keysignIns.tssCommonStruct.GetLocalPeerID(), lastMsg.Type(), lastMsg.IsBroadcast())
 			// we skip the node 1 as we force it to stop
 			if idx != 1 {
 				blames := keysignIns.GetTssCommonStruct().GetBlameMgr().GetBlame().BlameNodes
@@ -364,7 +377,13 @@ func (s *TssECDSAKeysignTestSuite) TestSignMessageRejectOnePeer(c *C) {
 		return
 	}
 	sort.Strings(testPubKeys)
-	req := keysign.NewRequest("thorpub1addwnpepqv6xp3fmm47dfuzglywqvpv8fdjv55zxte4a26tslcezns5czv586u2fw33", []string{"helloworld-test", "t"}, 10, testPubKeys, "")
+	req := keysign.NewRequest(
+		"thorpub1addwnpepqv6xp3fmm47dfuzglywqvpv8fdjv55zxte4a26tslcezns5czv586u2fw33",
+		[]string{"helloworld-test", "t"},
+		10,
+		testPubKeys,
+		"",
+	)
 	sort.Strings(req.Messages)
 	dat := []byte(strings.Join(req.Messages, ","))
 	messageID, err := common.MsgToHashString(dat)
@@ -407,7 +426,8 @@ func (s *TssECDSAKeysignTestSuite) TestSignMessageRejectOnePeer(c *C) {
 			msgsToSign = append(msgsToSign, []byte(req.Messages[1]))
 			_, err = keysignIns.SignMessage(msgsToSign, localState, req.SignerPubKeys)
 			lastMsg := keysignIns.tssCommonStruct.GetBlameMgr().GetLastMsg()
-			zlog.Info().Msgf("%s------->last message %v, broadcast? %v", keysignIns.tssCommonStruct.GetLocalPeerID(), lastMsg.Type(), lastMsg.IsBroadcast())
+			zlog.Info().
+				Msgf("%s------->last message %v, broadcast? %v", keysignIns.tssCommonStruct.GetLocalPeerID(), lastMsg.Type(), lastMsg.IsBroadcast())
 			c.Assert(err, IsNil)
 		}(i)
 	}

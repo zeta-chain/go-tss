@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 
 	"gitlab.com/thorchain/binance-sdk/common/uuid"
-
 	"golang.org/x/crypto/pbkdf2"
 	"golang.org/x/crypto/sha3"
 )

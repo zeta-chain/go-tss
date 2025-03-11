@@ -7,7 +7,6 @@ import (
 	btss "github.com/bnb-chain/tss-lib/tss"
 	mapset "github.com/deckarep/golang-set"
 	"github.com/libp2p/go-libp2p/core/peer"
-
 	"github.com/zeta-chain/go-tss/conversion"
 	"github.com/zeta-chain/go-tss/messages"
 )
@@ -182,7 +181,8 @@ func (m *Manager) TssMissingShareBlame(rounds int, algo messages.Algo) ([]Node, 
 				isUnicast = false
 
 			default:
-				m.logger.Error().Msgf("fail to find the algorithm for this keygen/keysign, set unicast as false by default")
+				m.logger.Error().
+					Msgf("fail to find the algorithm for this keygen/keysign, set unicast as false by default")
 				isUnicast = false
 			}
 

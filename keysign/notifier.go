@@ -32,7 +32,12 @@ type notifier struct {
 }
 
 // newNotifier create a new instance of notifier.
-func newNotifier(messageID string, messages [][]byte, poolPubKey string, signatures []*common.SignatureData) (*notifier, error) {
+func newNotifier(
+	messageID string,
+	messages [][]byte,
+	poolPubKey string,
+	signatures []*common.SignatureData,
+) (*notifier, error) {
 	if len(messageID) == 0 {
 		return nil, errors.New("messageID is empty")
 	}
@@ -119,7 +124,6 @@ func (n *notifier) verifySignature(data *common.SignatureData, msg []byte) error
 	default:
 		return errors.New("invalid pubkey type")
 	}
-
 }
 
 // processSignature is to verify whether the signature is valid

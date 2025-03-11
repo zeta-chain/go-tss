@@ -13,7 +13,6 @@ import (
 	"github.com/cosmos/cosmos-sdk/client/input"
 	golog "github.com/ipfs/go-log"
 	"github.com/libp2p/go-libp2p/core/peer"
-
 	"github.com/zeta-chain/go-tss/common"
 	"github.com/zeta-chain/go-tss/conversion"
 	"github.com/zeta-chain/go-tss/p2p"
@@ -87,7 +86,12 @@ func parseFlags() (tssConf common.TssConfig, p2pConf p2p.Config) {
 	flag.StringVar(&tssAddr, "tss-port", "127.0.0.1:8080", "tss port")
 	flag.BoolVar(&help, "h", false, "Display Help")
 	flag.StringVar(&logLevel, "loglevel", "info", "Log Level")
-	flag.BoolVar(&pretty, "pretty-log", false, "Enables unstructured prettified logging. This is useful for local debugging")
+	flag.BoolVar(
+		&pretty,
+		"pretty-log",
+		false,
+		"Enables unstructured prettified logging. This is useful for local debugging",
+	)
 	flag.StringVar(&baseFolder, "home", "", "home folder to store the keygen state file")
 
 	// we setup the Tss parameter configuration

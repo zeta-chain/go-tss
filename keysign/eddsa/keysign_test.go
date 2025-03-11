@@ -171,7 +171,13 @@ func (s *EddsaKeysignTestSuite) TestSignMessage(c *C) {
 		return
 	}
 	sort.Strings(testPubKeys)
-	req := keysign.NewRequest("thorpub1zcjduepq665vjeq34n7ccpvdl8t6akgls3c6u2uq242vpag2d9knstxymxfqq2ufwe", []string{"helloworld-test111", "test2"}, 10, testPubKeys, "0.16.0")
+	req := keysign.NewRequest(
+		"thorpub1zcjduepq665vjeq34n7ccpvdl8t6akgls3c6u2uq242vpag2d9knstxymxfqq2ufwe",
+		[]string{"helloworld-test111", "test2"},
+		10,
+		testPubKeys,
+		"0.16.0",
+	)
 	sort.Strings(req.Messages)
 	dat := []byte(strings.Join(req.Messages, ","))
 	messageID, err := common.MsgToHashString(dat)
