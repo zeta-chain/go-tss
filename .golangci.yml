@@ -1,5 +1,5 @@
 run:
-  go: '1.20' # as in go.mod
+  go: "1.22.11"
   timeout: 5m
   tests: false # exclude test from linting
 
