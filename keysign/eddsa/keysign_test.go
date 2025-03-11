@@ -14,6 +14,7 @@ import (
 	"time"
 
 	btss "github.com/bnb-chain/tss-lib/tss"
+	zlog "github.com/rs/zerolog/log"
 
 	"github.com/zeta-chain/go-tss/conversion"
 	"github.com/zeta-chain/go-tss/keysign"
@@ -127,9 +128,11 @@ func (s *EddsaKeysignTestSuite) SetUpTest(c *C) {
 		c.Skip("skip the test")
 		return
 	}
-	ports := []int{
-		15666, 15667, 15668, 15669,
-	}
+
+	ports, err := p2p.GetFreePorts(4)
+	c.Assert(err, IsNil)
+	zlog.Info().Ints("ports", ports).Msg("Allocated ports for test")
+
 	s.partyNum = 4
 	s.comms = make([]*p2p.Communication, s.partyNum)
 	s.stateMgrs = make([]storage.LocalStateManager, s.partyNum)

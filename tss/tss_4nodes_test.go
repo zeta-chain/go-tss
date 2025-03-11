@@ -17,6 +17,8 @@ import (
 	btsskeygen "github.com/bnb-chain/tss-lib/ecdsa/keygen"
 	"github.com/libp2p/go-libp2p/core/peer"
 	maddr "github.com/multiformats/go-multiaddr"
+	zlog "github.com/rs/zerolog/log"
+	"github.com/zeta-chain/go-tss/p2p"
 
 	. "gopkg.in/check.v1"
 
@@ -72,12 +74,14 @@ var _ = Suite(&FourNodeTestSuite{})
 
 // setup four nodes for test
 func (s *FourNodeTestSuite) SetUpTest(c *C) {
-	var err error
 	common.InitLog("info", true, "four_nodes_test")
 	conversion.SetupBech32Prefix()
-	s.ports = []int{
-		20666, 20667, 20668, 20669,
-	}
+
+	ports, err := p2p.GetFreePorts(4)
+	c.Assert(err, IsNil)
+	zlog.Info().Ints("ports", ports).Msg("Allocated ports for test")
+	s.ports = ports
+
 	s.bootstrapPeers, err = conversion.TestBootstrapAddrs(s.ports, testPubKeys)
 	c.Assert(err, IsNil)
 	s.preParams = getPreparams(c)

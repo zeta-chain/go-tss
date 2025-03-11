@@ -16,6 +16,8 @@ import (
 	btsskeygen "github.com/bnb-chain/tss-lib/ecdsa/keygen"
 	"github.com/libp2p/go-libp2p/core/peer"
 	maddr "github.com/multiformats/go-multiaddr"
+	zlog "github.com/rs/zerolog/log"
+	"github.com/zeta-chain/go-tss/p2p"
 	. "gopkg.in/check.v1"
 
 	"github.com/zeta-chain/go-tss/common"
@@ -39,14 +41,16 @@ var _ = Suite(&FourNodeScaleZetaSuite{})
 
 // setup four nodes for test
 func (s *FourNodeScaleZetaSuite) SetUpSuite(c *C) {
-	var err error
 	common.InitLog("info", true, "four_nodes_zeta_test")
 	conversion.SetupBech32Prefix()
 	s.tmpDir = path.Join(os.TempDir(), "4nodes_zeta_test")
 	os.RemoveAll(s.tmpDir)
-	s.ports = []int{
-		21666, 21667, 21668, 21669,
-	}
+
+	ports, err := p2p.GetFreePorts(4)
+	c.Assert(err, IsNil)
+	zlog.Info().Ints("ports", ports).Msg("Allocated ports for test")
+	s.ports = ports
+
 	s.bootstrapPeers, err = conversion.TestBootstrapAddrs(s.ports, testPubKeys)
 	c.Assert(err, IsNil)
 	s.preParams = getPreparams(c)

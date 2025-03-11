@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/ipfs/go-log"
+	zlog "github.com/rs/zerolog/log"
 
 	"github.com/bnb-chain/tss-lib/crypto"
 	tcrypto "github.com/cometbft/cometbft/crypto"
@@ -103,9 +104,10 @@ func (s *TssECDSAKeygenTestSuite) TearDownSuite(c *C) {
 
 // SetUpTest set up environment for test key gen
 func (s *TssECDSAKeygenTestSuite) SetUpTest(c *C) {
-	ports := []int{
-		18666, 18667, 18668, 18669,
-	}
+	ports, err := p2p.GetFreePorts(4)
+	c.Assert(err, IsNil)
+	zlog.Info().Ints("ports", ports).Msg("Allocated ports for test")
+
 	s.partyNum = 4
 	s.comms = make([]*p2p.Communication, s.partyNum)
 	s.stateMgrs = make([]storage.LocalStateManager, s.partyNum)

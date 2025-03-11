@@ -123,9 +123,11 @@ func (s *TssECDSAKeysignOldTestSuite) SetUpTest(c *C) {
 		c.Skip("skip the test")
 		return
 	}
-	ports := []int{
-		17666, 17667, 17668, 17669,
-	}
+
+	ports, err := p2p.GetFreePorts(4)
+	c.Assert(err, IsNil)
+	zlog.Info().Ints("ports", ports).Msg("Allocated ports for test")
+
 	s.partyNum = 4
 	s.comms = make([]*p2p.Communication, s.partyNum)
 	s.stateMgrs = make([]storage.LocalStateManager, s.partyNum)

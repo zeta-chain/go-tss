@@ -17,6 +17,7 @@ import (
 	tcrypto "github.com/cometbft/cometbft/crypto"
 	"github.com/cometbft/cometbft/crypto/secp256k1"
 	"github.com/libp2p/go-libp2p/core/peer"
+	zlog "github.com/rs/zerolog/log"
 
 	btss "github.com/bnb-chain/tss-lib/tss"
 	. "gopkg.in/check.v1"
@@ -90,9 +91,10 @@ func (s *EddsaKeygenTestSuite) SetUpSuite(c *C) {
 
 // SetUpTest set up environment for test key gen
 func (s *EddsaKeygenTestSuite) SetUpTest(c *C) {
-	ports := []int{
-		19666, 19667, 19668, 19669,
-	}
+	ports, err := p2p.GetFreePorts(4)
+	c.Assert(err, IsNil)
+	zlog.Info().Ints("ports", ports).Msg("Allocated ports for test")
+
 	s.partyNum = 4
 	s.comms = make([]*p2p.Communication, s.partyNum)
 	s.stateMgrs = make([]storage.LocalStateManager, s.partyNum)
