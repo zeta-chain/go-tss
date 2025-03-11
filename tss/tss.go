@@ -185,6 +185,16 @@ func (t *Server) Stop() {
 	t.logger.Info().Msg("The tss and p2p server has been stopped successfully")
 }
 
+// nolint:unused // used in tests
+func (t *Server) setJoinPartyChan(jpc chan struct{}) {
+	t.joinPartyChan = jpc
+}
+
+// nolint:unused // used in tests
+func (t *Server) unsetJoinPartyChan() {
+	t.joinPartyChan = nil
+}
+
 func (t *Server) notifyJoinPartyChan() {
 	if t.joinPartyChan != nil {
 		t.joinPartyChan <- struct{}{}
