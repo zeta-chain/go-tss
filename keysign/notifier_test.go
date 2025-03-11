@@ -8,8 +8,8 @@ import (
 	tsslibcommon "github.com/bnb-chain/tss-lib/common"
 	. "gopkg.in/check.v1"
 
-	"gitlab.com/thorchain/tss/go-tss/common"
-	"gitlab.com/thorchain/tss/go-tss/conversion"
+	"github.com/zeta-chain/go-tss/common"
+	"github.com/zeta-chain/go-tss/conversion"
 )
 
 type NotifierTestSuite struct{}

@@ -23,7 +23,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 
 	"github.com/decred/dcrd/dcrec/edwards/v2"
-	"gitlab.com/thorchain/tss/go-tss/messages"
+	"github.com/zeta-chain/go-tss/messages"
 )
 
 // GetPeerIDFromSecp256PubKey convert the given pubkey into a peer.ID

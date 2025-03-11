@@ -20,7 +20,7 @@ import (
 	maddr "github.com/multiformats/go-multiaddr"
 
 	"github.com/bnb-chain/tss-lib/ecdsa/keygen"
-	"gitlab.com/thorchain/tss/go-tss/conversion"
+	"github.com/zeta-chain/go-tss/conversion"
 )
 
 const keyFragmentSeed = "TSS_FRAGMENT_SEED"
