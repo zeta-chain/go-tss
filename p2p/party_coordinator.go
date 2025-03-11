@@ -13,9 +13,10 @@ import (
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"google.golang.org/protobuf/proto"
+
 	"github.com/zeta-chain/go-tss/conversion"
 	"github.com/zeta-chain/go-tss/messages"
-	"google.golang.org/protobuf/proto"
 )
 
 var (

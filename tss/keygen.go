@@ -6,6 +6,7 @@ import (
 
 	"github.com/bnb-chain/tss-lib/crypto"
 	"github.com/cosmos/cosmos-sdk/types"
+
 	"github.com/zeta-chain/go-tss/blame"
 	"github.com/zeta-chain/go-tss/common"
 	"github.com/zeta-chain/go-tss/conversion"

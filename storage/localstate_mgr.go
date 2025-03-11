@@ -19,6 +19,7 @@ import (
 	"github.com/bnb-chain/tss-lib/ecdsa/keygen"
 	"github.com/libp2p/go-libp2p/core/peer"
 	maddr "github.com/multiformats/go-multiaddr"
+
 	"github.com/zeta-chain/go-tss/conversion"
 )
 

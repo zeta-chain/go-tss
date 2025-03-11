@@ -21,6 +21,7 @@ import (
 	maddr "github.com/multiformats/go-multiaddr"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+
 	"github.com/zeta-chain/go-tss/messages"
 )
 

@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"github.com/libp2p/go-libp2p/core/peer"
+
 	"github.com/zeta-chain/go-tss/blame"
 	"github.com/zeta-chain/go-tss/common"
 	"github.com/zeta-chain/go-tss/conversion"
