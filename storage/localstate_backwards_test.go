@@ -3,7 +3,7 @@ package storage
 import (
 	"testing"
 
-	"gitlab.com/thorchain/tss/go-tss/conversion"
+	"github.com/zeta-chain/go-tss/conversion"
 	. "gopkg.in/check.v1"
 )
 

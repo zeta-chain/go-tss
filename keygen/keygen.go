@@ -3,8 +3,8 @@ package keygen
 import (
 	bcrypto "github.com/bnb-chain/tss-lib/crypto"
 
-	"gitlab.com/thorchain/tss/go-tss/common"
-	"gitlab.com/thorchain/tss/go-tss/p2p"
+	"github.com/zeta-chain/go-tss/common"
+	"github.com/zeta-chain/go-tss/p2p"
 )
 
 type TssKeyGen interface {

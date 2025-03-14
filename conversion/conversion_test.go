@@ -226,3 +226,49 @@ func (p *ConversionTestSuite) TestTssPubKey(c *C) {
 	c.Assert(pk, Equals, "thorpub1addwnpepq2dwek9hkrlxjxadrlmy9fr42gqyq6029q0hked46l3u6a9fxqel6tma5eu")
 	c.Assert(addr.String(), Equals, "thor17l7cyxqzg4xymnl0alrhqwja276s3rns3fjdvm")
 }
+
+func TestGetThreshold(t *testing.T) {
+	testCases := []struct {
+		name          string
+		partyNum      int
+		wantThreshold int
+		wantErr       error
+	}{
+		{
+			name:          "2 parties should have threshold 1",
+			partyNum:      2,
+			wantThreshold: 1,
+			wantErr:       nil,
+		},
+		{
+			name:          "3 parties should have threshold 1",
+			partyNum:      3,
+			wantThreshold: 1,
+			wantErr:       nil,
+		},
+		{
+			name:          "4 parties should have threshold 2",
+			partyNum:      4,
+			wantThreshold: 2,
+			wantErr:       nil,
+		},
+		{
+			name:          "9 parties should have threshold 5",
+			partyNum:      9,
+			wantThreshold: 5,
+			wantErr:       nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := GetThreshold(tc.partyNum)
+			if err != tc.wantErr {
+				t.Fatalf("GetThreshold(%d) got error %v, want %v", tc.partyNum, err, tc.wantErr)
+			}
+			if got != tc.wantThreshold {
+				t.Errorf("GetThreshold(%d) = %d, want %d", tc.partyNum, got, tc.wantThreshold)
+			}
+		})
+	}
+}
