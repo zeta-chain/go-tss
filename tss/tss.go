@@ -1,19 +1,20 @@
 package tss
 
 import (
-	"errors"
 	"fmt"
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	bkeygen "github.com/bnb-chain/tss-lib/ecdsa/keygen"
 	tcrypto "github.com/cometbft/cometbft/crypto"
-	coskey "github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
+	"github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
 	sdk "github.com/cosmos/cosmos-sdk/types/bech32/legacybech32"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	maddr "github.com/multiformats/go-multiaddr"
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
@@ -60,110 +61,78 @@ type PeerInfo struct {
 	Address string
 }
 
+type NetworkConfig struct {
+	common.TssConfig
+	ExternalIP       string
+	Port             int
+	BootstrapPeers   []maddr.Multiaddr
+	WhitelistedPeers []peer.ID
+}
+
 // New constructs Server.
 func New(
-	cmdBootstrapPeers []maddr.Multiaddr,
-	p2pPort int,
-	priKey tcrypto.PrivKey,
+	net NetworkConfig,
 	baseFolder string,
-	conf common.TssConfig,
-	preParams *bkeygen.LocalPreParams,
-	externalIP string,
+	privateKey tcrypto.PrivKey,
 	tssPassword string,
-	whitelistedPeers []peer.ID,
+	preParams *bkeygen.LocalPreParams,
 ) (*Server, error) {
-	pk := coskey.PubKey{
-		Key: priKey.PubKey().Bytes()[:],
+	privateKeyBytes, err := conversion.GetPriKeyRawBytes(privateKey)
+	if err != nil {
+		return nil, errors.Wrap(err, "fail to get private key raw bytes")
 	}
 
-	pubKey, err := sdk.MarshalPubKey(sdk.AccPK, &pk)
+	pubKey, err := pubKeyBech32(privateKey)
 	if err != nil {
-		return nil, fmt.Errorf("fail to genearte the key: %w", err)
+		return nil, errors.Wrap(err, "fail to derive public key bech32")
+	}
+
+	preParams, err = ensurePreParams(preParams, net.PreParamTimeout)
+	if err != nil {
+		return nil, errors.Wrap(err, "fail to ensure pre-params")
 	}
 
 	stateManager, err := storage.NewFileStateMgr(baseFolder, tssPassword)
 	if err != nil {
-		return nil, fmt.Errorf("fail to create file state manager")
+		return nil, errors.Wrapf(err, "fail to create file state manager")
 	}
 
-	if len(whitelistedPeers) == 0 {
-		return nil, fmt.Errorf("whitelisted peers missing")
-	}
-
-	var bootstrapPeers []maddr.Multiaddr
-	savedPeers, err := stateManager.RetrieveP2PAddresses()
+	bootstrapPeers, err := resolveBootstrapPeers(net, stateManager)
 	if err != nil {
-		bootstrapPeers = cmdBootstrapPeers
-	} else {
-		bootstrapPeers = savedPeers
-		bootstrapPeers = append(bootstrapPeers, cmdBootstrapPeers...)
+		return nil, errors.Wrapf(err, "fail to resolve bootstrap peers")
 	}
 
-	whitelistedPeerSet := make(map[peer.ID]bool)
-	for _, w := range whitelistedPeers {
-		whitelistedPeerSet[w] = true
-	}
-	var whitelistedBootstrapPeers []maddr.Multiaddr
-	for _, b := range bootstrapPeers {
-		peer, err := peer.AddrInfoFromP2pAddr(b)
-		if err != nil {
-			return nil, err
-		}
-
-		if whitelistedPeerSet[peer.ID] {
-			whitelistedBootstrapPeers = append(whitelistedBootstrapPeers, b)
-		}
-	}
-
-	comm, err := p2p.NewCommunication(whitelistedBootstrapPeers, p2pPort, externalIP, whitelistedPeers)
+	comm, err := p2p.NewCommunication(bootstrapPeers, net.Port, net.ExternalIP, net.WhitelistedPeers)
 	if err != nil {
-		return nil, fmt.Errorf("fail to create communication layer: %w", err)
-	}
-	// When using the keygen party it is recommended that you pre-compute the
-	// "safe primes" and Paillier secret beforehand because this can take some
-	// time.
-	// This code will generate those parameters using a concurrency limit equal
-	// to the number of available CPU cores.
-	if preParams == nil || !preParams.Validate() {
-		preParams, err = bkeygen.GeneratePreParams(conf.PreParamTimeout)
-		if err != nil {
-			return nil, fmt.Errorf("fail to generate pre parameters: %w", err)
-		}
-	}
-	if !preParams.Validate() {
-		return nil, errors.New("invalid preparams")
+		return nil, errors.Wrapf(err, "fail to create communication layer")
 	}
 
-	priKeyRawBytes, err := conversion.GetPriKeyRawBytes(priKey)
-	if err != nil {
-		return nil, fmt.Errorf("fail to get private key")
+	if err := comm.Start(privateKeyBytes); nil != err {
+		return nil, errors.Wrap(err, "unable to start p2p network")
 	}
-	if err := comm.Start(priKeyRawBytes); nil != err {
-		return nil, fmt.Errorf("fail to start p2p network: %w", err)
-	}
-	pc := p2p.NewPartyCoordinator(comm.GetHost(), conf.PartyTimeout)
+
 	sn := keysign.NewSignatureNotifier(comm.GetHost())
 	sn.Start()
+
 	metrics := monitor.NewMetric()
-	if conf.EnableMonitor {
+	if net.EnableMonitor {
 		metrics.Enable()
 	}
-	tssServer := Server{
-		conf:              conf,
+
+	return &Server{
+		conf:              net.TssConfig,
 		logger:            log.With().Str("module", "tss").Logger(),
 		p2pCommunication:  comm,
 		localNodePubKey:   pubKey,
 		preParams:         preParams,
 		tssKeyGenLocker:   &sync.Mutex{},
 		stopChan:          make(chan struct{}),
-		partyCoordinator:  pc,
+		partyCoordinator:  p2p.NewPartyCoordinator(comm.GetHost(), net.PartyTimeout),
 		stateManager:      stateManager,
 		signatureNotifier: sn,
-		privateKey:        priKey,
+		privateKey:        privateKey,
 		tssMetrics:        metrics,
-	}
-
-	return &tssServer, nil
+	}, nil
 }
 
 // Start Tss server
@@ -276,22 +245,108 @@ func (t *Server) GetLocalPeerID() string {
 
 // GetKnownPeers return the the ID and IP address of all peers.
 func (t *Server) GetKnownPeers() []peer.AddrInfo {
-	var infos []peer.AddrInfo
-	host := t.p2pCommunication.GetHost()
+	var (
+		host        = t.p2pCommunication.GetHost()
+		connections = host.Network().Conns()
+		result      = []peer.AddrInfo{}
+	)
 
-	for _, conn := range host.Network().Conns() {
-		p := conn.RemotePeer()
-		addrs := conn.RemoteMultiaddr()
-		pi := peer.AddrInfo{
-			p,
-			[]maddr.Multiaddr{addrs},
+	for _, conn := range connections {
+		ai := peer.AddrInfo{
+			ID:    conn.RemotePeer(),
+			Addrs: []maddr.Multiaddr{conn.RemoteMultiaddr()},
 		}
-		infos = append(infos, pi)
+
+		result = append(result, ai)
 	}
-	return infos
+
+	return result
 }
 
 // GetP2PHost return the libp2p host of the Communicator inside Server
 func (t *Server) GetP2PHost() host.Host {
 	return t.p2pCommunication.GetHost()
+}
+
+func pubKeyBech32(privateKey tcrypto.PrivKey) (string, error) {
+	pk := secp256k1.PubKey{
+		Key: privateKey.PubKey().Bytes()[:],
+	}
+
+	pubKey, err := sdk.MarshalPubKey(sdk.AccPK, &pk)
+	if err != nil {
+		return "", err
+	}
+
+	return pubKey, nil
+}
+
+// resolveBootstrapPeers resolved bootstrap peers based on the whitelist & local state.
+func resolveBootstrapPeers(net NetworkConfig, stateManager *storage.FileStateMgr) ([]maddr.Multiaddr, error) {
+	// validate
+	if len(net.WhitelistedPeers) == 0 {
+		return nil, fmt.Errorf("whitelisted peers missing")
+	}
+
+	// Retrieve peers from local state, merge with bootstrap peers
+	peers, err := stateManager.RetrieveP2PAddresses()
+	if err != nil {
+		peers = net.BootstrapPeers
+	} else {
+		peers = append(peers, net.BootstrapPeers...)
+	}
+
+	// Make a set of whitelisted peers
+	whitelistSet := make(map[peer.ID]bool)
+	for _, w := range net.WhitelistedPeers {
+		whitelistSet[w] = true
+	}
+
+	var selectedPeers []maddr.Multiaddr
+	for _, v := range peers {
+		peer, err := peer.AddrInfoFromP2pAddr(v)
+		if err != nil {
+			return nil, errors.Wrapf(err, "fail to parse peer %q", v.String())
+		}
+
+		if whitelistSet[peer.ID] {
+			selectedPeers = append(selectedPeers, v)
+		}
+	}
+
+	// Deduplicate the result
+	cache := make(map[string]struct{})
+	deduped := make([]maddr.Multiaddr, 0, len(selectedPeers))
+
+	for _, p := range selectedPeers {
+		if _, ok := cache[p.String()]; ok {
+			continue
+		}
+
+		deduped = append(deduped, p)
+		cache[p.String()] = struct{}{}
+	}
+
+	return deduped, nil
+}
+
+// ensurePreParams when using the keygen party it is recommended that you pre-compute the
+// "safe primes" and Paillier secret beforehand because this can take some
+// time. This code will generate those parameters using a concurrency limit equal
+// to the number of available CPU cores.
+func ensurePreParams(preParams *bkeygen.LocalPreParams, timeout time.Duration) (*bkeygen.LocalPreParams, error) {
+	// noop
+	if preParams != nil && preParams.Validate() {
+		return preParams, nil
+	}
+
+	preParams, err := bkeygen.GeneratePreParams(timeout)
+	switch {
+	case err != nil:
+		return nil, errors.Wrap(err, "unable to generate pre-params")
+	case !preParams.Validate():
+		return nil, errors.New("invalid pre-params")
+	}
+
+	return preParams, nil
 }

@@ -239,17 +239,24 @@ func (s *FourNodeScaleZetaSuite) getTssServer(c *C, index int, conf common.TssCo
 		c.Assert(err, IsNil)
 		whitelistedPeers = append(whitelistedPeers, peer)
 	}
+
+	networkConfig := NetworkConfig{
+		TssConfig:        conf,
+		ExternalIP:       "",
+		Port:             s.ports[index],
+		BootstrapPeers:   s.bootstrapPeers,
+		WhitelistedPeers: whitelistedPeers,
+	}
+
 	instance, err := New(
-		s.bootstrapPeers,
-		s.ports[index],
-		priKey,
+		networkConfig,
 		baseHome,
-		conf,
-		s.preParams[index],
-		"",
+		priKey,
 		"password",
-		whitelistedPeers,
+		s.preParams[index],
 	)
+
 	c.Assert(err, IsNil)
+
 	return instance
 }

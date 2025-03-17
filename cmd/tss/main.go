@@ -44,6 +44,7 @@ func main() {
 	conversion.SetupBech32Prefix()
 	// Read stdin for the private key
 	inBuf := bufio.NewReader(os.Stdin)
+
 	priKeyBytes, err := input.GetPassword("input node secret key:", inBuf)
 	if err != nil {
 		fmt.Printf("error in get the secret key: %s\n", err.Error())
@@ -53,17 +54,22 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	networkConfig := tss.NetworkConfig{
+		TssConfig:        tssConf,
+		BootstrapPeers:   p2pConf.BootstrapPeers,
+		ExternalIP:       p2pConf.ExternalIP,
+		Port:             p2pConf.Port,
+		WhitelistedPeers: []peer.ID{},
+	}
+
 	// init tss module
 	tss, err := tss.New(
-		p2pConf.BootstrapPeers,
-		p2pConf.Port,
-		priKey,
+		networkConfig,
 		baseFolder,
-		tssConf,
-		nil,
-		p2pConf.ExternalIP,
+		priKey,
 		os.Getenv("PASSWORD"),
-		[]peer.ID{},
+		nil,
 	)
 	if nil != err {
 		log.Fatal(err)
