@@ -165,7 +165,7 @@ func (c *Communication) readFromStream(stream network.Stream) {
 	default:
 		dataBuf, err := ReadStreamWithBuffer(stream)
 		if err != nil {
-			c.logger.Error().Err(err).Msgf("fail to read from stream,peerID: %s", peerID)
+			c.logger.Error().Err(err).Str(logs.Peer, peerID).Msg("fail to read from stream")
 			c.streamMgr.AddStream("UNKNOWN", stream)
 			return
 		}
@@ -187,7 +187,10 @@ func (c *Communication) readFromStream(stream network.Stream) {
 		select {
 		case <-time.After(10 * time.Second):
 			c.logger.Warn().
-				Msgf("timeout to send message to channel: protocol ID: %s, msg type %s,  peer ID %s", stream.Protocol(), wrappedMsg.MessageType.String(), peerID)
+				Str(logs.Peer, peerID).
+				Str("protocol", string(stream.Protocol())).
+				Str("message_type", wrappedMsg.MessageType.String()).
+				Msg("timeout to send message to channel")
 		case channel <- &Message{
 			PeerID:  stream.Conn().RemotePeer(),
 			Payload: dataBuf}:
@@ -228,11 +231,11 @@ func (c *Communication) bootStrapConnectivityCheck() error {
 					return
 				}
 				if ret.Error == nil {
-					c.logger.Debug().Msgf("connect to peer %v with RTT %v\n", peer.ID, ret.RTT)
+					c.logger.Debug().Msgf("connect to peer %v with RTT %v", peer.ID, ret.RTT)
 					atomic.AddUint32(&onlineNodes, 1)
 				}
 			case <-ctx.Done():
-				c.logger.Error().Msgf("fail to ping the node %s within 2 seconds", peer.ID)
+				c.logger.Error().Stringer(logs.Peer, peer.ID).Msg("fail to ping peer within 2 seconds")
 			}
 		}()
 	}
@@ -249,8 +252,7 @@ func (c *Communication) bootStrapConnectivityCheck() error {
 func (c *Communication) startChannel(privKeyBytes []byte) error {
 	p2pPriKey, err := crypto.UnmarshalSecp256k1PrivateKey(privKeyBytes)
 	if err != nil {
-		c.logger.Error().Msgf("error is %f", err)
-		return err
+		return fmt.Errorf("fail to unmarshal private key: %w", err)
 	}
 
 	addressFactory := func(addrs []maddr.Multiaddr) []maddr.Multiaddr {
@@ -292,7 +294,7 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 	m, err := rcmgr.NewResourceManager(
 		limiter,
 		rcmgr.WithAllowlistedMultiaddrs(c.bootstrapPeers),
-		rcmgr.WithMetrics(NewResourceMetricReporter()),
+		rcmgr.WithMetrics(NewResourceMetricReporter(c.logger)),
 	)
 	if err != nil {
 		return err
@@ -392,12 +394,12 @@ func (c *Communication) connectToBootstrapPeers() error {
 			ctx, cancel := context.WithTimeout(context.Background(), TimeoutConnecting)
 			defer cancel()
 			if err := c.host.Connect(ctx, *pi); err != nil {
-				c.logger.Error().Err(err).Msgf("fail to connect to %s", pi.String())
+				c.logger.Error().Err(err).Stringer(logs.Peer, pi).Msg("fail to connect to peer")
 				connRet <- false
 				return
 			}
 			connRet <- true
-			c.logger.Info().Msgf("Connection established with bootstrap node: %s", *pi)
+			c.logger.Info().Stringer(logs.Peer, pi).Msg("Connection established with bootstrap node")
 		}(connRet)
 	}
 	wg.Wait()

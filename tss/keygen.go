@@ -89,7 +89,9 @@ func (t *Server) Keygen(req keygen.Request) (keygen.Response, error) {
 	if errJoinParty != nil {
 		t.logger.Error().
 			Err(errJoinParty).
-			Msgf("failed to joinParty after %s, onlinePeers=%v", joinPartyTime, onlinePeers)
+			Any("peers", onlinePeers).
+			Float64("timeout", joinPartyTime.Seconds()).
+			Msg("failed to joinParty due to timeout")
 
 		t.tssMetrics.KeygenJoinParty(joinPartyTime, false)
 		t.tssMetrics.UpdateKeyGen(0, false)
@@ -106,8 +108,12 @@ func (t *Server) Keygen(req keygen.Request) (keygen.Response, error) {
 			if err != nil {
 				t.logger.Err(errJoinParty).Msg("fail to get peers to blame")
 			}
+
 			// make sure we blame the leader as well
-			t.logger.Error().Err(errJoinParty).Msgf("fail to form keygen party with online:%v", onlinePeers)
+			t.logger.Error().Err(errJoinParty).
+				Any("peers", onlinePeers).
+				Msg("fail to form keygen party with online peers")
+
 			return keygen.Response{
 				Status: common.Fail,
 				Blame:  blameNodes,
@@ -137,7 +143,11 @@ func (t *Server) Keygen(req keygen.Request) (keygen.Response, error) {
 				len(onlinePeers))
 			blameNodes = blameLeader
 		}
-		t.logger.Error().Err(errJoinParty).Msgf("fail to form keygen party with online:%v", onlinePeers)
+
+		t.logger.Error().
+			Err(errJoinParty).
+			Any("peers", onlinePeers).
+			Msg("fail to form keygen party with online peers")
 
 		return keygen.Response{
 			Status: common.Fail,
@@ -280,8 +290,12 @@ func (t *Server) KeygenAllAlgo(req keygen.Request) ([]keygen.Response, error) {
 			if err != nil {
 				t.logger.Err(errJoinParty).Msg("fail to get peers to blame")
 			}
+
 			// make sure we blame the leader as well
-			t.logger.Error().Err(errJoinParty).Msgf("fail to form keygen party with online:%v", onlinePeers)
+			t.logger.Error().Err(errJoinParty).
+				Any("peers", onlinePeers).
+				Msg("fail to form keygen party with online peers")
+
 			return []keygen.Response{{
 				Status: common.Fail,
 				Blame:  blameNodes,
@@ -310,7 +324,10 @@ func (t *Server) KeygenAllAlgo(req keygen.Request) ([]keygen.Response, error) {
 		} else {
 			blameNodes = blameLeader
 		}
-		t.logger.Error().Err(errJoinParty).Msgf("fail to form keygen party with online:%v", onlinePeers)
+
+		t.logger.Error().Err(errJoinParty).
+			Any("peers", onlinePeers).
+			Msg("fail to form keygen party with online peers")
 
 		return []keygen.Response{{
 			Status: common.Fail,

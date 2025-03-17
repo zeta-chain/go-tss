@@ -156,7 +156,7 @@ func (t *Server) Stop() {
 	// stop the p2p and finish the p2p wait group
 	err := t.p2pCommunication.Stop()
 	if err != nil {
-		t.logger.Error().Msgf("error in shutdown the p2p server")
+		t.logger.Error().Msg("error in shutdown the p2p server")
 	}
 	t.partyCoordinator.Stop()
 	t.signatureNotifier.Stop()

@@ -139,7 +139,7 @@ func (t *TssCommon) doTssJob(tssJobChan chan *tssJob, jobWg *sync.WaitGroup) {
 		_, errUp := party.UpdateFromBytes(wireBytes, partyID, isBroadcast)
 		if errUp != nil {
 			err := t.processInvalidMsgBlame(round.RoundMsg, round, errUp)
-			t.logger.Error().Err(err).Msgf("fail to apply the share to tss")
+			t.logger.Error().Err(err).Msg("fail to apply the share to tss")
 			continue
 		}
 		// we need to retrieve the partylist again as others may update it once we process apply tss share
@@ -204,7 +204,7 @@ func (t *TssCommon) processInvalidMsgBlame(roundInfo string, round blame.RoundIn
 	}
 	pubkeys, errBlame := conversion.AccPubKeysFromPartyIDs(culpritsID, t.partyInfo.PartyIDMap)
 	if errBlame != nil {
-		t.logger.Error().Err(err.Cause()).Msgf("error in get the blame nodes")
+		t.logger.Error().Err(err.Cause()).Msg("error in get the blame nodes")
 		t.blameMgr.GetBlame().SetBlame(blame.TssBrokenMsg, nil, unicast, roundInfo)
 		return fmt.Errorf("error in getting the blame nodes")
 	}
@@ -603,7 +603,7 @@ func (t *TssCommon) applyShare(
 
 		blamePk, err := t.blameMgr.TssWrongShareBlame(localCacheItem.Msg)
 		if err != nil {
-			t.logger.Error().Err(err).Msgf("error in get the blame nodes")
+			t.logger.Error().Err(err).Msg("error in get the blame nodes")
 			t.blameMgr.GetBlame().SetBlame(blame.HashCheckFail, nil, unicast, t.RoundInfo)
 			return fmt.Errorf("error in getting the blame nodes %w", blame.ErrHashCheck)
 		}
