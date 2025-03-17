@@ -20,8 +20,8 @@ import (
 	"github.com/ipfs/go-log"
 	zlog "github.com/rs/zerolog/log"
 
-	"gitlab.com/thorchain/tss/go-tss/conversion"
-	"gitlab.com/thorchain/tss/go-tss/keysign"
+	"github.com/zeta-chain/go-tss/conversion"
+	"github.com/zeta-chain/go-tss/keysign"
 
 	tcrypto "github.com/cometbft/cometbft/crypto"
 	"github.com/cometbft/cometbft/crypto/secp256k1"
@@ -29,10 +29,10 @@ import (
 	maddr "github.com/multiformats/go-multiaddr"
 	. "gopkg.in/check.v1"
 
-	"gitlab.com/thorchain/tss/go-tss/common"
-	"gitlab.com/thorchain/tss/go-tss/messages"
-	"gitlab.com/thorchain/tss/go-tss/p2p"
-	"gitlab.com/thorchain/tss/go-tss/storage"
+	"github.com/zeta-chain/go-tss/common"
+	"github.com/zeta-chain/go-tss/messages"
+	"github.com/zeta-chain/go-tss/p2p"
+	"github.com/zeta-chain/go-tss/storage"
 )
 
 var (
@@ -129,9 +129,11 @@ func (s *TssECDSAKeysignTestSuite) SetUpTest(c *C) {
 		c.Skip("skip the test")
 		return
 	}
-	ports := []int{
-		17666, 17667, 17668, 17669,
-	}
+
+	ports, err := p2p.GetFreePorts(4)
+	c.Assert(err, IsNil)
+	zlog.Info().Ints("ports", ports).Msg("Allocated ports for test")
+
 	s.partyNum = 4
 	s.comms = make([]*p2p.Communication, s.partyNum)
 	s.stateMgrs = make([]storage.LocalStateManager, s.partyNum)
@@ -175,7 +177,13 @@ func (s *TssECDSAKeysignTestSuite) TestSignMessage(c *C) {
 	}
 	log.SetLogLevel("tss-lib", "info")
 	sort.Strings(testPubKeys)
-	req := keysign.NewRequest("thorpub1addwnpepqv6xp3fmm47dfuzglywqvpv8fdjv55zxte4a26tslcezns5czv586u2fw33", []string{"helloworld-test", "t"}, 10, testPubKeys, "")
+	req := keysign.NewRequest(
+		"thorpub1addwnpepqv6xp3fmm47dfuzglywqvpv8fdjv55zxte4a26tslcezns5czv586u2fw33",
+		[]string{"helloworld-test", "t"},
+		10,
+		testPubKeys,
+		"",
+	)
 	sort.Strings(req.Messages)
 	dat := []byte(strings.Join(req.Messages, ","))
 	messageID, err := common.MsgToHashString(dat)
@@ -273,7 +281,13 @@ func (s *TssECDSAKeysignTestSuite) TestSignMessageWithStop(c *C) {
 		return
 	}
 	sort.Strings(testPubKeys)
-	req := keysign.NewRequest("thorpub1addwnpepqv6xp3fmm47dfuzglywqvpv8fdjv55zxte4a26tslcezns5czv586u2fw33", []string{"helloworld-test", "t"}, 10, testPubKeys, "")
+	req := keysign.NewRequest(
+		"thorpub1addwnpepqv6xp3fmm47dfuzglywqvpv8fdjv55zxte4a26tslcezns5czv586u2fw33",
+		[]string{"helloworld-test", "t"},
+		10,
+		testPubKeys,
+		"",
+	)
 	sort.Strings(req.Messages)
 	dat := []byte(strings.Join(req.Messages, ","))
 	messageID, err := common.MsgToHashString(dat)
@@ -321,7 +335,8 @@ func (s *TssECDSAKeysignTestSuite) TestSignMessageWithStop(c *C) {
 			_, err = keysignIns.SignMessage(msgsToSign, localState, req.SignerPubKeys)
 			c.Assert(err, NotNil)
 			lastMsg := keysignIns.tssCommonStruct.GetBlameMgr().GetLastMsg()
-			zlog.Info().Msgf("%s------->last message %v, broadcast? %v", keysignIns.tssCommonStruct.GetLocalPeerID(), lastMsg.Type(), lastMsg.IsBroadcast())
+			zlog.Info().
+				Msgf("%s------->last message %v, broadcast? %v", keysignIns.tssCommonStruct.GetLocalPeerID(), lastMsg.Type(), lastMsg.IsBroadcast())
 			// we skip the node 1 as we force it to stop
 			if idx != 1 {
 				blames := keysignIns.GetTssCommonStruct().GetBlameMgr().GetBlame().BlameNodes
@@ -364,7 +379,13 @@ func (s *TssECDSAKeysignTestSuite) TestSignMessageRejectOnePeer(c *C) {
 		return
 	}
 	sort.Strings(testPubKeys)
-	req := keysign.NewRequest("thorpub1addwnpepqv6xp3fmm47dfuzglywqvpv8fdjv55zxte4a26tslcezns5czv586u2fw33", []string{"helloworld-test", "t"}, 10, testPubKeys, "")
+	req := keysign.NewRequest(
+		"thorpub1addwnpepqv6xp3fmm47dfuzglywqvpv8fdjv55zxte4a26tslcezns5czv586u2fw33",
+		[]string{"helloworld-test", "t"},
+		10,
+		testPubKeys,
+		"",
+	)
 	sort.Strings(req.Messages)
 	dat := []byte(strings.Join(req.Messages, ","))
 	messageID, err := common.MsgToHashString(dat)
@@ -407,7 +428,8 @@ func (s *TssECDSAKeysignTestSuite) TestSignMessageRejectOnePeer(c *C) {
 			msgsToSign = append(msgsToSign, []byte(req.Messages[1]))
 			_, err = keysignIns.SignMessage(msgsToSign, localState, req.SignerPubKeys)
 			lastMsg := keysignIns.tssCommonStruct.GetBlameMgr().GetLastMsg()
-			zlog.Info().Msgf("%s------->last message %v, broadcast? %v", keysignIns.tssCommonStruct.GetLocalPeerID(), lastMsg.Type(), lastMsg.IsBroadcast())
+			zlog.Info().
+				Msgf("%s------->last message %v, broadcast? %v", keysignIns.tssCommonStruct.GetLocalPeerID(), lastMsg.Type(), lastMsg.IsBroadcast())
 			c.Assert(err, IsNil)
 		}(i)
 	}

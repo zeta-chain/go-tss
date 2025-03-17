@@ -16,11 +16,11 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/bnb-chain/tss-lib/ecdsa/keygen"
 	"github.com/libp2p/go-libp2p/core/peer"
 	maddr "github.com/multiformats/go-multiaddr"
 
-	"github.com/bnb-chain/tss-lib/ecdsa/keygen"
-	"gitlab.com/thorchain/tss/go-tss/conversion"
+	"github.com/zeta-chain/go-tss/conversion"
 )
 
 const keyFragmentSeed = "TSS_FRAGMENT_SEED"
@@ -151,7 +151,10 @@ func (fsm *FileStateMgr) GetLocalState(pubKey string) (KeygenLocalState, error) 
 		// try unmarshalling with the old format
 		var localStateOld KeygenLocalStateOld
 		if err := json.Unmarshal(pt, &localStateOld); nil != err {
-			return KeygenLocalState{}, fmt.Errorf("fail to unmarshal KeygenLocalState with backwards compatibility: %w", err)
+			return KeygenLocalState{}, fmt.Errorf(
+				"fail to unmarshal KeygenLocalState with backwards compatibility: %w",
+				err,
+			)
 		}
 
 		localState.PubKey = localStateOld.PubKey
@@ -160,7 +163,10 @@ func (fsm *FileStateMgr) GetLocalState(pubKey string) (KeygenLocalState, error) 
 		localState.LocalData, err = json.Marshal(localStateOld.LocalData)
 
 		if err != nil {
-			return KeygenLocalState{}, fmt.Errorf("fail to marshal KeygenLocalState.LocalData for backwards compatibility: %w", err)
+			return KeygenLocalState{}, fmt.Errorf(
+				"fail to marshal KeygenLocalState.LocalData for backwards compatibility: %w",
+				err,
+			)
 		}
 	}
 	fsm.writeLock.Lock()

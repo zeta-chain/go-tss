@@ -62,11 +62,11 @@ func VersionLTCheck(currentVer, expectedVer string) (bool, error) {
 func TestBootstrapAddrs(ports []int, testPubKeys []string) ([]maddr.Multiaddr, error) {
 	res := make([]maddr.Multiaddr, len(ports))
 	for i := 0; i < len(ports); i++ {
-		peerId, err := Bech32PubkeyToPeerID(testPubKeys[i])
+		peerID, err := Bech32PubkeyToPeerID(testPubKeys[i])
 		if err != nil {
 			return nil, fmt.Errorf("pubkey for peer %d is not valid %w", i, err)
 		}
-		peerAddr, err := maddr.NewMultiaddr(fmt.Sprintf("/ip4/127.0.0.1/tcp/%d/p2p/%s", ports[i], peerId.String()))
+		peerAddr, err := maddr.NewMultiaddr(fmt.Sprintf("/ip4/127.0.0.1/tcp/%d/p2p/%s", ports[i], peerID.String()))
 		if err != nil {
 			return nil, fmt.Errorf("peer addr %d is not valid %w", i, err)
 		}

@@ -16,16 +16,18 @@ import (
 	btsskeygen "github.com/bnb-chain/tss-lib/ecdsa/keygen"
 	"github.com/libp2p/go-libp2p/core/peer"
 	maddr "github.com/multiformats/go-multiaddr"
+	zlog "github.com/rs/zerolog/log"
+	"github.com/zeta-chain/go-tss/p2p"
 	. "gopkg.in/check.v1"
 
-	"gitlab.com/thorchain/tss/go-tss/common"
-	"gitlab.com/thorchain/tss/go-tss/conversion"
-	"gitlab.com/thorchain/tss/go-tss/keygen"
-	"gitlab.com/thorchain/tss/go-tss/keysign"
+	"github.com/zeta-chain/go-tss/common"
+	"github.com/zeta-chain/go-tss/conversion"
+	"github.com/zeta-chain/go-tss/keygen"
+	"github.com/zeta-chain/go-tss/keysign"
 )
 
 type FourNodeScaleZetaSuite struct {
-	servers        []*TssServer
+	servers        []*Server
 	ports          []int
 	preParams      []*btsskeygen.LocalPreParams
 	bootstrapPeers []maddr.Multiaddr
@@ -39,18 +41,20 @@ var _ = Suite(&FourNodeScaleZetaSuite{})
 
 // setup four nodes for test
 func (s *FourNodeScaleZetaSuite) SetUpSuite(c *C) {
-	var err error
 	common.InitLog("info", true, "four_nodes_zeta_test")
 	conversion.SetupBech32Prefix()
 	s.tmpDir = path.Join(os.TempDir(), "4nodes_zeta_test")
 	os.RemoveAll(s.tmpDir)
-	s.ports = []int{
-		21666, 21667, 21668, 21669,
-	}
+
+	ports, err := p2p.GetFreePorts(4)
+	c.Assert(err, IsNil)
+	zlog.Info().Ints("ports", ports).Msg("Allocated ports for test")
+	s.ports = ports
+
 	s.bootstrapPeers, err = conversion.TestBootstrapAddrs(s.ports, testPubKeys)
 	c.Assert(err, IsNil)
 	s.preParams = getPreparams(c)
-	s.servers = make([]*TssServer, partyNum)
+	s.servers = make([]*Server, partyNum)
 	s.tssConfig = common.TssConfig{
 		KeyGenTimeout:   90 * time.Second,
 		KeySignTimeout:  90 * time.Second,
@@ -221,7 +225,7 @@ func (s *FourNodeScaleZetaSuite) TearDownSuite(c *C) {
 	os.RemoveAll(s.tmpDir)
 }
 
-func (s *FourNodeScaleZetaSuite) getTssServer(c *C, index int, conf common.TssConfig) *TssServer {
+func (s *FourNodeScaleZetaSuite) getTssServer(c *C, index int, conf common.TssConfig) *Server {
 	priKey, err := conversion.GetPriKey(testPriKeyArr[index])
 	c.Assert(err, IsNil)
 	baseHome := path.Join(s.tmpDir, strconv.Itoa(index))
@@ -235,7 +239,17 @@ func (s *FourNodeScaleZetaSuite) getTssServer(c *C, index int, conf common.TssCo
 		c.Assert(err, IsNil)
 		whitelistedPeers = append(whitelistedPeers, peer)
 	}
-	instance, err := NewTss(s.bootstrapPeers, s.ports[index], priKey, baseHome, conf, s.preParams[index], "", "password", whitelistedPeers)
+	instance, err := New(
+		s.bootstrapPeers,
+		s.ports[index],
+		priKey,
+		baseHome,
+		conf,
+		s.preParams[index],
+		"",
+		"password",
+		whitelistedPeers,
+	)
 	c.Assert(err, IsNil)
 	return instance
 }

@@ -98,7 +98,7 @@ func (m *Manager) SetPartyInfo(partyMap *sync.Map, partyIDMap map[string]*btss.P
 	}
 	m.partyInfo = partyInfo
 	var localParty btss.Party
-	m.partyInfo.PartyMap.Range(func(key, value interface{}) bool {
+	m.partyInfo.PartyMap.Range(func(_, value any) bool {
 		localParty = value.(btss.Party)
 		return false
 	})

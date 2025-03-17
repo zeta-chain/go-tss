@@ -14,10 +14,10 @@ import (
 	golog "github.com/ipfs/go-log"
 	"github.com/libp2p/go-libp2p/core/peer"
 
-	"gitlab.com/thorchain/tss/go-tss/common"
-	"gitlab.com/thorchain/tss/go-tss/conversion"
-	"gitlab.com/thorchain/tss/go-tss/p2p"
-	"gitlab.com/thorchain/tss/go-tss/tss"
+	"github.com/zeta-chain/go-tss/common"
+	"github.com/zeta-chain/go-tss/conversion"
+	"github.com/zeta-chain/go-tss/p2p"
+	"github.com/zeta-chain/go-tss/tss"
 )
 
 var (
@@ -54,7 +54,7 @@ func main() {
 		log.Fatal(err)
 	}
 	// init tss module
-	tss, err := tss.NewTss(
+	tss, err := tss.New(
 		p2pConf.BootstrapPeers,
 		p2pConf.Port,
 		priKey,
@@ -68,7 +68,7 @@ func main() {
 	if nil != err {
 		log.Fatal(err)
 	}
-	s := NewTssHttpServer(tssAddr, tss)
+	s := NewHTTPServer(tssAddr, tss)
 	go func() {
 		if err := s.Start(); err != nil {
 			fmt.Println(err)
@@ -87,7 +87,12 @@ func parseFlags() (tssConf common.TssConfig, p2pConf p2p.Config) {
 	flag.StringVar(&tssAddr, "tss-port", "127.0.0.1:8080", "tss port")
 	flag.BoolVar(&help, "h", false, "Display Help")
 	flag.StringVar(&logLevel, "loglevel", "info", "Log Level")
-	flag.BoolVar(&pretty, "pretty-log", false, "Enables unstructured prettified logging. This is useful for local debugging")
+	flag.BoolVar(
+		&pretty,
+		"pretty-log",
+		false,
+		"Enables unstructured prettified logging. This is useful for local debugging",
+	)
 	flag.StringVar(&baseFolder, "home", "", "home folder to store the keygen state file")
 
 	// we setup the Tss parameter configuration

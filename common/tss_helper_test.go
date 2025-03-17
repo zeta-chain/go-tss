@@ -13,9 +13,9 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	. "gopkg.in/check.v1"
 
-	"gitlab.com/thorchain/tss/go-tss/blame"
-	"gitlab.com/thorchain/tss/go-tss/conversion"
-	"gitlab.com/thorchain/tss/go-tss/messages"
+	"github.com/zeta-chain/go-tss/blame"
+	"github.com/zeta-chain/go-tss/conversion"
+	"github.com/zeta-chain/go-tss/messages"
 )
 
 type tssHelpSuite struct{}
@@ -62,7 +62,10 @@ func (t *tssHelpSuite) TestMsgToHashString(c *C) {
 
 func (t *tssHelpSuite) TestTssCommon_NotifyTaskDone(c *C) {
 	conversion.SetupBech32Prefix()
-	pk, err := sdk.UnmarshalPubKey(sdk.AccPK, "thorpub1addwnpepqtdklw8tf3anjz7nn5fly3uvq2e67w2apn560s4smmrt9e3x52nt2svmmu3")
+	pk, err := sdk.UnmarshalPubKey(
+		sdk.AccPK,
+		"thorpub1addwnpepqtdklw8tf3anjz7nn5fly3uvq2e67w2apn560s4smmrt9e3x52nt2svmmu3",
+	)
 	c.Assert(err, IsNil)
 	peerID, err := conversion.GetPeerIDFromSecp256PubKey(pk.Bytes())
 	c.Assert(err, IsNil)
@@ -73,7 +76,10 @@ func (t *tssHelpSuite) TestTssCommon_NotifyTaskDone(c *C) {
 }
 
 func (t *tssHelpSuite) TestTssCommon_processRequestMsgFromPeer(c *C) {
-	pk, err := sdk.UnmarshalPubKey(sdk.AccPK, "thorpub1addwnpepqtdklw8tf3anjz7nn5fly3uvq2e67w2apn560s4smmrt9e3x52nt2svmmu3")
+	pk, err := sdk.UnmarshalPubKey(
+		sdk.AccPK,
+		"thorpub1addwnpepqtdklw8tf3anjz7nn5fly3uvq2e67w2apn560s4smmrt9e3x52nt2svmmu3",
+	)
 	c.Assert(err, IsNil)
 	peerID, err := conversion.GetPeerIDFromSecp256PubKey(pk.Bytes())
 	c.Assert(err, IsNil)

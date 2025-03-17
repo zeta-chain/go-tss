@@ -4,11 +4,12 @@ import (
 	"errors"
 
 	"github.com/libp2p/go-libp2p/core/peer"
-	"gitlab.com/thorchain/tss/go-tss/blame"
-	"gitlab.com/thorchain/tss/go-tss/common"
-	"gitlab.com/thorchain/tss/go-tss/conversion"
-	"gitlab.com/thorchain/tss/go-tss/keygen"
-	"gitlab.com/thorchain/tss/go-tss/keysign"
+
+	"github.com/zeta-chain/go-tss/blame"
+	"github.com/zeta-chain/go-tss/common"
+	"github.com/zeta-chain/go-tss/conversion"
+	"github.com/zeta-chain/go-tss/keygen"
+	"github.com/zeta-chain/go-tss/keysign"
 )
 
 type MockTssServer struct {
@@ -35,14 +36,20 @@ func (mts *MockTssServer) GetKnownPeers() []peer.AddrInfo {
 	return []peer.AddrInfo{}
 }
 
-func (mts *MockTssServer) Keygen(req keygen.Request) (keygen.Response, error) {
+func (mts *MockTssServer) Keygen(_ keygen.Request) (keygen.Response, error) {
 	if mts.failToKeyGen {
 		return keygen.Response{}, errors.New("you ask for it")
 	}
-	return keygen.NewResponse(common.ECDSA, conversion.GetRandomPubKey(), "whatever", common.Success, blame.Blame{}), nil
+	return keygen.NewResponse(
+		common.ECDSA,
+		conversion.GetRandomPubKey(),
+		"whatever",
+		common.Success,
+		blame.Blame{},
+	), nil
 }
 
-func (mts *MockTssServer) KeygenAllAlgo(req keygen.Request) ([]keygen.Response, error) {
+func (mts *MockTssServer) KeygenAllAlgo(_ keygen.Request) ([]keygen.Response, error) {
 	if mts.failToKeyGen {
 		return []keygen.Response{{}}, errors.New("you ask for it")
 	}
@@ -52,7 +59,7 @@ func (mts *MockTssServer) KeygenAllAlgo(req keygen.Request) ([]keygen.Response, 
 	}, nil
 }
 
-func (mts *MockTssServer) KeySign(req keysign.Request) (keysign.Response, error) {
+func (mts *MockTssServer) KeySign(_ keysign.Request) (keysign.Response, error) {
 	if mts.failToKeySign {
 		return keysign.Response{}, errors.New("you ask for it")
 	}

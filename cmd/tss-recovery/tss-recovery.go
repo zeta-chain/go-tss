@@ -9,7 +9,7 @@ import (
 
 	"github.com/bnb-chain/tss-lib/crypto/vss"
 	"github.com/btcsuite/btcd/btcec/v2"
-	. "github.com/decred/dcrd/dcrec/secp256k1"
+	ecdsa "github.com/decred/dcrd/dcrec/secp256k1"
 )
 
 func main() {
@@ -46,7 +46,7 @@ func main() {
 		fmt.Printf("error in tss verify")
 	}
 
-	privKey := NewPrivateKey(tssPrivateKey)
+	privKey := ecdsa.NewPrivateKey(tssPrivateKey)
 
 	pk := privKey.PubKey()
 	thorchainpk, address, err := getTssPubKey(pk.X, pk.Y)

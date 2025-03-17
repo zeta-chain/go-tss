@@ -9,15 +9,13 @@ import (
 type MockLocalStateManager struct {
 }
 
-func (s *MockLocalStateManager) SaveLocalState(state KeygenLocalState) error {
-	return nil
-}
+func (s *MockLocalStateManager) SaveLocalState(_ KeygenLocalState) error { return nil }
 
-func (s *MockLocalStateManager) GetLocalState(pubKey string) (KeygenLocalState, error) {
+func (s *MockLocalStateManager) GetLocalState(_ string) (KeygenLocalState, error) {
 	return KeygenLocalState{}, nil
 }
 
-func (s *MockLocalStateManager) SaveAddressBook(address map[peer.ID][]maddr.Multiaddr) error {
+func (s *MockLocalStateManager) SaveAddressBook(_ map[peer.ID][]maddr.Multiaddr) error {
 	return nil
 }
 

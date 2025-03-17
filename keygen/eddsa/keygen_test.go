@@ -17,16 +17,17 @@ import (
 	tcrypto "github.com/cometbft/cometbft/crypto"
 	"github.com/cometbft/cometbft/crypto/secp256k1"
 	"github.com/libp2p/go-libp2p/core/peer"
+	zlog "github.com/rs/zerolog/log"
 
 	btss "github.com/bnb-chain/tss-lib/tss"
 	. "gopkg.in/check.v1"
 
-	"gitlab.com/thorchain/tss/go-tss/common"
-	"gitlab.com/thorchain/tss/go-tss/conversion"
-	"gitlab.com/thorchain/tss/go-tss/keygen"
-	"gitlab.com/thorchain/tss/go-tss/messages"
-	"gitlab.com/thorchain/tss/go-tss/p2p"
-	"gitlab.com/thorchain/tss/go-tss/storage"
+	"github.com/zeta-chain/go-tss/common"
+	"github.com/zeta-chain/go-tss/conversion"
+	"github.com/zeta-chain/go-tss/keygen"
+	"github.com/zeta-chain/go-tss/messages"
+	"github.com/zeta-chain/go-tss/p2p"
+	"github.com/zeta-chain/go-tss/storage"
 )
 
 var (
@@ -90,9 +91,10 @@ func (s *EddsaKeygenTestSuite) SetUpSuite(c *C) {
 
 // SetUpTest set up environment for test key gen
 func (s *EddsaKeygenTestSuite) SetUpTest(c *C) {
-	ports := []int{
-		19666, 19667, 19668, 19669,
-	}
+	ports, err := p2p.GetFreePorts(4)
+	c.Assert(err, IsNil)
+	zlog.Info().Ints("ports", ports).Msg("Allocated ports for test")
+
 	s.partyNum = 4
 	s.comms = make([]*p2p.Communication, s.partyNum)
 	s.stateMgrs = make([]storage.LocalStateManager, s.partyNum)
@@ -161,7 +163,7 @@ func (s *EddsaKeygenTestSuite) TestGenerateNewKey(c *C) {
 			comm := s.comms[idx]
 			stopChan := make(chan struct{})
 			localPubKey := testPubKeys[idx]
-			keygenInstance := NewTssKeyGen(
+			keygenInstance := New(
 				comm.GetLocalPeerID(),
 				conf,
 				localPubKey,
@@ -199,7 +201,7 @@ func (s *EddsaKeygenTestSuite) TestKeyGenWithError(c *C) {
 	}
 	conf := common.TssConfig{}
 	stateManager := &storage.MockLocalStateManager{}
-	keyGenInstance := NewTssKeyGen("", conf, "", nil, nil, "test", stateManager, s.nodePrivKeys[0], nil)
+	keyGenInstance := New("", conf, "", nil, nil, "test", stateManager, s.nodePrivKeys[0], nil)
 	generatedKey, err := keyGenInstance.GenerateNewKey(req)
 	c.Assert(err, NotNil)
 	c.Assert(generatedKey, IsNil)
@@ -208,7 +210,7 @@ func (s *EddsaKeygenTestSuite) TestKeyGenWithError(c *C) {
 func (s *EddsaKeygenTestSuite) TestCloseKeyGennotifyChannel(c *C) {
 	conf := common.TssConfig{}
 	stateManager := &storage.MockLocalStateManager{}
-	keyGenInstance := NewTssKeyGen("", conf, "", nil, nil, "test", stateManager, s.nodePrivKeys[0], s.comms[0])
+	keyGenInstance := New("", conf, "", nil, nil, "test", stateManager, s.nodePrivKeys[0], s.comms[0])
 
 	taskDone := messages.TssTaskNotifier{TaskDone: true}
 	taskDoneBytes, err := json.Marshal(taskDone)

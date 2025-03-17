@@ -102,7 +102,12 @@ func ReadStreamWithBuffer(stream network.Stream) ([]byte, error) {
 	dataBuf := make([]byte, length)
 	n, err = io.ReadFull(streamReader, dataBuf)
 	if uint32(n) != length || err != nil {
-		return nil, fmt.Errorf("short read err(%w), we would like to read: %d, however we only read: %d", err, length, n)
+		return nil, fmt.Errorf(
+			"short read err(%w), we would like to read: %d, however we only read: %d",
+			err,
+			length,
+			n,
+		)
 	}
 	return dataBuf, nil
 }

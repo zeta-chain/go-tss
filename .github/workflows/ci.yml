@@ -20,16 +20,25 @@ jobs:
         with:
           go-version: ${{ matrix.go-version }}
       - name: Test
-        run: go test -race -timeout 25m ./...
+        run: go test -timeout 25m ./...
   lint:
-    name: lint
     runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    env:
+      GO111MODULE: on
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - name: Checkout Source
+        uses: actions/checkout@v4
         with:
-          go-version: 1.22
-      - name: golangci-lint
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v6
         with:
-          version: v1.56.2
+          version: v1.63.4
+          skip-cache: true

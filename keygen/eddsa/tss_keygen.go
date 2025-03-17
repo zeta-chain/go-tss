@@ -14,16 +14,16 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
-	"gitlab.com/thorchain/tss/go-tss/blame"
-	"gitlab.com/thorchain/tss/go-tss/common"
-	"gitlab.com/thorchain/tss/go-tss/conversion"
-	"gitlab.com/thorchain/tss/go-tss/keygen"
-	"gitlab.com/thorchain/tss/go-tss/messages"
-	"gitlab.com/thorchain/tss/go-tss/p2p"
-	"gitlab.com/thorchain/tss/go-tss/storage"
+	"github.com/zeta-chain/go-tss/blame"
+	"github.com/zeta-chain/go-tss/common"
+	"github.com/zeta-chain/go-tss/conversion"
+	"github.com/zeta-chain/go-tss/keygen"
+	"github.com/zeta-chain/go-tss/messages"
+	"github.com/zeta-chain/go-tss/p2p"
+	"github.com/zeta-chain/go-tss/storage"
 )
 
-type EDDSAKeyGen struct {
+type KeyGen struct {
 	logger          zerolog.Logger
 	localNodePubKey string
 	tssCommonStruct *common.TssCommon
@@ -34,7 +34,8 @@ type EDDSAKeyGen struct {
 	p2pComm         *p2p.Communication
 }
 
-func NewTssKeyGen(localP2PID string,
+func New(
+	localP2PID string,
 	conf common.TssConfig,
 	localNodePubKey string,
 	broadcastChan chan *messages.BroadcastMsgChan,
@@ -42,11 +43,10 @@ func NewTssKeyGen(localP2PID string,
 	msgID string,
 	stateManager storage.LocalStateManager,
 	privateKey tcrypto.PrivKey,
-	p2pComm *p2p.Communication) *EDDSAKeyGen {
-	return &EDDSAKeyGen{
-		logger: log.With().
-			Str("module", "keygen").
-			Str("msgID", msgID).Logger(),
+	p2pComm *p2p.Communication,
+) *KeyGen {
+	return &KeyGen{
+		logger:          log.With().Str("module", "keygen").Str("msgID", msgID).Logger(),
 		localNodePubKey: localNodePubKey,
 		tssCommonStruct: common.NewTssCommon(localP2PID, broadcastChan, conf, msgID, privateKey, 1),
 		stopChan:        stopChan,
@@ -57,15 +57,15 @@ func NewTssKeyGen(localP2PID string,
 	}
 }
 
-func (tKeyGen *EDDSAKeyGen) GetTssKeyGenChannels() chan *p2p.Message {
+func (tKeyGen *KeyGen) GetTssKeyGenChannels() chan *p2p.Message {
 	return tKeyGen.tssCommonStruct.TssMsg
 }
 
-func (tKeyGen *EDDSAKeyGen) GetTssCommonStruct() *common.TssCommon {
+func (tKeyGen *KeyGen) GetTssCommonStruct() *common.TssCommon {
 	return tKeyGen.tssCommonStruct
 }
 
-func (tKeyGen *EDDSAKeyGen) GenerateNewKey(keygenReq keygen.Request) (*bcrypto.ECPoint, error) {
+func (tKeyGen *KeyGen) GenerateNewKey(keygenReq keygen.Request) (*bcrypto.ECPoint, error) {
 	keyGenPartyMap := new(sync.Map)
 	partiesID, localPartyID, err := conversion.GetParties(keygenReq.Keys, tKeyGen.localNodePubKey)
 	if err != nil {
@@ -106,7 +106,10 @@ func (tKeyGen *EDDSAKeyGen) GenerateNewKey(keygenReq keygen.Request) (*bcrypto.E
 	tKeyGen.tssCommonStruct.SetPartyInfo(partyInfo)
 	blameMgr.SetPartyInfo(keyGenPartyMap, partyIDMap)
 	tKeyGen.tssCommonStruct.P2PPeersLock.Lock()
-	tKeyGen.tssCommonStruct.P2PPeers = conversion.GetPeersID(tKeyGen.tssCommonStruct.PartyIDtoP2PID, tKeyGen.tssCommonStruct.GetLocalPeerID())
+	tKeyGen.tssCommonStruct.P2PPeers = conversion.GetPeersID(
+		tKeyGen.tssCommonStruct.PartyIDtoP2PID,
+		tKeyGen.tssCommonStruct.GetLocalPeerID(),
+	)
 	tKeyGen.tssCommonStruct.P2PPeersLock.Unlock()
 	var keyGenWg sync.WaitGroup
 	keyGenWg.Add(2)
@@ -138,7 +141,7 @@ func (tKeyGen *EDDSAKeyGen) GenerateNewKey(keygenReq keygen.Request) (*bcrypto.E
 	return r, err
 }
 
-func (tKeyGen *EDDSAKeyGen) processKeyGen(errChan chan struct{},
+func (tKeyGen *KeyGen) processKeyGen(errChan chan struct{},
 	outCh <-chan btss.Message,
 	endCh <-chan eddsakg.LocalPartySaveData,
 	keyGenLocalStateItem storage.KeygenLocalState) (*bcrypto.ECPoint, error) {
@@ -187,7 +190,10 @@ func (tKeyGen *EDDSAKeyGen) processKeyGen(errChan chan struct{},
 
 			// if we cannot find the blame node, we check whether everyone send me the share
 			if len(blameMgr.GetBlame().BlameNodes) == 0 {
-				blameNodesMisingShare, isUnicast, err := blameMgr.TssMissingShareBlame(messages.EDDSAKEYGENROUNDS, messages.EDDSAKEYGEN)
+				blameNodesMisingShare, isUnicast, err := blameMgr.TssMissingShareBlame(
+					messages.EDDSAKEYGENROUNDS,
+					messages.EDDSAKEYGEN,
+				)
 				if err != nil {
 					tKeyGen.logger.Error().Err(err).Msg("fail to get the node of missing share ")
 				}

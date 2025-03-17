@@ -11,7 +11,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"gitlab.com/thorchain/tss/go-tss/keygen"
+	"github.com/zeta-chain/go-tss/keygen"
 )
 
 func TestPackage(t *testing.T) { TestingT(t) }
@@ -23,7 +23,7 @@ var _ = Suite(&TssHttpServerTestSuite{})
 
 func (TssHttpServerTestSuite) TestNewTssHttpServer(c *C) {
 	tssServer := &MockTssServer{}
-	s := NewTssHttpServer("127.0.0.1:8080", tssServer)
+	s := NewHTTPServer("127.0.0.1:8080", tssServer)
 	c.Assert(s, NotNil)
 	wg := sync.WaitGroup{}
 	wg.Add(1)
@@ -40,7 +40,7 @@ func (TssHttpServerTestSuite) TestNewTssHttpServer(c *C) {
 
 func (TssHttpServerTestSuite) TestPingHandler(c *C) {
 	tssServer := &MockTssServer{}
-	s := NewTssHttpServer("127.0.0.1:8080", tssServer)
+	s := NewHTTPServer("127.0.0.1:8080", tssServer)
 	c.Assert(s, NotNil)
 	req := httptest.NewRequest(http.MethodGet, "/ping", nil)
 	res := httptest.NewRecorder()
@@ -50,7 +50,7 @@ func (TssHttpServerTestSuite) TestPingHandler(c *C) {
 
 func (TssHttpServerTestSuite) TestGetP2pIDHandler(c *C) {
 	tssServer := &MockTssServer{}
-	s := NewTssHttpServer("127.0.0.1:8080", tssServer)
+	s := NewHTTPServer("127.0.0.1:8080", tssServer)
 	c.Assert(s, NotNil)
 	req := httptest.NewRequest(http.MethodGet, "/p2pid", nil)
 	res := httptest.NewRecorder()
@@ -114,7 +114,7 @@ func (TssHttpServerTestSuite) TestKeygenHandler(c *C) {
 	for _, tc := range testCases {
 		c.Log(tc.name)
 		tssServer := &MockTssServer{}
-		s := NewTssHttpServer("127.0.0.1:8080", tssServer)
+		s := NewHTTPServer("127.0.0.1:8080", tssServer)
 		c.Assert(s, NotNil)
 		if tc.setter != nil {
 			tc.setter(tssServer)
@@ -191,7 +191,7 @@ func (TssHttpServerTestSuite) TestKeysignHandler(c *C) {
 	for _, tc := range testCases {
 		c.Log(tc.name)
 		tssServer := &MockTssServer{}
-		s := NewTssHttpServer("127.0.0.1:8080", tssServer)
+		s := NewHTTPServer("127.0.0.1:8080", tssServer)
 		c.Assert(s, NotNil)
 		if tc.setter != nil {
 			tc.setter(tssServer)

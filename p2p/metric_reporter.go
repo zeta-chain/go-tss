@@ -19,9 +19,7 @@ func NewResourceMetricReporter() *ResourceMetricReporter {
 }
 
 // AllowConn is invoked when opening a connection is allowed
-func (rmr *ResourceMetricReporter) AllowConn(dir network.Direction, usefd bool) {
-
-}
+func (rmr *ResourceMetricReporter) AllowConn(_ network.Direction, _ bool) {}
 
 // BlockConn is invoked when opening a connection is blocked
 func (rmr *ResourceMetricReporter) BlockConn(dir network.Direction, usefd bool) {
@@ -29,9 +27,7 @@ func (rmr *ResourceMetricReporter) BlockConn(dir network.Direction, usefd bool) 
 }
 
 // AllowStream is invoked when opening a stream is allowed
-func (rmr *ResourceMetricReporter) AllowStream(p peer.ID, dir network.Direction) {
-
-}
+func (rmr *ResourceMetricReporter) AllowStream(_ peer.ID, _ network.Direction) {}
 
 // BlockStream is invoked when opening a stream is blocked
 func (rmr *ResourceMetricReporter) BlockStream(p peer.ID, dir network.Direction) {
@@ -39,7 +35,7 @@ func (rmr *ResourceMetricReporter) BlockStream(p peer.ID, dir network.Direction)
 }
 
 // AllowPeer is invoked when attaching ac onnection to a peer is allowed
-func (rmr *ResourceMetricReporter) AllowPeer(p peer.ID) {}
+func (rmr *ResourceMetricReporter) AllowPeer(_ peer.ID) {}
 
 // BlockPeer is invoked when attaching a connection to a peer is blocked
 func (rmr *ResourceMetricReporter) BlockPeer(p peer.ID) {
@@ -47,7 +43,7 @@ func (rmr *ResourceMetricReporter) BlockPeer(p peer.ID) {
 }
 
 // AllowProtocol is invoked when setting the protocol for a stream is allowed
-func (rmr *ResourceMetricReporter) AllowProtocol(proto protocol.ID) {}
+func (rmr *ResourceMetricReporter) AllowProtocol(_ protocol.ID) {}
 
 // BlockProtocol is invoked when setting the protocol for a stream is blocked
 func (rmr *ResourceMetricReporter) BlockProtocol(proto protocol.ID) {
@@ -60,7 +56,7 @@ func (rmr *ResourceMetricReporter) BlockProtocolPeer(proto protocol.ID, p peer.I
 }
 
 // AllowService is invoked when setting the protocol for a stream is allowed
-func (rmr *ResourceMetricReporter) AllowService(svc string) {}
+func (rmr *ResourceMetricReporter) AllowService(_ string) {}
 
 // BlockService is invoked when setting the protocol for a stream is blocked
 func (rmr *ResourceMetricReporter) BlockService(svc string) {
@@ -73,7 +69,7 @@ func (rmr *ResourceMetricReporter) BlockServicePeer(svc string, p peer.ID) {
 }
 
 // AllowMemory is invoked when a memory reservation is allowed
-func (rmr *ResourceMetricReporter) AllowMemory(size int) {}
+func (rmr *ResourceMetricReporter) AllowMemory(_ int) {}
 
 // BlockMemory is invoked when a memory reservation is blocked
 func (rmr *ResourceMetricReporter) BlockMemory(size int) {

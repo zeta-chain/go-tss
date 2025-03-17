@@ -6,20 +6,22 @@ import (
 
 	"github.com/bnb-chain/tss-lib/crypto"
 	"github.com/cosmos/cosmos-sdk/types"
-	"gitlab.com/thorchain/tss/go-tss/blame"
-	"gitlab.com/thorchain/tss/go-tss/common"
-	"gitlab.com/thorchain/tss/go-tss/conversion"
-	"gitlab.com/thorchain/tss/go-tss/keygen"
-	"gitlab.com/thorchain/tss/go-tss/keygen/ecdsa"
-	"gitlab.com/thorchain/tss/go-tss/keygen/eddsa"
-	"gitlab.com/thorchain/tss/go-tss/messages"
+
+	"github.com/zeta-chain/go-tss/blame"
+	"github.com/zeta-chain/go-tss/common"
+	"github.com/zeta-chain/go-tss/conversion"
+	"github.com/zeta-chain/go-tss/keygen"
+	"github.com/zeta-chain/go-tss/keygen/ecdsa"
+	"github.com/zeta-chain/go-tss/keygen/eddsa"
+	"github.com/zeta-chain/go-tss/messages"
+	"github.com/zeta-chain/go-tss/p2p"
 )
 
-func (t *TssServer) Keygen(req keygen.Request) (keygen.Response, error) {
+func (t *Server) Keygen(req keygen.Request) (keygen.Response, error) {
 	t.tssKeyGenLocker.Lock()
 	defer t.tssKeyGenLocker.Unlock()
 	status := common.Success
-	msgID, err := t.requestToMsgId(req)
+	msgID, err := t.requestToMsgID(req)
 	if err != nil {
 		return keygen.Response{}, err
 	}
@@ -39,7 +41,7 @@ func (t *TssServer) Keygen(req keygen.Request) (keygen.Response, error) {
 			t.privateKey,
 			t.p2pCommunication)
 	case common.EdDSA:
-		keygenInstance = eddsa.NewTssKeyGen(
+		keygenInstance = eddsa.New(
 			t.p2pCommunication.GetLocalPeerID(),
 			t.conf,
 			t.localNodePubKey,
@@ -71,15 +73,24 @@ func (t *TssServer) Keygen(req keygen.Request) (keygen.Response, error) {
 	sigChan := make(chan string)
 	blameMgr := keygenInstance.GetTssCommonStruct().GetBlameMgr()
 	joinPartyStartTime := time.Now()
-	onlinePeers, leader, errJoinParty := t.joinParty(msgID, req.Version, req.BlockHeight, req.Keys, len(req.Keys)-1, sigChan)
+	onlinePeers, leader, errJoinParty := t.joinParty(
+		msgID,
+		req.Version,
+		req.BlockHeight,
+		req.Keys,
+		len(req.Keys)-1,
+		sigChan,
+	)
 	joinPartyTime := time.Since(joinPartyStartTime)
 	if errJoinParty != nil {
-		t.logger.Error().Err(errJoinParty).Msgf("failed to joinParty after %s, onlinePeers=%v", joinPartyTime, onlinePeers)
+		t.logger.Error().
+			Err(errJoinParty).
+			Msgf("failed to joinParty after %s, onlinePeers=%v", joinPartyTime, onlinePeers)
 
 		t.tssMetrics.KeygenJoinParty(joinPartyTime, false)
 		t.tssMetrics.UpdateKeyGen(0, false)
 		// this indicate we are processing the leaderless join party
-		if leader == "NONE" {
+		if leader == p2p.NoLeader {
 			if onlinePeers == nil {
 				t.logger.Error().Err(err).Msg("error before we start join party")
 				return keygen.Response{
@@ -97,7 +108,6 @@ func (t *TssServer) Keygen(req keygen.Request) (keygen.Response, error) {
 				Status: common.Fail,
 				Blame:  blameNodes,
 			}, nil
-
 		}
 
 		var blameLeader blame.Blame
@@ -129,7 +139,6 @@ func (t *TssServer) Keygen(req keygen.Request) (keygen.Response, error) {
 			Status: common.Fail,
 			Blame:  blameNodes,
 		}, nil
-
 	}
 
 	t.logger.Info().Msg("joinParty succeeded, keygen party formed")
@@ -147,9 +156,9 @@ func (t *TssServer) Keygen(req keygen.Request) (keygen.Response, error) {
 		blameNodes := *blameMgr.GetBlame()
 		t.logger.Error().Err(err).Msgf("failed to generate key, blaming: %+v", blameNodes.BlameNodes)
 		return keygen.NewResponse(common.ECDSA, "", "", common.Fail, blameNodes), err
-	} else {
-		t.tssMetrics.UpdateKeyGen(keygenTime, true)
 	}
+
+	t.tssMetrics.UpdateKeyGen(keygenTime, true)
 
 	var newPubKey string
 	var addr types.AccAddress
@@ -177,13 +186,13 @@ func (t *TssServer) Keygen(req keygen.Request) (keygen.Response, error) {
 	), nil
 }
 
-func (t *TssServer) KeygenAllAlgo(req keygen.Request) ([]keygen.Response, error) {
+func (t *Server) KeygenAllAlgo(req keygen.Request) ([]keygen.Response, error) {
 	// this is the algo we currently support
 	algos := []common.Algo{common.ECDSA, common.EdDSA}
 	t.tssKeyGenLocker.Lock()
 	defer t.tssKeyGenLocker.Unlock()
 	status := common.Success
-	msgID, err := t.requestToMsgId(req)
+	msgID, err := t.requestToMsgID(req)
 	if err != nil {
 		return nil, err
 	}
@@ -200,7 +209,7 @@ func (t *TssServer) KeygenAllAlgo(req keygen.Request) ([]keygen.Response, error)
 		t.privateKey,
 		t.p2pCommunication)
 
-	eddsaKeygenInstance := eddsa.NewTssKeyGen(
+	eddsaKeygenInstance := eddsa.New(
 		t.p2pCommunication.GetLocalPeerID(),
 		t.conf,
 		t.localNodePubKey,
@@ -238,13 +247,20 @@ func (t *TssServer) KeygenAllAlgo(req keygen.Request) ([]keygen.Response, error)
 	// since all the keygen algorithms share the join party, so we need to use the ecdsa algo's blame manager
 	blameMgr := keygenInstances[common.ECDSA].GetTssCommonStruct().GetBlameMgr()
 	joinPartyStartTime := time.Now()
-	onlinePeers, leader, errJoinParty := t.joinParty(msgID, req.Version, req.BlockHeight, req.Keys, len(req.Keys)-1, sigChan)
+	onlinePeers, leader, errJoinParty := t.joinParty(
+		msgID,
+		req.Version,
+		req.BlockHeight,
+		req.Keys,
+		len(req.Keys)-1,
+		sigChan,
+	)
 	joinPartyTime := time.Since(joinPartyStartTime)
 	if errJoinParty != nil {
 		t.tssMetrics.KeygenJoinParty(joinPartyTime, false)
 		t.tssMetrics.UpdateKeyGen(0, false)
 		// this indicate we are processing the leaderless join party
-		if leader == "NONE" {
+		if leader == p2p.NoLeader {
 			if onlinePeers == nil {
 				t.logger.Error().Err(err).Msg("error before we start join party")
 				return []keygen.Response{{
@@ -262,7 +278,6 @@ func (t *TssServer) KeygenAllAlgo(req keygen.Request) ([]keygen.Response, error)
 				Status: common.Fail,
 				Blame:  blameNodes,
 			}}, nil
-
 		}
 
 		var blameLeader blame.Blame
@@ -293,7 +308,6 @@ func (t *TssServer) KeygenAllAlgo(req keygen.Request) ([]keygen.Response, error)
 			Status: common.Fail,
 			Blame:  blameNodes,
 		}}, nil
-
 	}
 
 	t.tssMetrics.KeygenJoinParty(joinPartyTime, true)
@@ -317,9 +331,9 @@ func (t *TssServer) KeygenAllAlgo(req keygen.Request) ([]keygen.Response, error)
 			blameMgr := instance.GetTssCommonStruct().GetBlameMgr()
 			blameNode = *blameMgr.GetBlame()
 			break
-		} else {
-			t.tssMetrics.UpdateKeyGen(keygenTime, true)
 		}
+
+		t.tssMetrics.UpdateKeyGen(keygenTime, true)
 
 		blameNodes := *blameMgr.GetBlame()
 		var newPubKey string

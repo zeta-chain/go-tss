@@ -8,8 +8,8 @@ import (
 	mapset "github.com/deckarep/golang-set"
 	"github.com/libp2p/go-libp2p/core/peer"
 
-	"gitlab.com/thorchain/tss/go-tss/conversion"
-	"gitlab.com/thorchain/tss/go-tss/messages"
+	"github.com/zeta-chain/go-tss/conversion"
+	"github.com/zeta-chain/go-tss/messages"
 )
 
 func (m *Manager) tssTimeoutBlame(lastMessageType string, partyIDMap map[string]*btss.PartyID) ([]string, error) {
@@ -182,7 +182,8 @@ func (m *Manager) TssMissingShareBlame(rounds int, algo messages.Algo) ([]Node, 
 				isUnicast = false
 
 			default:
-				m.logger.Error().Msgf("fail to find the algorithm for this keygen/keysign, set unicast as false by default")
+				m.logger.Error().
+					Msgf("fail to find the algorithm for this keygen/keysign, set unicast as false by default")
 				isUnicast = false
 			}
 

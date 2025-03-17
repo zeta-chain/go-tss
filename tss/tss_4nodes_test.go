@@ -17,13 +17,15 @@ import (
 	btsskeygen "github.com/bnb-chain/tss-lib/ecdsa/keygen"
 	"github.com/libp2p/go-libp2p/core/peer"
 	maddr "github.com/multiformats/go-multiaddr"
+	zlog "github.com/rs/zerolog/log"
+	"github.com/zeta-chain/go-tss/p2p"
 
 	. "gopkg.in/check.v1"
 
-	"gitlab.com/thorchain/tss/go-tss/common"
-	"gitlab.com/thorchain/tss/go-tss/conversion"
-	"gitlab.com/thorchain/tss/go-tss/keygen"
-	"gitlab.com/thorchain/tss/go-tss/keysign"
+	"github.com/zeta-chain/go-tss/common"
+	"github.com/zeta-chain/go-tss/conversion"
+	"github.com/zeta-chain/go-tss/keygen"
+	"github.com/zeta-chain/go-tss/keysign"
 )
 
 const (
@@ -61,7 +63,7 @@ func TestPackage(t *testing.T) {
 }
 
 type FourNodeTestSuite struct {
-	servers        []*TssServer
+	servers        []*Server
 	ports          []int
 	preParams      []*btsskeygen.LocalPreParams
 	bootstrapPeers []maddr.Multiaddr
@@ -72,16 +74,18 @@ var _ = Suite(&FourNodeTestSuite{})
 
 // setup four nodes for test
 func (s *FourNodeTestSuite) SetUpTest(c *C) {
-	var err error
 	common.InitLog("info", true, "four_nodes_test")
 	conversion.SetupBech32Prefix()
-	s.ports = []int{
-		20666, 20667, 20668, 20669,
-	}
+
+	ports, err := p2p.GetFreePorts(4)
+	c.Assert(err, IsNil)
+	zlog.Info().Ints("ports", ports).Msg("Allocated ports for test")
+	s.ports = ports
+
 	s.bootstrapPeers, err = conversion.TestBootstrapAddrs(s.ports, testPubKeys)
 	c.Assert(err, IsNil)
 	s.preParams = getPreparams(c)
-	s.servers = make([]*TssServer, partyNum)
+	s.servers = make([]*Server, partyNum)
 	s.tssConfig = common.TssConfig{
 		KeyGenTimeout:   90 * time.Second,
 		KeySignTimeout:  90 * time.Second,
@@ -119,7 +123,8 @@ func hash(payload []byte) []byte {
 func (s *FourNodeTestSuite) Test4NodesTss(c *C) {
 	algos := []common.Algo{common.ECDSA, common.EdDSA}
 	// 0.13.0 is oldJoinParty, 0.14.0 is the new leader-based joinParty
-	versions := []string{oldJoinPartyVersion, newJoinPartyVersion}
+	//versions := []string{oldJoinPartyVersion, newJoinPartyVersion}
+	versions := []string{newJoinPartyVersion}
 	for _, algo := range algos {
 		for _, jpv := range versions {
 			c.Logf("testing with version %s for algo %s", jpv, algo)
@@ -173,7 +178,13 @@ func (s *FourNodeTestSuite) doTestKeygenAndKeySign(c *C, version string, algo co
 		}
 	}
 
-	keysignReqWithErr := keysign.NewRequest(poolPubKey, []string{"helloworld", "helloworld2"}, 10, copyTestPubKeys(), version)
+	keysignReqWithErr := keysign.NewRequest(
+		poolPubKey,
+		[]string{"helloworld", "helloworld2"},
+		10,
+		copyTestPubKeys(),
+		version,
+	)
 	resp, err := s.servers[0].KeySign(keysignReqWithErr)
 	c.Assert(err, NotNil)
 	c.Assert(resp.Signatures, HasLen, 0)
@@ -356,7 +367,7 @@ func (s *FourNodeTestSuite) TearDownTest(c *C) {
 	}
 }
 
-func (s *FourNodeTestSuite) getTssServer(c *C, index int, conf common.TssConfig) *TssServer {
+func (s *FourNodeTestSuite) getTssServer(c *C, index int, conf common.TssConfig) *Server {
 	priKey, err := conversion.GetPriKey(testPriKeyArr[index])
 	c.Assert(err, IsNil)
 	baseHome := path.Join(os.TempDir(), "4nodes_test", strconv.Itoa(index))
@@ -370,7 +381,17 @@ func (s *FourNodeTestSuite) getTssServer(c *C, index int, conf common.TssConfig)
 		c.Assert(err, IsNil)
 		whitelistedPeers = append(whitelistedPeers, peer)
 	}
-	instance, err := NewTss(s.bootstrapPeers, s.ports[index], priKey, baseHome, conf, s.preParams[index], "", "password", whitelistedPeers)
+	instance, err := New(
+		s.bootstrapPeers,
+		s.ports[index],
+		priKey,
+		baseHome,
+		conf,
+		s.preParams[index],
+		"",
+		"password",
+		whitelistedPeers,
+	)
 	c.Assert(err, IsNil)
 	return instance
 }

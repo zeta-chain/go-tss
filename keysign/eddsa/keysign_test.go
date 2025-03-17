@@ -14,9 +14,10 @@ import (
 	"time"
 
 	btss "github.com/bnb-chain/tss-lib/tss"
+	zlog "github.com/rs/zerolog/log"
 
-	"gitlab.com/thorchain/tss/go-tss/conversion"
-	"gitlab.com/thorchain/tss/go-tss/keysign"
+	"github.com/zeta-chain/go-tss/conversion"
+	"github.com/zeta-chain/go-tss/keysign"
 
 	tsslibcommon "github.com/bnb-chain/tss-lib/common"
 	tcrypto "github.com/cometbft/cometbft/crypto"
@@ -25,10 +26,10 @@ import (
 	maddr "github.com/multiformats/go-multiaddr"
 	. "gopkg.in/check.v1"
 
-	"gitlab.com/thorchain/tss/go-tss/common"
-	"gitlab.com/thorchain/tss/go-tss/messages"
-	"gitlab.com/thorchain/tss/go-tss/p2p"
-	"gitlab.com/thorchain/tss/go-tss/storage"
+	"github.com/zeta-chain/go-tss/common"
+	"github.com/zeta-chain/go-tss/messages"
+	"github.com/zeta-chain/go-tss/p2p"
+	"github.com/zeta-chain/go-tss/storage"
 )
 
 var (
@@ -127,9 +128,11 @@ func (s *EddsaKeysignTestSuite) SetUpTest(c *C) {
 		c.Skip("skip the test")
 		return
 	}
-	ports := []int{
-		15666, 15667, 15668, 15669,
-	}
+
+	ports, err := p2p.GetFreePorts(4)
+	c.Assert(err, IsNil)
+	zlog.Info().Ints("ports", ports).Msg("Allocated ports for test")
+
 	s.partyNum = 4
 	s.comms = make([]*p2p.Communication, s.partyNum)
 	s.stateMgrs = make([]storage.LocalStateManager, s.partyNum)
@@ -171,7 +174,13 @@ func (s *EddsaKeysignTestSuite) TestSignMessage(c *C) {
 		return
 	}
 	sort.Strings(testPubKeys)
-	req := keysign.NewRequest("thorpub1zcjduepq665vjeq34n7ccpvdl8t6akgls3c6u2uq242vpag2d9knstxymxfqq2ufwe", []string{"helloworld-test111", "test2"}, 10, testPubKeys, "0.16.0")
+	req := keysign.NewRequest(
+		"thorpub1zcjduepq665vjeq34n7ccpvdl8t6akgls3c6u2uq242vpag2d9knstxymxfqq2ufwe",
+		[]string{"helloworld-test111", "test2"},
+		10,
+		testPubKeys,
+		"0.16.0",
+	)
 	sort.Strings(req.Messages)
 	dat := []byte(strings.Join(req.Messages, ","))
 	messageID, err := common.MsgToHashString(dat)
@@ -195,7 +204,7 @@ func (s *EddsaKeysignTestSuite) TestSignMessage(c *C) {
 			defer wg.Done()
 			comm := s.comms[idx]
 			stopChan := make(chan struct{})
-			keysignIns := NewTssKeySign(comm.GetLocalPeerID(),
+			keysignIns := New(comm.GetLocalPeerID(),
 				conf,
 				comm.BroadcastMsgChan,
 				stopChan, messageID,
@@ -252,7 +261,7 @@ func (s *EddsaKeysignTestSuite) TearDownTest(c *C) {
 
 func (s *EddsaKeysignTestSuite) TestCloseKeySignnotifyChannel(c *C) {
 	conf := common.TssConfig{}
-	keySignInstance := NewTssKeySign("", conf, nil, nil, "test", s.nodePrivKeys[0], s.comms[0], s.stateMgrs[0], 1)
+	keySignInstance := New("", conf, nil, nil, "test", s.nodePrivKeys[0], s.comms[0], s.stateMgrs[0], 1)
 
 	taskDone := messages.TssTaskNotifier{TaskDone: true}
 	taskDoneBytes, err := json.Marshal(taskDone)

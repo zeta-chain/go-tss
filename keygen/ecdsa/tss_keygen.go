@@ -10,18 +10,18 @@ import (
 	bcrypto "github.com/bnb-chain/tss-lib/crypto"
 	bkg "github.com/bnb-chain/tss-lib/ecdsa/keygen"
 	btss "github.com/bnb-chain/tss-lib/tss"
+	"github.com/btcsuite/btcd/btcec/v2"
 	tcrypto "github.com/cometbft/cometbft/crypto"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
-	"github.com/btcsuite/btcd/btcec/v2"
-	"gitlab.com/thorchain/tss/go-tss/blame"
-	"gitlab.com/thorchain/tss/go-tss/common"
-	"gitlab.com/thorchain/tss/go-tss/conversion"
-	"gitlab.com/thorchain/tss/go-tss/keygen"
-	"gitlab.com/thorchain/tss/go-tss/messages"
-	"gitlab.com/thorchain/tss/go-tss/p2p"
-	"gitlab.com/thorchain/tss/go-tss/storage"
+	"github.com/zeta-chain/go-tss/blame"
+	"github.com/zeta-chain/go-tss/common"
+	"github.com/zeta-chain/go-tss/conversion"
+	"github.com/zeta-chain/go-tss/keygen"
+	"github.com/zeta-chain/go-tss/messages"
+	"github.com/zeta-chain/go-tss/p2p"
+	"github.com/zeta-chain/go-tss/storage"
 )
 
 type TssKeyGen struct {
@@ -113,7 +113,10 @@ func (tKeyGen *TssKeyGen) GenerateNewKey(keygenReq keygen.Request) (*bcrypto.ECP
 	tKeyGen.tssCommonStruct.SetPartyInfo(partyInfo)
 	blameMgr.SetPartyInfo(keyGenPartyMap, partyIDMap)
 	tKeyGen.tssCommonStruct.P2PPeersLock.Lock()
-	tKeyGen.tssCommonStruct.P2PPeers = conversion.GetPeersID(tKeyGen.tssCommonStruct.PartyIDtoP2PID, tKeyGen.tssCommonStruct.GetLocalPeerID())
+	tKeyGen.tssCommonStruct.P2PPeers = conversion.GetPeersID(
+		tKeyGen.tssCommonStruct.PartyIDtoP2PID,
+		tKeyGen.tssCommonStruct.GetLocalPeerID(),
+	)
 	tKeyGen.tssCommonStruct.P2PPeersLock.Unlock()
 	var keyGenWg sync.WaitGroup
 	keyGenWg.Add(2)
@@ -196,7 +199,10 @@ func (tKeyGen *TssKeyGen) processKeyGen(errChan chan struct{},
 
 			// if we cannot find the blame node, we check whether everyone send me the share
 			if len(blameMgr.GetBlame().BlameNodes) == 0 {
-				blameNodesMisingShare, isUnicast, err := blameMgr.TssMissingShareBlame(messages.TSSKEYGENROUNDS, messages.ECDSAKEYGEN)
+				blameNodesMisingShare, isUnicast, err := blameMgr.TssMissingShareBlame(
+					messages.TSSKEYGENROUNDS,
+					messages.ECDSAKEYGEN,
+				)
 				if err != nil {
 					tKeyGen.logger.Error().Err(err).Msg("fail to get the node of missing share ")
 				}

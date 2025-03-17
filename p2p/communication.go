@@ -22,7 +22,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
-	"gitlab.com/thorchain/tss/go-tss/messages"
+	"github.com/zeta-chain/go-tss/messages"
 )
 
 var (
@@ -72,7 +72,7 @@ func NewCommunication(
 	if err != nil {
 		return nil, fmt.Errorf("fail to create listen addr: %w", err)
 	}
-	var externalAddr maddr.Multiaddr = nil
+	var externalAddr maddr.Multiaddr
 	if len(externalIP) != 0 {
 		externalAddr, err = maddr.NewMultiaddr(fmt.Sprintf("/ip4/%s/tcp/%d", externalIP, port))
 		if err != nil {
@@ -186,12 +186,12 @@ func (c *Communication) readFromStream(stream network.Stream) {
 		c.streamMgr.AddStream(wrappedMsg.MsgID, stream)
 		select {
 		case <-time.After(10 * time.Second):
-			c.logger.Warn().Msgf("timeout to send message to channel: protocol ID: %s, msg type %s,  peer ID %s", stream.Protocol(), wrappedMsg.MessageType.String(), peerID)
+			c.logger.Warn().
+				Msgf("timeout to send message to channel: protocol ID: %s, msg type %s,  peer ID %s", stream.Protocol(), wrappedMsg.MessageType.String(), peerID)
 		case channel <- &Message{
 			PeerID:  stream.Conn().RemotePeer(),
 			Payload: dataBuf}:
 		}
-
 	}
 }
 
@@ -289,7 +289,11 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 
 	limiter := rcmgr.NewFixedLimiter(limits)
 
-	m, err := rcmgr.NewResourceManager(limiter, rcmgr.WithAllowlistedMultiaddrs(c.bootstrapPeers), rcmgr.WithMetrics(NewResourceMetricReporter()))
+	m, err := rcmgr.NewResourceManager(
+		limiter,
+		rcmgr.WithAllowlistedMultiaddrs(c.bootstrapPeers),
+		rcmgr.WithMetrics(NewResourceMetricReporter()),
+	)
 	if err != nil {
 		return err
 	}

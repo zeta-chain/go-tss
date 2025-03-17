@@ -17,18 +17,29 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
-	"gitlab.com/thorchain/tss/go-tss/common"
-	"gitlab.com/thorchain/tss/go-tss/conversion"
-	"gitlab.com/thorchain/tss/go-tss/keygen"
-	"gitlab.com/thorchain/tss/go-tss/keysign"
-	"gitlab.com/thorchain/tss/go-tss/messages"
-	"gitlab.com/thorchain/tss/go-tss/monitor"
-	"gitlab.com/thorchain/tss/go-tss/p2p"
-	"gitlab.com/thorchain/tss/go-tss/storage"
+	"github.com/zeta-chain/go-tss/common"
+	"github.com/zeta-chain/go-tss/conversion"
+	"github.com/zeta-chain/go-tss/keygen"
+	"github.com/zeta-chain/go-tss/keysign"
+	"github.com/zeta-chain/go-tss/messages"
+	"github.com/zeta-chain/go-tss/monitor"
+	"github.com/zeta-chain/go-tss/p2p"
+	"github.com/zeta-chain/go-tss/storage"
 )
 
-// TssServer is the structure that can provide all keysign and key gen features
-type TssServer struct {
+// IServer define the necessary functionality should be provide by a TSS Server implementation.
+type IServer interface {
+	Start() error
+	Stop()
+	GetLocalPeerID() string
+	GetKnownPeers() []peer.AddrInfo
+	Keygen(req keygen.Request) (keygen.Response, error)
+	KeygenAllAlgo(req keygen.Request) ([]keygen.Response, error)
+	KeySign(req keysign.Request) (keysign.Response, error)
+}
+
+// Server is the structure that can provide all keysign and key gen features
+type Server struct {
 	conf              common.TssConfig
 	logger            zerolog.Logger
 	p2pCommunication  *p2p.Communication
@@ -49,8 +60,8 @@ type PeerInfo struct {
 	Address string
 }
 
-// NewTss create a new instance of Tss
-func NewTss(
+// New constructs Server.
+func New(
 	cmdBootstrapPeers []maddr.Multiaddr,
 	p2pPort int,
 	priKey tcrypto.PrivKey,
@@ -60,7 +71,7 @@ func NewTss(
 	externalIP string,
 	tssPassword string,
 	whitelistedPeers []peer.ID,
-) (*TssServer, error) {
+) (*Server, error) {
 	pk := coskey.PubKey{
 		Key: priKey.PubKey().Bytes()[:],
 	}
@@ -137,7 +148,7 @@ func NewTss(
 	if conf.EnableMonitor {
 		metrics.Enable()
 	}
-	tssServer := TssServer{
+	tssServer := Server{
 		conf:              conf,
 		logger:            log.With().Str("module", "tss").Logger(),
 		p2pCommunication:  comm,
@@ -156,13 +167,13 @@ func NewTss(
 }
 
 // Start Tss server
-func (t *TssServer) Start() error {
+func (t *Server) Start() error {
 	t.logger.Info().Msg("starting the tss servers")
 	return nil
 }
 
 // Stop Tss server
-func (t *TssServer) Stop() {
+func (t *Server) Stop() {
 	close(t.stopChan)
 	// stop the p2p and finish the p2p wait group
 	err := t.p2pCommunication.Stop()
@@ -174,20 +185,23 @@ func (t *TssServer) Stop() {
 	t.logger.Info().Msg("The tss and p2p server has been stopped successfully")
 }
 
-func (t *TssServer) setJoinPartyChan(jpc chan struct{}) {
+// nolint:unused // used in tests
+func (t *Server) setJoinPartyChan(jpc chan struct{}) {
 	t.joinPartyChan = jpc
 }
-func (t *TssServer) unsetJoinPartyChan() {
+
+// nolint:unused // used in tests
+func (t *Server) unsetJoinPartyChan() {
 	t.joinPartyChan = nil
 }
 
-func (t *TssServer) notifyJoinPartyChan() {
+func (t *Server) notifyJoinPartyChan() {
 	if t.joinPartyChan != nil {
 		t.joinPartyChan <- struct{}{}
 	}
 }
 
-func (t *TssServer) requestToMsgId(request interface{}) (string, error) {
+func (t *Server) requestToMsgID(request any) (string, error) {
 	var dat []byte
 	var keys []string
 	switch value := request.(type) {
@@ -210,50 +224,58 @@ func (t *TssServer) requestToMsgId(request interface{}) (string, error) {
 	return common.MsgToHashString(dat)
 }
 
-func (t *TssServer) joinParty(msgID, version string, blockHeight int64, participants []string, threshold int, sigChan chan string) ([]peer.ID, string, error) {
+func (t *Server) joinParty(
+	msgID, version string,
+	blockHeight int64,
+	participants []string,
+	threshold int,
+	sigChan chan string,
+) ([]peer.ID, string, error) {
 	oldJoinParty, err := conversion.VersionLTCheck(version, messages.NEWJOINPARTYVERSION)
 	if err != nil {
 		return nil, "", fmt.Errorf("fail to parse the version with error:%w", err)
 	}
+
 	if oldJoinParty {
 		t.logger.Info().Msg("we apply the leadless join party")
 		peerIDs, err := conversion.GetPeerIDsFromPubKeys(participants)
 		if err != nil {
-			return nil, "NONE", fmt.Errorf("fail to convert pub key to peer id: %w", err)
+			return nil, p2p.NoLeader, fmt.Errorf("fail to convert pub key to peer id: %w", err)
 		}
 		var peersIDStr []string
 		for _, el := range peerIDs {
 			peersIDStr = append(peersIDStr, el.String())
 		}
 		onlines, err := t.partyCoordinator.JoinPartyWithRetry(msgID, peersIDStr)
-		return onlines, "NONE", err
-	} else {
-		t.logger.Info().Msg("we apply the join party with a leader")
-
-		if len(participants) == 0 {
-			t.logger.Error().Msg("we fail to have any participants or passed by request")
-			return nil, "", errors.New("no participants can be found")
-		}
-		peersID, err := conversion.GetPeerIDsFromPubKeys(participants)
-		if err != nil {
-			return nil, "", errors.New("fail to convert the public key to peer ID")
-		}
-		var peersIDStr []string
-		for _, el := range peersID {
-			peersIDStr = append(peersIDStr, el.String())
-		}
-
-		return t.partyCoordinator.JoinPartyWithLeader(msgID, blockHeight, peersIDStr, threshold, sigChan)
+		return onlines, p2p.NoLeader, err
 	}
+
+	t.logger.Info().Msg("we apply the join party with a leader")
+	if len(participants) == 0 {
+		t.logger.Error().Msg("we fail to have any participants or passed by request")
+		return nil, "", errors.New("no participants can be found")
+	}
+
+	peersID, err := conversion.GetPeerIDsFromPubKeys(participants)
+	if err != nil {
+		return nil, "", errors.New("fail to convert the public key to peer ID")
+	}
+
+	var peersIDStr []string
+	for _, el := range peersID {
+		peersIDStr = append(peersIDStr, el.String())
+	}
+
+	return t.partyCoordinator.JoinPartyWithLeader(msgID, blockHeight, peersIDStr, threshold, sigChan)
 }
 
 // GetLocalPeerID return the local peer
-func (t *TssServer) GetLocalPeerID() string {
+func (t *Server) GetLocalPeerID() string {
 	return t.p2pCommunication.GetLocalPeerID()
 }
 
 // GetKnownPeers return the the ID and IP address of all peers.
-func (t *TssServer) GetKnownPeers() []peer.AddrInfo {
+func (t *Server) GetKnownPeers() []peer.AddrInfo {
 	var infos []peer.AddrInfo
 	host := t.p2pCommunication.GetHost()
 
@@ -269,7 +291,7 @@ func (t *TssServer) GetKnownPeers() []peer.AddrInfo {
 	return infos
 }
 
-// GetP2PHost return the libp2p host of the Communicator inside TssServer
-func (t *TssServer) GetP2PHost() host.Host {
+// GetP2PHost return the libp2p host of the Communicator inside Server
+func (t *Server) GetP2PHost() host.Host {
 	return t.p2pCommunication.GetHost()
 }

@@ -3,10 +3,9 @@ package p2p
 import (
 	"github.com/libp2p/go-libp2p/core/control"
 	"github.com/libp2p/go-libp2p/core/network"
-	"github.com/rs/zerolog"
-
 	"github.com/libp2p/go-libp2p/core/peer"
 	maddr "github.com/multiformats/go-multiaddr"
+	"github.com/rs/zerolog"
 )
 
 type WhitelistConnectionGater struct {
@@ -38,11 +37,15 @@ func (wg *WhitelistConnectionGater) InterceptAddrDial(p peer.ID, m maddr.Multiad
 	return wg.peerAllowed("InterceptAddrDial", p, &m)
 }
 
-func (wg *WhitelistConnectionGater) InterceptAccept(m network.ConnMultiaddrs) (allow bool) {
+func (wg *WhitelistConnectionGater) InterceptAccept(_ network.ConnMultiaddrs) (allow bool) {
 	return true
 }
 
-func (wg *WhitelistConnectionGater) InterceptSecured(direction network.Direction, p peer.ID, m network.ConnMultiaddrs) (allow bool) {
+func (wg *WhitelistConnectionGater) InterceptSecured(
+	_ network.Direction,
+	p peer.ID,
+	m network.ConnMultiaddrs,
+) (allow bool) {
 	remoteMultiAddr := m.RemoteMultiaddr()
 	return wg.peerAllowed("InterceptSecured", p, &remoteMultiAddr)
 }
