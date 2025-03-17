@@ -20,7 +20,7 @@ go.sum: go.mod ## Go sum
 	go mod verify
 
 test: ## Runs tests
-	@go test --race -timeout 30m ./...
+	@go test -race -timeout 30m ./...
 
 fmt: ## Formats the code
 	@echo "Fixing long lines"

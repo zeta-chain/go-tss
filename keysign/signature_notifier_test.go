@@ -13,6 +13,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/zeta-chain/go-tss/conversion"
 
 	"github.com/zeta-chain/go-tss/common"
@@ -156,7 +157,7 @@ func TestSignatureNotifierBroadcastFirst(t *testing.T) {
 	}))
 
 	n1.notifierLock.Lock()
-	assert.Contains(t, n1.notifiers, messageID)
+	require.Contains(t, n1.notifiers, messageID)
 	notifier := n1.notifiers[messageID]
 	n1.notifierLock.Unlock()
 	assert.False(t, notifier.readyToProcess())
