@@ -16,12 +16,12 @@ import (
 	btss "github.com/bnb-chain/tss-lib/tss"
 	tcrypto "github.com/cometbft/cometbft/crypto"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 	"go.uber.org/atomic"
 
 	"github.com/zeta-chain/go-tss/blame"
 	"github.com/zeta-chain/go-tss/common"
 	"github.com/zeta-chain/go-tss/conversion"
+	"github.com/zeta-chain/go-tss/logs"
 	"github.com/zeta-chain/go-tss/messages"
 	"github.com/zeta-chain/go-tss/p2p"
 	"github.com/zeta-chain/go-tss/storage"
@@ -47,11 +47,13 @@ func New(
 	p2pComm *p2p.Communication,
 	stateManager storage.LocalStateManager,
 	msgNum int,
+	logger zerolog.Logger,
 ) *KeySign {
-	logItems := []string{"keySign", msgID}
+	logger = logger.With().Str(logs.Component, "keygen").Str(logs.MsgID, msgID).Logger()
+
 	return &KeySign{
-		logger:          log.With().Strs("module", logItems).Logger(),
-		tssCommonStruct: common.NewTssCommon(localP2PID, broadcastChan, conf, msgID, privKey, msgNum),
+		logger:          logger,
+		tssCommonStruct: common.NewTssCommon(localP2PID, broadcastChan, conf, msgID, privKey, msgNum, logger),
 		stopChan:        stopChan,
 		localParty:      nil,
 		commStopChan:    make(chan struct{}),

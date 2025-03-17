@@ -10,6 +10,7 @@ import (
 	tnet "github.com/libp2p/go-libp2p-testing/net"
 	"github.com/libp2p/go-libp2p/core/host"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/zeta-chain/go-tss/conversion"
@@ -46,7 +47,7 @@ func TestPartyCoordinator(t *testing.T) {
 
 	timeout := time.Second * 10
 	for _, el := range hosts {
-		pcs = append(pcs, *NewPartyCoordinator(el, timeout))
+		pcs = append(pcs, *NewPartyCoordinator(el, timeout, zerolog.Nop()))
 		peers = append(peers, el.ID().String())
 	}
 
@@ -85,7 +86,7 @@ func TestPartyCoordinatorTimeOut(t *testing.T) {
 	var pcs []*PartyCoordinator
 	var peers []string
 	for _, el := range hosts {
-		pcs = append(pcs, NewPartyCoordinator(el, timeout))
+		pcs = append(pcs, NewPartyCoordinator(el, timeout, zerolog.Nop()))
 	}
 	sort.Slice(pcs, func(i, j int) bool {
 		return pcs[i].host.ID().String() > pcs[j].host.ID().String()

@@ -120,7 +120,7 @@ func New(
 		return nil, errors.Wrap(err, "unable to start p2p network")
 	}
 
-	sn := keysign.NewSignatureNotifier(comm.GetHost())
+	sn := keysign.NewSignatureNotifier(comm.GetHost(), logger)
 	sn.Start()
 
 	metrics := monitor.NewMetric()
@@ -136,7 +136,7 @@ func New(
 		preParams:         preParams,
 		tssKeyGenLocker:   &sync.Mutex{},
 		stopChan:          make(chan struct{}),
-		partyCoordinator:  p2p.NewPartyCoordinator(comm.GetHost(), net.PartyTimeout),
+		partyCoordinator:  p2p.NewPartyCoordinator(comm.GetHost(), net.PartyTimeout, logger),
 		stateManager:      stateManager,
 		signatureNotifier: sn,
 		privateKey:        privateKey,

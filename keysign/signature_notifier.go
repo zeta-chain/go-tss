@@ -13,8 +13,8 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 
+	"github.com/zeta-chain/go-tss/logs"
 	"github.com/zeta-chain/go-tss/messages"
 	"github.com/zeta-chain/go-tss/p2p"
 )
@@ -41,18 +41,23 @@ type SignatureNotifier struct {
 }
 
 // NewSignatureNotifier create a new instance of SignatureNotifier
-func NewSignatureNotifier(host host.Host) *SignatureNotifier {
+func NewSignatureNotifier(host host.Host, logger zerolog.Logger) *SignatureNotifier {
+	logger = logger.With().Str(logs.Component, "signature_notifier").Logger()
+
 	ctx, cancel := context.WithCancel(context.Background())
+
 	s := &SignatureNotifier{
 		ctx:          ctx,
 		cancel:       cancel,
-		logger:       log.With().Str("module", "signature_notifier").Logger(),
+		logger:       logger,
 		host:         host,
 		notifierLock: &sync.Mutex{},
 		notifiers:    make(map[string]*notifier),
 		streamMgr:    p2p.NewStreamMgr(),
 	}
+
 	host.SetStreamHandler(signatureNotifierProtocol, s.handleStream)
+
 	return s
 }
 

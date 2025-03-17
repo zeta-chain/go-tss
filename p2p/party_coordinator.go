@@ -12,10 +12,10 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/zeta-chain/go-tss/conversion"
+	"github.com/zeta-chain/go-tss/logs"
 	"github.com/zeta-chain/go-tss/messages"
 )
 
@@ -38,13 +38,15 @@ type PartyCoordinator struct {
 }
 
 // NewPartyCoordinator create a new instance of PartyCoordinator
-func NewPartyCoordinator(host host.Host, timeout time.Duration) *PartyCoordinator {
+func NewPartyCoordinator(host host.Host, timeout time.Duration, logger zerolog.Logger) *PartyCoordinator {
+	logger = logger.With().Str(logs.Component, "party_coordinator").Logger()
+
 	// if no timeout is given, default to 10 seconds
 	if timeout.Nanoseconds() == 0 {
 		timeout = 10 * time.Second
 	}
 	pc := &PartyCoordinator{
-		logger:             log.With().Str("module", "party_coordinator").Logger(),
+		logger:             logger,
 		host:               host,
 		stopChan:           make(chan struct{}),
 		timeout:            timeout,

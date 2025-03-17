@@ -13,7 +13,6 @@ import (
 	"github.com/cometbft/cometbft/crypto/secp256k1"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 
 	"github.com/zeta-chain/go-tss/blame"
 	"github.com/zeta-chain/go-tss/conversion"
@@ -60,10 +59,11 @@ func NewTssCommon(
 	msgID string,
 	privKey tcrypto.PrivKey,
 	msgNum int,
+	logger zerolog.Logger,
 ) *TssCommon {
 	return &TssCommon{
 		conf:                        conf,
-		logger:                      log.With().Str("module", "tsscommon").Logger(),
+		logger:                      logger,
 		partyLock:                   &sync.Mutex{},
 		partyInfo:                   nil,
 		PartyIDtoP2PID:              make(map[string]peer.ID),
@@ -77,7 +77,7 @@ func NewTssCommon(
 		localPeerID:                 peerID,
 		privateKey:                  privKey,
 		taskDone:                    make(chan struct{}),
-		blameMgr:                    blame.NewBlameManager(),
+		blameMgr:                    blame.NewBlameManager(logger),
 		finishedPeers:               make(map[string]bool),
 		culpritsLock:                &sync.RWMutex{},
 		cachedWireBroadcastMsgLists: &sync.Map{},

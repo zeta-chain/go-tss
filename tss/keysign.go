@@ -243,6 +243,7 @@ func (t *Server) KeySign(req keysign.Request) (keysign.Response, error) {
 			t.p2pCommunication,
 			t.stateManager,
 			len(req.Messages),
+			t.logger,
 		)
 	case ed25519.KeyType:
 		algo = common.EdDSA
@@ -256,6 +257,7 @@ func (t *Server) KeySign(req keysign.Request) (keysign.Response, error) {
 			t.p2pCommunication,
 			t.stateManager,
 			len(req.Messages),
+			t.logger,
 		)
 	default:
 		return keysign.Response{}, errors.New("invalid keysign algo")

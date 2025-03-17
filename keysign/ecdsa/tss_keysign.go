@@ -17,12 +17,12 @@ import (
 	"github.com/btcsuite/btcd/btcec/v2"
 	tcrypto "github.com/cometbft/cometbft/crypto"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 	"go.uber.org/atomic"
 
 	"github.com/zeta-chain/go-tss/blame"
 	"github.com/zeta-chain/go-tss/common"
 	"github.com/zeta-chain/go-tss/conversion"
+	"github.com/zeta-chain/go-tss/logs"
 	"github.com/zeta-chain/go-tss/messages"
 	"github.com/zeta-chain/go-tss/p2p"
 	"github.com/zeta-chain/go-tss/storage"
@@ -48,11 +48,13 @@ func NewTssKeySign(
 	p2pComm *p2p.Communication,
 	stateManager storage.LocalStateManager,
 	msgNum int,
+	logger zerolog.Logger,
 ) *TssKeySign {
-	logItems := []string{"keySign", msgID}
+	logger = logger.With().Str(logs.Component, "keygen").Str(logs.MsgID, msgID).Logger()
+
 	return &TssKeySign{
-		logger:          log.With().Strs("module", logItems).Logger(),
-		tssCommonStruct: common.NewTssCommon(localP2PID, broadcastChan, conf, msgID, privKey, msgNum),
+		logger:          logger,
+		tssCommonStruct: common.NewTssCommon(localP2PID, broadcastChan, conf, msgID, privKey, msgNum, logger),
 		stopChan:        stopChan,
 		localParties:    make([]*btss.PartyID, 0),
 		commStopChan:    make(chan struct{}),

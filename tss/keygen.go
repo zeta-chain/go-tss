@@ -39,7 +39,9 @@ func (t *Server) Keygen(req keygen.Request) (keygen.Response, error) {
 			msgID,
 			t.stateManager,
 			t.privateKey,
-			t.p2pCommunication)
+			t.p2pCommunication,
+			t.logger,
+		)
 	case common.EdDSA:
 		keygenInstance = eddsa.New(
 			t.p2pCommunication.GetLocalPeerID(),
@@ -50,7 +52,9 @@ func (t *Server) Keygen(req keygen.Request) (keygen.Response, error) {
 			msgID,
 			t.stateManager,
 			t.privateKey,
-			t.p2pCommunication)
+			t.p2pCommunication,
+			t.logger,
+		)
 	default:
 		return keygen.Response{}, errors.New("invalid keygen algo")
 	}
@@ -207,7 +211,9 @@ func (t *Server) KeygenAllAlgo(req keygen.Request) ([]keygen.Response, error) {
 		msgID+string(common.ECDSA),
 		t.stateManager,
 		t.privateKey,
-		t.p2pCommunication)
+		t.p2pCommunication,
+		t.logger,
+	)
 
 	eddsaKeygenInstance := eddsa.New(
 		t.p2pCommunication.GetLocalPeerID(),
@@ -218,7 +224,9 @@ func (t *Server) KeygenAllAlgo(req keygen.Request) ([]keygen.Response, error) {
 		msgID+string(common.EdDSA),
 		t.stateManager,
 		t.privateKey,
-		t.p2pCommunication)
+		t.p2pCommunication,
+		t.logger,
+	)
 	_ = eddsaKeygenInstance
 	_ = ecdsaKeygenInstance
 	keygenInstances := make(map[common.Algo]keygen.TssKeyGen)
