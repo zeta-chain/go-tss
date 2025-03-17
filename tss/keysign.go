@@ -132,7 +132,9 @@ func (t *Server) generateSignature(
 			t.broadcastKeysignFailure(msgID, allPeersID)
 
 			// make sure we blame the leader as well
-			t.logger.Error().Err(err).Any("peers", onlinePeers).Msg("Fail to form keysign party with online")
+			t.logger.Error().Err(err).
+				Any("peers", onlinePeers).
+				Msg("Fail to form keysign party with online peers")
 
 			return keysign.Response{
 				Status: common.Fail,
@@ -177,6 +179,7 @@ func (t *Server) generateSignature(
 	if !isKeySignMember {
 		// we are not the keysign member so we quit keysign and waiting for signature
 		t.logger.Info().
+			Str(logs.MsgID, msgID).
 			Stringer(logs.Host, t.p2pCommunication.GetHost().ID()).
 			Msg("We are not the active signer")
 
@@ -228,13 +231,13 @@ func (t *Server) updateKeySignResult(result keysign.Response, timeSpent time.Dur
 }
 
 func (t *Server) KeySign(req keysign.Request) (keysign.Response, error) {
-	t.logger.Info().Any("request", req).Msg("received keysign request")
-
 	emptyResp := keysign.Response{}
 	msgID, err := t.requestToMsgID(req)
 	if err != nil {
 		return emptyResp, err
 	}
+
+	t.logger.Info().Str(logs.MsgID, msgID).Any("request", req).Msg("Keysign request")
 
 	var keysignInstance keysign.TssKeySign
 	var algo common.Algo

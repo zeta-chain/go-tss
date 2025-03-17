@@ -127,7 +127,10 @@ func (c *Communication) broadcastToPeers(peers []peer.ID, msg []byte, msgID stri
 		go func(p peer.ID) {
 			defer wgSend.Done()
 			if err := c.writeToStream(p, msg, msgID); nil != err {
-				c.logger.Error().Err(err).Msg("fail to write to stream")
+				c.logger.Error().Err(err).
+					Stringer(logs.Peer, p).
+					Str(logs.MsgID, msgID).
+					Msg("Unable to broadcast message to peer")
 			}
 		}(p)
 	}
@@ -139,10 +142,12 @@ func (c *Communication) writeToStream(pID peer.ID, msg []byte, msgID string) err
 	if pID == c.host.ID() {
 		return nil
 	}
+
 	stream, err := c.connectToOnePeer(pID)
 	if err != nil {
-		return fmt.Errorf("fail to open stream to peer(%s): %w", pID, err)
+		return fmt.Errorf("fail to open stream to peer: %w", err)
 	}
+
 	if nil == stream {
 		return nil
 	}
@@ -158,6 +163,8 @@ func (c *Communication) writeToStream(pID peer.ID, msg []byte, msgID string) err
 func (c *Communication) readFromStream(stream network.Stream) {
 	peerID := stream.Conn().RemotePeer().String()
 	c.logger.Debug().Msgf("reading from stream of peer: %s", peerID)
+
+	const timeout = 10 * time.Second
 
 	select {
 	case <-c.stopChan:
@@ -185,12 +192,14 @@ func (c *Communication) readFromStream(stream network.Stream) {
 		}
 		c.streamMgr.AddStream(wrappedMsg.MsgID, stream)
 		select {
-		case <-time.After(10 * time.Second):
+		case <-time.After(timeout):
 			c.logger.Warn().
+				Str(logs.MsgID, wrappedMsg.MsgID).
 				Str(logs.Peer, peerID).
 				Str("protocol", string(stream.Protocol())).
 				Str("message_type", wrappedMsg.MessageType.String()).
-				Msg("timeout to send message to channel")
+				Float64("timeout", timeout.Seconds()).
+				Msg("Timeout to send message to channel")
 		case channel <- &Message{
 			PeerID:  stream.Conn().RemotePeer(),
 			Payload: dataBuf}:

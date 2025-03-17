@@ -223,8 +223,9 @@ func (s *SignatureNotifier) broadcastCommon(
 			err := s.sendOneMsgToPeer(signature)
 			if err != nil {
 				s.logger.Error().Err(err).
+					Str(logs.MsgID, messageID).
 					Stringer(logs.Peer, signature.peerID).
-					Msg("fail to send signature to peer")
+					Msg("Failed to send signature to peer")
 			}
 		}()
 	}

@@ -228,9 +228,9 @@ func (t *Server) joinParty(
 		return onlines, p2p.NoLeader, err
 	}
 
-	t.logger.Info().Msg("we apply the join party with a leader")
+	t.logger.Info().Str(logs.MsgID, msgID).Msg("We apply the join party with a leader")
 	if len(participants) == 0 {
-		t.logger.Error().Msg("we fail to have any participants or passed by request")
+		t.logger.Error().Str(logs.MsgID, msgID).Msg("We fail to have any participants or passed by request")
 		return nil, "", errors.New("no participants can be found")
 	}
 

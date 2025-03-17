@@ -69,44 +69,59 @@ func (pc *PartyCoordinator) Stop() {
 
 func (pc *PartyCoordinator) processRespMsg(respMsg *messages.JoinPartyLeaderComm, stream network.Stream) {
 	remotePeer := stream.Conn().RemotePeer()
+
 	pc.joinPartyGroupLock.Lock()
 	peerGroup, ok := pc.peersGroup[respMsg.ID]
 	pc.joinPartyGroupLock.Unlock()
+
 	if !ok {
-		pc.logger.Info().Stringer(logs.Peer, remotePeer).Msg("message ID from peer can not be found")
+		pc.logger.Info().
+			Stringer(logs.Peer, remotePeer).
+			Msg("message ID from peer can not be found")
 		_ = stream.Reset()
 		return
 	}
-	pc.streamMgr.AddStream(respMsg.ID, stream)
-	if remotePeer == peerGroup.getLeader() {
-		peerGroup.setLeaderResponse(respMsg)
-		peerGroup.notify <- true
-		err := WriteStreamWithBuffer([]byte("done"), stream)
-		if err != nil {
-			pc.logger.Error().Err(err).
-				Stringer(logs.Peer, remotePeer).
-				Msg("Failed to write the reply to peer")
 
-			return
-		}
+	pc.streamMgr.AddStream(respMsg.ID, stream)
+
+	leaderID := peerGroup.getLeader()
+
+	if remotePeer != leaderID {
+		pc.logger.Warn().
+			Stringer(logs.Peer, remotePeer).
+			Stringer(logs.Leader, leaderID).
+			Str(logs.MsgID, respMsg.ID).
+			Msg("This party is not the leader as expected")
+
+		return
 	}
 
-	pc.logger.Warn().
-		Stringer(logs.Peer, remotePeer).
-		Stringer(logs.Leader, peerGroup.getLeader()).
-		Msg("This party is not the leader as expected")
+	peerGroup.setLeaderResponse(respMsg)
+	peerGroup.notify <- true
+
+	err := WriteStreamWithBuffer([]byte("done"), stream)
+	if err != nil {
+		pc.logger.Error().Err(err).
+			Stringer(logs.Peer, remotePeer).
+			Stringer(logs.Leader, leaderID).
+			Str(logs.MsgID, respMsg.ID).
+			Msg("Failed to write the reply to peer")
+	}
 }
 
 func (pc *PartyCoordinator) processReqMsg(requestMsg *messages.JoinPartyLeaderComm, stream network.Stream) {
 	pc.streamMgr.AddStream(requestMsg.ID, stream)
+
 	pc.joinPartyGroupLock.Lock()
 	peerGroup, ok := pc.peersGroup[requestMsg.ID]
 	pc.joinPartyGroupLock.Unlock()
+
 	if !ok {
 		_ = stream.Reset()
-		pc.logger.Info().Msg("this party is not ready")
+		pc.logger.Info().Str(logs.MsgID, requestMsg.ID).Msg("This party is not ready")
 		return
 	}
+
 	remotePeer := stream.Conn().RemotePeer()
 	partyFormed, err := peerGroup.updatePeer(remotePeer)
 	if err != nil {
@@ -293,12 +308,16 @@ func (pc *PartyCoordinator) sendMsgToPeer(
 		streamError := fmt.Errorf("fail to create stream to peer(%s):%w", remotePeer, err)
 		return streamError
 	}
+
 	defer func() {
 		pc.streamMgr.AddStream(msgID, stream)
 		if err := stream.Close(); err != nil {
-			pc.logger.Error().Err(err).Msg("fail to close stream")
+			pc.logger.Error().Err(err).
+				Str(logs.MsgID, msgID).
+				Msg("Failed to close stream")
 		}
 	}()
+
 	pc.logger.Debug().Msgf("open stream to (%s) successfully", remotePeer)
 	err = WriteStreamWithBuffer(msgBuf, stream)
 	if err != nil {
