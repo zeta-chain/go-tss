@@ -16,12 +16,12 @@ import (
 	maddr "github.com/multiformats/go-multiaddr"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 
 	"github.com/zeta-chain/go-tss/common"
 	"github.com/zeta-chain/go-tss/conversion"
 	"github.com/zeta-chain/go-tss/keygen"
 	"github.com/zeta-chain/go-tss/keysign"
+	"github.com/zeta-chain/go-tss/logs"
 	"github.com/zeta-chain/go-tss/messages"
 	"github.com/zeta-chain/go-tss/monitor"
 	"github.com/zeta-chain/go-tss/p2p"
@@ -76,7 +76,10 @@ func New(
 	privateKey tcrypto.PrivKey,
 	tssPassword string,
 	preParams *bkeygen.LocalPreParams,
+	logger zerolog.Logger,
 ) (*Server, error) {
+	logger = logger.With().Str(logs.Module, "tss").Logger()
+
 	privateKeyBytes, err := conversion.GetPriKeyRawBytes(privateKey)
 	if err != nil {
 		return nil, errors.Wrap(err, "fail to get private key raw bytes")
@@ -102,7 +105,13 @@ func New(
 		return nil, errors.Wrapf(err, "fail to resolve bootstrap peers")
 	}
 
-	comm, err := p2p.NewCommunication(bootstrapPeers, net.Port, net.ExternalIP, net.WhitelistedPeers)
+	comm, err := p2p.NewCommunication(
+		bootstrapPeers,
+		net.Port,
+		net.ExternalIP,
+		net.WhitelistedPeers,
+		logger,
+	)
 	if err != nil {
 		return nil, errors.Wrapf(err, "fail to create communication layer")
 	}
@@ -121,7 +130,7 @@ func New(
 
 	return &Server{
 		conf:              net.TssConfig,
-		logger:            log.With().Str("module", "tss").Logger(),
+		logger:            logger,
 		p2pCommunication:  comm,
 		localNodePubKey:   pubKey,
 		preParams:         preParams,

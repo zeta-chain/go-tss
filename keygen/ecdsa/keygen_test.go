@@ -124,13 +124,13 @@ func (s *TssECDSAKeygenTestSuite) SetUpTest(c *C) {
 		buf, err := base64.StdEncoding.DecodeString(testPriKeyArr[i])
 		c.Assert(err, IsNil)
 		if i == 0 {
-			comm, err := p2p.NewCommunication(nil, ports[i], "", whitelistedPeers)
+			comm, err := p2p.NewCommunication(nil, ports[i], "", whitelistedPeers, zlog.Logger)
 			c.Assert(err, IsNil)
 			c.Assert(comm.Start(buf[:]), IsNil)
 			s.comms[i] = comm
 			continue
 		}
-		comm, err := p2p.NewCommunication(bootstrapPeers, ports[i], "", whitelistedPeers)
+		comm, err := p2p.NewCommunication(bootstrapPeers, ports[i], "", whitelistedPeers, zlog.Logger)
 		c.Assert(err, IsNil)
 		c.Assert(comm.Start(buf[:]), IsNil)
 		s.comms[i] = comm

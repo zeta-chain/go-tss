@@ -254,6 +254,7 @@ func (s *FourNodeScaleZetaSuite) getTssServer(c *C, index int, conf common.TssCo
 		priKey,
 		"password",
 		s.preParams[index],
+		zlog.Logger,
 	)
 
 	c.Assert(err, IsNil)

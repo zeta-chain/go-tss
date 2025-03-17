@@ -396,6 +396,7 @@ func (s *FourNodeTestSuite) getTssServer(c *C, index int, conf common.TssConfig)
 		priKey,
 		"password",
 		s.preParams[index],
+		zlog.Logger,
 	)
 
 	c.Assert(err, IsNil)

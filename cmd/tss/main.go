@@ -13,6 +13,7 @@ import (
 	"github.com/cosmos/cosmos-sdk/client/input"
 	golog "github.com/ipfs/go-log"
 	"github.com/libp2p/go-libp2p/core/peer"
+	zlog "github.com/rs/zerolog/log"
 
 	"github.com/zeta-chain/go-tss/common"
 	"github.com/zeta-chain/go-tss/conversion"
@@ -70,6 +71,7 @@ func main() {
 		priKey,
 		os.Getenv("PASSWORD"),
 		nil,
+		zlog.Logger,
 	)
 	if nil != err {
 		log.Fatal(err)

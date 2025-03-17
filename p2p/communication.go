@@ -20,8 +20,8 @@ import (
 	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
 	maddr "github.com/multiformats/go-multiaddr"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 
+	"github.com/zeta-chain/go-tss/logs"
 	"github.com/zeta-chain/go-tss/messages"
 )
 
@@ -67,6 +67,7 @@ func NewCommunication(
 	port int,
 	externalIP string,
 	whitelistedPeers []peer.ID,
+	logger zerolog.Logger,
 ) (*Communication, error) {
 	addr, err := maddr.NewMultiaddr(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", port))
 	if err != nil {
@@ -80,9 +81,8 @@ func NewCommunication(
 		}
 	}
 	return &Communication{
-
 		bootstrapPeers:   bootstrapPeers,
-		logger:           log.With().Str("module", "communication").Logger(),
+		logger:           logger.With().Str(logs.Component, "communication").Logger(),
 		listenAddr:       addr,
 		wg:               &sync.WaitGroup{},
 		stopChan:         make(chan struct{}),
