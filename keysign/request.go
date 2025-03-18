@@ -9,6 +9,8 @@ type Request struct {
 	SignerPubKeys []string `json:"signer_pub_keys"`
 	BlockHeight   int64    `json:"block_height"`
 	Version       string   `json:"tss_version"`
+
+	logFields map[string]any
 }
 
 func NewRequest(pk string, msgs []string, blockHeight int64, signers []string, version string) Request {
@@ -24,4 +26,12 @@ func NewRequest(pk string, msgs []string, blockHeight int64, signers []string, v
 func (r *Request) MarshalZerologObject(e *zerolog.Event) {
 	e.Strs("request.messages", r.Messages)
 	e.Int64("request.block_height", r.BlockHeight)
+
+	if len(r.logFields) != 0 {
+		e.Fields(r.logFields)
+	}
+}
+
+func (r *Request) SetLogFields(kv map[string]any) {
+	r.logFields = kv
 }
