@@ -50,7 +50,7 @@ func NewTssKeySign(
 	msgNum int,
 	logger zerolog.Logger,
 ) *TssKeySign {
-	logger = logger.With().Str(logs.Component, "keygen").Str(logs.MsgID, msgID).Logger()
+	logger = logger.With().Str(logs.Component, "keysign").Str(logs.MsgID, msgID).Logger()
 
 	return &TssKeySign{
 		logger:          logger,
