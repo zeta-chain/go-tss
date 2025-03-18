@@ -12,10 +12,10 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/zeta-chain/go-tss/conversion"
+	"github.com/zeta-chain/go-tss/logs"
 	"github.com/zeta-chain/go-tss/messages"
 )
 
@@ -38,13 +38,15 @@ type PartyCoordinator struct {
 }
 
 // NewPartyCoordinator create a new instance of PartyCoordinator
-func NewPartyCoordinator(host host.Host, timeout time.Duration) *PartyCoordinator {
+func NewPartyCoordinator(host host.Host, timeout time.Duration, logger zerolog.Logger) *PartyCoordinator {
+	logger = logger.With().Str(logs.Component, "party_coordinator").Logger()
+
 	// if no timeout is given, default to 10 seconds
 	if timeout.Nanoseconds() == 0 {
 		timeout = 10 * time.Second
 	}
 	pc := &PartyCoordinator{
-		logger:             log.With().Str("module", "party_coordinator").Logger(),
+		logger:             logger,
 		host:               host,
 		stopChan:           make(chan struct{}),
 		timeout:            timeout,
@@ -67,38 +69,59 @@ func (pc *PartyCoordinator) Stop() {
 
 func (pc *PartyCoordinator) processRespMsg(respMsg *messages.JoinPartyLeaderComm, stream network.Stream) {
 	remotePeer := stream.Conn().RemotePeer()
+
 	pc.joinPartyGroupLock.Lock()
 	peerGroup, ok := pc.peersGroup[respMsg.ID]
 	pc.joinPartyGroupLock.Unlock()
+
 	if !ok {
-		pc.logger.Info().Msgf("message ID from peer(%s) can not be found", remotePeer)
+		pc.logger.Info().
+			Stringer(logs.Peer, remotePeer).
+			Msg("message ID from peer can not be found")
 		_ = stream.Reset()
 		return
 	}
+
 	pc.streamMgr.AddStream(respMsg.ID, stream)
-	if remotePeer == peerGroup.getLeader() {
-		peerGroup.setLeaderResponse(respMsg)
-		peerGroup.notify <- true
-		err := WriteStreamWithBuffer([]byte("done"), stream)
-		if err != nil {
-			pc.logger.Error().Err(err).Msgf("fail to write the reply to peer: %s", remotePeer)
-			return
-		}
-	} else {
-		pc.logger.Info().Msgf("this party(%s) is not the leader(%s) as expected", remotePeer, peerGroup.getLeader())
+
+	leaderID := peerGroup.getLeader()
+
+	if remotePeer != leaderID {
+		pc.logger.Warn().
+			Stringer(logs.Peer, remotePeer).
+			Stringer(logs.Leader, leaderID).
+			Str(logs.MsgID, respMsg.ID).
+			Msg("This party is not the leader as expected")
+
+		return
+	}
+
+	peerGroup.setLeaderResponse(respMsg)
+	peerGroup.notify <- true
+
+	err := WriteStreamWithBuffer([]byte("done"), stream)
+	if err != nil {
+		pc.logger.Error().Err(err).
+			Stringer(logs.Peer, remotePeer).
+			Stringer(logs.Leader, leaderID).
+			Str(logs.MsgID, respMsg.ID).
+			Msg("Failed to write the reply to peer")
 	}
 }
 
 func (pc *PartyCoordinator) processReqMsg(requestMsg *messages.JoinPartyLeaderComm, stream network.Stream) {
 	pc.streamMgr.AddStream(requestMsg.ID, stream)
+
 	pc.joinPartyGroupLock.Lock()
 	peerGroup, ok := pc.peersGroup[requestMsg.ID]
 	pc.joinPartyGroupLock.Unlock()
+
 	if !ok {
 		_ = stream.Reset()
-		pc.logger.Info().Msg("this party is not ready")
+		pc.logger.Info().Str(logs.MsgID, requestMsg.ID).Msg("This party is not ready")
 		return
 	}
+
 	remotePeer := stream.Conn().RemotePeer()
 	partyFormed, err := peerGroup.updatePeer(remotePeer)
 	if err != nil {
@@ -112,11 +135,11 @@ func (pc *PartyCoordinator) processReqMsg(requestMsg *messages.JoinPartyLeaderCo
 
 func (pc *PartyCoordinator) HandleStream(stream network.Stream) {
 	remotePeer := stream.Conn().RemotePeer()
-	logger := pc.logger.With().Str("remote peer", remotePeer.String()).Logger()
+	logger := pc.logger.With().Stringer(logs.Peer, remotePeer).Logger()
 	logger.Debug().Msg("reading from join party request")
 	payload, err := ReadStreamWithBuffer(stream)
 	if err != nil {
-		logger.Err(err).Msgf("fail to read payload from stream")
+		logger.Err(err).Msg("fail to read payload from stream")
 		pc.streamMgr.AddStream("UNKNOWN", stream)
 		return
 	}
@@ -132,12 +155,12 @@ func (pc *PartyCoordinator) HandleStream(stream network.Stream) {
 	pc.joinPartyGroupLock.Unlock()
 	if !ok {
 		_ = stream.Reset()
-		pc.logger.Info().Msg("this party is not ready")
+		logger.Info().Msg("this party is not ready")
 		return
 	}
 	_, err = peerGroup.updatePeer(remotePeer)
 	if err != nil {
-		pc.logger.Error().Err(err).Msg("receive msg from unknown peer")
+		logger.Error().Err(err).Msg("receive msg from unknown peer")
 		return
 	}
 }
@@ -145,11 +168,11 @@ func (pc *PartyCoordinator) HandleStream(stream network.Stream) {
 // HandleStream handle party coordinate stream
 func (pc *PartyCoordinator) HandleStreamWithLeader(stream network.Stream) {
 	remotePeer := stream.Conn().RemotePeer()
-	logger := pc.logger.With().Str("remote peer", remotePeer.String()).Logger()
+	logger := pc.logger.With().Stringer(logs.Peer, remotePeer).Logger()
 	logger.Debug().Msg("reading from join party request")
 	payload, err := ReadStreamWithBuffer(stream)
 	if err != nil {
-		logger.Err(err).Msgf("fail to read payload from stream")
+		logger.Err(err).Msg("fail to read payload from stream")
 		pc.streamMgr.AddStream("UNKNOWN", stream)
 		return
 	}
@@ -162,7 +185,7 @@ func (pc *PartyCoordinator) HandleStreamWithLeader(stream network.Stream) {
 		return
 	}
 
-	pc.logger.Debug().Msgf("received message type=%s", msg.MsgType)
+	logger.Debug().Msgf("received message type=%s", msg.MsgType)
 
 	switch msg.MsgType {
 	case "request":
@@ -172,7 +195,7 @@ func (pc *PartyCoordinator) HandleStreamWithLeader(stream network.Stream) {
 		pc.processRespMsg(&msg, stream)
 		err := WriteStreamWithBuffer([]byte("done"), stream)
 		if err != nil {
-			pc.logger.Error().Err(err).Msgf("fail to send response to leader")
+			pc.logger.Error().Err(err).Msg("fail to send response to leader")
 		}
 		return
 	default:
@@ -285,12 +308,16 @@ func (pc *PartyCoordinator) sendMsgToPeer(
 		streamError := fmt.Errorf("fail to create stream to peer(%s):%w", remotePeer, err)
 		return streamError
 	}
+
 	defer func() {
 		pc.streamMgr.AddStream(msgID, stream)
 		if err := stream.Close(); err != nil {
-			pc.logger.Error().Err(err).Msg("fail to close stream")
+			pc.logger.Error().Err(err).
+				Str(logs.MsgID, msgID).
+				Msg("Failed to close stream")
 		}
 	}()
+
 	pc.logger.Debug().Msgf("open stream to (%s) successfully", remotePeer)
 	err = WriteStreamWithBuffer(msgBuf, stream)
 	if err != nil {
@@ -300,7 +327,9 @@ func (pc *PartyCoordinator) sendMsgToPeer(
 	if needResponse {
 		_, err := ReadStreamWithBuffer(stream)
 		if err != nil {
-			pc.logger.Error().Err(err).Msgf("fail to get the ")
+			pc.logger.Error().Err(err).
+				Stringer(logs.Peer, remotePeer).
+				Msg("Failed to await the response from peer")
 		}
 	}
 
@@ -366,7 +395,7 @@ func (pc *PartyCoordinator) joinPartyMember(
 		if err != nil {
 			pc.logger.Error().Msg("received no response from the leader")
 		} else {
-			pc.logger.Error().Msgf("received no response from the leader (%s)", leaderPk)
+			pc.logger.Error().Str(logs.Leader, leaderPk).Msg("received no response from the leader")
 		}
 		return nil, ErrLeaderNotReady
 	}

@@ -18,6 +18,7 @@ import (
 	"github.com/cometbft/cometbft/crypto/secp256k1"
 	coskey "github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
 	sdk "github.com/cosmos/cosmos-sdk/types/bech32/legacybech32"
+	"github.com/rs/zerolog/log"
 	. "gopkg.in/check.v1"
 
 	"github.com/btcsuite/btcd/btcec/v2"
@@ -136,7 +137,7 @@ func (t *TssTestSuite) TestTssProcessOutCh(c *C) {
 	}
 	msg := btss.NewMessageWrapper(messageRouting, testContent)
 	tssMsg := btss.NewMessage(messageRouting, testContent, msg)
-	tssCommonStruct := NewTssCommon("", nil, conf, "test", t.privKey, 1)
+	tssCommonStruct := NewTssCommon("", nil, conf, "test", t.privKey, 1, log.Logger)
 	err = tssCommonStruct.ProcessOutCh(tssMsg, messages.TSSKeyGenMsg)
 	c.Assert(err, IsNil)
 }
@@ -230,7 +231,7 @@ func setupProcessVerMsgEnv(
 	partyNum int,
 ) (*TssCommon, []*btss.PartyID, []*btss.PartyID) {
 	conf := TssConfig{}
-	tssCommonStruct := NewTssCommon("", nil, conf, "test", privKey, 1)
+	tssCommonStruct := NewTssCommon("", nil, conf, "test", privKey, 1, log.Logger)
 	localTestPubKeys := make([]string, partyNum)
 	copy(localTestPubKeys, keyPool[:partyNum])
 	// for the test, we choose the first pubic key as the test instance public key
@@ -479,7 +480,7 @@ func (t *TssTestSuite) TestTssCommon(c *C) {
 	c.Assert(err, IsNil)
 	broadcastChannel := make(chan *messages.BroadcastMsgChan)
 	sk := secp256k1.GenPrivKey()
-	tssCommon := NewTssCommon(peerID.String(), broadcastChannel, TssConfig{}, "message-id", sk, 1)
+	tssCommon := NewTssCommon(peerID.String(), broadcastChannel, TssConfig{}, "message-id", sk, 1, log.Logger)
 	c.Assert(tssCommon, NotNil)
 	stopchan := make(chan struct{})
 	wg := sync.WaitGroup{}

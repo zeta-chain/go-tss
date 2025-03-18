@@ -9,6 +9,7 @@ import (
 	btss "github.com/bnb-chain/tss-lib/tss"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/rs/zerolog"
 	. "gopkg.in/check.v1"
 
 	"github.com/zeta-chain/go-tss/conversion"
@@ -40,7 +41,7 @@ type policyTestSuite struct {
 var _ = Suite(&policyTestSuite{})
 
 func (p *policyTestSuite) SetUpTest(c *C) {
-	p.blameMgr = NewBlameManager()
+	p.blameMgr = NewBlameManager(zerolog.Nop())
 	conversion.SetupBech32Prefix()
 	p1, err := peer.Decode(testPeers[0])
 	c.Assert(err, IsNil)

@@ -20,8 +20,8 @@ import (
 	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
 	maddr "github.com/multiformats/go-multiaddr"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 
+	"github.com/zeta-chain/go-tss/logs"
 	"github.com/zeta-chain/go-tss/messages"
 )
 
@@ -67,6 +67,7 @@ func NewCommunication(
 	port int,
 	externalIP string,
 	whitelistedPeers []peer.ID,
+	logger zerolog.Logger,
 ) (*Communication, error) {
 	addr, err := maddr.NewMultiaddr(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", port))
 	if err != nil {
@@ -80,9 +81,8 @@ func NewCommunication(
 		}
 	}
 	return &Communication{
-
 		bootstrapPeers:   bootstrapPeers,
-		logger:           log.With().Str("module", "communication").Logger(),
+		logger:           logger.With().Str(logs.Component, "communication").Logger(),
 		listenAddr:       addr,
 		wg:               &sync.WaitGroup{},
 		stopChan:         make(chan struct{}),
@@ -127,7 +127,10 @@ func (c *Communication) broadcastToPeers(peers []peer.ID, msg []byte, msgID stri
 		go func(p peer.ID) {
 			defer wgSend.Done()
 			if err := c.writeToStream(p, msg, msgID); nil != err {
-				c.logger.Error().Err(err).Msg("fail to write to stream")
+				c.logger.Error().Err(err).
+					Stringer(logs.Peer, p).
+					Str(logs.MsgID, msgID).
+					Msg("Unable to broadcast message to peer")
 			}
 		}(p)
 	}
@@ -139,10 +142,12 @@ func (c *Communication) writeToStream(pID peer.ID, msg []byte, msgID string) err
 	if pID == c.host.ID() {
 		return nil
 	}
+
 	stream, err := c.connectToOnePeer(pID)
 	if err != nil {
-		return fmt.Errorf("fail to open stream to peer(%s): %w", pID, err)
+		return fmt.Errorf("fail to open stream to peer: %w", err)
 	}
+
 	if nil == stream {
 		return nil
 	}
@@ -157,49 +162,63 @@ func (c *Communication) writeToStream(pID peer.ID, msg []byte, msgID string) err
 
 func (c *Communication) readFromStream(stream network.Stream) {
 	peerID := stream.Conn().RemotePeer().String()
-	c.logger.Debug().Msgf("reading from stream of peer: %s", peerID)
+	c.logger.Debug().Str(logs.Peer, peerID).Msg("Reading from peer's stream")
+
+	const timeout = 10 * time.Second
+
+	payload, err := ReadStreamWithBuffer(stream)
+	if err != nil {
+		c.logger.Error().Err(err).Str(logs.Peer, peerID).Msg("fail to read from stream")
+		c.streamMgr.AddStream("UNKNOWN", stream)
+		return
+	}
+
+	var wrappedMsg messages.WrappedMessage
+	if err := json.Unmarshal(payload, &wrappedMsg); nil != err {
+		c.logger.Error().Err(err).Msg("fail to unmarshal wrapped message bytes")
+		c.streamMgr.AddStream("UNKNOWN", stream)
+		return
+	}
+
+	channel := c.getSubscriber(wrappedMsg.MessageType, wrappedMsg.MsgID)
+	if nil == channel {
+		c.logger.Debug().Msgf("no MsgID %s found for this message", wrappedMsg.MsgID)
+		c.logger.Debug().Msgf("no MsgID %s found for this message", wrappedMsg.MessageType)
+		_ = stream.Reset()
+		return
+	}
+
+	c.streamMgr.AddStream(wrappedMsg.MsgID, stream)
+
+	msg := &Message{
+		PeerID:  stream.Conn().RemotePeer(),
+		Payload: payload,
+	}
 
 	select {
-	case <-c.stopChan:
-		return
-	default:
-		dataBuf, err := ReadStreamWithBuffer(stream)
-		if err != nil {
-			c.logger.Error().Err(err).Msgf("fail to read from stream,peerID: %s", peerID)
-			c.streamMgr.AddStream("UNKNOWN", stream)
-			return
-		}
-		var wrappedMsg messages.WrappedMessage
-		if err := json.Unmarshal(dataBuf, &wrappedMsg); nil != err {
-			c.logger.Error().Err(err).Msg("fail to unmarshal wrapped message bytes")
-			c.streamMgr.AddStream("UNKNOWN", stream)
-			return
-		}
-		c.logger.Debug().Msgf(">>>>>>>[%s] %s", wrappedMsg.MessageType, string(wrappedMsg.Payload))
-		channel := c.getSubscriber(wrappedMsg.MessageType, wrappedMsg.MsgID)
-		if nil == channel {
-			c.logger.Debug().Msgf("no MsgID %s found for this message", wrappedMsg.MsgID)
-			c.logger.Debug().Msgf("no MsgID %s found for this message", wrappedMsg.MessageType)
-			_ = stream.Reset()
-			return
-		}
-		c.streamMgr.AddStream(wrappedMsg.MsgID, stream)
-		select {
-		case <-time.After(10 * time.Second):
-			c.logger.Warn().
-				Msgf("timeout to send message to channel: protocol ID: %s, msg type %s,  peer ID %s", stream.Protocol(), wrappedMsg.MessageType.String(), peerID)
-		case channel <- &Message{
-			PeerID:  stream.Conn().RemotePeer(),
-			Payload: dataBuf}:
-		}
+	case channel <- msg:
+		// all good, message sent
+	case <-time.After(timeout):
+		// Note that we aren't logging payload itself
+		// as it might contain sensitive information
+		c.logger.Warn().
+			Str(logs.MsgID, wrappedMsg.MsgID).
+			Str(logs.Peer, peerID).
+			Str("protocol", string(stream.Protocol())).
+			Str("message_type", wrappedMsg.MessageType.String()).
+			Int("message_payload_bytes", len(wrappedMsg.Payload)).
+			Float64("timeout", timeout.Seconds()).
+			Msg("readFromStream: timeout to send message to channel")
 	}
 }
 
 func (c *Communication) handleStream(stream network.Stream) {
-	peerID := stream.Conn().RemotePeer().String()
-	c.logger.Debug().Msgf("handle stream from peer: %s", peerID)
-	// we will read from that stream
-	c.readFromStream(stream)
+	select {
+	case <-c.stopChan:
+		return
+	default:
+		c.readFromStream(stream)
+	}
 }
 
 func (c *Communication) bootStrapConnectivityCheck() error {
@@ -228,11 +247,11 @@ func (c *Communication) bootStrapConnectivityCheck() error {
 					return
 				}
 				if ret.Error == nil {
-					c.logger.Debug().Msgf("connect to peer %v with RTT %v\n", peer.ID, ret.RTT)
+					c.logger.Debug().Msgf("connect to peer %v with RTT %v", peer.ID, ret.RTT)
 					atomic.AddUint32(&onlineNodes, 1)
 				}
 			case <-ctx.Done():
-				c.logger.Error().Msgf("fail to ping the node %s within 2 seconds", peer.ID)
+				c.logger.Error().Stringer(logs.Peer, peer.ID).Msg("fail to ping peer within 2 seconds")
 			}
 		}()
 	}
@@ -249,8 +268,7 @@ func (c *Communication) bootStrapConnectivityCheck() error {
 func (c *Communication) startChannel(privKeyBytes []byte) error {
 	p2pPriKey, err := crypto.UnmarshalSecp256k1PrivateKey(privKeyBytes)
 	if err != nil {
-		c.logger.Error().Msgf("error is %f", err)
-		return err
+		return fmt.Errorf("fail to unmarshal private key: %w", err)
 	}
 
 	addressFactory := func(addrs []maddr.Multiaddr) []maddr.Multiaddr {
@@ -292,7 +310,7 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 	m, err := rcmgr.NewResourceManager(
 		limiter,
 		rcmgr.WithAllowlistedMultiaddrs(c.bootstrapPeers),
-		rcmgr.WithMetrics(NewResourceMetricReporter()),
+		rcmgr.WithMetrics(NewResourceMetricReporter(c.logger)),
 	)
 	if err != nil {
 		return err
@@ -392,12 +410,12 @@ func (c *Communication) connectToBootstrapPeers() error {
 			ctx, cancel := context.WithTimeout(context.Background(), TimeoutConnecting)
 			defer cancel()
 			if err := c.host.Connect(ctx, *pi); err != nil {
-				c.logger.Error().Err(err).Msgf("fail to connect to %s", pi.String())
+				c.logger.Error().Err(err).Stringer(logs.Peer, pi).Msg("fail to connect to peer")
 				connRet <- false
 				return
 			}
 			connRet <- true
-			c.logger.Info().Msgf("Connection established with bootstrap node: %s", *pi)
+			c.logger.Info().Stringer(logs.Peer, pi).Msg("Connection established with bootstrap node")
 		}(connRet)
 	}
 	wg.Wait()

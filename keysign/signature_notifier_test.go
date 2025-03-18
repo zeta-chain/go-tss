@@ -12,6 +12,7 @@ import (
 	tnet "github.com/libp2p/go-libp2p-testing/net"
 	"github.com/libp2p/go-libp2p/core/peer"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zeta-chain/go-tss/conversion"
@@ -21,6 +22,8 @@ import (
 )
 
 func TestSignatureNotifierHappyPath(t *testing.T) {
+	logger := zerolog.Nop()
+
 	conversion.SetupBech32Prefix()
 	poolPubKey := `thorpub1addwnpepq0ul3xt882a6nm6m7uhxj4tk2n82zyu647dyevcs5yumuadn4uamqx7neak`
 	messageToSign := "yhEwrxWuNBGnPT/L7PNnVWg7gFWNzCYTV+GuX3tKRH8="
@@ -60,9 +63,9 @@ func TestSignatureNotifierHappyPath(t *testing.T) {
 	if err := mn.ConnectAllButSelf(); err != nil {
 		t.Error(err)
 	}
-	n1 := NewSignatureNotifier(h1)
-	n2 := NewSignatureNotifier(h2)
-	n3 := NewSignatureNotifier(h3)
+	n1 := NewSignatureNotifier(h1, logger)
+	n2 := NewSignatureNotifier(h2, logger)
+	n3 := NewSignatureNotifier(h3, logger)
 	assert.NotNil(t, n1)
 	assert.NotNil(t, n2)
 	assert.NotNil(t, n3)
@@ -93,6 +96,8 @@ func TestSignatureNotifierHappyPath(t *testing.T) {
 }
 
 func TestSignatureNotifierBroadcastFirst(t *testing.T) {
+	logger := zerolog.Nop()
+
 	poolPubKey := `thorpub1addwnpepq0ul3xt882a6nm6m7uhxj4tk2n82zyu647dyevcs5yumuadn4uamqx7neak`
 	messageToSign := "yhEwrxWuNBGnPT/L7PNnVWg7gFWNzCYTV+GuX3tKRH8="
 	buf, err := base64.StdEncoding.DecodeString(messageToSign)
@@ -131,9 +136,9 @@ func TestSignatureNotifierBroadcastFirst(t *testing.T) {
 	if err := mn.ConnectAllButSelf(); err != nil {
 		t.Error(err)
 	}
-	n1 := NewSignatureNotifier(h1)
-	n2 := NewSignatureNotifier(h2)
-	n3 := NewSignatureNotifier(h3)
+	n1 := NewSignatureNotifier(h1, logger)
+	n2 := NewSignatureNotifier(h2, logger)
+	n3 := NewSignatureNotifier(h3, logger)
 	assert.NotNil(t, n1)
 	assert.NotNil(t, n2)
 	assert.NotNil(t, n3)

@@ -21,6 +21,7 @@ import (
 	"github.com/zeta-chain/go-tss/keysign"
 	"github.com/zeta-chain/go-tss/keysign/ecdsa"
 	"github.com/zeta-chain/go-tss/keysign/eddsa"
+	"github.com/zeta-chain/go-tss/logs"
 	"github.com/zeta-chain/go-tss/messages"
 	"github.com/zeta-chain/go-tss/p2p"
 	"github.com/zeta-chain/go-tss/storage"
@@ -87,8 +88,12 @@ func (t *Server) generateSignature(
 				break
 			}
 		}
+
 		if !isSignMember {
-			t.logger.Info().Msgf("we(%s) are not the active signer", t.p2pCommunication.GetHost().ID().String())
+			t.logger.Info().
+				Stringer(logs.Host, t.p2pCommunication.GetHost().ID()).
+				Msg("We are not the active signer")
+
 			return keysign.Response{}, p2p.ErrNotActiveSigner
 		}
 	}
@@ -125,8 +130,12 @@ func (t *Server) generateSignature(
 				t.logger.Err(err).Msg("fail to get peers to blame")
 			}
 			t.broadcastKeysignFailure(msgID, allPeersID)
+
 			// make sure we blame the leader as well
-			t.logger.Error().Err(err).Msgf("fail to form keysign party with online:%v", onlinePeers)
+			t.logger.Error().Err(err).
+				Any("peers", onlinePeers).
+				Msg("Fail to form keysign party with online peers")
+
 			return keysign.Response{
 				Status: common.Fail,
 				Blame:  blameNodes,
@@ -147,10 +156,14 @@ func (t *Server) generateSignature(
 		}
 
 		t.broadcastKeysignFailure(msgID, allPeersID)
+
 		// make sure we blame the leader as well
 		t.logger.Error().
 			Err(errJoinParty).
-			Msgf("messagesID(%s)fail to form keysign party with online:%v", msgID, onlinePeers)
+			Str(logs.MsgID, msgID).
+			Any("peers", onlinePeers).
+			Msg("Failed to form keysign party with online peers")
+
 		return keysign.Response{
 			Status: common.Fail,
 			Blame:  blameLeader,
@@ -165,9 +178,14 @@ func (t *Server) generateSignature(
 	}
 	if !isKeySignMember {
 		// we are not the keysign member so we quit keysign and waiting for signature
-		t.logger.Info().Msgf("we(%s) are not the active signer", t.p2pCommunication.GetHost().ID().String())
+		t.logger.Info().
+			Str(logs.MsgID, msgID).
+			Stringer(logs.Host, t.p2pCommunication.GetHost().ID()).
+			Msg("We are not the active signer")
+
 		return keysign.Response{}, p2p.ErrNotActiveSigner
 	}
+
 	parsedPeers := make([]string, len(onlinePeers))
 	for i, el := range onlinePeers {
 		parsedPeers[i] = el.String()
@@ -185,7 +203,7 @@ func (t *Server) generateSignature(
 	// the statistic of keygen only care about Tss it self, even if the following http response aborts,
 	// it still counted as a successful keygen as the Tss model runs successfully.
 	if err != nil {
-		t.logger.Error().Err(err).Msg("err in keysign")
+		t.logger.Error().Err(err).Msg("SignMessage failed")
 		sigChan <- "signature generated"
 		t.broadcastKeysignFailure(msgID, allPeersID)
 		blameNodes := *blameMgr.GetBlame()
@@ -213,15 +231,16 @@ func (t *Server) updateKeySignResult(result keysign.Response, timeSpent time.Dur
 }
 
 func (t *Server) KeySign(req keysign.Request) (keysign.Response, error) {
-	t.logger.Info().Str("pool pub key", req.PoolPubKey).
-		Str("signer pub keys", strings.Join(req.SignerPubKeys, ",")).
-		Str("msg", strings.Join(req.Messages, ",")).
-		Msg("received keysign request")
 	emptyResp := keysign.Response{}
 	msgID, err := t.requestToMsgID(req)
 	if err != nil {
 		return emptyResp, err
 	}
+
+	t.logger.Info().
+		Str(logs.MsgID, msgID).
+		Object("request", &req).
+		Msg("Keysign request")
 
 	var keysignInstance keysign.TssKeySign
 	var algo common.Algo
@@ -243,6 +262,7 @@ func (t *Server) KeySign(req keysign.Request) (keysign.Response, error) {
 			t.p2pCommunication,
 			t.stateManager,
 			len(req.Messages),
+			t.logger,
 		)
 	case ed25519.KeyType:
 		algo = common.EdDSA
@@ -256,6 +276,7 @@ func (t *Server) KeySign(req keysign.Request) (keysign.Response, error) {
 			t.p2pCommunication,
 			t.stateManager,
 			len(req.Messages),
+			t.logger,
 		)
 	default:
 		return keysign.Response{}, errors.New("invalid keysign algo")
@@ -301,11 +322,11 @@ func (t *Server) KeySign(req keysign.Request) (keysign.Response, error) {
 	sort.SliceStable(msgsToSign, func(i, j int) bool {
 		ma, err := common.MsgToHashInt(msgsToSign[i], algo)
 		if err != nil {
-			t.logger.Error().Err(err).Msgf("fail to convert the hash value")
+			t.logger.Error().Err(err).Msg("fail to convert the hash value")
 		}
 		mb, err := common.MsgToHashInt(msgsToSign[j], algo)
 		if err != nil {
-			t.logger.Error().Err(err).Msgf("fail to convert the hash value")
+			t.logger.Error().Err(err).Msg("fail to convert the hash value")
 		}
 		if ma.Cmp(mb) == -1 {
 			return false
@@ -331,7 +352,11 @@ func (t *Server) KeySign(req keysign.Request) (keysign.Response, error) {
 		return emptyResp, errors.New("fail to get threshold")
 	}
 	if len(req.SignerPubKeys) <= threshold && oldJoinParty {
-		t.logger.Error().Msgf("not enough signers, threshold=%d and signers=%d", threshold, len(req.SignerPubKeys))
+		t.logger.Error().
+			Int("threshold", threshold).
+			Int("signers", len(req.SignerPubKeys)).
+			Msg("not enough signers")
+
 		return emptyResp, errors.New("not enough signers")
 	}
 

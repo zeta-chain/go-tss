@@ -6,7 +6,8 @@ import (
 	btss "github.com/bnb-chain/tss-lib/tss"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
+
+	"github.com/zeta-chain/go-tss/logs"
 )
 
 type Manager struct {
@@ -24,10 +25,11 @@ type Manager struct {
 	localPartyID      string
 }
 
-func NewBlameManager() *Manager {
+func NewBlameManager(logger zerolog.Logger) *Manager {
 	blame := NewBlame("", nil)
+
 	return &Manager{
-		logger:            log.With().Str("module", "blame_manager").Logger(),
+		logger:            logger.With().Str(logs.Component, "blame_manager").Logger(),
 		partyInfo:         nil,
 		PartyIDtoP2PID:    make(map[string]peer.ID),
 		lastUnicastPeer:   make(map[string][]peer.ID),

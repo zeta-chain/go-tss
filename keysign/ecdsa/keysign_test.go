@@ -150,13 +150,13 @@ func (s *TssECDSAKeysignTestSuite) SetUpTest(c *C) {
 		buf, err := base64.StdEncoding.DecodeString(testPriKeyArr[i])
 		c.Assert(err, IsNil)
 		if i == 0 {
-			comm, err := p2p.NewCommunication(nil, ports[i], "", whitelistedPeers)
+			comm, err := p2p.NewCommunication(nil, ports[i], "", whitelistedPeers, zlog.Logger)
 			c.Assert(err, IsNil)
 			c.Assert(comm.Start(buf), IsNil)
 			s.comms[i] = comm
 			continue
 		}
-		comm, err := p2p.NewCommunication(bootstrapPeers, ports[i], "", whitelistedPeers)
+		comm, err := p2p.NewCommunication(bootstrapPeers, ports[i], "", whitelistedPeers, zlog.Logger)
 		c.Assert(err, IsNil)
 		c.Assert(comm.Start(buf), IsNil)
 		s.comms[i] = comm
@@ -209,7 +209,12 @@ func (s *TssECDSAKeysignTestSuite) TestSignMessage(c *C) {
 				conf,
 				comm.BroadcastMsgChan,
 				stopChan, messageID,
-				s.nodePrivKeys[idx], s.comms[idx], s.stateMgrs[idx], 2)
+				s.nodePrivKeys[idx],
+				s.comms[idx],
+				s.stateMgrs[idx],
+				2,
+				zlog.Logger,
+			)
 			keysignMsgChannel := keysignIns.GetTssKeySignChannels()
 
 			comm.SetSubscribe(messages.TSSKeySignMsg, messageID, keysignMsgChannel)
@@ -310,7 +315,12 @@ func (s *TssECDSAKeysignTestSuite) TestSignMessageWithStop(c *C) {
 				conf,
 				comm.BroadcastMsgChan,
 				stopChan, messageID,
-				s.nodePrivKeys[idx], s.comms[idx], s.stateMgrs[idx], 2)
+				s.nodePrivKeys[idx],
+				s.comms[idx],
+				s.stateMgrs[idx],
+				2,
+				zlog.Logger,
+			)
 			keysignMsgChannel := keysignIns.GetTssKeySignChannels()
 
 			comm.SetSubscribe(messages.TSSKeySignMsg, messageID, keysignMsgChannel)
@@ -406,7 +416,14 @@ func (s *TssECDSAKeysignTestSuite) TestSignMessageRejectOnePeer(c *C) {
 			keysignIns := NewTssKeySign(comm.GetLocalPeerID(),
 				conf,
 				comm.BroadcastMsgChan,
-				stopChan, messageID, s.nodePrivKeys[idx], s.comms[idx], s.stateMgrs[idx], 2)
+				stopChan,
+				messageID,
+				s.nodePrivKeys[idx],
+				s.comms[idx],
+				s.stateMgrs[idx],
+				2,
+				zlog.Logger,
+			)
 			keysignMsgChannel := keysignIns.GetTssKeySignChannels()
 
 			comm.SetSubscribe(messages.TSSKeySignMsg, messageID, keysignMsgChannel)
@@ -457,7 +474,18 @@ func (s *TssECDSAKeysignTestSuite) TearDownTest(c *C) {
 
 func (s *TssECDSAKeysignTestSuite) TestCloseKeySignnotifyChannel(c *C) {
 	conf := common.TssConfig{}
-	keySignInstance := NewTssKeySign("", conf, nil, nil, "test", s.nodePrivKeys[0], s.comms[0], s.stateMgrs[0], 1)
+	keySignInstance := NewTssKeySign(
+		"",
+		conf,
+		nil,
+		nil,
+		"test",
+		s.nodePrivKeys[0],
+		s.comms[0],
+		s.stateMgrs[0],
+		1,
+		zlog.Logger,
+	)
 
 	taskDone := messages.TssTaskNotifier{TaskDone: true}
 	taskDoneBytes, err := json.Marshal(taskDone)

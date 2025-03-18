@@ -16,12 +16,12 @@ import (
 	btss "github.com/bnb-chain/tss-lib/tss"
 	tcrypto "github.com/cometbft/cometbft/crypto"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 	"go.uber.org/atomic"
 
 	"github.com/zeta-chain/go-tss/blame"
 	"github.com/zeta-chain/go-tss/common"
 	"github.com/zeta-chain/go-tss/conversion"
+	"github.com/zeta-chain/go-tss/logs"
 	"github.com/zeta-chain/go-tss/messages"
 	"github.com/zeta-chain/go-tss/p2p"
 	"github.com/zeta-chain/go-tss/storage"
@@ -47,11 +47,13 @@ func New(
 	p2pComm *p2p.Communication,
 	stateManager storage.LocalStateManager,
 	msgNum int,
+	logger zerolog.Logger,
 ) *KeySign {
-	logItems := []string{"keySign", msgID}
+	logger = logger.With().Str(logs.Component, "keygen").Str(logs.MsgID, msgID).Logger()
+
 	return &KeySign{
-		logger:          log.With().Strs("module", logItems).Logger(),
-		tssCommonStruct: common.NewTssCommon(localP2PID, broadcastChan, conf, msgID, privKey, msgNum),
+		logger:          logger,
+		tssCommonStruct: common.NewTssCommon(localP2PID, broadcastChan, conf, msgID, privKey, msgNum, logger),
 		stopChan:        stopChan,
 		localParty:      nil,
 		commStopChan:    make(chan struct{}),
@@ -75,15 +77,22 @@ func (tKeySign *KeySign) startBatchSigning(keySignPartyMap *sync.Map, msgNum int
 	keySignWg.Add(msgNum)
 	keySignPartyMap.Range(func(_, value any) bool {
 		eachParty := value.(btss.Party)
+
 		go func(eachParty btss.Party) {
 			defer keySignWg.Done()
+
 			if err := eachParty.Start(); err != nil {
-				tKeySign.logger.Error().Err(err).Msg("fail to start key sign party")
+				tKeySign.logger.Error().Err(err).
+					Fields(logs.Party(eachParty)).
+					Msg("Failed to start key sign party")
+
 				ret.Store(false)
+				return
 			}
-			tKeySign.logger.Info().
-				Msgf("local party(%s) %s is ready", eachParty.PartyID().Id, eachParty.PartyID().Moniker)
+
+			tKeySign.logger.Info().Fields(logs.Party(eachParty)).Msg("Local party is ready")
 		}(eachParty)
+
 		return true
 	})
 	keySignWg.Wait()
@@ -102,7 +111,7 @@ func (tKeySign *KeySign) SignMessage(
 		return nil, fmt.Errorf("fail to form key sign party: %w", err)
 	}
 	if !common.Contains(partiesID, localPartyID) {
-		tKeySign.logger.Info().Msgf("we are not in this rounds key sign")
+		tKeySign.logger.Info().Msg("we are not in this rounds key sign")
 		return nil, nil
 	}
 	threshold, err := conversion.GetThreshold(len(localStateItem.ParticipantKeys))
@@ -188,15 +197,15 @@ func (tKeySign *KeySign) SignMessage(
 	}
 	keySignWg.Wait()
 
-	tKeySign.logger.Info().Msgf("%s successfully sign the message", tKeySign.p2pComm.GetHost().ID().String())
+	tKeySign.logger.Info().
+		Stringer(logs.Host, tKeySign.p2pComm.GetHost().ID()).
+		Msg("Successfully signed the message")
+
 	sort.SliceStable(results, func(i, j int) bool {
 		a := new(big.Int).SetBytes(results[i].M)
 		b := new(big.Int).SetBytes(results[j].M)
 
-		if a.Cmp(b) == -1 {
-			return false
-		}
-		return true
+		return a.Cmp(b) >= 0
 	})
 
 	return results, nil
@@ -222,7 +231,10 @@ func (tKeySign *KeySign) processKeySign(
 			return nil, errors.New("received exit signal")
 		case <-time.After(tssConf.KeySignTimeout):
 			// we bail out after KeySignTimeoutSeconds
-			tKeySign.logger.Error().Msgf("fail to sign message with %s", tssConf.KeySignTimeout.String())
+			tKeySign.logger.Error().
+				Float64("timeout", tssConf.KeySignTimeout.Seconds()).
+				Msg("Failed to sign message due to timeout")
+
 			lastMsg := blameMgr.GetLastMsg()
 			failReason := blameMgr.GetBlame().FailReason
 			if failReason == "" {

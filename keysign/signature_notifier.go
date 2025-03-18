@@ -13,8 +13,8 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 
+	"github.com/zeta-chain/go-tss/logs"
 	"github.com/zeta-chain/go-tss/messages"
 	"github.com/zeta-chain/go-tss/p2p"
 )
@@ -41,18 +41,26 @@ type SignatureNotifier struct {
 }
 
 // NewSignatureNotifier create a new instance of SignatureNotifier
-func NewSignatureNotifier(host host.Host) *SignatureNotifier {
+func NewSignatureNotifier(host host.Host, logger zerolog.Logger) *SignatureNotifier {
+	logger = logger.With().
+		Str(logs.Component, "signature_notifier").
+		Stringer(logs.Host, host.ID()).
+		Logger()
+
 	ctx, cancel := context.WithCancel(context.Background())
+
 	s := &SignatureNotifier{
 		ctx:          ctx,
 		cancel:       cancel,
-		logger:       log.With().Str("module", "signature_notifier").Logger(),
+		logger:       logger,
 		host:         host,
 		notifierLock: &sync.Mutex{},
 		notifiers:    make(map[string]*notifier),
 		streamMgr:    p2p.NewStreamMgr(),
 	}
+
 	host.SetStreamHandler(signatureNotifierProtocol, s.handleStream)
+
 	return s
 }
 
@@ -105,14 +113,14 @@ func (s *SignatureNotifier) handleStream(stream network.Stream) {
 	logger.Debug().Msg("reading signature notifier message")
 	payload, err := p2p.ReadStreamWithBuffer(stream)
 	if err != nil {
-		logger.Err(err).Msgf("fail to read payload from stream")
+		logger.Err(err).Msg("fail to read payload from stream")
 		s.streamMgr.AddStream("UNKNOWN", stream)
 		return
 	}
 	// we tell the sender we have received the message
 	err = p2p.WriteStreamWithBuffer([]byte("done"), stream)
 	if err != nil {
-		logger.Error().Err(err).Msgf("fail to write the reply to peer: %s", remotePeer)
+		logger.Error().Err(err).Stringer(logs.Peer, remotePeer).Msg("Fail to write the reply to peer")
 	}
 	var msg messages.KeysignSignature
 	if err := proto.Unmarshal(payload, &msg); err != nil {
@@ -146,7 +154,7 @@ func (s *SignatureNotifier) sendOneMsgToPeer(m *signatureItem) error {
 	if err != nil {
 		return fmt.Errorf("fail to create stream to peer(%s):%w", m.peerID, err)
 	}
-	s.logger.Debug().Msgf("open stream to (%s) successfully", m.peerID)
+	s.logger.Debug().Stringer(logs.Peer, m.peerID).Msg("opened stream to peer successfully")
 	defer func() {
 		s.streamMgr.AddStream(m.messageID, stream)
 	}()
@@ -214,7 +222,10 @@ func (s *SignatureNotifier) broadcastCommon(
 			defer wg.Done()
 			err := s.sendOneMsgToPeer(signature)
 			if err != nil {
-				s.logger.Error().Err(err).Msgf("fail to send signature to peer %s", signature.peerID.String())
+				s.logger.Error().Err(err).
+					Str(logs.MsgID, messageID).
+					Stringer(logs.Peer, signature.peerID).
+					Msg("Failed to send signature to peer")
 			}
 		}()
 	}

@@ -11,6 +11,7 @@ import (
 	"github.com/cometbft/cometbft/crypto/secp256k1"
 	sdk "github.com/cosmos/cosmos-sdk/types/bech32/legacybech32"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/rs/zerolog"
 	. "gopkg.in/check.v1"
 
 	"github.com/zeta-chain/go-tss/blame"
@@ -70,7 +71,7 @@ func (t *tssHelpSuite) TestTssCommon_NotifyTaskDone(c *C) {
 	peerID, err := conversion.GetPeerIDFromSecp256PubKey(pk.Bytes())
 	c.Assert(err, IsNil)
 	sk := secp256k1.GenPrivKey()
-	tssCommon := NewTssCommon(peerID.String(), nil, TssConfig{}, "message-id", sk, 1)
+	tssCommon := NewTssCommon(peerID.String(), nil, TssConfig{}, "message-id", sk, 1, zerolog.Nop())
 	err = tssCommon.NotifyTaskDone()
 	c.Assert(err, IsNil)
 }
@@ -86,7 +87,7 @@ func (t *tssHelpSuite) TestTssCommon_processRequestMsgFromPeer(c *C) {
 	sk := secp256k1.GenPrivKey()
 	testPeer, err := peer.Decode("16Uiu2HAm2FzqoUdS6Y9Esg2EaGcAG5rVe1r6BFNnmmQr2H3bqafa")
 	c.Assert(err, IsNil)
-	tssCommon := NewTssCommon(peerID.String(), nil, TssConfig{}, "message-id", sk, 1)
+	tssCommon := NewTssCommon(peerID.String(), nil, TssConfig{}, "message-id", sk, 1, zerolog.Nop())
 	err = tssCommon.processRequestMsgFromPeer([]peer.ID{testPeer}, nil, true)
 	c.Assert(err, IsNil)
 	err = tssCommon.processRequestMsgFromPeer([]peer.ID{testPeer}, nil, false)

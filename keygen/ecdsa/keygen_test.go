@@ -124,13 +124,13 @@ func (s *TssECDSAKeygenTestSuite) SetUpTest(c *C) {
 		buf, err := base64.StdEncoding.DecodeString(testPriKeyArr[i])
 		c.Assert(err, IsNil)
 		if i == 0 {
-			comm, err := p2p.NewCommunication(nil, ports[i], "", whitelistedPeers)
+			comm, err := p2p.NewCommunication(nil, ports[i], "", whitelistedPeers, zlog.Logger)
 			c.Assert(err, IsNil)
 			c.Assert(comm.Start(buf[:]), IsNil)
 			s.comms[i] = comm
 			continue
 		}
-		comm, err := p2p.NewCommunication(bootstrapPeers, ports[i], "", whitelistedPeers)
+		comm, err := p2p.NewCommunication(bootstrapPeers, ports[i], "", whitelistedPeers, zlog.Logger)
 		c.Assert(err, IsNil)
 		c.Assert(comm.Start(buf[:]), IsNil)
 		s.comms[i] = comm
@@ -199,7 +199,11 @@ func (s *TssECDSAKeygenTestSuite) TestGenerateNewKey(c *C) {
 				stopChan,
 				s.preParams[idx],
 				messageID,
-				s.stateMgrs[idx], s.nodePrivKeys[idx], s.comms[idx])
+				s.stateMgrs[idx],
+				s.nodePrivKeys[idx],
+				s.comms[idx],
+				zlog.Logger,
+			)
 			c.Assert(keygenInstance, NotNil)
 			keygenMsgChannel := keygenInstance.GetTssKeyGenChannels()
 			comm.SetSubscribe(messages.TSSKeyGenMsg, messageID, keygenMsgChannel)
@@ -254,7 +258,10 @@ func (s *TssECDSAKeygenTestSuite) TestGenerateNewKeyWithStop(c *C) {
 				s.preParams[idx],
 				messageID,
 				s.stateMgrs[idx],
-				s.nodePrivKeys[idx], s.comms[idx])
+				s.nodePrivKeys[idx],
+				s.comms[idx],
+				zlog.Logger,
+			)
 			c.Assert(keygenInstance, NotNil)
 			keygenMsgChannel := keygenInstance.GetTssKeyGenChannels()
 			comm.SetSubscribe(messages.TSSKeyGenMsg, messageID, keygenMsgChannel)
@@ -290,7 +297,19 @@ func (s *TssECDSAKeygenTestSuite) TestKeyGenWithError(c *C) {
 	}
 	conf := common.TssConfig{}
 	stateManager := &storage.MockLocalStateManager{}
-	keyGenInstance := NewTssKeyGen("", conf, "", nil, nil, nil, "test", stateManager, s.nodePrivKeys[0], nil)
+	keyGenInstance := NewTssKeyGen(
+		"",
+		conf,
+		"",
+		nil,
+		nil,
+		nil,
+		"test",
+		stateManager,
+		s.nodePrivKeys[0],
+		nil,
+		zlog.Logger,
+	)
 	generatedKey, err := keyGenInstance.GenerateNewKey(req)
 	c.Assert(err, NotNil)
 	c.Assert(generatedKey, IsNil)
@@ -299,7 +318,19 @@ func (s *TssECDSAKeygenTestSuite) TestKeyGenWithError(c *C) {
 func (s *TssECDSAKeygenTestSuite) TestCloseKeyGenNotifyChannel(c *C) {
 	conf := common.TssConfig{}
 	stateManager := &storage.MockLocalStateManager{}
-	keyGenInstance := NewTssKeyGen("", conf, "", nil, nil, nil, "test", stateManager, s.nodePrivKeys[0], s.comms[0])
+	keyGenInstance := NewTssKeyGen(
+		"",
+		conf,
+		"",
+		nil,
+		nil,
+		nil,
+		"test",
+		stateManager,
+		s.nodePrivKeys[0],
+		s.comms[0],
+		zlog.Logger,
+	)
 
 	taskDone := messages.TssTaskNotifier{TaskDone: true}
 	taskDoneBytes, err := json.Marshal(taskDone)
