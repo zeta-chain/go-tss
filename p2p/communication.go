@@ -162,56 +162,63 @@ func (c *Communication) writeToStream(pID peer.ID, msg []byte, msgID string) err
 
 func (c *Communication) readFromStream(stream network.Stream) {
 	peerID := stream.Conn().RemotePeer().String()
-	c.logger.Debug().Msgf("reading from stream of peer: %s", peerID)
+	c.logger.Debug().Str(logs.Peer, peerID).Msg("Reading from peer's stream")
 
 	const timeout = 10 * time.Second
 
-	select {
-	case <-c.stopChan:
+	payload, err := ReadStreamWithBuffer(stream)
+	if err != nil {
+		c.logger.Error().Err(err).Str(logs.Peer, peerID).Msg("fail to read from stream")
+		c.streamMgr.AddStream("UNKNOWN", stream)
 		return
-	default:
-		dataBuf, err := ReadStreamWithBuffer(stream)
-		if err != nil {
-			c.logger.Error().Err(err).Str(logs.Peer, peerID).Msg("fail to read from stream")
-			c.streamMgr.AddStream("UNKNOWN", stream)
-			return
-		}
-		var wrappedMsg messages.WrappedMessage
-		if err := json.Unmarshal(dataBuf, &wrappedMsg); nil != err {
-			c.logger.Error().Err(err).Msg("fail to unmarshal wrapped message bytes")
-			c.streamMgr.AddStream("UNKNOWN", stream)
-			return
-		}
-		c.logger.Debug().Msgf(">>>>>>>[%s] %s", wrappedMsg.MessageType, string(wrappedMsg.Payload))
-		channel := c.getSubscriber(wrappedMsg.MessageType, wrappedMsg.MsgID)
-		if nil == channel {
-			c.logger.Debug().Msgf("no MsgID %s found for this message", wrappedMsg.MsgID)
-			c.logger.Debug().Msgf("no MsgID %s found for this message", wrappedMsg.MessageType)
-			_ = stream.Reset()
-			return
-		}
-		c.streamMgr.AddStream(wrappedMsg.MsgID, stream)
-		select {
-		case <-time.After(timeout):
-			c.logger.Warn().
-				Str(logs.MsgID, wrappedMsg.MsgID).
-				Str(logs.Peer, peerID).
-				Str("protocol", string(stream.Protocol())).
-				Str("message_type", wrappedMsg.MessageType.String()).
-				Float64("timeout", timeout.Seconds()).
-				Msg("Timeout to send message to channel")
-		case channel <- &Message{
-			PeerID:  stream.Conn().RemotePeer(),
-			Payload: dataBuf}:
-		}
+	}
+
+	var wrappedMsg messages.WrappedMessage
+	if err := json.Unmarshal(payload, &wrappedMsg); nil != err {
+		c.logger.Error().Err(err).Msg("fail to unmarshal wrapped message bytes")
+		c.streamMgr.AddStream("UNKNOWN", stream)
+		return
+	}
+
+	channel := c.getSubscriber(wrappedMsg.MessageType, wrappedMsg.MsgID)
+	if nil == channel {
+		c.logger.Debug().Msgf("no MsgID %s found for this message", wrappedMsg.MsgID)
+		c.logger.Debug().Msgf("no MsgID %s found for this message", wrappedMsg.MessageType)
+		_ = stream.Reset()
+		return
+	}
+
+	c.streamMgr.AddStream(wrappedMsg.MsgID, stream)
+
+	msg := &Message{
+		PeerID:  stream.Conn().RemotePeer(),
+		Payload: payload,
+	}
+
+	select {
+	case channel <- msg:
+		// all good, message sent
+	case <-time.After(timeout):
+		// Note that we aren't logging payload itself
+		// as it might contain sensitive information
+		c.logger.Warn().
+			Str(logs.MsgID, wrappedMsg.MsgID).
+			Str(logs.Peer, peerID).
+			Str("protocol", string(stream.Protocol())).
+			Str("message_type", wrappedMsg.MessageType.String()).
+			Int("message_payload_bytes", len(wrappedMsg.Payload)).
+			Float64("timeout", timeout.Seconds()).
+			Msg("readFromStream: timeout to send message to channel")
 	}
 }
 
 func (c *Communication) handleStream(stream network.Stream) {
-	peerID := stream.Conn().RemotePeer().String()
-	c.logger.Debug().Msgf("handle stream from peer: %s", peerID)
-	// we will read from that stream
-	c.readFromStream(stream)
+	select {
+	case <-c.stopChan:
+		return
+	default:
+		c.readFromStream(stream)
+	}
 }
 
 func (c *Communication) bootStrapConnectivityCheck() error {

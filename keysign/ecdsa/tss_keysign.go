@@ -107,6 +107,7 @@ func (tKeySign *TssKeySign) SignMessage(
 		tKeySign.logger.Info().Msg("we are not in this rounds key sign")
 		return nil, nil
 	}
+
 	threshold, err := conversion.GetThreshold(len(localStateItem.ParticipantKeys))
 	if err != nil {
 		return nil, errors.New("fail to get threshold")
@@ -147,11 +148,15 @@ func (tKeySign *TssKeySign) SignMessage(
 
 	blameMgr := tKeySign.tssCommonStruct.GetBlameMgr()
 	partyIDMap := conversion.SetupPartyIDMap(partiesID)
-	err1 := conversion.SetupIDMaps(partyIDMap, tKeySign.tssCommonStruct.PartyIDtoP2PID)
-	err2 := conversion.SetupIDMaps(partyIDMap, blameMgr.PartyIDtoP2PID)
-	if err1 != nil || err2 != nil {
-		tKeySign.logger.Error().Err(err).Msg("error in creating mapping between partyID and P2P ID")
-		return nil, err
+
+	err = conversion.SetupIDMaps(partyIDMap, tKeySign.tssCommonStruct.PartyIDtoP2PID)
+	if err != nil {
+		return nil, fmt.Errorf("fail to setup id maps #1: %w", err)
+	}
+
+	err = conversion.SetupIDMaps(partyIDMap, blameMgr.PartyIDtoP2PID)
+	if err != nil {
+		return nil, fmt.Errorf("fail to setup id maps #2: %w", err)
 	}
 
 	tKeySign.tssCommonStruct.SetPartyInfo(&common.PartyInfo{
@@ -198,7 +203,7 @@ func (tKeySign *TssKeySign) SignMessage(
 		a := new(big.Int).SetBytes(results[i].M)
 		b := new(big.Int).SetBytes(results[j].M)
 
-		return a.Cmp(b) != -1
+		return a.Cmp(b) >= 0
 	})
 
 	return results, nil

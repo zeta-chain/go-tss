@@ -205,7 +205,7 @@ func (tKeySign *KeySign) SignMessage(
 		a := new(big.Int).SetBytes(results[i].M)
 		b := new(big.Int).SetBytes(results[j].M)
 
-		return a.Cmp(b) != -1
+		return a.Cmp(b) >= 0
 	})
 
 	return results, nil

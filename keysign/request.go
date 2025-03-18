@@ -1,5 +1,7 @@
 package keysign
 
+import "github.com/rs/zerolog"
+
 // Request request to sign a message
 type Request struct {
 	PoolPubKey    string   `json:"pool_pub_key"` // pub key of the pool that we would like to send this message from
@@ -17,4 +19,9 @@ func NewRequest(pk string, msgs []string, blockHeight int64, signers []string, v
 		BlockHeight:   blockHeight,
 		Version:       version,
 	}
+}
+
+func (r *Request) MarshalZerologObject(e *zerolog.Event) {
+	e.Strs("request.messages", r.Messages)
+	e.Int64("request.block_height", r.BlockHeight)
 }

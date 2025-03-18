@@ -203,7 +203,7 @@ func (t *Server) generateSignature(
 	// the statistic of keygen only care about Tss it self, even if the following http response aborts,
 	// it still counted as a successful keygen as the Tss model runs successfully.
 	if err != nil {
-		t.logger.Error().Err(err).Msg("err in keysign")
+		t.logger.Error().Err(err).Msg("SignMessage failed")
 		sigChan <- "signature generated"
 		t.broadcastKeysignFailure(msgID, allPeersID)
 		blameNodes := *blameMgr.GetBlame()
@@ -237,7 +237,10 @@ func (t *Server) KeySign(req keysign.Request) (keysign.Response, error) {
 		return emptyResp, err
 	}
 
-	t.logger.Info().Str(logs.MsgID, msgID).Any("request", req).Msg("Keysign request")
+	t.logger.Info().
+		Str(logs.MsgID, msgID).
+		Object("request", &req).
+		Msg("Keysign request")
 
 	var keysignInstance keysign.TssKeySign
 	var algo common.Algo

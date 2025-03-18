@@ -129,21 +129,21 @@ func (t *HTTPServer) keySignHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
+
 	defer func() {
 		if err := r.Body.Close(); nil != err {
 			t.logger.Error().Err(err).Msg("fail to close request body")
 		}
 	}()
-	t.logger.Info().Msg("receive key sign request")
 
 	var keySignReq keysign.Request
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&keySignReq); nil != err {
+
+	if err := json.NewDecoder(r.Body).Decode(&keySignReq); nil != err {
 		t.logger.Error().Err(err).Msg("fail to decode key sign request")
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	t.logger.Info().Any("request", keySignReq).Msg("received key sign request")
+
 	signResp, err := t.tssServer.KeySign(keySignReq)
 	if err != nil {
 		t.logger.Error().Err(err).Msg("fail to key sign")
@@ -151,14 +151,14 @@ func (t *HTTPServer) keySignHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	jsonResult, err := json.MarshalIndent(signResp, "", "	")
+	jsonResult, err := json.MarshalIndent(signResp, "", "  ")
 	if err != nil {
 		t.logger.Error().Err(err).Msg("fail to marshal response to json message")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	_, err = w.Write(jsonResult)
-	if err != nil {
+
+	if _, err = w.Write(jsonResult); err != nil {
 		t.logger.Error().Err(err).Msg("fail to write response")
 	}
 }
