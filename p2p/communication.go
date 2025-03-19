@@ -386,15 +386,27 @@ func (c *Communication) connectToBootstrapPeers() error {
 		wg.Add(1)
 		go func(connRet chan bool) {
 			defer wg.Done()
+
 			ctx, cancel := context.WithTimeout(context.Background(), TimeoutConnecting)
 			defer cancel()
+
 			if err := c.host.Connect(ctx, *pi); err != nil {
-				c.logger.Error().Err(err).Stringer(logs.Peer, pi).Msg("fail to connect to peer")
+				c.logger.Error().Err(err).
+					Stringer(logs.Peer, pi.ID).
+					Stringer("peer_address", maddr.Join(pi.Addrs...)).
+					Msg("Failed to connect to peer")
+
 				connRet <- false
+
 				return
 			}
+
 			connRet <- true
-			c.logger.Info().Stringer(logs.Peer, pi).Msg("Connection established with bootstrap node")
+
+			c.logger.Info().
+				Stringer(logs.Peer, pi.ID).
+				Stringer("peer_address", maddr.Join(pi.Addrs...)).
+				Msg("Connection established with bootstrap node")
 		}(connRet)
 	}
 	wg.Wait()

@@ -113,6 +113,12 @@ func (t *Server) generateSignature(
 		}, nil
 	}
 
+	t.logger.Info().
+		Str(logs.MsgID, msgID).
+		Str(logs.Leader, leader).
+		Float64(logs.Latency, joinPartyTime.Seconds()).
+		Msg("Joined party for keysign")
+
 	t.tssMetrics.KeysignJoinParty(joinPartyTime, true)
 
 	isKeySignMember := false
@@ -179,7 +185,7 @@ func (t *Server) updateKeySignResult(result keysign.Response, timeSpent time.Dur
 
 func (t *Server) KeySign(req keysign.Request) (keysign.Response, error) {
 	// force party with a leader
-	if req.Version != messages.NEWJOINPARTYVERSION {
+	if req.Version != messages.VersionJoinPartyWithLeader {
 		return keysign.Response{}, errors.Errorf("invalid version %q", req.Version)
 	}
 
@@ -282,30 +288,9 @@ func (t *Server) KeySign(req keysign.Request) (keysign.Response, error) {
 		return true
 	})
 
-	oldJoinParty, err := conversion.VersionLTCheck(req.Version, messages.NEWJOINPARTYVERSION)
-	if err != nil {
-		return keysign.Response{
-			Status: common.Fail,
-			Blame:  blame.NewBlame(blame.InternalError, []blame.Node{}),
-		}, errors.New("fail to parse the version")
-	}
-
-	if len(req.SignerPubKeys) == 0 && oldJoinParty {
-		return keysign.Response{}, errors.New("empty signer pub keys")
-	}
-
 	threshold, err := conversion.GetThreshold(len(localStateItem.ParticipantKeys))
 	if err != nil {
 		return keysign.Response{}, errors.New("fail to get threshold")
-	}
-
-	if len(req.SignerPubKeys) <= threshold && oldJoinParty {
-		t.logger.Error().
-			Int("threshold", threshold).
-			Int("signers", len(req.SignerPubKeys)).
-			Msg("not enough signers")
-
-		return keysign.Response{}, errors.New("not enough signers")
 	}
 
 	blameMgr := keysignInstance.GetTssCommonStruct().GetBlameMgr()

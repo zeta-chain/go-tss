@@ -21,7 +21,7 @@ func (t *Server) Keygen(req keygen.Request) (keygen.Response, error) {
 	t.tssKeyGenLocker.Lock()
 	defer t.tssKeyGenLocker.Unlock()
 
-	if req.Version != messages.NEWJOINPARTYVERSION {
+	if req.Version != messages.VersionJoinPartyWithLeader {
 		return keygen.Response{}, errors.Errorf("invalid version %q", req.Version)
 	}
 
@@ -131,7 +131,7 @@ func (t *Server) Keygen(req keygen.Request) (keygen.Response, error) {
 		t.logger.Error().
 			Err(errJoinParty).
 			Any("peers", onlinePeers).
-			Msg("fail to form keygen party with online peers")
+			Msg("Failed to form keygen party with online peers")
 
 		return keygen.Response{
 			Status: common.Fail,
@@ -295,7 +295,7 @@ func (t *Server) KeygenAllAlgo(req keygen.Request) ([]keygen.Response, error) {
 
 		t.logger.Error().Err(errJoinParty).
 			Any("peers", onlinePeers).
-			Msg("fail to form keygen party with online peers")
+			Msg("Failed to form keygen party with online peers")
 
 		return []keygen.Response{{
 			Status: common.Fail,

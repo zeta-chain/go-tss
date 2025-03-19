@@ -161,7 +161,7 @@ func (pc *PartyCoordinator) HandleStreamWithLeader(stream network.Stream) {
 		pc.processRespMsg(&msg, stream)
 		err := WriteStreamWithBuffer([]byte("done"), stream)
 		if err != nil {
-			pc.logger.Error().Err(err).Msg("fail to send response to leader")
+			pc.logger.Error().Err(err).Msg("Failed to send response to leader")
 		}
 		return
 	default:
@@ -436,10 +436,12 @@ func (pc *PartyCoordinator) JoinPartyWithLeader(
 	if err != nil {
 		return nil, "", err
 	}
+
 	leaderID, err := peer.Decode(leader)
 	if err != nil {
 		return nil, "", err
 	}
+
 	peerIDs, err := pc.getPeerIDs(peers)
 	if err != nil {
 		return nil, "", err
@@ -450,6 +452,7 @@ func (pc *PartyCoordinator) JoinPartyWithLeader(
 		pc.logger.Error().Err(err).Msg("error creating peerStatus")
 		return nil, leader, err
 	}
+
 	defer pc.RemovePeerGroup(msgID)
 
 	if pc.host.ID() == leaderID {
