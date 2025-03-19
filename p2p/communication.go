@@ -25,10 +25,7 @@ import (
 	"github.com/zeta-chain/go-tss/messages"
 )
 
-var (
-	joinPartyProtocol           protocol.ID = "/p2p/join-party"
-	joinPartyProtocolWithLeader protocol.ID = "/p2p/join-party-leader"
-)
+var joinPartyProtocolWithLeader protocol.ID = "/p2p/join-party-leader"
 
 // TSSProtocolID protocol id used for tss
 var TSSProtocolID protocol.ID = "/p2p/tss"
@@ -223,7 +220,7 @@ func (c *Communication) handleStream(stream network.Stream) {
 
 func (c *Communication) bootStrapConnectivityCheck() error {
 	if len(c.bootstrapPeers) == 0 {
-		c.logger.Error().Msg("we do not have the bootstrap node set, quit the connectivity check")
+		c.logger.Error().Msg("No bootstrap node set, skip the connectivity check")
 		return nil
 	}
 
@@ -257,12 +254,13 @@ func (c *Communication) bootStrapConnectivityCheck() error {
 	}
 	wg.Wait()
 
-	if onlineNodes > 0 {
-		c.logger.Info().Msgf("we have successfully ping pong %d nodes", onlineNodes)
-		return nil
+	if onlineNodes == 0 {
+		return errors.New("cannot ping any bootstrap node")
 	}
-	c.logger.Error().Msg("fail to ping any bootstrap node")
-	return errors.New("the node cannot ping any bootstrap node")
+
+	c.logger.Info().Msgf("we have successfully ping pong %d nodes", onlineNodes)
+
+	return nil
 }
 
 func (c *Communication) startChannel(privKeyBytes []byte) error {
@@ -294,7 +292,7 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 
 	scalingLimits.ProtocolPeerBaseLimit = protocolPeerBaseLimit
 	scalingLimits.ProtocolPeerLimitIncrease = protocolPeerLimitIncrease
-	for _, item := range []protocol.ID{joinPartyProtocol, joinPartyProtocolWithLeader, TSSProtocolID} {
+	for _, item := range []protocol.ID{joinPartyProtocolWithLeader, TSSProtocolID} {
 		scalingLimits.AddProtocolLimit(item, protocolPeerBaseLimit, protocolPeerLimitIncrease)
 		scalingLimits.AddProtocolPeerLimit(item, protocolPeerBaseLimit, protocolPeerLimitIncrease)
 	}
@@ -352,26 +350,7 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 		return fmt.Errorf("fail to connect to bootstrap peer: %w", connectionErr)
 	}
 
-	err = c.bootStrapConnectivityCheck()
-	if err != nil {
-		return err
-	}
-
-	c.logger.Info().Msg("Successfully announced!")
-
-	c.logger.Info().Msg("Start peer discovery/gossip...")
-	//c.bootstrapPeers
-	bootstrapPeerAddrInfos := make([]peer.AddrInfo, 0, len(c.bootstrapPeers))
-	for _, addr := range c.bootstrapPeers {
-		peerInfo, err := peer.AddrInfoFromP2pAddr(addr)
-		if err != nil {
-			c.logger.Error().Err(err).Msgf("fail to convert multiaddr to peer info: %s", addr)
-			continue
-		}
-		bootstrapPeerAddrInfos = append(bootstrapPeerAddrInfos, *peerInfo)
-	}
-
-	return nil
+	return c.bootStrapConnectivityCheck()
 }
 
 func (c *Communication) connectToOnePeer(pID peer.ID) (network.Stream, error) {

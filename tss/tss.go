@@ -20,7 +20,6 @@ import (
 	"github.com/zeta-chain/go-tss/keygen"
 	"github.com/zeta-chain/go-tss/keysign"
 	"github.com/zeta-chain/go-tss/logs"
-	"github.com/zeta-chain/go-tss/messages"
 	"github.com/zeta-chain/go-tss/monitor"
 	"github.com/zeta-chain/go-tss/p2p"
 	"github.com/zeta-chain/go-tss/storage"
@@ -178,36 +177,17 @@ func (t *Server) notifyJoinPartyChan() {
 }
 
 func (t *Server) joinParty(
-	msgID, version string,
+	msgID string,
 	blockHeight int64,
 	participants []string,
 	threshold int,
 	sigChan chan string,
 ) ([]peer.ID, string, error) {
-	oldJoinParty, err := conversion.VersionLTCheck(version, messages.NEWJOINPARTYVERSION)
-	if err != nil {
-		return nil, "", fmt.Errorf("fail to parse the version with error:%w", err)
-	}
-
-	if oldJoinParty {
-		t.logger.Info().Msg("we apply the leadless join party")
-		peerIDs, err := conversion.GetPeerIDsFromPubKeys(participants)
-		if err != nil {
-			return nil, p2p.NoLeader, fmt.Errorf("fail to convert pub key to peer id: %w", err)
-		}
-		var peersIDStr []string
-		for _, el := range peerIDs {
-			peersIDStr = append(peersIDStr, el.String())
-		}
-		onlines, err := t.partyCoordinator.JoinPartyWithRetry(msgID, peersIDStr)
-		return onlines, p2p.NoLeader, err
+	if len(participants) == 0 {
+		return nil, "", errors.New("no participants can be found")
 	}
 
 	t.logger.Info().Str(logs.MsgID, msgID).Msg("We apply the join party with a leader")
-	if len(participants) == 0 {
-		t.logger.Error().Str(logs.MsgID, msgID).Msg("We fail to have any participants or passed by request")
-		return nil, "", errors.New("no participants can be found")
-	}
 
 	peersID, err := conversion.GetPeerIDsFromPubKeys(participants)
 	if err != nil {

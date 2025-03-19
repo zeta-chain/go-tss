@@ -10,9 +10,6 @@ import (
 	"github.com/zeta-chain/go-tss/messages"
 )
 
-// NoLeader will be dropped.
-const NoLeader = "NONE"
-
 type peerStatus struct {
 	peersResponse  map[peer.ID]bool
 	peerStatusLock *sync.RWMutex
@@ -62,6 +59,7 @@ func newPeerStatus(peerNodes []peer.ID, myPeerID, leaderID peer.ID, threshold in
 	return peerStatus
 }
 
+//nolint:unused // used in tests
 func (ps *peerStatus) getCoordinationStatus() bool {
 	_, offline := ps.getPeersStatus()
 	return len(offline) == 0
@@ -95,14 +93,6 @@ func (ps *peerStatus) updatePeer(peerNode peer.ID) (bool, error) {
 	val, ok := ps.peersResponse[peerNode]
 	if !ok {
 		return false, errors.New("key not found")
-	}
-
-	if ps.leader == NoLeader {
-		if !val {
-			ps.peersResponse[peerNode] = true
-			return true, nil
-		}
-		return false, nil
 	}
 
 	// we already have enough participants
