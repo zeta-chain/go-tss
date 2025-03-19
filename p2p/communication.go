@@ -3,7 +3,6 @@ package p2p
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -19,7 +18,9 @@ import (
 	"github.com/libp2p/go-libp2p/p2p/net/connmgr"
 	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
 	maddr "github.com/multiformats/go-multiaddr"
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/zeta-chain/go-tss/logs"
 	"github.com/zeta-chain/go-tss/messages"
@@ -377,17 +378,22 @@ func (c *Communication) connectToBootstrapPeers() error {
 		return nil
 	}
 
-	var wg sync.WaitGroup
-	connRet := make(chan bool, len(c.bootstrapPeers))
+	var (
+		errGroup     errgroup.Group
+		hasConnected atomic.Bool
+	)
+
 	for _, peerAddr := range c.bootstrapPeers {
 		pi, err := peer.AddrInfoFromP2pAddr(peerAddr)
-		if err != nil {
-			return fmt.Errorf("fail to add peer: %w", err)
+		switch {
+		case err != nil:
+			return errors.Wrap(err, peerAddr.String())
+		case pi.ID == c.host.ID():
+			// noop
+			continue
 		}
-		wg.Add(1)
-		go func(connRet chan bool) {
-			defer wg.Done()
 
+		errGroup.Go(func() error {
 			ctx, cancel := context.WithTimeout(context.Background(), TimeoutConnecting)
 			defer cancel()
 
@@ -397,28 +403,29 @@ func (c *Communication) connectToBootstrapPeers() error {
 					Stringer("peer_address", maddr.Join(pi.Addrs...)).
 					Msg("Failed to connect to peer")
 
-				connRet <- false
-
-				return
+				return nil
 			}
-
-			connRet <- true
 
 			c.logger.Info().
 				Stringer(logs.Peer, pi.ID).
 				Stringer("peer_address", maddr.Join(pi.Addrs...)).
 				Msg("Connection established with bootstrap node")
-		}(connRet)
-	}
-	wg.Wait()
 
-	for i := 0; i < len(c.bootstrapPeers); i++ {
-		if <-connRet {
+				hasConnected.Store(true)
+
 			return nil
-		}
+		})
 	}
 
-	return errors.New("fail to connect to any peer")
+	err := errGroup.Wait()
+	switch {
+	case err != nil:
+		return err
+	case !hasConnected.Load():
+		return errors.New("fail to connect to any peer")
+	}
+
+	return nil
 }
 
 // Start will start the communication
