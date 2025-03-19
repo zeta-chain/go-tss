@@ -4,10 +4,6 @@ option go_package = "github.com/zeta-chain/go-tss/messages";
 
 package messages;
 
-message JoinPartyRequest {
-    string ID = 1; // the unique hash id
-}
-
 message JoinPartyLeaderComm {
     enum ResponseType {
         Unknown = 0;
