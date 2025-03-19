@@ -217,7 +217,7 @@ func (tKeyGen *TssKeyGen) processKeyGen(errChan chan struct{},
 					blameMgr.GetBlame().IsUnicast = isUnicast
 				}
 			}
-			return nil, blame.ErrTssTimeOut
+			return nil, blame.ErrTimeoutTSS
 
 		case msg := <-outCh:
 			tKeyGen.logger.Debug().Msgf(">>>>>>>>>>msg: %s", msg.String())

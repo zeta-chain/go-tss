@@ -78,7 +78,7 @@ func (m *Manager) GetUnicastBlame(lastMsgType string) ([]Node, error) {
 	peersID, ok := m.lastUnicastPeer[lastMsgType]
 	m.lastMsgLocker.RUnlock()
 	if !ok {
-		return nil, fmt.Errorf("fail to find peers of the given msg type %w", ErrTssTimeOut)
+		return nil, fmt.Errorf("fail to find peers of the given msg type %w", ErrTimeoutTSS)
 	}
 	for _, el := range peersID {
 		peersMap[el.String()] = true
@@ -91,7 +91,7 @@ func (m *Manager) GetUnicastBlame(lastMsgType string) ([]Node, error) {
 	_, blamePeers, err := m.GetBlamePubKeysLists(onlinePeers)
 	if err != nil {
 		m.logger.Error().Err(err).Msg("fail to get the blamed peers")
-		return nil, fmt.Errorf("fail to get the blamed peers %w", ErrTssTimeOut)
+		return nil, fmt.Errorf("fail to get the blamed peers %w", ErrTimeoutTSS)
 	}
 	var blameNodes []Node
 	for _, el := range blamePeers {
@@ -105,7 +105,7 @@ func (m *Manager) GetBroadcastBlame(lastMessageType string) ([]Node, error) {
 	blamePeers, err := m.tssTimeoutBlame(lastMessageType, m.partyInfo.PartyIDMap)
 	if err != nil {
 		m.logger.Error().Err(err).Msg("fail to get the blamed peers")
-		return nil, fmt.Errorf("fail to get the blamed peers %w", ErrTssTimeOut)
+		return nil, fmt.Errorf("fail to get the blamed peers %w", ErrTimeoutTSS)
 	}
 	var blameNodes []Node
 	for _, el := range blamePeers {
