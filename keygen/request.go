@@ -2,7 +2,6 @@ package keygen
 
 import (
 	"bytes"
-	"sort"
 	"strings"
 
 	"github.com/zeta-chain/go-tss/common"
@@ -18,8 +17,6 @@ type Request struct {
 
 // NewRequest constructs Request.
 func NewRequest(keys []string, blockHeight int64, version string, algo common.Algo) Request {
-	sort.Strings(keys)
-
 	return Request{
 		Keys:        keys,
 		BlockHeight: blockHeight,

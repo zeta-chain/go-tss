@@ -2,7 +2,6 @@ package keysign
 
 import (
 	"bytes"
-	"sort"
 	"strings"
 
 	"github.com/rs/zerolog"
@@ -22,9 +21,6 @@ type Request struct {
 }
 
 func NewRequest(pk string, msgs []string, blockHeight int64, signers []string, version string) Request {
-	sort.Strings(msgs)
-	sort.Strings(signers)
-
 	return Request{
 		PoolPubKey:    pk,
 		Messages:      msgs,
