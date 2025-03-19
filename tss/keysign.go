@@ -2,7 +2,6 @@ package tss
 
 import (
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -14,6 +13,7 @@ import (
 	"github.com/cometbft/cometbft/crypto/secp256k1"
 	sdk "github.com/cosmos/cosmos-sdk/types/bech32/legacybech32"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/pkg/errors"
 
 	"github.com/zeta-chain/go-tss/blame"
 	"github.com/zeta-chain/go-tss/common"
@@ -72,6 +72,7 @@ func (t *Server) generateSignature(
 			Blame:  blame.NewBlame(blame.InternalError, []blame.Node{}),
 		}, errors.New("fail to parse the version")
 	}
+
 	// we use the old join party
 	if oldJoinParty {
 		allParticipants = req.SignerPubKeys
@@ -99,6 +100,7 @@ func (t *Server) generateSignature(
 	}
 
 	joinPartyStartTime := time.Now()
+
 	onlinePeers, leader, errJoinParty := t.joinParty(
 		msgID,
 		req.Version,
@@ -107,6 +109,7 @@ func (t *Server) generateSignature(
 		threshold,
 		sigChan,
 	)
+
 	joinPartyTime := time.Since(joinPartyStartTime)
 	if errJoinParty != nil {
 		// we received the signature from waiting for signature
@@ -231,22 +234,18 @@ func (t *Server) updateKeySignResult(result keysign.Response, timeSpent time.Dur
 }
 
 func (t *Server) KeySign(req keysign.Request) (keysign.Response, error) {
-	emptyResp := keysign.Response{}
-	msgID, err := t.requestToMsgID(req)
+	msgID, err := req.MsgID()
 	if err != nil {
-		return emptyResp, err
+		return keysign.Response{}, errors.Wrap(err, "unable to get message id")
 	}
 
-	t.logger.Info().
-		Str(logs.MsgID, msgID).
-		Object("request", &req).
-		Msg("Keysign request")
+	t.logger.Info().Str(logs.MsgID, msgID).Object("request", &req).Msg("Keysign request")
 
 	var keysignInstance keysign.TssKeySign
 	var algo common.Algo
 	pubKey, err := sdk.UnmarshalPubKey(sdk.AccPK, req.PoolPubKey)
 	if err != nil {
-		return emptyResp, err
+		return keysign.Response{}, errors.Wrap(err, "unable to unmarshal pool pub key")
 	}
 
 	switch pubKey.Type() {
@@ -303,7 +302,7 @@ func (t *Server) KeySign(req keysign.Request) (keysign.Response, error) {
 
 	localStateItem, err := t.stateManager.GetLocalState(req.PoolPubKey)
 	if err != nil {
-		return emptyResp, fmt.Errorf("fail to get local keygen state: %w", err)
+		return keysign.Response{}, fmt.Errorf("fail to get local keygen state: %w", err)
 	}
 
 	var msgsToSign [][]byte
@@ -343,21 +342,22 @@ func (t *Server) KeySign(req keysign.Request) (keysign.Response, error) {
 	}
 
 	if len(req.SignerPubKeys) == 0 && oldJoinParty {
-		return emptyResp, errors.New("empty signer pub keys")
+		return keysign.Response{}, errors.New("empty signer pub keys")
 	}
 
 	threshold, err := conversion.GetThreshold(len(localStateItem.ParticipantKeys))
 	if err != nil {
 		t.logger.Error().Err(err).Msg("fail to get the threshold")
-		return emptyResp, errors.New("fail to get threshold")
+		return keysign.Response{}, errors.New("fail to get threshold")
 	}
+
 	if len(req.SignerPubKeys) <= threshold && oldJoinParty {
 		t.logger.Error().
 			Int("threshold", threshold).
 			Int("signers", len(req.SignerPubKeys)).
 			Msg("not enough signers")
 
-		return emptyResp, errors.New("not enough signers")
+		return keysign.Response{}, errors.New("not enough signers")
 	}
 
 	blameMgr := keysignInstance.GetTssCommonStruct().GetBlameMgr()

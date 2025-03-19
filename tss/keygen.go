@@ -1,11 +1,11 @@
 package tss
 
 import (
-	"errors"
 	"time"
 
 	"github.com/bnb-chain/tss-lib/crypto"
 	"github.com/cosmos/cosmos-sdk/types"
+	"github.com/pkg/errors"
 
 	"github.com/zeta-chain/go-tss/blame"
 	"github.com/zeta-chain/go-tss/common"
@@ -21,9 +21,9 @@ func (t *Server) Keygen(req keygen.Request) (keygen.Response, error) {
 	t.tssKeyGenLocker.Lock()
 	defer t.tssKeyGenLocker.Unlock()
 	status := common.Success
-	msgID, err := t.requestToMsgID(req)
+	msgID, err := req.MsgID()
 	if err != nil {
-		return keygen.Response{}, err
+		return keygen.Response{}, errors.Wrap(err, "unable to get message id")
 	}
 
 	var keygenInstance keygen.TssKeyGen
@@ -206,9 +206,10 @@ func (t *Server) KeygenAllAlgo(req keygen.Request) ([]keygen.Response, error) {
 	t.tssKeyGenLocker.Lock()
 	defer t.tssKeyGenLocker.Unlock()
 	status := common.Success
-	msgID, err := t.requestToMsgID(req)
+
+	msgID, err := req.MsgID()
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "unable to get message id")
 	}
 
 	ecdsaKeygenInstance := ecdsa.NewTssKeyGen(

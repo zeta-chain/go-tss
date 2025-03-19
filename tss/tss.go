@@ -2,8 +2,6 @@ package tss
 
 import (
 	"fmt"
-	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -177,29 +175,6 @@ func (t *Server) notifyJoinPartyChan() {
 	if t.joinPartyChan != nil {
 		t.joinPartyChan <- struct{}{}
 	}
-}
-
-func (t *Server) requestToMsgID(request any) (string, error) {
-	var dat []byte
-	var keys []string
-	switch value := request.(type) {
-	case keygen.Request:
-		keys = value.Keys
-	case keysign.Request:
-		sort.Strings(value.Messages)
-		dat = []byte(strings.Join(value.Messages, ","))
-		keys = value.SignerPubKeys
-	default:
-		t.logger.Error().Msg("unknown request type")
-		return "", errors.New("unknown request type")
-	}
-	keyAccumulation := ""
-	sort.Strings(keys)
-	for _, el := range keys {
-		keyAccumulation += el
-	}
-	dat = append(dat, []byte(keyAccumulation)...)
-	return common.MsgToHashString(dat)
 }
 
 func (t *Server) joinParty(
