@@ -376,6 +376,7 @@ func (c *Communication) connectToBootstrapPeers() error {
 		c.logger.Info().Msg("no bootstrap node set, we skip the connection")
 		return nil
 	}
+
 	var wg sync.WaitGroup
 	connRet := make(chan bool, len(c.bootstrapPeers))
 	for _, peerAddr := range c.bootstrapPeers {
@@ -410,11 +411,13 @@ func (c *Communication) connectToBootstrapPeers() error {
 		}(connRet)
 	}
 	wg.Wait()
+
 	for i := 0; i < len(c.bootstrapPeers); i++ {
 		if <-connRet {
 			return nil
 		}
 	}
+
 	return errors.New("fail to connect to any peer")
 }
 

@@ -53,11 +53,11 @@ func (s *FourNodeScaleZetaSuite) SetUpSuite(c *C) {
 
 	s.bootstrapPeers, err = conversion.TestBootstrapAddrs(s.ports, testPubKeys)
 	c.Assert(err, IsNil)
-	s.preParams = getPreparams(c)
+	s.preParams = getPreParams(c)
 	s.servers = make([]*Server, partyNum)
 	s.tssConfig = common.TssConfig{
 		KeyGenTimeout:   90 * time.Second,
-		KeySignTimeout:  90 * time.Second,
+		KeySignTimeout:  20 * time.Second,
 		PreParamTimeout: 5 * time.Second,
 		EnableMonitor:   false,
 	}
@@ -77,30 +77,31 @@ func (s *FourNodeScaleZetaSuite) SetUpSuite(c *C) {
 		time.Sleep(time.Second)
 	}
 	wg.Wait()
+
 	for i := 0; i < partyNum; i++ {
 		c.Assert(s.servers[i].Start(), IsNil)
 	}
 
-	s.doTestKeygen(c, newJoinPartyVersion)
+	s.doTestKeygen(c, partyVersion)
 }
 
-func (s *FourNodeScaleZetaSuite) TestManyKeysigns(c *C) {
+func (s *FourNodeScaleZetaSuite) TestManyKeySigns(c *C) {
 	for i := 0; i < 50; i++ {
-		c.Logf("Keysigning round %d started", i)
+		c.Logf("KeySigning round %d started", i)
 		startTime := time.Now()
-		s.doTestKeySign(c, newJoinPartyVersion)
-		c.Logf("Keysigning round %d complete (took %s)", i, time.Since(startTime))
+		s.doTestKeySign(c, partyVersion)
+		c.Logf("KeySigning round %d complete (took %s)", i, time.Since(startTime))
 	}
 }
 
-// TestConcurrentKeysigns ensures that keysigns can be done concurrently
+// TestConcurrentKeySigns ensures that keysigns can be done concurrently
 //
-// keysigns do not wait for the prior keysign to finish unlike TestManyKeysigns
+// keysigns do not wait for the prior keysign to finish unlike TestManyKeySigns
 // keysigns are also submitted in reverse order to slow down keysigning
-func (s *FourNodeScaleZetaSuite) TestConcurrentKeysigns(c *C) {
+func (s *FourNodeScaleZetaSuite) TestConcurrentKeySigns(c *C) {
 	for i := 0; i < 10; i++ {
 		c.Logf("Concurrent keysign round %d started", i)
-		s.doTestConcurrentKeySign(c, newJoinPartyVersion)
+		s.doTestConcurrentKeySign(c, partyVersion)
 		c.Logf("Concurrent keysign round %d complete", i)
 	}
 }
@@ -159,6 +160,7 @@ func (s *FourNodeScaleZetaSuite) doTestKeySign(c *C, version string) {
 
 	keysignResult := make(map[int]keysign.Response)
 	messages := genMessages()
+
 	for i := 0; i < partyNum; i++ {
 		wg.Add(1)
 		go func(idx int) {
@@ -171,7 +173,9 @@ func (s *FourNodeScaleZetaSuite) doTestKeySign(c *C, version string) {
 			keysignResult[idx] = res
 		}(i)
 	}
+
 	wg.Wait()
+
 	checkSignResult(c, keysignResult)
 }
 
