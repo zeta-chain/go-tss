@@ -411,7 +411,7 @@ func (c *Communication) connectToBootstrapPeers() error {
 				Stringer("peer_address", maddr.Join(pi.Addrs...)).
 				Msg("Connection established with bootstrap node")
 
-				hasConnected.Store(true)
+			hasConnected.Store(true)
 
 			return nil
 		})
