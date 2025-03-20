@@ -9,6 +9,7 @@ const (
 	Peer      = "peer"
 	Host      = "host"
 	Leader    = "leader"
+	Latency   = "latency"
 )
 
 func Party(p tss.Party) map[string]any {

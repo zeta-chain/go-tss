@@ -95,7 +95,7 @@ func (s *TssECDSAKeygenTestSuite) SetUpSuite(c *C) {
 }
 
 func (s *TssECDSAKeygenTestSuite) TearDownSuite(c *C) {
-	for i, _ := range s.comms {
+	for i := range s.comms {
 		tempFilePath := path.Join(os.TempDir(), strconv.Itoa(i), "ecdsa")
 		err := os.RemoveAll(tempFilePath)
 		c.Assert(err, IsNil)

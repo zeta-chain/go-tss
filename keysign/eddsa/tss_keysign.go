@@ -287,7 +287,7 @@ func (tKeySign *KeySign) processKeySign(
 				}
 			}
 
-			return nil, blame.ErrTssTimeOut
+			return nil, blame.ErrTimeoutTSS
 		case msg := <-outCh:
 			tKeySign.logger.Debug().Msgf(">>>>>>>>>>key sign msg: %s", msg.String())
 			tKeySign.tssCommonStruct.GetBlameMgr().SetLastMsg(msg)

@@ -19,7 +19,7 @@ var (
 	ErrHashFromOwner     = errors.New(" hash sent from data owner")
 	ErrNotEnoughPeer     = errors.New("not enough nodes to evaluate hash")
 	ErrNotMajority       = errors.New("message we received does not match the majority")
-	ErrTssTimeOut        = errors.New("error Tss Timeout")
+	ErrTimeoutTSS        = errors.New("error timeout TSS")
 	ErrHashCheck         = errors.New("error in processing hash check")
 	ErrHashInconsistency = errors.New("fail to agree on the hash value")
 )

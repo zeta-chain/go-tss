@@ -28,9 +28,9 @@ func TestSignatureNotifierHappyPath(t *testing.T) {
 	poolPubKey := `thorpub1addwnpepq0ul3xt882a6nm6m7uhxj4tk2n82zyu647dyevcs5yumuadn4uamqx7neak`
 	messageToSign := "yhEwrxWuNBGnPT/L7PNnVWg7gFWNzCYTV+GuX3tKRH8="
 	buf, err := base64.StdEncoding.DecodeString(messageToSign)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	messageID, err := common.MsgToHashString(buf)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	p2p.ApplyDeadline.Store(false)
 	id1 := tnet.RandIdentityOrFatal(t)
 	id2 := tnet.RandIdentityOrFatal(t)
@@ -71,25 +71,25 @@ func TestSignatureNotifierHappyPath(t *testing.T) {
 	assert.NotNil(t, n3)
 	sigFile := "../test_data/signature_notify/sig1.json"
 	content, err := os.ReadFile(sigFile)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.NotNil(t, content)
 	var signature tsslibcommon.SignatureData
 	err = json.Unmarshal(content, &signature)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	sigChan := make(chan string)
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		sig, err := n1.WaitForSignature(messageID, [][]byte{buf}, poolPubKey, time.Second*30, sigChan)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		assert.NotNil(t, sig)
 	}()
 
-	assert.Nil(t, n2.BroadcastSignature(messageID, []*tsslibcommon.SignatureData{&signature}, []peer.ID{
+	assert.NoError(t, n2.BroadcastSignature(messageID, []*tsslibcommon.SignatureData{&signature}, []peer.ID{
 		p1, p3,
 	}))
-	assert.Nil(t, n3.BroadcastSignature(messageID, []*tsslibcommon.SignatureData{&signature}, []peer.ID{
+	assert.NoError(t, n3.BroadcastSignature(messageID, []*tsslibcommon.SignatureData{&signature}, []peer.ID{
 		p1, p2,
 	}))
 	wg.Wait()
@@ -101,9 +101,9 @@ func TestSignatureNotifierBroadcastFirst(t *testing.T) {
 	poolPubKey := `thorpub1addwnpepq0ul3xt882a6nm6m7uhxj4tk2n82zyu647dyevcs5yumuadn4uamqx7neak`
 	messageToSign := "yhEwrxWuNBGnPT/L7PNnVWg7gFWNzCYTV+GuX3tKRH8="
 	buf, err := base64.StdEncoding.DecodeString(messageToSign)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	messageID, err := common.MsgToHashString(buf)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	p2p.ApplyDeadline.Store(false)
 	id1 := tnet.RandIdentityOrFatal(t)
 	id2 := tnet.RandIdentityOrFatal(t)
@@ -144,20 +144,20 @@ func TestSignatureNotifierBroadcastFirst(t *testing.T) {
 	assert.NotNil(t, n3)
 	sigFile := "../test_data/signature_notify/sig1.json"
 	content, err := os.ReadFile(sigFile)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.NotNil(t, content)
 	var signature tsslibcommon.SignatureData
 	err = json.Unmarshal(content, &signature)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	sigChan := make(chan string)
 
 	assert.NotContains(t, n1.notifiers, messageID)
 
-	assert.Nil(t, n2.BroadcastSignature(messageID, []*tsslibcommon.SignatureData{&signature}, []peer.ID{
+	assert.NoError(t, n2.BroadcastSignature(messageID, []*tsslibcommon.SignatureData{&signature}, []peer.ID{
 		p1, p3,
 	}))
 
-	assert.Nil(t, n3.BroadcastSignature(messageID, []*tsslibcommon.SignatureData{&signature}, []peer.ID{
+	assert.NoError(t, n3.BroadcastSignature(messageID, []*tsslibcommon.SignatureData{&signature}, []peer.ID{
 		p1, p2,
 	}))
 
@@ -169,7 +169,7 @@ func TestSignatureNotifierBroadcastFirst(t *testing.T) {
 	assert.Equal(t, defaultNotifierTTL, notifier.ttl)
 
 	sig, err := n1.WaitForSignature(messageID, [][]byte{buf}, poolPubKey, time.Second*30, sigChan)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.NotNil(t, sig)
 
 	n1.notifierLock.Lock()

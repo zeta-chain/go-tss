@@ -18,6 +18,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	maddr "github.com/multiformats/go-multiaddr"
 	zlog "github.com/rs/zerolog/log"
+	"github.com/zeta-chain/go-tss/messages"
 	"github.com/zeta-chain/go-tss/p2p"
 
 	. "gopkg.in/check.v1"
@@ -32,9 +33,7 @@ const (
 	partyNum         = 4
 	testFileLocation = "../test_data"
 	preParamTestFile = "preParam_test.data"
-
-	newJoinPartyVersion string = "0.14.0"
-	oldJoinPartyVersion string = "0.13.0"
+	partyVersion     = messages.VersionJoinPartyWithLeader
 )
 
 var (
@@ -84,11 +83,12 @@ func (s *FourNodeTestSuite) SetUpTest(c *C) {
 
 	s.bootstrapPeers, err = conversion.TestBootstrapAddrs(s.ports, testPubKeys)
 	c.Assert(err, IsNil)
-	s.preParams = getPreparams(c)
+
+	s.preParams = getPreParams(c)
 	s.servers = make([]*Server, partyNum)
 	s.tssConfig = common.TssConfig{
 		KeyGenTimeout:   90 * time.Second,
-		KeySignTimeout:  90 * time.Second,
+		KeySignTimeout:  20 * time.Second,
 		PreParamTimeout: 5 * time.Second,
 		EnableMonitor:   false,
 	}
@@ -98,16 +98,14 @@ func (s *FourNodeTestSuite) SetUpTest(c *C) {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
-			if idx == 0 {
-				s.servers[idx] = s.getTssServer(c, idx, s.tssConfig)
-			} else {
-				s.servers[idx] = s.getTssServer(c, idx, s.tssConfig)
-			}
+			s.servers[idx] = s.getTssServer(c, idx, s.tssConfig)
 		}(i)
 
 		time.Sleep(time.Second)
 	}
+
 	wg.Wait()
+
 	for i := 0; i < partyNum; i++ {
 		c.Assert(s.servers[i].Start(), IsNil)
 	}
@@ -122,16 +120,12 @@ func hash(payload []byte) []byte {
 // we do for both join party schemes
 func (s *FourNodeTestSuite) Test4NodesTss(c *C) {
 	algos := []common.Algo{common.ECDSA, common.EdDSA}
-	// 0.13.0 is oldJoinParty, 0.14.0 is the new leader-based joinParty
-	//versions := []string{oldJoinPartyVersion, newJoinPartyVersion}
-	versions := []string{newJoinPartyVersion}
+
 	for _, algo := range algos {
-		for _, jpv := range versions {
-			c.Logf("testing with version %s for algo %s", jpv, algo)
-			s.doTestKeygenAndKeySign(c, jpv, algo)
-			s.doTestFailJoinParty(c, jpv, algo)
-			s.doTestBlame(c, jpv, algo)
-		}
+		c.Logf("testing with version %s for algo %s", partyVersion, algo)
+		s.doTestKeygenAndKeySign(c, partyVersion, algo)
+		s.doTestFailJoinParty(c, partyVersion, algo)
+		s.doTestBlame(c, partyVersion, algo)
 	}
 }
 
@@ -196,21 +190,6 @@ func (s *FourNodeTestSuite) doTestKeygenAndKeySign(c *C, version string, algo co
 		}
 	}
 
-	if version != newJoinPartyVersion {
-		pubKeys1 := copyTestPubKeys()
-		keysignReqWithErr1 := keysign.NewRequest(poolPubKey, makeMessages(), 10, pubKeys1[:1], oldJoinPartyVersion)
-		resp, err = s.servers[0].KeySign(keysignReqWithErr1)
-		c.Assert(err, NotNil)
-		c.Assert(resp.Signatures, HasLen, 0)
-
-	}
-	if version != newJoinPartyVersion {
-		keysignReqWithErr2 := keysign.NewRequest(poolPubKey, makeMessages(), 10, nil, oldJoinPartyVersion)
-		resp, err = s.servers[0].KeySign(keysignReqWithErr2)
-		c.Assert(err, NotNil)
-		c.Assert(resp.Signatures, HasLen, 0)
-	}
-
 	keysignResult := make(map[int]keysign.Response)
 	for i := 0; i < partyNum; i++ {
 		wg.Add(1)
@@ -233,9 +212,7 @@ func (s *FourNodeTestSuite) doTestKeygenAndKeySign(c *C, version string, algo co
 		go func(idx int) {
 			defer wg.Done()
 			var signers []string
-			if version == oldJoinPartyVersion {
-				signers = copyTestPubKeys()[:3]
-			}
+
 			req := keysign.NewRequest(poolPubKey, makeMessages(), 10, signers, version)
 			res, err := s.servers[idx].KeySign(req)
 			c.Assert(err, IsNil)
@@ -249,12 +226,18 @@ func (s *FourNodeTestSuite) doTestKeygenAndKeySign(c *C, version string, algo co
 }
 
 func (s *FourNodeTestSuite) doTestFailJoinParty(c *C, version string, algo common.Algo) {
-	// JoinParty should fail if there is a node that suppose to be in the keygen , but we didn't send request in
+	// JoinParty should fail if there is a node that suppose to be in the keygen,
+	// but we didn't send request in
 	wg := sync.WaitGroup{}
 	lock := &sync.Mutex{}
 	keygenResult := make(map[int]keygen.Response)
-	// here we skip the first node
-	for i := 1; i < partyNum; i++ {
+
+	for i := range partyNum {
+		// here we SKIP the first node
+		if i == 0 {
+			continue
+		}
+
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
@@ -268,23 +251,18 @@ func (s *FourNodeTestSuite) doTestFailJoinParty(c *C, version string, algo commo
 	}
 
 	wg.Wait()
-	c.Logf("result:%+v", keygenResult)
+	c.Logf("result: %+v", keygenResult)
+
+	// the first node is the expected fail node
+	// as well as another one based on the leader which is derived from req.MsgID()
+	const expectedFailNode = "thorpub1addwnpepqtdklw8tf3anjz7nn5fly3uvq2e67w2apn560s4smmrt9e3x52nt2svmmu3"
+	const expectedFailNodesCount = 2
+
 	for _, item := range keygenResult {
 		c.Assert(item.PubKey, Equals, "")
 		c.Assert(item.Status, Equals, common.Fail)
-		var expectedFailNode string
-		if version == newJoinPartyVersion {
-			c.Assert(item.Blame.BlameNodes, HasLen, 2)
-			expectedFailNode := []string{
-				"thorpub1addwnpepqtdklw8tf3anjz7nn5fly3uvq2e67w2apn560s4smmrt9e3x52nt2svmmu3",
-				"thorpub1addwnpepq2ryyje5zr09lq7gqptjwnxqsy2vcdngvwd6z7yt5yjcnyj8c8cn559xe69",
-			}
-			c.Assert(item.Blame.BlameNodes[0].Pubkey, Equals, expectedFailNode[0])
-			c.Assert(item.Blame.BlameNodes[1].Pubkey, Equals, expectedFailNode[1])
-		} else {
-			expectedFailNode = "thorpub1addwnpepqtdklw8tf3anjz7nn5fly3uvq2e67w2apn560s4smmrt9e3x52nt2svmmu3"
-			c.Assert(item.Blame.BlameNodes[0].Pubkey, Equals, expectedFailNode)
-		}
+		c.Assert(item.Blame.BlameNodes, HasLen, expectedFailNodesCount)
+		c.Assert(item.Blame.BlameNodes[0].Pubkey, Equals, expectedFailNode)
 	}
 }
 
@@ -390,13 +368,18 @@ func (s *FourNodeTestSuite) getTssServer(c *C, index int, conf common.TssConfig)
 		WhitelistedPeers: whitelistedPeers,
 	}
 
+	logger := zlog.With().
+		Int("test.node_index", index).
+		Int("test.node_port", s.ports[index]).
+		Logger()
+
 	instance, err := New(
 		networkConfig,
 		baseHome,
 		priKey,
 		"password",
 		s.preParams[index],
-		zlog.Logger,
+		logger,
 	)
 
 	c.Assert(err, IsNil)
@@ -404,7 +387,7 @@ func (s *FourNodeTestSuite) getTssServer(c *C, index int, conf common.TssConfig)
 	return instance
 }
 
-func getPreparams(c *C) []*btsskeygen.LocalPreParams {
+func getPreParams(c *C) []*btsskeygen.LocalPreParams {
 	var preParamArray []*btsskeygen.LocalPreParams
 	buf, err := os.ReadFile(path.Join(testFileLocation, preParamTestFile))
 	c.Assert(err, IsNil)

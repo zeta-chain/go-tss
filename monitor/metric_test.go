@@ -31,15 +31,15 @@ func TestMetric_UpdateKeySign(t *testing.T) {
 	metrics.UpdateKeySign(testTime, false)
 
 	val, err := getCounterValue(metrics.keysignCounter, "success")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, float64(3), val)
 	val, err = getCounterValue(metrics.keysignCounter, "failure")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, float64(5), val)
 
 	m := &dto.Metric{}
 	err = metrics.keySignTime.Write(m)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	val = m.Gauge.GetValue()
 	assert.Equal(t, float64(time.Second), val)
 }
@@ -58,9 +58,9 @@ func TestMetric_UpdateKeyGen(t *testing.T) {
 	metrics.UpdateKeyGen(testTime, false)
 
 	val, err := getCounterValue(metrics.keygenCounter, "success")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, float64(3), val)
 	val, err = getCounterValue(metrics.keygenCounter, "failure")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, float64(5), val)
 }

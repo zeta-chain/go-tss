@@ -36,22 +36,24 @@ func (m *Metric) UpdateKeySign(keysignTime time.Duration, success bool) {
 	}
 }
 
-func (m Metric) KeygenJoinParty(joinpartyTime time.Duration, success bool) {
+func (m Metric) KeygenJoinParty(joinPartyTime time.Duration, success bool) {
 	if success {
-		m.joinPartyTime.WithLabelValues("keygen").Set(float64(joinpartyTime))
+		m.joinPartyTime.WithLabelValues("keygen").Set(float64(joinPartyTime))
 		m.joinPartyCounter.WithLabelValues("keygen", "success").Inc()
-	} else {
-		m.joinPartyCounter.WithLabelValues("keygen", "failure").Inc()
+		return
 	}
+
+	m.joinPartyCounter.WithLabelValues("keygen", "failure").Inc()
 }
 
-func (m *Metric) KeysignJoinParty(joinpartyTime time.Duration, success bool) {
+func (m *Metric) KeysignJoinParty(joinPartyTime time.Duration, success bool) {
 	if success {
-		m.joinPartyTime.WithLabelValues("keysign").Set(float64(joinpartyTime))
+		m.joinPartyTime.WithLabelValues("keysign").Set(float64(joinPartyTime))
 		m.joinPartyCounter.WithLabelValues("keysign", "success").Inc()
-	} else {
-		m.joinPartyCounter.WithLabelValues("keysign", "failure").Inc()
+		return
 	}
+
+	m.joinPartyCounter.WithLabelValues("keysign", "failure").Inc()
 }
 
 func (m *Metric) Enable() {

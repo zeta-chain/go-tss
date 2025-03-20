@@ -1,6 +1,13 @@
 package keysign
 
-import "github.com/rs/zerolog"
+import (
+	"bytes"
+	"strings"
+
+	"github.com/rs/zerolog"
+
+	"github.com/zeta-chain/go-tss/common"
+)
 
 // Request request to sign a message
 type Request struct {
@@ -21,6 +28,19 @@ func NewRequest(pk string, msgs []string, blockHeight int64, signers []string, v
 		BlockHeight:   blockHeight,
 		Version:       version,
 	}
+}
+
+// MsgID returns the hash of the request.
+func (r *Request) MsgID() (string, error) {
+	var b bytes.Buffer
+
+	b.WriteString(r.Version)
+	b.WriteByte(';')
+	b.WriteString(strings.Join(r.Messages, ","))
+	b.WriteByte(';')
+	b.WriteString(strings.Join(r.SignerPubKeys, ","))
+
+	return common.MsgToHashString(b.Bytes())
 }
 
 func (r *Request) MarshalZerologObject(e *zerolog.Event) {

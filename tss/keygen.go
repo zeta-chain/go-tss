@@ -1,11 +1,11 @@
 package tss
 
 import (
-	"errors"
 	"time"
 
 	"github.com/bnb-chain/tss-lib/crypto"
 	"github.com/cosmos/cosmos-sdk/types"
+	"github.com/pkg/errors"
 
 	"github.com/zeta-chain/go-tss/blame"
 	"github.com/zeta-chain/go-tss/common"
@@ -13,20 +13,24 @@ import (
 	"github.com/zeta-chain/go-tss/keygen"
 	"github.com/zeta-chain/go-tss/keygen/ecdsa"
 	"github.com/zeta-chain/go-tss/keygen/eddsa"
+	"github.com/zeta-chain/go-tss/logs"
 	"github.com/zeta-chain/go-tss/messages"
-	"github.com/zeta-chain/go-tss/p2p"
 )
 
 func (t *Server) Keygen(req keygen.Request) (keygen.Response, error) {
 	t.tssKeyGenLocker.Lock()
 	defer t.tssKeyGenLocker.Unlock()
-	status := common.Success
-	msgID, err := t.requestToMsgID(req)
-	if err != nil {
-		return keygen.Response{}, err
+
+	if req.Version != messages.VersionJoinPartyWithLeader {
+		return keygen.Response{}, errors.Errorf("invalid version %q", req.Version)
 	}
 
-	var keygenInstance keygen.TssKeyGen
+	msgID, err := req.MsgID()
+	if err != nil {
+		return keygen.Response{}, errors.Wrap(err, "unable to get message id")
+	}
+
+	var keygenInstance keygen.Service
 	switch req.Algo {
 	case common.ECDSA:
 		keygenInstance = ecdsa.NewTssKeyGen(
@@ -74,51 +78,30 @@ func (t *Server) Keygen(req keygen.Request) (keygen.Response, error) {
 		t.p2pCommunication.ReleaseStream(msgID)
 		t.partyCoordinator.ReleaseStream(msgID)
 	}()
+
 	sigChan := make(chan string)
 	blameMgr := keygenInstance.GetTssCommonStruct().GetBlameMgr()
 	joinPartyStartTime := time.Now()
+
 	onlinePeers, leader, errJoinParty := t.joinParty(
 		msgID,
-		req.Version,
 		req.BlockHeight,
 		req.Keys,
 		len(req.Keys)-1,
 		sigChan,
 	)
+
 	joinPartyTime := time.Since(joinPartyStartTime)
+
 	if errJoinParty != nil {
 		t.logger.Error().
 			Err(errJoinParty).
 			Any("peers", onlinePeers).
 			Float64("timeout", joinPartyTime.Seconds()).
-			Msg("failed to joinParty due to timeout")
+			Msg("Unable to join party due to timeout")
 
 		t.tssMetrics.KeygenJoinParty(joinPartyTime, false)
 		t.tssMetrics.UpdateKeyGen(0, false)
-		// this indicate we are processing the leaderless join party
-		if leader == p2p.NoLeader {
-			if onlinePeers == nil {
-				t.logger.Error().Err(err).Msg("error before we start join party")
-				return keygen.Response{
-					Status: common.Fail,
-					Blame:  blame.NewBlame(blame.InternalError, []blame.Node{}),
-				}, nil
-			}
-			blameNodes, err := blameMgr.NodeSyncBlame(req.Keys, onlinePeers)
-			if err != nil {
-				t.logger.Err(errJoinParty).Msg("fail to get peers to blame")
-			}
-
-			// make sure we blame the leader as well
-			t.logger.Error().Err(errJoinParty).
-				Any("peers", onlinePeers).
-				Msg("fail to form keygen party with online peers")
-
-			return keygen.Response{
-				Status: common.Fail,
-				Blame:  blameNodes,
-			}, nil
-		}
 
 		var blameLeader blame.Blame
 		var blameNodes blame.Blame
@@ -126,12 +109,13 @@ func (t *Server) Keygen(req keygen.Request) (keygen.Response, error) {
 		if err != nil {
 			t.logger.Error().Err(err).Msg("failed to blame nodes for joinParty failure")
 		}
+
 		leaderPubKey, err := conversion.GetPubKeyFromPeerID(leader)
 		if err != nil {
 			t.logger.Error().Err(err).Msgf("failed to convert peerID->pubkey for leader %s", leader)
 			blameLeader = blame.NewBlame(blame.TssSyncFail, []blame.Node{})
 		} else {
-			blameLeader = blame.NewBlame(blame.TssSyncFail, []blame.Node{{Pubkey: leaderPubKey, BlameData: nil, BlameSignature: nil}})
+			blameLeader = blame.NewBlame(blame.TssSyncFail, []blame.Node{{Pubkey: leaderPubKey}})
 		}
 
 		if len(onlinePeers) != 0 {
@@ -147,7 +131,7 @@ func (t *Server) Keygen(req keygen.Request) (keygen.Response, error) {
 		t.logger.Error().
 			Err(errJoinParty).
 			Any("peers", onlinePeers).
-			Msg("fail to form keygen party with online peers")
+			Msg("Failed to form keygen party with online peers")
 
 		return keygen.Response{
 			Status: common.Fail,
@@ -155,7 +139,11 @@ func (t *Server) Keygen(req keygen.Request) (keygen.Response, error) {
 		}, nil
 	}
 
-	t.logger.Info().Msg("joinParty succeeded, keygen party formed")
+	t.logger.Info().
+		Str(logs.MsgID, msgID).
+		Float64(logs.Latency, joinPartyTime.Seconds()).
+		Msg("Joined party for keygen")
+
 	t.notifyJoinPartyChan()
 	t.tssMetrics.KeygenJoinParty(joinPartyTime, true)
 
@@ -174,6 +162,8 @@ func (t *Server) Keygen(req keygen.Request) (keygen.Response, error) {
 
 	t.tssMetrics.UpdateKeyGen(keygenTime, true)
 
+	status := common.Success
+
 	var newPubKey string
 	var addr types.AccAddress
 	switch req.Algo {
@@ -189,14 +179,19 @@ func (t *Server) Keygen(req keygen.Request) (keygen.Response, error) {
 		status = common.Fail
 	}
 
-	blameNodes := *blameMgr.GetBlame()
-	t.logger.Trace().Msgf("returning from keygen with status=%d, blaming=%+v", status, blameNodes.BlameNodes)
+	blameResponse := blameMgr.GetBlame()
+
+	// should not happen
+	if blameResponse == nil {
+		return keygen.Response{}, errors.New("failed to get blame")
+	}
+
 	return keygen.NewResponse(
 		common.ECDSA,
 		newPubKey,
 		addr.String(),
 		status,
-		blameNodes,
+		*blameResponse,
 	), nil
 }
 
@@ -206,9 +201,10 @@ func (t *Server) KeygenAllAlgo(req keygen.Request) ([]keygen.Response, error) {
 	t.tssKeyGenLocker.Lock()
 	defer t.tssKeyGenLocker.Unlock()
 	status := common.Success
-	msgID, err := t.requestToMsgID(req)
+
+	msgID, err := req.MsgID()
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "unable to get message id")
 	}
 
 	ecdsaKeygenInstance := ecdsa.NewTssKeyGen(
@@ -239,7 +235,7 @@ func (t *Server) KeygenAllAlgo(req keygen.Request) ([]keygen.Response, error) {
 	)
 	_ = eddsaKeygenInstance
 	_ = ecdsaKeygenInstance
-	keygenInstances := make(map[common.Algo]keygen.TssKeyGen)
+	keygenInstances := make(map[common.Algo]keygen.Service)
 	keygenInstances[common.ECDSA] = ecdsaKeygenInstance
 	keygenInstances[common.EdDSA] = eddsaKeygenInstance
 
@@ -264,43 +260,22 @@ func (t *Server) KeygenAllAlgo(req keygen.Request) ([]keygen.Response, error) {
 	sigChan := make(chan string)
 	// since all the keygen algorithms share the join party, so we need to use the ecdsa algo's blame manager
 	blameMgr := keygenInstances[common.ECDSA].GetTssCommonStruct().GetBlameMgr()
+
 	joinPartyStartTime := time.Now()
+
 	onlinePeers, leader, errJoinParty := t.joinParty(
 		msgID,
-		req.Version,
 		req.BlockHeight,
 		req.Keys,
 		len(req.Keys)-1,
 		sigChan,
 	)
+
 	joinPartyTime := time.Since(joinPartyStartTime)
+
 	if errJoinParty != nil {
 		t.tssMetrics.KeygenJoinParty(joinPartyTime, false)
 		t.tssMetrics.UpdateKeyGen(0, false)
-		// this indicate we are processing the leaderless join party
-		if leader == p2p.NoLeader {
-			if onlinePeers == nil {
-				t.logger.Error().Err(err).Msg("error before we start join party")
-				return []keygen.Response{{
-					Status: common.Fail,
-					Blame:  blame.NewBlame(blame.InternalError, []blame.Node{}),
-				}}, nil
-			}
-			blameNodes, err := blameMgr.NodeSyncBlame(req.Keys, onlinePeers)
-			if err != nil {
-				t.logger.Err(errJoinParty).Msg("fail to get peers to blame")
-			}
-
-			// make sure we blame the leader as well
-			t.logger.Error().Err(errJoinParty).
-				Any("peers", onlinePeers).
-				Msg("fail to form keygen party with online peers")
-
-			return []keygen.Response{{
-				Status: common.Fail,
-				Blame:  blameNodes,
-			}}, nil
-		}
 
 		var blameLeader blame.Blame
 		var blameNodes blame.Blame
@@ -327,7 +302,7 @@ func (t *Server) KeygenAllAlgo(req keygen.Request) ([]keygen.Response, error) {
 
 		t.logger.Error().Err(errJoinParty).
 			Any("peers", onlinePeers).
-			Msg("fail to form keygen party with online peers")
+			Msg("Failed to form keygen party with online peers")
 
 		return []keygen.Response{{
 			Status: common.Fail,

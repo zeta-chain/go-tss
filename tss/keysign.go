@@ -2,7 +2,6 @@ package tss
 
 import (
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -14,6 +13,7 @@ import (
 	"github.com/cometbft/cometbft/crypto/secp256k1"
 	sdk "github.com/cosmos/cosmos-sdk/types/bech32/legacybech32"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/pkg/errors"
 
 	"github.com/zeta-chain/go-tss/blame"
 	"github.com/zeta-chain/go-tss/common"
@@ -65,82 +65,25 @@ func (t *Server) generateSignature(
 		}, nil
 	}
 
-	oldJoinParty, err := conversion.VersionLTCheck(req.Version, messages.NEWJOINPARTYVERSION)
-	if err != nil {
-		return keysign.Response{
-			Status: common.Fail,
-			Blame:  blame.NewBlame(blame.InternalError, []blame.Node{}),
-		}, errors.New("fail to parse the version")
-	}
-	// we use the old join party
-	if oldJoinParty {
-		allParticipants = req.SignerPubKeys
-		myPk, err := conversion.GetPubKeyFromPeerID(t.p2pCommunication.GetHost().ID().String())
-		if err != nil {
-			t.logger.Info().
-				Msgf("fail to convert the p2p id(%s) to pubkey, turn to wait for signature", t.p2pCommunication.GetHost().ID().String())
-			return keysign.Response{}, p2p.ErrNotActiveSigner
-		}
-		isSignMember := false
-		for _, el := range allParticipants {
-			if myPk == el {
-				isSignMember = true
-				break
-			}
-		}
-
-		if !isSignMember {
-			t.logger.Info().
-				Stringer(logs.Host, t.p2pCommunication.GetHost().ID()).
-				Msg("We are not the active signer")
-
-			return keysign.Response{}, p2p.ErrNotActiveSigner
-		}
-	}
-
 	joinPartyStartTime := time.Now()
+
 	onlinePeers, leader, errJoinParty := t.joinParty(
 		msgID,
-		req.Version,
 		req.BlockHeight,
 		allParticipants,
 		threshold,
 		sigChan,
 	)
+
 	joinPartyTime := time.Since(joinPartyStartTime)
+
 	if errJoinParty != nil {
 		// we received the signature from waiting for signature
 		if errors.Is(errJoinParty, p2p.ErrSignReceived) {
 			return keysign.Response{}, errJoinParty
 		}
+
 		t.tssMetrics.KeysignJoinParty(joinPartyTime, false)
-		// this indicate we are processing the leaderness join party
-		if leader == p2p.NoLeader {
-			if onlinePeers == nil {
-				t.logger.Error().Err(errJoinParty).Msg("error before we start join party")
-				t.broadcastKeysignFailure(msgID, allPeersID)
-				return keysign.Response{
-					Status: common.Fail,
-					Blame:  blame.NewBlame(blame.InternalError, []blame.Node{}),
-				}, nil
-			}
-
-			blameNodes, err := blameMgr.NodeSyncBlame(req.SignerPubKeys, onlinePeers)
-			if err != nil {
-				t.logger.Err(err).Msg("fail to get peers to blame")
-			}
-			t.broadcastKeysignFailure(msgID, allPeersID)
-
-			// make sure we blame the leader as well
-			t.logger.Error().Err(err).
-				Any("peers", onlinePeers).
-				Msg("Fail to form keysign party with online peers")
-
-			return keysign.Response{
-				Status: common.Fail,
-				Blame:  blameNodes,
-			}, nil
-		}
 
 		var blameLeader blame.Blame
 		leaderPubKey, err := conversion.GetPubKeyFromPeerID(leader)
@@ -169,13 +112,22 @@ func (t *Server) generateSignature(
 			Blame:  blameLeader,
 		}, nil
 	}
+
+	t.logger.Info().
+		Str(logs.MsgID, msgID).
+		Str(logs.Leader, leader).
+		Float64(logs.Latency, joinPartyTime.Seconds()).
+		Msg("Joined party for keysign")
+
 	t.tssMetrics.KeysignJoinParty(joinPartyTime, true)
+
 	isKeySignMember := false
 	for _, el := range onlinePeers {
 		if el == t.p2pCommunication.GetHost().ID() {
 			isKeySignMember = true
 		}
 	}
+
 	if !isKeySignMember {
 		// we are not the keysign member so we quit keysign and waiting for signature
 		t.logger.Info().
@@ -200,7 +152,8 @@ func (t *Server) generateSignature(
 		}, nil
 	}
 	signatureData, err := keysignInstance.SignMessage(msgsToSign, localStateItem, signers)
-	// the statistic of keygen only care about Tss it self, even if the following http response aborts,
+
+	// the statistic of keygen only care about TSS it self, even if the following http response aborts,
 	// it still counted as a successful keygen as the Tss model runs successfully.
 	if err != nil {
 		t.logger.Error().Err(err).Msg("SignMessage failed")
@@ -231,22 +184,23 @@ func (t *Server) updateKeySignResult(result keysign.Response, timeSpent time.Dur
 }
 
 func (t *Server) KeySign(req keysign.Request) (keysign.Response, error) {
-	emptyResp := keysign.Response{}
-	msgID, err := t.requestToMsgID(req)
-	if err != nil {
-		return emptyResp, err
+	// force party with a leader
+	if req.Version != messages.VersionJoinPartyWithLeader {
+		return keysign.Response{}, errors.Errorf("invalid version %q", req.Version)
 	}
 
-	t.logger.Info().
-		Str(logs.MsgID, msgID).
-		Object("request", &req).
-		Msg("Keysign request")
+	msgID, err := req.MsgID()
+	if err != nil {
+		return keysign.Response{}, errors.Wrap(err, "unable to get message id")
+	}
+
+	t.logger.Info().Str(logs.MsgID, msgID).EmbedObject(&req).Msg("Keysign request")
 
 	var keysignInstance keysign.TssKeySign
 	var algo common.Algo
 	pubKey, err := sdk.UnmarshalPubKey(sdk.AccPK, req.PoolPubKey)
 	if err != nil {
-		return emptyResp, err
+		return keysign.Response{}, errors.Wrap(err, "unable to unmarshal pool pub key")
 	}
 
 	switch pubKey.Type() {
@@ -303,7 +257,7 @@ func (t *Server) KeySign(req keysign.Request) (keysign.Response, error) {
 
 	localStateItem, err := t.stateManager.GetLocalState(req.PoolPubKey)
 	if err != nil {
-		return emptyResp, fmt.Errorf("fail to get local keygen state: %w", err)
+		return keysign.Response{}, fmt.Errorf("fail to get local keygen state: %w", err)
 	}
 
 	var msgsToSign [][]byte
@@ -334,30 +288,9 @@ func (t *Server) KeySign(req keysign.Request) (keysign.Response, error) {
 		return true
 	})
 
-	oldJoinParty, err := conversion.VersionLTCheck(req.Version, messages.NEWJOINPARTYVERSION)
-	if err != nil {
-		return keysign.Response{
-			Status: common.Fail,
-			Blame:  blame.NewBlame(blame.InternalError, []blame.Node{}),
-		}, errors.New("fail to parse the version")
-	}
-
-	if len(req.SignerPubKeys) == 0 && oldJoinParty {
-		return emptyResp, errors.New("empty signer pub keys")
-	}
-
 	threshold, err := conversion.GetThreshold(len(localStateItem.ParticipantKeys))
 	if err != nil {
-		t.logger.Error().Err(err).Msg("fail to get the threshold")
-		return emptyResp, errors.New("fail to get threshold")
-	}
-	if len(req.SignerPubKeys) <= threshold && oldJoinParty {
-		t.logger.Error().
-			Int("threshold", threshold).
-			Int("signers", len(req.SignerPubKeys)).
-			Msg("not enough signers")
-
-		return emptyResp, errors.New("not enough signers")
+		return keysign.Response{}, errors.New("fail to get threshold")
 	}
 
 	blameMgr := keysignInstance.GetTssCommonStruct().GetBlameMgr()
