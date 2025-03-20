@@ -194,7 +194,7 @@ func (t *Server) KeySign(req keysign.Request) (keysign.Response, error) {
 		return keysign.Response{}, errors.Wrap(err, "unable to get message id")
 	}
 
-	t.logger.Info().Str(logs.MsgID, msgID).Object("request", &req).Msg("Keysign request")
+	t.logger.Info().Str(logs.MsgID, msgID).EmbedObject(&req).Msg("Keysign request")
 
 	var keysignInstance keysign.TssKeySign
 	var algo common.Algo
