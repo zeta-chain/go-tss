@@ -12,6 +12,7 @@ import (
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/zeta-chain/go-tss/conversion"
 )
@@ -22,24 +23,22 @@ func init() {
 
 func setupHosts(t *testing.T, n int) []host.Host {
 	mn := mocknet.New()
-	var hosts []host.Host
-	for i := 0; i < n; i++ {
 
+	var hosts []host.Host
+
+	for range n {
 		id := tnet.RandIdentityOrFatal(t)
 		a := tnet.RandLocalTCPAddress()
+
 		h, err := mn.AddPeer(id.PrivateKey(), a)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
+
 		hosts = append(hosts, h)
 	}
 
-	if err := mn.LinkAll(); err != nil {
-		t.Error(err)
-	}
-	if err := mn.ConnectAllButSelf(); err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, mn.LinkAll())
+	assert.NoError(t, mn.ConnectAllButSelf())
+
 	return hosts
 }
 
@@ -54,7 +53,7 @@ func leaderAppearsLastTest(t *testing.T, msgID string, peers []string, pcs []*Pa
 			time.Sleep(time.Millisecond * time.Duration(rand.Int()%100))
 			sigChan := make(chan string)
 			onlinePeers, _, err := coordinator.JoinPartyWithLeader(msgID, 10, peers, 3, sigChan)
-			assert.Nil(t, err)
+			assert.NoError(t, err)
 			assert.Len(t, onlinePeers, 4)
 		}(el)
 	}
@@ -67,7 +66,7 @@ func leaderAppearsLastTest(t *testing.T, msgID string, peers []string, pcs []*Pa
 		sigChan := make(chan string)
 		// we simulate different nodes join at different time
 		onlinePeers, _, err := coordinator.JoinPartyWithLeader(msgID, 10, peers, 3, sigChan)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		assert.Len(t, onlinePeers, 4)
 	}(pcs[0])
 	wg.Wait()
@@ -82,7 +81,7 @@ func leaderAppersFirstTest(t *testing.T, msgID string, peers []string, pcs []*Pa
 		// we simulate different nodes join at different time
 		sigChan := make(chan string)
 		onlinePeers, _, err := coordinator.JoinPartyWithLeader(msgID, 10, peers, 3, sigChan)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		assert.Len(t, onlinePeers, 4)
 	}(pcs[0])
 	time.Sleep(time.Second)
@@ -94,7 +93,7 @@ func leaderAppersFirstTest(t *testing.T, msgID string, peers []string, pcs []*Pa
 			time.Sleep(time.Millisecond * time.Duration(rand.Int()%100))
 			sigChan := make(chan string)
 			onlinePeers, _, err := coordinator.JoinPartyWithLeader(msgID, 10, peers, 3, sigChan)
-			assert.Nil(t, err)
+			assert.NoError(t, err)
 			assert.Len(t, onlinePeers, 4)
 		}(el)
 	}
@@ -120,7 +119,7 @@ func TestNewPartyCoordinator(t *testing.T) {
 
 	msgID := conversion.RandStringBytesMask(64)
 	leader, err := LeaderNode(msgID, 10, peers)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	// we sort the slice to ensure the leader is the first one easy for testing
 	for i, el := range pcs {
@@ -164,7 +163,7 @@ func TestNewPartyCoordinatorTimeOut(t *testing.T) {
 	msgID := conversion.RandStringBytesMask(64)
 	wg := sync.WaitGroup{}
 	leader, err := LeaderNode(msgID, 10, peers)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	// we sort the slice to ensure the leader is the first one easy for testing
 	for i, el := range pcs {
@@ -187,7 +186,7 @@ func TestNewPartyCoordinatorTimeOut(t *testing.T) {
 			defer wg.Done()
 			sigChan := make(chan string)
 			_, _, err := coordinator.JoinPartyWithLeader(msgID, 10, peers, 3, sigChan)
-			assert.Equal(t, err, ErrLeaderNotReady)
+			assert.ErrorIs(t, err, ErrLeaderNotReady)
 		}(el)
 
 	}
@@ -202,7 +201,7 @@ func TestNewPartyCoordinatorTimeOut(t *testing.T) {
 			defer wg.Done()
 			sigChan := make(chan string)
 			onlinePeers, _, err := coordinator.JoinPartyWithLeader(msgID, 10, peers, 3, sigChan)
-			assert.Equal(t, ErrJoinPartyTimeout, err)
+			assert.ErrorIs(t, err, ErrJoinPartyTimeout)
 			var onlinePeersStr []string
 			for _, el := range onlinePeers {
 				onlinePeersStr = append(onlinePeersStr, el.String())
@@ -222,24 +221,23 @@ func TestGetPeerIDs(t *testing.T) {
 
 	a1 := tnet.RandLocalTCPAddress()
 	h1, err := mn.AddPeer(id1.PrivateKey(), a1)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+
 	p1 := h1.ID()
 	timeout := time.Second * 2
 	pc := NewPartyCoordinator(h1, timeout, zerolog.Nop())
 	r, err := pc.getPeerIDs([]string{})
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Len(t, r, 0)
 	input := []string{
 		p1.String(),
 	}
 	r1, err := pc.getPeerIDs(input)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Len(t, r1, 1)
 	assert.Equal(t, r1[0], p1)
 	input = append(input, "whatever")
-	r2, err := pc.getPeerIDs(input)
-	assert.NotNil(t, err)
-	assert.Len(t, r2, 0)
+
+	_, err = pc.getPeerIDs(input)
+	assert.Error(t, err)
 }
