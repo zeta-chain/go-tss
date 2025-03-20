@@ -30,7 +30,7 @@ func (t *Server) Keygen(req keygen.Request) (keygen.Response, error) {
 		return keygen.Response{}, errors.Wrap(err, "unable to get message id")
 	}
 
-	var keygenInstance keygen.TssKeyGen
+	var keygenInstance keygen.Service
 	switch req.Algo {
 	case common.ECDSA:
 		keygenInstance = ecdsa.NewTssKeyGen(
@@ -228,7 +228,7 @@ func (t *Server) KeygenAllAlgo(req keygen.Request) ([]keygen.Response, error) {
 	)
 	_ = eddsaKeygenInstance
 	_ = ecdsaKeygenInstance
-	keygenInstances := make(map[common.Algo]keygen.TssKeyGen)
+	keygenInstances := make(map[common.Algo]keygen.Service)
 	keygenInstances[common.ECDSA] = ecdsaKeygenInstance
 	keygenInstances[common.EdDSA] = eddsaKeygenInstance
 

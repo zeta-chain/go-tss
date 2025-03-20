@@ -232,7 +232,7 @@ func (s *FourNodeTestSuite) doTestFailJoinParty(c *C, version string, algo commo
 	lock := &sync.Mutex{}
 	keygenResult := make(map[int]keygen.Response)
 
-	for i := 0; i < partyNum; i++ {
+	for i := range partyNum {
 		// here we SKIP the first node
 		if i == 0 {
 			continue
