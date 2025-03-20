@@ -201,6 +201,7 @@ require (
 	github.com/tidwall/btree v1.7.0 // indirect
 	github.com/zondax/hid v0.9.2 // indirect
 	github.com/zondax/ledger-go v0.14.3 // indirect
+	gitlab.com/tozd/go/errors v0.10.0 // indirect
 	go.etcd.io/bbolt v1.4.0-alpha.0.0.20240404170359-43604f3112c5 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	go.uber.org/dig v1.15.0 // indirect

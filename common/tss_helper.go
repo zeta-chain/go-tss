@@ -6,8 +6,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
-	"fmt"
 	"io"
 	"math/big"
 	"os"
@@ -23,6 +21,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"gitlab.com/tozd/go/errors"
 
 	"github.com/zeta-chain/go-tss/blame"
 	"github.com/zeta-chain/go-tss/messages"
@@ -55,11 +54,12 @@ func MsgToHashString(msg []byte) (string, error) {
 	if len(msg) == 0 {
 		return "", errors.New("empty message")
 	}
+
 	h := sha256.New()
-	_, err := h.Write(msg)
-	if err != nil {
-		return "", fmt.Errorf("fail to caculate sha256 hash: %w", err)
+	if _, err := h.Write(msg); err != nil {
+		return "", errors.Wrap(err, "unable to calculate sha256 hash")
 	}
+
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
@@ -164,8 +164,9 @@ func checkUnicast(round blame.RoundInfo) bool {
 func GetMsgRound(msg []byte, partyID *btss.PartyID, isBroadcast bool) (blame.RoundInfo, error) {
 	parsedMsg, err := btss.ParseWireMessage(msg, partyID, isBroadcast)
 	if err != nil {
-		return blame.RoundInfo{}, err
+		return blame.RoundInfo{}, errors.Wrap(err, "unable to parse wire message")
 	}
+
 	switch parsedMsg.Content().(type) {
 	// ECDSA -- KeyGen
 	case *ecdsaKeygen.KGRound1Message:
@@ -274,32 +275,34 @@ func GetMsgRound(msg []byte, partyID *btss.PartyID, isBroadcast bool) (blame.Rou
 			Index:    2,
 			RoundMsg: messages.EDDSAKEYSIGN3,
 		}, nil
-
 	default:
-		{
-			return blame.RoundInfo{}, errors.New("unknown round")
-		}
+		return blame.RoundInfo{}, errors.New("unknown round")
 	}
 }
 
 func (t *TssCommon) NotifyTaskDone() error {
 	msg := messages.TssTaskNotifier{TaskDone: true}
+
 	data, err := json.Marshal(msg)
 	if err != nil {
-		return fmt.Errorf("fail to marshal the request body %w", err)
+		return errors.Wrap(err, "unable to marshal the request body")
 	}
+
 	wrappedMsg := messages.WrappedMessage{
 		MessageType: messages.TSSTaskDone,
 		MsgID:       t.msgID,
 		Payload:     data,
 	}
+
 	t.P2PPeersLock.RLock()
 	peers := t.P2PPeers
 	t.P2PPeersLock.RUnlock()
+
 	t.renderToP2P(&messages.BroadcastMsgChan{
 		WrappedMessage: wrappedMsg,
 		PeersID:        peers,
 	})
+
 	return nil
 }
 
@@ -320,8 +323,9 @@ func (t *TssCommon) processRequestMsgFromPeer(peersID []peer.ID, msg *messages.T
 
 	data, err := json.Marshal(msg)
 	if err != nil {
-		return fmt.Errorf("fail to marshal the request body %w", err)
+		return errors.Wrap(err, "unable to marshal the request body")
 	}
+
 	wrappedMsg := messages.WrappedMessage{
 		MessageType: messages.TSSControlMsg,
 		MsgID:       t.msgID,
@@ -332,5 +336,6 @@ func (t *TssCommon) processRequestMsgFromPeer(peersID []peer.ID, msg *messages.T
 		WrappedMessage: wrappedMsg,
 		PeersID:        peersID,
 	})
+
 	return nil
 }
