@@ -179,12 +179,19 @@ func (t *Server) Keygen(req keygen.Request) (keygen.Response, error) {
 		status = common.Fail
 	}
 
+	blameResponse := blameMgr.GetBlame()
+
+	// should not happen
+	if blameResponse == nil {
+		return keygen.Response{}, errors.New("failed to get blame")
+	}
+
 	return keygen.NewResponse(
 		common.ECDSA,
 		newPubKey,
 		addr.String(),
 		status,
-		*blameMgr.GetBlame(),
+		*blameResponse,
 	), nil
 }
 
