@@ -42,21 +42,19 @@ type SignatureNotifier struct {
 
 // NewSignatureNotifier create a new instance of SignatureNotifier
 func NewSignatureNotifier(host host.Host, logger zerolog.Logger) *SignatureNotifier {
-	logger = logger.With().
-		Str(logs.Component, "signature_notifier").
-		Stringer(logs.Host, host.ID()).
-		Logger()
-
 	ctx, cancel := context.WithCancel(context.Background())
 
 	s := &SignatureNotifier{
 		ctx:          ctx,
 		cancel:       cancel,
-		logger:       logger,
 		host:         host,
 		notifierLock: &sync.Mutex{},
 		notifiers:    make(map[string]*notifier),
-		streamMgr:    p2p.NewStreamMgr(),
+		streamMgr:    p2p.NewStreamMgr(logger),
+		logger: logger.With().
+			Str(logs.Component, "signature_notifier").
+			Stringer(logs.Host, host.ID()).
+			Logger(),
 	}
 
 	host.SetStreamHandler(signatureNotifierProtocol, s.handleStream)

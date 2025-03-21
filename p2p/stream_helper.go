@@ -12,7 +12,8 @@ import (
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
+
+	"github.com/zeta-chain/go-tss/logs"
 )
 
 const (
@@ -32,52 +33,60 @@ func init() {
 
 type StreamMgr struct {
 	unusedStreams map[string][]network.Stream
-	streamLocker  *sync.RWMutex
+	mu            *sync.RWMutex
 	logger        zerolog.Logger
 }
 
-func NewStreamMgr() *StreamMgr {
+func NewStreamMgr(logger zerolog.Logger) *StreamMgr {
 	return &StreamMgr{
 		unusedStreams: make(map[string][]network.Stream),
-		streamLocker:  &sync.RWMutex{},
-		logger:        log.With().Str("module", "communication").Logger(),
+		mu:            &sync.RWMutex{},
+		logger:        logger.With().Str(logs.Component, "stream_manager").Logger(),
 	}
 }
 
 func (sm *StreamMgr) ReleaseStream(msgID string) {
-	sm.streamLocker.RLock()
+	sm.mu.RLock()
 	usedStreams, okStream := sm.unusedStreams[msgID]
 	unknownStreams, okUnknown := sm.unusedStreams["UNKNOWN"]
 	streams := append(usedStreams, unknownStreams...)
-	sm.streamLocker.RUnlock()
-	if okStream || okUnknown {
-		for _, el := range streams {
-			err := el.Reset()
-			if err != nil {
-				sm.logger.Error().Err(err).Msg("fail to reset the stream,skip it")
-			}
-		}
-		sm.streamLocker.Lock()
-		delete(sm.unusedStreams, msgID)
-		delete(sm.unusedStreams, "UNKNOWN")
-		sm.streamLocker.Unlock()
+	sm.mu.RUnlock()
+
+	// noop
+	if !(okStream || okUnknown) {
+		return
 	}
+
+	for _, stream := range streams {
+		if err := stream.Reset(); err != nil {
+			sm.logger.Error().Err(err).
+				Str(logs.MsgID, msgID).
+				Str("stream_id", stream.ID()).
+				Msg("Failed to reset the stream")
+		}
+	}
+
+	sm.mu.Lock()
+	delete(sm.unusedStreams, msgID)
+	delete(sm.unusedStreams, "UNKNOWN")
+	sm.mu.Unlock()
 }
 
 func (sm *StreamMgr) AddStream(msgID string, stream network.Stream) {
 	if stream == nil {
 		return
 	}
-	sm.streamLocker.Lock()
-	defer sm.streamLocker.Unlock()
+
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
 	entries, ok := sm.unusedStreams[msgID]
 	if !ok {
-		entries := []network.Stream{stream}
-		sm.unusedStreams[msgID] = entries
-	} else {
-		entries = append(entries, stream)
-		sm.unusedStreams[msgID] = entries
+		sm.unusedStreams[msgID] = []network.Stream{stream}
+		return
 	}
+
+	sm.unusedStreams[msgID] = append(entries, stream)
 }
 
 // ReadStreamWithBuffer read data from the given stream

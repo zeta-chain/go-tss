@@ -95,7 +95,7 @@ func NewCommunication(
 		streamCount:      0,
 		BroadcastMsgChan: make(chan *messages.BroadcastMsgChan, 1024),
 		externalAddr:     externalAddr,
-		streamMgr:        NewStreamMgr(),
+		streamMgr:        NewStreamMgr(logger),
 		whitelistedPeers: whitelistedPeers,
 	}, nil
 }

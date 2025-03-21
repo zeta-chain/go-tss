@@ -45,6 +45,7 @@ func NewPartyCoordinator(host host.Host, timeout time.Duration, logger zerolog.L
 	if timeout.Nanoseconds() == 0 {
 		timeout = 10 * time.Second
 	}
+
 	pc := &PartyCoordinator{
 		logger:             logger,
 		host:               host,
@@ -52,9 +53,11 @@ func NewPartyCoordinator(host host.Host, timeout time.Duration, logger zerolog.L
 		timeout:            timeout,
 		peersGroup:         make(map[string]*peerStatus),
 		joinPartyGroupLock: &sync.Mutex{},
-		streamMgr:          NewStreamMgr(),
+		streamMgr:          NewStreamMgr(logger),
 	}
+
 	host.SetStreamHandler(joinPartyProtocolWithLeader, pc.HandleStreamWithLeader)
+
 	return pc
 }
 
