@@ -197,7 +197,9 @@ func (s *SignatureNotifier) sendOneMsgToPeer(m *signatureItem) error {
 	}
 
 	ret := make([]byte, 8)
-	_, err = stream.Read(ret)
+	if _, err := stream.Read(ret); err != nil {
+		return errors.Wrapf(err, "fail to read response from stream")
+	}
 
 	return err
 }

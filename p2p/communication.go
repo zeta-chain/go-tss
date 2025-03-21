@@ -171,14 +171,14 @@ func (c *Communication) readFromStream(stream network.Stream) {
 
 	payload, err := ReadStreamWithBuffer(stream)
 	if err != nil {
-		c.logger.Error().Err(err).Str(logs.Peer, peerID).Msg("fail to read from stream")
+		c.logger.Error().Err(err).Str(logs.Peer, peerID).Msg("Failed to read from stream")
 		c.streamMgr.AddStream("UNKNOWN", stream)
 		return
 	}
 
 	var wrappedMsg messages.WrappedMessage
 	if err := json.Unmarshal(payload, &wrappedMsg); nil != err {
-		c.logger.Error().Err(err).Msg("fail to unmarshal wrapped message bytes")
+		c.logger.Error().Err(err).Msg("Failed to unmarshal WrappedMessage")
 		c.streamMgr.AddStream("UNKNOWN", stream)
 		return
 	}
