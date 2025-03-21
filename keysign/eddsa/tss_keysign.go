@@ -2,7 +2,6 @@ package eddsa
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"math/big"
 	"sort"
@@ -16,6 +15,7 @@ import (
 	btss "github.com/bnb-chain/tss-lib/tss"
 	tcrypto "github.com/cometbft/cometbft/crypto"
 	"github.com/rs/zerolog"
+	"gitlab.com/tozd/go/errors"
 	"go.uber.org/atomic"
 
 	"github.com/zeta-chain/go-tss/blame"

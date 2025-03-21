@@ -2,8 +2,6 @@ package eddsa
 
 import (
 	"encoding/json"
-	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -12,6 +10,7 @@ import (
 	btss "github.com/bnb-chain/tss-lib/tss"
 	tcrypto "github.com/cometbft/cometbft/crypto"
 	"github.com/rs/zerolog"
+	"gitlab.com/tozd/go/errors"
 
 	"github.com/zeta-chain/go-tss/blame"
 	"github.com/zeta-chain/go-tss/common"
@@ -68,36 +67,42 @@ func (tKeyGen *KeyGen) GetTssCommonStruct() *common.TssCommon {
 	return tKeyGen.tssCommonStruct
 }
 
-func (tKeyGen *KeyGen) GenerateNewKey(keygenReq keygen.Request) (*bcrypto.ECPoint, error) {
+func (tKeyGen *KeyGen) GenerateNewKey(req keygen.Request) (*bcrypto.ECPoint, error) {
 	keyGenPartyMap := new(sync.Map)
-	partiesID, localPartyID, err := conversion.GetParties(keygenReq.Keys, tKeyGen.localNodePubKey)
+	partiesID, localPartyID, err := conversion.GetParties(req.Keys, tKeyGen.localNodePubKey)
 	if err != nil {
-		return nil, fmt.Errorf("fail to get keygen parties: %w", err)
+		return nil, errors.Wrap(err, "failed to get keygen parties")
 	}
 
 	keyGenLocalStateItem := storage.KeygenLocalState{
-		ParticipantKeys: keygenReq.Keys,
+		ParticipantKeys: req.Keys,
 		LocalPartyKey:   tKeyGen.localNodePubKey,
 	}
 
 	threshold, err := conversion.GetThreshold(len(partiesID))
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to get threshold")
 	}
-	ctx := btss.NewPeerContext(partiesID)
-	params := btss.NewParameters(btss.Edwards(), ctx, localPartyID, len(partiesID), threshold)
-	outCh := make(chan btss.Message, len(partiesID))
-	endCh := make(chan eddsakg.LocalPartySaveData, len(partiesID))
-	errChan := make(chan struct{})
 
-	blameMgr := tKeyGen.tssCommonStruct.GetBlameMgr()
-	keyGenParty := eddsakg.NewLocalParty(params, outCh, endCh)
-	partyIDMap := conversion.SetupPartyIDMap(partiesID)
-	err1 := conversion.SetupIDMaps(partyIDMap, tKeyGen.tssCommonStruct.PartyIDtoP2PID)
-	err2 := conversion.SetupIDMaps(partyIDMap, blameMgr.PartyIDtoP2PID)
-	if err1 != nil || err2 != nil {
-		tKeyGen.logger.Error().Msgf("error in creating mapping between partyID and P2P ID")
-		return nil, err
+	var (
+		ctx         = btss.NewPeerContext(partiesID)
+		params      = btss.NewParameters(btss.Edwards(), ctx, localPartyID, len(partiesID), threshold)
+		outCh       = make(chan btss.Message, len(partiesID))
+		endCh       = make(chan eddsakg.LocalPartySaveData, len(partiesID))
+		errChan     = make(chan struct{})
+		blameMgr    = tKeyGen.tssCommonStruct.GetBlameMgr()
+		keyGenParty = eddsakg.NewLocalParty(params, outCh, endCh)
+		partyIDMap  = conversion.SetupPartyIDMap(partiesID)
+	)
+
+	err = conversion.SetupIDMaps(partyIDMap, tKeyGen.tssCommonStruct.PartyIDtoP2PID)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to setup ID maps #1")
+	}
+
+	err = conversion.SetupIDMaps(partyIDMap, blameMgr.PartyIDtoP2PID)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to setup ID maps #2")
 	}
 
 	keyGenPartyMap.Store("", keyGenParty)
@@ -114,8 +119,10 @@ func (tKeyGen *KeyGen) GenerateNewKey(keygenReq keygen.Request) (*bcrypto.ECPoin
 		tKeyGen.tssCommonStruct.GetLocalPeerID(),
 	)
 	tKeyGen.tssCommonStruct.P2PPeersLock.Unlock()
+
 	var keyGenWg sync.WaitGroup
 	keyGenWg.Add(2)
+
 	// start keygen
 	go func() {
 		defer keyGenWg.Done()
@@ -125,13 +132,15 @@ func (tKeyGen *KeyGen) GenerateNewKey(keygenReq keygen.Request) (*bcrypto.ECPoin
 			close(errChan)
 		}
 	}()
+
 	go tKeyGen.tssCommonStruct.ProcessInboundMessages(tKeyGen.commStopChan, &keyGenWg)
 
 	r, err := tKeyGen.processKeyGen(errChan, outCh, endCh, keyGenLocalStateItem)
 	if err != nil {
 		close(tKeyGen.commStopChan)
-		return nil, fmt.Errorf("fail to process key gen: %w", err)
+		return nil, errors.Wrap(err, "failed to process key gen")
 	}
+
 	select {
 	case <-time.After(time.Second * 5):
 		close(tKeyGen.commStopChan)
@@ -141,6 +150,7 @@ func (tKeyGen *KeyGen) GenerateNewKey(keygenReq keygen.Request) (*bcrypto.ECPoin
 	}
 
 	keyGenWg.Wait()
+
 	return r, err
 }
 
@@ -224,7 +234,7 @@ func (tKeyGen *KeyGen) processKeyGen(errChan chan struct{},
 			}
 			pubKey, _, err := conversion.GetTssPubKeyEDDSA(msg.EDDSAPub)
 			if err != nil {
-				return nil, fmt.Errorf("fail to get thorchain pubkey: %w", err)
+				return nil, errors.Wrap(err, "failed to get thorchain pubkey")
 			}
 			marshaledMsg, err := json.Marshal(msg)
 			if err != nil {
@@ -234,7 +244,7 @@ func (tKeyGen *KeyGen) processKeyGen(errChan chan struct{},
 			keyGenLocalStateItem.LocalData = marshaledMsg
 			keyGenLocalStateItem.PubKey = pubKey
 			if err := tKeyGen.stateManager.SaveLocalState(keyGenLocalStateItem); err != nil {
-				return nil, fmt.Errorf("fail to save keygen result to storage: %w", err)
+				return nil, errors.Wrap(err, "failed to save keygen result to storage")
 			}
 			address := tKeyGen.p2pComm.ExportPeerAddress()
 			if err := tKeyGen.stateManager.SaveAddressBook(address); err != nil {

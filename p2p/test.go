@@ -3,7 +3,7 @@ package p2p
 import (
 	"net"
 
-	"github.com/pkg/errors"
+	"gitlab.com/tozd/go/errors"
 )
 
 // GetFreePorts allocated N available ports for testing purposes

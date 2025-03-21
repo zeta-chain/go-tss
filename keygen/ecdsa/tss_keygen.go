@@ -2,8 +2,6 @@ package ecdsa
 
 import (
 	"encoding/json"
-	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -13,6 +11,7 @@ import (
 	"github.com/btcsuite/btcd/btcec/v2"
 	tcrypto "github.com/cometbft/cometbft/crypto"
 	"github.com/rs/zerolog"
+	"gitlab.com/tozd/go/errors"
 
 	"github.com/zeta-chain/go-tss/blame"
 	"github.com/zeta-chain/go-tss/common"
@@ -75,40 +74,48 @@ func (tKeyGen *TssKeyGen) GetTssCommonStruct() *common.TssCommon {
 	return tKeyGen.tssCommonStruct
 }
 
-func (tKeyGen *TssKeyGen) GenerateNewKey(keygenReq keygen.Request) (*bcrypto.ECPoint, error) {
-	partiesID, localPartyID, err := conversion.GetParties(keygenReq.Keys, tKeyGen.localNodePubKey)
+func (tKeyGen *TssKeyGen) GenerateNewKey(req keygen.Request) (*bcrypto.ECPoint, error) {
+	if tKeyGen.preParams == nil {
+		return nil, errors.New("pre-parameters are nil")
+	}
+
+	partiesID, localPartyID, err := conversion.GetParties(req.Keys, tKeyGen.localNodePubKey)
 	if err != nil {
-		return nil, fmt.Errorf("fail to get keygen parties: %w", err)
+		return nil, errors.Wrapf(err, "fail to get keygen parties")
 	}
 
 	keyGenLocalStateItem := storage.KeygenLocalState{
-		ParticipantKeys: keygenReq.Keys,
+		ParticipantKeys: req.Keys,
 		LocalPartyKey:   tKeyGen.localNodePubKey,
 	}
 
 	threshold, err := conversion.GetThreshold(len(partiesID))
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrapf(err, "fail to get threshold")
 	}
-	keyGenPartyMap := new(sync.Map)
-	ctx := btss.NewPeerContext(partiesID)
-	params := btss.NewParameters(btcec.S256(), ctx, localPartyID, len(partiesID), threshold)
-	outCh := make(chan btss.Message, len(partiesID))
-	endCh := make(chan bkg.LocalPartySaveData, len(partiesID))
-	errChan := make(chan struct{})
-	if tKeyGen.preParams == nil {
-		tKeyGen.logger.Error().Err(err).Msg("error, empty pre-parameters")
-		return nil, errors.New("error, empty pre-parameters")
+
+	var (
+		keyGenPartyMap = new(sync.Map)
+		ctx            = btss.NewPeerContext(partiesID)
+		params         = btss.NewParameters(btcec.S256(), ctx, localPartyID, len(partiesID), threshold)
+		outCh          = make(chan btss.Message, len(partiesID))
+		endCh          = make(chan bkg.LocalPartySaveData, len(partiesID))
+		errChan        = make(chan struct{})
+		blameMgr       = tKeyGen.tssCommonStruct.GetBlameMgr()
+		keyGenParty    = bkg.NewLocalParty(params, outCh, endCh, *tKeyGen.preParams)
+		partyIDMap     = conversion.SetupPartyIDMap(partiesID)
+	)
+
+	err = conversion.SetupIDMaps(partyIDMap, tKeyGen.tssCommonStruct.PartyIDtoP2PID)
+	if err != nil {
+		return nil, errors.Wrapf(err, "unable to setup ID maps #1")
 	}
-	blameMgr := tKeyGen.tssCommonStruct.GetBlameMgr()
-	keyGenParty := bkg.NewLocalParty(params, outCh, endCh, *tKeyGen.preParams)
-	partyIDMap := conversion.SetupPartyIDMap(partiesID)
-	err1 := conversion.SetupIDMaps(partyIDMap, tKeyGen.tssCommonStruct.PartyIDtoP2PID)
-	err2 := conversion.SetupIDMaps(partyIDMap, blameMgr.PartyIDtoP2PID)
-	if err1 != nil || err2 != nil {
-		tKeyGen.logger.Error().Msgf("error in creating mapping between partyID and P2P ID")
-		return nil, err
+
+	err = conversion.SetupIDMaps(partyIDMap, blameMgr.PartyIDtoP2PID)
+	if err != nil {
+		return nil, errors.Wrapf(err, "unable to setup ID maps #2")
 	}
+
 	// we never run multi keygen, so the moniker is set to default empty value
 	keyGenPartyMap.Store("", keyGenParty)
 	partyInfo := &common.PartyInfo{
@@ -124,8 +131,10 @@ func (tKeyGen *TssKeyGen) GenerateNewKey(keygenReq keygen.Request) (*bcrypto.ECP
 		tKeyGen.tssCommonStruct.GetLocalPeerID(),
 	)
 	tKeyGen.tssCommonStruct.P2PPeersLock.Unlock()
+
 	var keyGenWg sync.WaitGroup
 	keyGenWg.Add(2)
+
 	// start keygen
 	go func() {
 		defer keyGenWg.Done()
@@ -135,22 +144,24 @@ func (tKeyGen *TssKeyGen) GenerateNewKey(keygenReq keygen.Request) (*bcrypto.ECP
 			close(errChan)
 		}
 	}()
+
 	go tKeyGen.tssCommonStruct.ProcessInboundMessages(tKeyGen.commStopChan, &keyGenWg)
 
 	r, err := tKeyGen.processKeyGen(errChan, outCh, endCh, keyGenLocalStateItem)
 	if err != nil {
 		close(tKeyGen.commStopChan)
-		return nil, fmt.Errorf("fail to process key sign: %w", err)
+		return nil, errors.Wrapf(err, "failed to process key sign")
 	}
+
 	select {
 	case <-time.After(time.Second * 5):
 		close(tKeyGen.commStopChan)
-
 	case <-tKeyGen.tssCommonStruct.GetTaskDone():
 		close(tKeyGen.commStopChan)
 	}
 
 	keyGenWg.Wait()
+
 	return r, err
 }
 
@@ -224,34 +235,38 @@ func (tKeyGen *TssKeyGen) processKeyGen(errChan chan struct{},
 			blameMgr.SetLastMsg(msg)
 			err := tKeyGen.tssCommonStruct.ProcessOutCh(msg, messages.TSSKeyGenMsg)
 			if err != nil {
-				tKeyGen.logger.Error().Err(err).Msg("fail to process the message")
-				return nil, err
+				return nil, errors.Wrapf(err, "failed to ProcessOutCh")
 			}
 
 		case msg := <-endCh:
 			tKeyGen.logger.Debug().Msgf("keygen finished successfully: %s", msg.ECDSAPub.Y().String())
+
 			err := tKeyGen.tssCommonStruct.NotifyTaskDone()
 			if err != nil {
 				tKeyGen.logger.Error().Err(err).Msg("fail to broadcast the keysign done")
 			}
+
 			pubKey, _, err := conversion.GetTssPubKeyECDSA(msg.ECDSAPub)
 			if err != nil {
-				return nil, fmt.Errorf("fail to get thorchain pubkey: %w", err)
+				return nil, errors.Wrapf(err, "failed to get thorchain pubkey")
 			}
+
 			marshaledMsg, err := json.Marshal(msg)
 			if err != nil {
-				tKeyGen.logger.Error().Err(err).Msg("fail to marshal the result")
-				return nil, errors.New("fail to marshal the result")
+				return nil, errors.Wrap(err, "failed to marshal LocalPartySaveData")
 			}
+
 			keyGenLocalStateItem.LocalData = marshaledMsg
 			keyGenLocalStateItem.PubKey = pubKey
 			if err := tKeyGen.stateManager.SaveLocalState(keyGenLocalStateItem); err != nil {
-				return nil, fmt.Errorf("fail to save keygen result to storage: %w", err)
+				return nil, errors.Wrapf(err, "failed to save keygen result to storage")
 			}
+
 			address := tKeyGen.p2pComm.ExportPeerAddress()
 			if err := tKeyGen.stateManager.SaveAddressBook(address); err != nil {
-				tKeyGen.logger.Error().Err(err).Msg("fail to save the peer addresses")
+				tKeyGen.logger.Error().Err(err).Msg("failed to save the peer addresses")
 			}
+
 			return msg.ECDSAPub, nil
 		}
 	}

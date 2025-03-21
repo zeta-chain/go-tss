@@ -19,6 +19,7 @@ import (
 	btss "github.com/bnb-chain/tss-lib/tss"
 	"github.com/ipfs/go-log"
 	zlog "github.com/rs/zerolog/log"
+	"gitlab.com/tozd/go/errors"
 
 	"github.com/zeta-chain/go-tss/conversion"
 	"github.com/zeta-chain/go-tss/keysign"
@@ -58,9 +59,9 @@ func (m *MockLocalStateOldManager) GetLocalState(pubKey string) (storage.KeygenL
 
 		var stateOld storage.KeygenLocalStateOld
 		if err := json.Unmarshal(buf, &stateOld); nil != err {
-			return storage.KeygenLocalState{}, fmt.Errorf(
-				"fail to unmarshal KeygenLocalState with backwards compatibility: %w",
+			return storage.KeygenLocalState{}, errors.Wrap(
 				err,
+				"fail to unmarshal KeygenLocalState with backwards compatibility",
 			)
 		}
 
@@ -68,11 +69,10 @@ func (m *MockLocalStateOldManager) GetLocalState(pubKey string) (storage.KeygenL
 		state.ParticipantKeys = stateOld.ParticipantKeys
 		state.LocalPartyKey = stateOld.LocalPartyKey
 		state.LocalData, err = json.Marshal(stateOld.LocalData)
-
 		if err != nil {
-			return storage.KeygenLocalState{}, fmt.Errorf(
-				"fail to marshal KeygenLocalState.LocalData for backwards compatibility: %w",
+			return storage.KeygenLocalState{}, errors.Wrap(
 				err,
+				"fail to marshal KeygenLocalState.LocalData for backwards compatibility",
 			)
 		}
 	}

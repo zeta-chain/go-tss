@@ -2,7 +2,6 @@ package keysign
 
 import (
 	"crypto/ecdsa"
-	"errors"
 	"fmt"
 	"math/big"
 	"sync"
@@ -14,6 +13,7 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types/bech32/legacybech32"
 	"github.com/decred/dcrd/dcrec/edwards/v2"
 	"github.com/tendermint/btcd/btcec"
+	"gitlab.com/tozd/go/errors"
 )
 
 const defaultNotifierTTL = time.Second * 30

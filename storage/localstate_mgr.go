@@ -7,7 +7,6 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -19,6 +18,7 @@ import (
 	"github.com/bnb-chain/tss-lib/ecdsa/keygen"
 	"github.com/libp2p/go-libp2p/core/peer"
 	maddr "github.com/multiformats/go-multiaddr"
+	"gitlab.com/tozd/go/errors"
 
 	"github.com/zeta-chain/go-tss/conversion"
 )

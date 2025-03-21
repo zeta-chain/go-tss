@@ -2,9 +2,7 @@ package tss
 
 import (
 	"encoding/base64"
-	"fmt"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -13,7 +11,7 @@ import (
 	"github.com/cometbft/cometbft/crypto/secp256k1"
 	sdk "github.com/cosmos/cosmos-sdk/types/bech32/legacybech32"
 	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/pkg/errors"
+	"gitlab.com/tozd/go/errors"
 
 	"github.com/zeta-chain/go-tss/blame"
 	"github.com/zeta-chain/go-tss/common"
@@ -26,6 +24,8 @@ import (
 	"github.com/zeta-chain/go-tss/p2p"
 	"github.com/zeta-chain/go-tss/storage"
 )
+
+const msgSignatureGenerated = "signature generated"
 
 func (t *Server) waitForSignatures(
 	msgID, poolPubKey string,
@@ -145,19 +145,21 @@ func (t *Server) generateSignature(
 
 	signers, err := conversion.GetPubKeysFromPeerIDs(parsedPeers)
 	if err != nil {
-		sigChan <- "signature generated"
+		sigChan <- msgSignatureGenerated
+
 		return keysign.Response{
 			Status: common.Fail,
 			Blame:  blame.Blame{},
 		}, nil
 	}
+
 	signatureData, err := keysignInstance.SignMessage(msgsToSign, localStateItem, signers)
 
 	// the statistic of keygen only care about TSS it self, even if the following http response aborts,
 	// it still counted as a successful keygen as the Tss model runs successfully.
 	if err != nil {
 		t.logger.Error().Err(err).Msg("SignMessage failed")
-		sigChan <- "signature generated"
+		sigChan <- msgSignatureGenerated
 		t.broadcastKeysignFailure(msgID, allPeersID)
 		blameNodes := *blameMgr.GetBlame()
 		return keysign.Response{
@@ -166,21 +168,18 @@ func (t *Server) generateSignature(
 		}, nil
 	}
 
-	sigChan <- "signature generated"
+	sigChan <- msgSignatureGenerated
+
 	// update signature notification
 	if err := t.signatureNotifier.BroadcastSignature(msgID, signatureData, allPeersID); err != nil {
-		return keysign.Response{}, fmt.Errorf("fail to broadcast signature:%w", err)
+		return keysign.Response{}, errors.Wrap(err, "sig notifier: fail to broadcast signature")
 	}
 
 	return t.batchSignatures(signatureData, msgsToSign), nil
 }
 
 func (t *Server) updateKeySignResult(result keysign.Response, timeSpent time.Duration) {
-	if result.Status == common.Success {
-		t.tssMetrics.UpdateKeySign(timeSpent, true)
-		return
-	}
-	t.tssMetrics.UpdateKeySign(timeSpent, false)
+	t.tssMetrics.UpdateKeySign(timeSpent, result.Status == common.Success)
 }
 
 func (t *Server) KeySign(req keysign.Request) (keysign.Response, error) {
@@ -257,19 +256,16 @@ func (t *Server) KeySign(req keysign.Request) (keysign.Response, error) {
 
 	localStateItem, err := t.stateManager.GetLocalState(req.PoolPubKey)
 	if err != nil {
-		return keysign.Response{}, fmt.Errorf("fail to get local keygen state: %w", err)
+		return keysign.Response{}, errors.Wrap(err, "stateManager: unable to get local keygen state")
 	}
 
 	var msgsToSign [][]byte
 	for _, val := range req.Messages {
 		msgToSign, err := base64.StdEncoding.DecodeString(val)
 		if err != nil {
-			return keysign.Response{}, fmt.Errorf(
-				"fail to decode message(%s): %w",
-				strings.Join(req.Messages, ","),
-				err,
-			)
+			return keysign.Response{}, errors.Wrapf(err, "unable to decode message %q", val)
 		}
+
 		msgsToSign = append(msgsToSign, msgToSign)
 	}
 

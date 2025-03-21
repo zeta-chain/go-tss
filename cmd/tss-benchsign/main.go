@@ -20,7 +20,7 @@ import (
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/ipfs/go-log"
 	"github.com/olekukonko/tablewriter"
-	"github.com/pkg/errors"
+	"gitlab.com/tozd/go/errors"
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
 )
@@ -118,8 +118,9 @@ func runSign(dir string, t int) {
 	if err != nil {
 		panic(err)
 	}
+
 	if len(keys) != q || len(signPIDs) != q {
-		panic(fmt.Errorf("wanted %d keys but got %d keys and %d signPIDs", q, len(keys), len(signPIDs)))
+		panic(errors.Errorf("wanted %d keys but got %d keys and %d signPIDs", q, len(keys), len(signPIDs)))
 	}
 
 	msg := common.GetRandomPrimeInt(256)
@@ -163,7 +164,7 @@ outer:
 				}
 			} else {
 				if dest[0].Index == msg.GetFrom().Index {
-					panic(fmt.Errorf("party %d tried to send a message to itself (%d)", dest[0].Index, msg.GetFrom().Index))
+					panic(errors.Errorf("party %d tried to send a message to itself (%d)", dest[0].Index, msg.GetFrom().Index))
 				}
 				go updater(parties[dest[0].Index], msg, errCh)
 			}

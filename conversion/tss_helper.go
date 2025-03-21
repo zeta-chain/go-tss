@@ -1,7 +1,6 @@
 package conversion
 
 import (
-	"errors"
 	"fmt"
 	"math/rand"
 
@@ -11,6 +10,7 @@ import (
 	atypes "github.com/cosmos/cosmos-sdk/x/auth/vesting/types"
 	"github.com/libp2p/go-libp2p/core/peer"
 	maddr "github.com/multiformats/go-multiaddr"
+	"gitlab.com/tozd/go/errors"
 )
 
 // GetRandomPubKey for test
@@ -64,13 +64,16 @@ func TestBootstrapAddrs(ports []int, testPubKeys []string) ([]maddr.Multiaddr, e
 	for i := 0; i < len(ports); i++ {
 		peerID, err := Bech32PubkeyToPeerID(testPubKeys[i])
 		if err != nil {
-			return nil, fmt.Errorf("pubkey for peer %d is not valid %w", i, err)
+			return nil, errors.Wrapf(err, "invalid bech32 pubkey for peer %q", testPubKeys[i])
 		}
+
 		peerAddr, err := maddr.NewMultiaddr(fmt.Sprintf("/ip4/127.0.0.1/tcp/%d/p2p/%s", ports[i], peerID.String()))
 		if err != nil {
-			return nil, fmt.Errorf("peer addr %d is not valid %w", i, err)
+			return nil, errors.Wrapf(err, "invalid peer addr %d", i)
 		}
+
 		res[i] = peerAddr
 	}
+
 	return res, nil
 }

@@ -21,15 +21,16 @@ require (
 	github.com/magiconair/properties v1.8.7
 	github.com/multiformats/go-multiaddr v0.8.0
 	github.com/olekukonko/tablewriter v0.0.5
-	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.20.5
 	github.com/prometheus/client_model v0.6.1
 	github.com/rs/zerolog v1.33.0
 	github.com/stretchr/testify v1.10.0
 	github.com/tendermint/btcd v0.1.1
 	gitlab.com/thorchain/binance-sdk v1.2.3-0.20210117202539-d569b6b9ba5d
+	gitlab.com/tozd/go/errors v0.10.0
 	go.uber.org/atomic v1.10.0
 	golang.org/x/crypto v0.32.0
+	golang.org/x/sync v0.10.0
 	golang.org/x/text v0.21.0
 	google.golang.org/protobuf v1.36.4
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
@@ -178,6 +179,7 @@ require (
 	github.com/pbnjay/memory v0.0.0-20210728143218-7b4eea64cf58 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.2 // indirect
 	github.com/petermattis/goid v0.0.0-20240813172612-4fcff4a6cae7 // indirect
+	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/common v0.62.0 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
@@ -201,7 +203,6 @@ require (
 	github.com/tidwall/btree v1.7.0 // indirect
 	github.com/zondax/hid v0.9.2 // indirect
 	github.com/zondax/ledger-go v0.14.3 // indirect
-	gitlab.com/tozd/go/errors v0.10.0 // indirect
 	go.etcd.io/bbolt v1.4.0-alpha.0.0.20240404170359-43604f3112c5 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	go.uber.org/dig v1.15.0 // indirect
@@ -211,7 +212,6 @@ require (
 	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56 // indirect
 	golang.org/x/mod v0.19.0 // indirect
 	golang.org/x/net v0.34.0 // indirect
-	golang.org/x/sync v0.10.0 // indirect
 	golang.org/x/sys v0.29.0 // indirect
 	golang.org/x/term v0.28.0 // indirect
 	golang.org/x/tools v0.23.0 // indirect
@@ -228,12 +228,12 @@ require (
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
 
+// tss-lib: https://github.com/zeta-chain/tss-lib/tree/threshold-dep-updates
+// which is a fork of https://github.com/threshold-network/tss-lib
+
 replace (
 	github.com/agl/ed25519 => github.com/binance-chain/edwards25519 v0.0.0-20200305024217-f36fc4b53d43
+	github.com/bnb-chain/tss-lib => github.com/zeta-chain/tss-lib v0.0.0-20240916163010-2e6b438bd901
 	github.com/gogo/protobuf => github.com/regen-network/protobuf v1.3.2-alpha.regen.4
 	github.com/libp2p/go-libp2p => github.com/zeta-chain/go-libp2p v0.0.0-20240710192637-567fbaacc2b4
 )
-
-// https://github.com/zeta-chain/tss-lib/tree/threshold-dep-updates
-// which is a fork of https://github.com/threshold-network/tss-lib
-replace github.com/bnb-chain/tss-lib => github.com/zeta-chain/tss-lib v0.0.0-20240916163010-2e6b438bd901

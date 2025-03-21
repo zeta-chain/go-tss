@@ -3,10 +3,11 @@ package p2p
 import (
 	"bytes"
 	"encoding/binary"
-	"errors"
 	"strconv"
 	"testing"
 	"time"
+
+	"gitlab.com/tozd/go/errors"
 
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/protocol"

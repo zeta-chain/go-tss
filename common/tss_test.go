@@ -5,12 +5,13 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"gitlab.com/tozd/go/errors"
 
 	btsskeygen "github.com/bnb-chain/tss-lib/ecdsa/keygen"
 	btss "github.com/bnb-chain/tss-lib/tss"

@@ -18,8 +18,8 @@ import (
 	"github.com/libp2p/go-libp2p/p2p/net/connmgr"
 	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
 	maddr "github.com/multiformats/go-multiaddr"
-	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
+	"gitlab.com/tozd/go/errors"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/zeta-chain/go-tss/logs"

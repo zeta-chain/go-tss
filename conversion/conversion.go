@@ -4,8 +4,6 @@ import (
 	"crypto/elliptic"
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
-	"fmt"
 	"math"
 	"math/big"
 	"sort"
@@ -22,6 +20,7 @@ import (
 	"github.com/decred/dcrd/dcrec/edwards/v2"
 	crypto2 "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"gitlab.com/tozd/go/errors"
 
 	"github.com/zeta-chain/go-tss/messages"
 )
@@ -30,8 +29,9 @@ import (
 func GetPeerIDFromSecp256PubKey(pk []byte) (peer.ID, error) {
 	ppk, err := crypto2.UnmarshalSecp256k1PublicKey(pk)
 	if err != nil {
-		return "", fmt.Errorf("fail to convert pubkey to the crypto pubkey used in libp2p: %w", err)
+		return "", errors.Wrap(err, "unable to decode secp256k1 pubkey")
 	}
+
 	return peer.IDFromPublicKey(ppk)
 }
 
@@ -108,15 +108,19 @@ func SetupIDMaps(parties map[string]*btss.PartyID, partyIDtoP2PID map[string]pee
 }
 
 func GetParties(keys []string, localPartyKey string) (btss.SortedPartyIDs, *btss.PartyID, error) {
+	sort.Strings(keys)
+
 	var localPartyID *btss.PartyID
 	var unSortedPartiesID []*btss.PartyID
-	sort.Strings(keys)
+
 	for idx, item := range keys {
 		pk, err := sdk.UnmarshalPubKey(sdk.AccPK, item)
 		if err != nil {
-			return nil, nil, fmt.Errorf("fail to get account pub key address(%s): %w", item, err)
+			return nil, nil, errors.Wrapf(err, "unable to get account pub key from %q", item)
 		}
+
 		key := new(big.Int).SetBytes(pk.Bytes())
+
 		// Set up the parameters
 		// Note: The `id` and `moniker` fields are for convenience to allow you to easily track participants.
 		// The `id` should be a unique string representing this party in the network and `moniker` can be anything (even left blank).
@@ -125,8 +129,10 @@ func GetParties(keys []string, localPartyKey string) (btss.SortedPartyIDs, *btss
 		if item == localPartyKey {
 			localPartyID = partyID
 		}
+
 		unSortedPartiesID = append(unSortedPartiesID, partyID)
 	}
+
 	if localPartyID == nil {
 		return nil, nil, errors.New("local party is not in the list")
 	}
@@ -188,10 +194,10 @@ func GetTssPubKeyEDDSA(pubKeyPoint *crypto.ECPoint) (string, types.AccAddress, e
 
 func BytesToHashString(msg []byte) (string, error) {
 	h := sha256.New()
-	_, err := h.Write(msg)
-	if err != nil {
-		return "", fmt.Errorf("fail to caculate sha256 hash: %w", err)
+	if _, err := h.Write(msg); err != nil {
+		return "", errors.Wrap(err, "unable to calculate sha256 hash")
 	}
+
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 

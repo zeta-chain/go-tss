@@ -1,9 +1,8 @@
 package main
 
 import (
-	"errors"
-
 	"github.com/libp2p/go-libp2p/core/peer"
+	"gitlab.com/tozd/go/errors"
 
 	"github.com/zeta-chain/go-tss/blame"
 	"github.com/zeta-chain/go-tss/common"

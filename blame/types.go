@@ -1,10 +1,10 @@
 package blame
 
 import (
-	"errors"
 	"sync"
 
 	btss "github.com/bnb-chain/tss-lib/tss"
+	"gitlab.com/tozd/go/errors"
 )
 
 const (
