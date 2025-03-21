@@ -143,10 +143,13 @@ func (m *Manager) TssWrongShareBlame(wiredMsg *messages.WireMessage) (string, er
 // with batch signing, we need to put the accepted shares into different message group
 // then search the missing share for each keysign message
 func (m *Manager) TssMissingShareBlame(rounds int, algo messages.Algo) ([]Node, bool, error) {
-	acceptedShareForMsg := make(map[string][][]string)
-	var blameNodes []Node
-	var peers []string
-	isUnicast := false
+	var (
+		acceptedShareForMsg = make(map[string][][]string)
+		blameNodes          []Node
+		peers               []string
+		isUnicast           bool
+	)
+
 	m.acceptShareLocker.Lock()
 	for roundInfo, value := range m.acceptedShares {
 		cachedShares, ok := acceptedShareForMsg[roundInfo.MsgIdentifier]
@@ -156,6 +159,19 @@ func (m *Manager) TssMissingShareBlame(rounds int, algo messages.Algo) ([]Node, 
 			acceptedShareForMsg[roundInfo.MsgIdentifier] = cachedShares
 			continue
 		}
+
+		// should not happen
+		if roundInfo.Index >= len(cachedShares) {
+			m.logger.Error().
+				Int("round_index", roundInfo.Index).
+				Int("cached_shares_len", len(cachedShares)).
+				Int("rounds", rounds).
+				Int("algo", int(algo)).
+				Msg("Unexpected round index")
+
+			continue
+		}
+
 		cachedShares[roundInfo.Index] = value
 	}
 	m.acceptShareLocker.Unlock()
@@ -208,8 +224,9 @@ func (m *Manager) TssMissingShareBlame(rounds int, algo messages.Algo) ([]Node, 
 		}
 		blamePubKeys, err := m.getBlamePubKeysNotInList(peers)
 		if err != nil {
-			return nil, isUnicast, err
+			return nil, isUnicast, errors.Wrap(err, "getBlamePubKeysNotInList")
 		}
+
 		for _, el := range blamePubKeys {
 			node := Node{
 				el,

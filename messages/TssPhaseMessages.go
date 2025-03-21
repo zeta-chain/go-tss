@@ -32,7 +32,7 @@ const (
 	KEYSIGN8         = "SignRound8Message"
 	KEYSIGN9         = "SignRound9Message"
 	TSSKEYGENROUNDS  = 4
-	TSSKEYSIGNROUNDS = 8
+	TSSKEYSIGNROUNDS = 9
 
 	ECDSAKEYGEN Algo = iota
 	ECDSAKEYSIGN

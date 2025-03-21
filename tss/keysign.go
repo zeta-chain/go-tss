@@ -2,6 +2,7 @@ package tss
 
 import (
 	"encoding/base64"
+	"runtime/debug"
 	"sort"
 	"sync"
 	"time"
@@ -32,6 +33,16 @@ func (t *Server) waitForSignatures(
 	msgsToSign [][]byte,
 	sigChan chan string,
 ) (keysign.Response, error) {
+	defer func() {
+		if r := recover(); r != nil {
+			t.logger.Error().
+				Str(logs.MsgID, msgID).
+				Any("panic", r).
+				Bytes("stack_trace", debug.Stack()).
+				Msg("PANIC during waitForSignatures")
+		}
+	}()
+
 	// TSS keysign include both form party and keysign itself, thus we wait twice of the timeout
 	data, err := t.signatureNotifier.WaitForSignature(msgID, msgsToSign, poolPubKey, t.conf.KeySignTimeout, sigChan)
 	if err != nil {
@@ -56,6 +67,16 @@ func (t *Server) generateSignature(
 	keysignInstance keysign.TssKeySign,
 	sigChan chan string,
 ) (keysign.Response, error) {
+	defer func() {
+		if r := recover(); r != nil {
+			t.logger.Error().
+				Str(logs.MsgID, msgID).
+				Any("panic", r).
+				Bytes("stack_trace", debug.Stack()).
+				Msg("PANIC during generateSignature")
+		}
+	}()
+
 	allPeersID, err := conversion.GetPeerIDsFromPubKeys(allParticipants)
 	if err != nil {
 		t.logger.Error().Msg("invalid block height or public key")

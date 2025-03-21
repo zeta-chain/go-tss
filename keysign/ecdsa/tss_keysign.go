@@ -171,8 +171,10 @@ func (tKeySign *TssKeySign) SignMessage(
 		tKeySign.tssCommonStruct.GetLocalPeerID(),
 	)
 	tKeySign.tssCommonStruct.P2PPeersLock.Unlock()
+
 	var keySignWg sync.WaitGroup
 	keySignWg.Add(2)
+
 	// start the key sign
 	go func() {
 		defer keySignWg.Done()
@@ -181,7 +183,9 @@ func (tKeySign *TssKeySign) SignMessage(
 			close(errCh)
 		}
 	}()
+
 	go tKeySign.tssCommonStruct.ProcessInboundMessages(tKeySign.commStopChan, &keySignWg)
+
 	results, err := tKeySign.processKeySign(len(msgsToSign), errCh, outCh, endCh)
 	if err != nil {
 		close(tKeySign.commStopChan)
@@ -194,9 +198,12 @@ func (tKeySign *TssKeySign) SignMessage(
 	case <-tKeySign.tssCommonStruct.GetTaskDone():
 		close(tKeySign.commStopChan)
 	}
+
 	keySignWg.Wait()
 
-	tKeySign.logger.Info().Stringer("host", tKeySign.p2pComm.GetHost().ID()).Msg("Successfully signed the message")
+	tKeySign.logger.Info().
+		Stringer("host", tKeySign.p2pComm.GetHost().ID()).
+		Msg("Successfully signed the message")
 
 	sort.SliceStable(results, func(i, j int) bool {
 		a := new(big.Int).SetBytes(results[i].M)
