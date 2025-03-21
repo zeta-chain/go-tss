@@ -1,7 +1,6 @@
 package tss
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
@@ -249,7 +248,7 @@ func pubKeyBech32(privateKey tcrypto.PrivKey) (string, error) {
 func resolveBootstrapPeers(net NetworkConfig, stateManager *storage.FileStateMgr) ([]maddr.Multiaddr, error) {
 	// validate
 	if len(net.WhitelistedPeers) == 0 {
-		return nil, fmt.Errorf("whitelisted peers missing")
+		return nil, errors.New("whitelisted peers missing")
 	}
 
 	// Retrieve peers from local state, merge with bootstrap peers

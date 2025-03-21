@@ -3,9 +3,10 @@ package p2p
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"sort"
 	"strconv"
+
+	"github.com/pkg/errors"
 )
 
 // LeaderNode use the given input buf to calculate a hash , and consistently choose a node as a master coordinate note

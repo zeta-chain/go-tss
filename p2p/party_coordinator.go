@@ -2,8 +2,6 @@ package p2p
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -11,7 +9,9 @@ import (
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/zeta-chain/go-tss/conversion"
@@ -45,6 +45,7 @@ func NewPartyCoordinator(host host.Host, timeout time.Duration, logger zerolog.L
 	if timeout.Nanoseconds() == 0 {
 		timeout = 10 * time.Second
 	}
+
 	pc := &PartyCoordinator{
 		logger:             logger,
 		host:               host,
@@ -52,9 +53,11 @@ func NewPartyCoordinator(host host.Host, timeout time.Duration, logger zerolog.L
 		timeout:            timeout,
 		peersGroup:         make(map[string]*peerStatus),
 		joinPartyGroupLock: &sync.Mutex{},
-		streamMgr:          NewStreamMgr(),
+		streamMgr:          NewStreamMgr(logger),
 	}
+
 	host.SetStreamHandler(joinPartyProtocolWithLeader, pc.HandleStreamWithLeader)
+
 	return pc
 }
 
@@ -195,47 +198,53 @@ func (pc *PartyCoordinator) getPeerIDs(ids []string) ([]peer.ID, error) {
 	for i, item := range ids {
 		pid, err := peer.Decode(item)
 		if err != nil {
-			return nil, fmt.Errorf("fail to decode peer id(%s):%w", item, err)
+			return nil, errors.Wrapf(err, "failed to decode peer id %q", item)
 		}
 		result[i] = pid
 	}
+
 	return result, nil
 }
 
 func (pc *PartyCoordinator) sendResponseToAll(msg *messages.JoinPartyLeaderComm, peers []peer.ID) {
-	msg.MsgType = "response"
 	msgSend, err := proto.Marshal(msg)
 	if err != nil {
-		pc.logger.Error().Err(err).Msg("error marshalling response")
+		pc.logger.Error().Err(err).Any("msg", msg).Msg("sendResponseToAll: failed to marshall response")
 		return
 	}
-	var wg sync.WaitGroup
-	wg.Add(len(peers))
-	for _, el := range peers {
-		go func(peer peer.ID) {
-			defer wg.Done()
-			if peer == pc.host.ID() {
-				return
+
+	var errGroup errgroup.Group
+
+	for i := range peers {
+		peer := peers[i]
+		if peer == pc.host.ID() {
+			continue
+		}
+
+		errGroup.Go(func() error {
+			err := pc.sendMsgToPeer(msgSend, msg.ID, peer, joinPartyProtocolWithLeader, true)
+			if err != nil {
+				pc.logger.Error().Err(err).
+					Str(logs.MsgID, msg.ID).
+					Stringer(logs.Peer, peer).
+					Msg("Unable to send JoinPartyLeaderComm to peer")
 			}
-			if err := pc.sendMsgToPeer(msgSend, msg.ID, peer, joinPartyProtocolWithLeader, true); err != nil {
-				pc.logger.Error().Err(err).Msg("error in send the join party request to peer")
-			}
-		}(el)
+
+			return nil
+		})
 	}
-	wg.Wait()
+
+	_ = errGroup.Wait()
 }
 
 func (pc *PartyCoordinator) sendRequestToLeader(msg *messages.JoinPartyLeaderComm, leader peer.ID) error {
-	msg.MsgType = "request"
 	msgSend, err := proto.Marshal(msg)
 	if err != nil {
-		pc.logger.Error().Err(err).Msg("error marshalling request")
-		return err
+		return errors.Wrap(err, "failed to marshall request")
 	}
 
 	if err := pc.sendMsgToPeer(msgSend, msg.ID, leader, joinPartyProtocolWithLeader, false); err != nil {
-		pc.logger.Error().Err(err).Msg("error in send the join party request to leader")
-		return errors.New("fail to send request to leader")
+		return errors.Wrap(err, "sendMsgToPeer")
 	}
 
 	return nil
@@ -245,20 +254,20 @@ func (pc *PartyCoordinator) sendMsgToPeer(
 	msgBuf []byte,
 	msgID string,
 	remotePeer peer.ID,
-	protoc protocol.ID,
+	protoID protocol.ID,
 	needResponse bool,
 ) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*4)
 	defer cancel()
 
 	pc.logger.Debug().Msgf("try to open stream to (%s) ", remotePeer)
-	stream, err := pc.host.NewStream(ctx, remotePeer, protoc)
+	stream, err := pc.host.NewStream(ctx, remotePeer, protoID)
 	if err != nil {
-		streamError := fmt.Errorf("fail to create stream to peer(%s):%w", remotePeer, err)
-		return streamError
+		return errors.Wrapf(err, "failed to create %s stream to peer %q", protoID, remotePeer.String())
 	}
 
 	defer func() {
+		// todo: why we need to add the stream to the stream manager here?
 		pc.streamMgr.AddStream(msgID, stream)
 		if err := stream.Close(); err != nil {
 			pc.logger.Error().Err(err).
@@ -268,18 +277,20 @@ func (pc *PartyCoordinator) sendMsgToPeer(
 	}()
 
 	pc.logger.Debug().Msgf("open stream to (%s) successfully", remotePeer)
-	err = WriteStreamWithBuffer(msgBuf, stream)
-	if err != nil {
-		return fmt.Errorf("fail to write message to stream:%w", err)
+
+	if err = WriteStreamWithBuffer(msgBuf, stream); err != nil {
+		return errors.Wrap(err, "failed to write message to opened stream")
 	}
 
-	if needResponse {
-		_, err := ReadStreamWithBuffer(stream)
-		if err != nil {
-			pc.logger.Error().Err(err).
-				Stringer(logs.Peer, remotePeer).
-				Msg("Failed to await the response from peer")
-		}
+	if !needResponse {
+		return nil
+	}
+
+	if _, err = ReadStreamWithBuffer(stream); err != nil {
+		pc.logger.Error().Err(err).
+			Str(logs.MsgID, msgID).
+			Stringer(logs.Peer, remotePeer).
+			Msg("Failed to await the response from peer")
 	}
 
 	return nil
@@ -292,7 +303,8 @@ func (pc *PartyCoordinator) joinPartyMember(
 ) ([]peer.ID, error) {
 	leaderID := peerGroup.getLeader()
 	msg := messages.JoinPartyLeaderComm{
-		ID: msgID,
+		MsgType: "request",
+		ID:      msgID,
 	}
 
 	var wg sync.WaitGroup
@@ -308,7 +320,10 @@ func (pc *PartyCoordinator) joinPartyMember(
 				pc.logger.Trace().Msg("sending request message to leader")
 				err := pc.sendRequestToLeader(&msg, leaderID)
 				if err != nil {
-					pc.logger.Error().Err(err).Msg("error sending request to leader")
+					pc.logger.Error().Err(err).
+						Str(logs.MsgID, msgID).
+						Stringer(logs.Leader, leaderID).
+						Msg("Request to the leader failed")
 				}
 			}
 			time.Sleep(time.Millisecond * 500)
@@ -406,10 +421,12 @@ func (pc *PartyCoordinator) joinPartyLeader(
 	}
 
 	msg := messages.JoinPartyLeaderComm{
+		MsgType: "response",
 		ID:      msgID,
 		Type:    messages.JoinPartyLeaderComm_Success,
 		PeerIDs: tssNodes,
 	}
+
 	// we put ourselves(leader) in the online list, so need threshold +1
 	if len(onlinePeers) < peerGroup.threshold+1 {
 		// we notify the failure of the join party to everyone

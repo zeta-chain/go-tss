@@ -3,12 +3,11 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"errors"
-	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -167,12 +166,14 @@ func (t *HTTPServer) Start() error {
 	if t.s == nil {
 		return errors.New("invalid http server instance")
 	}
+
 	if err := t.tssServer.Start(); err != nil {
-		return fmt.Errorf("fail to start tss server: %w", err)
+		return errors.Wrap(err, "fail to start tss server")
 	}
+
 	if err := t.s.ListenAndServe(); err != nil {
 		if err != http.ErrServerClosed {
-			return fmt.Errorf("fail to start http server: %w", err)
+			return errors.Wrap(err, "fail to start http server")
 		}
 	}
 

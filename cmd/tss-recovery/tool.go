@@ -5,9 +5,6 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"encoding/json"
-	"errors"
-	"fmt"
-	"io/ioutil"
 	"math/big"
 	"os"
 
@@ -16,13 +13,14 @@ import (
 	coskey "github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	bech32 "github.com/cosmos/cosmos-sdk/types/bech32/legacybech32"
+	"github.com/pkg/errors"
 )
 
 type (
 	KeygenLocalState struct {
 		PubKey          string                    `json:"pub_key"`
 		LocalData       keygen.LocalPartySaveData `json:"local_data"`
-		ParticipantKeys []string                  `json:"participant_keys"` // the paticipant of last key gen
+		ParticipantKeys []string                  `json:"participant_keys"` // the participant of last key gen
 		LocalPartyKey   string                    `json:"local_party_key"`
 	}
 )
@@ -32,14 +30,17 @@ func getTssSecretFile(file string) (KeygenLocalState, error) {
 	if err != nil {
 		return KeygenLocalState{}, err
 	}
-	buf, err := ioutil.ReadFile(file)
+
+	buf, err := os.ReadFile(file)
 	if err != nil {
-		return KeygenLocalState{}, fmt.Errorf("file to read from file(%s): %w", file, err)
+		return KeygenLocalState{}, errors.Wrapf(err, "file to read from file %q", file)
 	}
+
 	var localState KeygenLocalState
 	if err := json.Unmarshal(buf, &localState); nil != err {
-		return KeygenLocalState{}, fmt.Errorf("fail to unmarshal KeygenLocalState: %w", err)
+		return KeygenLocalState{}, errors.Wrapf(err, "fail to unmarshal KeygenLocalState")
 	}
+
 	return localState, nil
 }
 

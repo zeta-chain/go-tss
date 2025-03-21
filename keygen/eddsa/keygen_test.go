@@ -238,5 +238,5 @@ func (s *EddsaKeygenTestSuite) TestCloseKeyGennotifyChannel(c *C) {
 	err = keyGenInstance.tssCommonStruct.ProcessOneMessage(msg, "node2")
 	c.Assert(err, IsNil)
 	err = keyGenInstance.tssCommonStruct.ProcessOneMessage(msg, "node1")
-	c.Assert(err, ErrorMatches, "duplicated notification from peer node1 ignored")
+	c.Assert(err, ErrorMatches, "duplicated notification from peer node1")
 }

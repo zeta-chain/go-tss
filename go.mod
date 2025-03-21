@@ -21,7 +21,6 @@ require (
 	github.com/magiconair/properties v1.8.7
 	github.com/multiformats/go-multiaddr v0.8.0
 	github.com/olekukonko/tablewriter v0.0.5
-	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.20.5
 	github.com/prometheus/client_model v0.6.1
 	github.com/rs/zerolog v1.33.0
@@ -30,10 +29,13 @@ require (
 	gitlab.com/thorchain/binance-sdk v1.2.3-0.20210117202539-d569b6b9ba5d
 	go.uber.org/atomic v1.10.0
 	golang.org/x/crypto v0.32.0
+	golang.org/x/sync v0.10.0
 	golang.org/x/text v0.21.0
 	google.golang.org/protobuf v1.36.4
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
 )
+
+require github.com/pkg/errors v0.9.1
 
 require (
 	cosmossdk.io/api v0.7.6 // indirect
@@ -210,7 +212,6 @@ require (
 	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56 // indirect
 	golang.org/x/mod v0.19.0 // indirect
 	golang.org/x/net v0.34.0 // indirect
-	golang.org/x/sync v0.10.0 // indirect
 	golang.org/x/sys v0.29.0 // indirect
 	golang.org/x/term v0.28.0 // indirect
 	golang.org/x/tools v0.23.0 // indirect
@@ -227,12 +228,12 @@ require (
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
 
+// tss-lib: https://github.com/zeta-chain/tss-lib/tree/threshold-dep-updates
+// which is a fork of https://github.com/threshold-network/tss-lib
+
 replace (
 	github.com/agl/ed25519 => github.com/binance-chain/edwards25519 v0.0.0-20200305024217-f36fc4b53d43
+	github.com/bnb-chain/tss-lib => github.com/zeta-chain/tss-lib v0.0.0-20240916163010-2e6b438bd901
 	github.com/gogo/protobuf => github.com/regen-network/protobuf v1.3.2-alpha.regen.4
 	github.com/libp2p/go-libp2p => github.com/zeta-chain/go-libp2p v0.0.0-20240710192637-567fbaacc2b4
 )
-
-// https://github.com/zeta-chain/tss-lib/tree/threshold-dep-updates
-// which is a fork of https://github.com/threshold-network/tss-lib
-replace github.com/bnb-chain/tss-lib => github.com/zeta-chain/tss-lib v0.0.0-20240916163010-2e6b438bd901

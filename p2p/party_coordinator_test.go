@@ -10,7 +10,6 @@ import (
 	tnet "github.com/libp2p/go-libp2p-testing/net"
 	"github.com/libp2p/go-libp2p/core/host"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
-	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -101,13 +100,15 @@ func leaderAppersFirstTest(t *testing.T, msgID string, peers []string, pcs []*Pa
 }
 
 func TestNewPartyCoordinator(t *testing.T) {
+	log := logger("TestNewPartyCoordinator")
+
 	hosts := setupHosts(t, 4)
 	var pcs []*PartyCoordinator
 	var peers []string
 
 	timeout := time.Second * 4
 	for _, el := range hosts {
-		pcs = append(pcs, NewPartyCoordinator(el, timeout, zerolog.Nop()))
+		pcs = append(pcs, NewPartyCoordinator(el, timeout, log))
 		peers = append(peers, el.ID().String())
 	}
 
@@ -140,12 +141,14 @@ func TestNewPartyCoordinator(t *testing.T) {
 }
 
 func TestNewPartyCoordinatorTimeOut(t *testing.T) {
+	log := logger("PartyCoordinatorTimeOut")
+
 	timeout := time.Second * 3
 	hosts := setupHosts(t, 4)
 	var pcs []*PartyCoordinator
 	var peers []string
 	for _, el := range hosts {
-		pcs = append(pcs, NewPartyCoordinator(el, timeout, zerolog.Nop()))
+		pcs = append(pcs, NewPartyCoordinator(el, timeout, log))
 	}
 	sort.Slice(pcs, func(i, j int) bool {
 		return pcs[i].host.ID().String() > pcs[j].host.ID().String()
@@ -215,6 +218,8 @@ func TestNewPartyCoordinatorTimeOut(t *testing.T) {
 }
 
 func TestGetPeerIDs(t *testing.T) {
+	log := logger("TestGetPeerIDs")
+
 	id1 := tnet.RandIdentityOrFatal(t)
 	mn := mocknet.New()
 	// add peers to mock net
@@ -225,7 +230,7 @@ func TestGetPeerIDs(t *testing.T) {
 
 	p1 := h1.ID()
 	timeout := time.Second * 2
-	pc := NewPartyCoordinator(h1, timeout, zerolog.Nop())
+	pc := NewPartyCoordinator(h1, timeout, log)
 	r, err := pc.getPeerIDs([]string{})
 	assert.NoError(t, err)
 	assert.Len(t, r, 0)

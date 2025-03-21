@@ -3,10 +3,12 @@ package p2p
 import (
 	"bytes"
 	"encoding/binary"
-	"errors"
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/pkg/errors"
+	"github.com/rs/zerolog"
 
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/protocol"
@@ -233,7 +235,7 @@ func TestReadPayload(t *testing.T) {
 }
 
 func TestStreamManager(t *testing.T) {
-	streamMgr := NewStreamMgr()
+	streamMgr := NewStreamMgr(zerolog.New(zerolog.NewTestWriter(t)))
 	stream := NewMockNetworkStream()
 
 	streamMgr.AddStream("1", nil)

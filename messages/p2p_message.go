@@ -77,7 +77,7 @@ func (m *WireMessage) GetCacheKey() string {
 }
 
 type TssControl struct {
-	ReqHash     string                  `json:"reqest_hash"`
+	ReqHash     string                  `json:"request_hash"`
 	ReqKey      string                  `json:"request_key"`
 	RequestType THORChainTSSMessageType `json:"request_type"`
 	Msg         *WireMessage            `json:"message_body"`

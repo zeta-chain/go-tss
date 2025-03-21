@@ -2,7 +2,6 @@ package keysign
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
@@ -12,6 +11,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 
 	"github.com/zeta-chain/go-tss/logs"
@@ -42,21 +42,19 @@ type SignatureNotifier struct {
 
 // NewSignatureNotifier create a new instance of SignatureNotifier
 func NewSignatureNotifier(host host.Host, logger zerolog.Logger) *SignatureNotifier {
-	logger = logger.With().
-		Str(logs.Component, "signature_notifier").
-		Stringer(logs.Host, host.ID()).
-		Logger()
-
 	ctx, cancel := context.WithCancel(context.Background())
 
 	s := &SignatureNotifier{
 		ctx:          ctx,
 		cancel:       cancel,
-		logger:       logger,
 		host:         host,
 		notifierLock: &sync.Mutex{},
 		notifiers:    make(map[string]*notifier),
-		streamMgr:    p2p.NewStreamMgr(),
+		streamMgr:    p2p.NewStreamMgr(logger),
+		logger: logger.With().
+			Str(logs.Component, "signature_notifier").
+			Stringer(logs.Host, host.ID()).
+			Logger(),
 	}
 
 	host.SetStreamHandler(signatureNotifierProtocol, s.handleStream)
@@ -150,14 +148,19 @@ func (s *SignatureNotifier) handleStream(stream network.Stream) {
 func (s *SignatureNotifier) sendOneMsgToPeer(m *signatureItem) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
 	defer cancel()
+
 	stream, err := s.host.NewStream(ctx, m.peerID, signatureNotifierProtocol)
 	if err != nil {
-		return fmt.Errorf("fail to create stream to peer(%s):%w", m.peerID, err)
+		return errors.Wrapf(err, "unable to create %s stream to peer %s", signatureNotifierProtocol, m.peerID)
 	}
+
 	s.logger.Debug().Stringer(logs.Peer, m.peerID).Msg("opened stream to peer successfully")
+
 	defer func() {
+		// todo: why we need to add stream to streamMgr here?
 		s.streamMgr.AddStream(m.messageID, stream)
 	}()
+
 	ks := &messages.KeysignSignature{
 		ID:            m.messageID,
 		KeysignStatus: messages.KeysignSignature_Failed,
@@ -168,68 +171,74 @@ func (s *SignatureNotifier) sendOneMsgToPeer(m *signatureItem) error {
 		for _, el := range m.signatureData {
 			buf, err := proto.Marshal(el)
 			if err != nil {
-				return fmt.Errorf("fail to marshal signature data to bytes:%w", err)
+				return errors.Wrapf(err, "fail to marshal signature data to bytes")
 			}
+
 			signatures = append(signatures, buf)
 		}
+
 		ks.Signatures = signatures
 		ks.KeysignStatus = messages.KeysignSignature_Success
 	}
+
 	ksBuf, err := proto.Marshal(ks)
 	if err != nil {
-		return fmt.Errorf("fail to marshal Keysign Signature to bytes:%w", err)
+		return errors.Wrapf(err, "fail to marshal KeysignSignature")
 	}
+
 	err = p2p.WriteStreamWithBuffer(ksBuf, stream)
 	if err != nil {
-		return fmt.Errorf("fail to write message to stream:%w", err)
+		return errors.Wrapf(err, "fail to write KeysignSignature to stream")
 	}
+
 	// we wait for 1 second to allow the receive notify us
 	if err := stream.SetReadDeadline(time.Now().Add(time.Second * 1)); nil != err {
-		return err
+		return errors.Wrapf(err, "fail to set read deadline to stream")
 	}
+
 	ret := make([]byte, 8)
-	_, err = stream.Read(ret)
+	if _, err := stream.Read(ret); err != nil {
+		return errors.Wrapf(err, "fail to read response from stream")
+	}
+
 	return err
 }
 
 // BroadcastSignature sending the keysign signature to all other peers
-func (s *SignatureNotifier) BroadcastSignature(
-	messageID string,
-	sig []*common.SignatureData,
-	peers []peer.ID,
-) error {
+func (s *SignatureNotifier) BroadcastSignature(messageID string, sig []*common.SignatureData, peers []peer.ID) error {
 	return s.broadcastCommon(messageID, sig, peers)
 }
 
-func (s *SignatureNotifier) broadcastCommon(
-	messageID string,
-	sig []*common.SignatureData,
-	peers []peer.ID,
-) error {
-	wg := sync.WaitGroup{}
-	for _, p := range peers {
-		if p == s.host.ID() {
-			// don't send the signature to itself
+func (s *SignatureNotifier) broadcastCommon(messageID string, sig []*common.SignatureData, peers []peer.ID) error {
+	var wg sync.WaitGroup
+
+	for _, peerID := range peers {
+		// don't send the signature to itself
+		if peerID == s.host.ID() {
 			continue
 		}
-		signature := &signatureItem{
+
+		sig := &signatureItem{
 			messageID:     messageID,
-			peerID:        p,
+			peerID:        peerID,
 			signatureData: sig,
 		}
+
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			err := s.sendOneMsgToPeer(signature)
-			if err != nil {
+
+			if err := s.sendOneMsgToPeer(sig); err != nil {
 				s.logger.Error().Err(err).
-					Str(logs.MsgID, messageID).
-					Stringer(logs.Peer, signature.peerID).
+					Str(logs.MsgID, sig.messageID).
+					Stringer(logs.Peer, sig.peerID).
 					Msg("Failed to send signature to peer")
 			}
 		}()
 	}
+
 	wg.Wait()
+
 	return nil
 }
 
@@ -293,9 +302,10 @@ func (s *SignatureNotifier) WaitForSignature(
 	sigChan chan string,
 ) ([]*common.SignatureData, error) {
 	s.logger.Debug().Msg("waiting for signature")
+
 	n, err := s.createOrUpdateNotifier(messageID, message, poolPubKey, nil, timeout+time.Second)
 	if err != nil {
-		return nil, fmt.Errorf("unable to create or update notifier: %v", err)
+		return nil, errors.Wrapf(err, "unable to create or update notifier")
 	}
 
 	// only remove the notifier here, where it is ultimately consumed regardless
@@ -308,7 +318,7 @@ func (s *SignatureNotifier) WaitForSignature(
 		return d, nil
 	case <-time.After(timeout):
 		s.logger.Debug().Msg("timed out waiting for signature from peer")
-		return nil, fmt.Errorf("timeout: didn't receive signature after %s", timeout)
+		return nil, errors.Errorf("timeout: didn't receive signature after %s", timeout.String())
 	case <-sigChan:
 		s.logger.Debug().Msg("got signature generated signal")
 		return nil, p2p.ErrSigGenerated
