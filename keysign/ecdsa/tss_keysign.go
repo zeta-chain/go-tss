@@ -2,7 +2,6 @@ package ecdsa
 
 import (
 	"encoding/json"
-	"fmt"
 	"math/big"
 	"sort"
 	"strconv"
@@ -100,7 +99,7 @@ func (tKeySign *TssKeySign) SignMessage(
 ) ([]*tsslibcommon.SignatureData, error) {
 	partiesID, localPartyID, err := conversion.GetParties(parties, localStateItem.LocalPartyKey)
 	if err != nil {
-		return nil, fmt.Errorf("fail to form key sign party: %w", err)
+		return nil, errors.Wrap(err, "fail to form key sign party")
 	}
 
 	if !common.Contains(partiesID, localPartyID) {
@@ -110,7 +109,7 @@ func (tKeySign *TssKeySign) SignMessage(
 
 	threshold, err := conversion.GetThreshold(len(localStateItem.ParticipantKeys))
 	if err != nil {
-		return nil, errors.New("fail to get threshold")
+		return nil, errors.Wrap(err, "fail to get threshold")
 	}
 
 	outCh := make(chan btss.Message, 2*len(partiesID)*len(msgsToSign))
@@ -121,13 +120,13 @@ func (tKeySign *TssKeySign) SignMessage(
 	for i, val := range msgsToSign {
 		m, err := common.MsgToHashInt(val, common.ECDSA)
 		if err != nil {
-			return nil, fmt.Errorf("fail to convert msg to hash int: %w", err)
+			return nil, errors.Wrap(err, "fail to convert msg to hash int")
 		}
 		moniker := m.String() + ":" + strconv.Itoa(i)
 		partiesID, eachLocalPartyID, err := conversion.GetParties(parties, localStateItem.LocalPartyKey)
 		ctx := btss.NewPeerContext(partiesID)
 		if err != nil {
-			return nil, fmt.Errorf("error to create parties in batch signing %w", err)
+			return nil, errors.Wrap(err, "error to create parties in batch signing")
 		}
 		tKeySign.logger.Info().Strs("parties", parties).Msg("Keysign parties")
 		eachLocalPartyID.Moniker = moniker
@@ -136,7 +135,7 @@ func (tKeySign *TssKeySign) SignMessage(
 		var localData ecdsakg.LocalPartySaveData
 		err = json.Unmarshal(localStateItem.LocalData, &localData)
 		if err != nil {
-			return nil, fmt.Errorf("fail to unmarshal the local saved data")
+			return nil, errors.Wrap(err, "fail to unmarshal LocalPartySaveData")
 		}
 		ret := localData.ValidateWithProof()
 		if !ret {
@@ -151,12 +150,12 @@ func (tKeySign *TssKeySign) SignMessage(
 
 	err = conversion.SetupIDMaps(partyIDMap, tKeySign.tssCommonStruct.PartyIDtoP2PID)
 	if err != nil {
-		return nil, fmt.Errorf("fail to setup id maps #1: %w", err)
+		return nil, errors.Wrap(err, "fail to setup id maps #1")
 	}
 
 	err = conversion.SetupIDMaps(partyIDMap, blameMgr.PartyIDtoP2PID)
 	if err != nil {
-		return nil, fmt.Errorf("fail to setup id maps #2: %w", err)
+		return nil, errors.Wrap(err, "fail to setup id maps #2")
 	}
 
 	tKeySign.tssCommonStruct.SetPartyInfo(&common.PartyInfo{
@@ -186,7 +185,7 @@ func (tKeySign *TssKeySign) SignMessage(
 	results, err := tKeySign.processKeySign(len(msgsToSign), errCh, outCh, endCh)
 	if err != nil {
 		close(tKeySign.commStopChan)
-		return nil, fmt.Errorf("fail to process key sign: %w", err)
+		return nil, errors.Wrap(err, "fail to process key sign")
 	}
 
 	select {

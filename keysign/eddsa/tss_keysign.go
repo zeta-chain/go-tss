@@ -2,7 +2,6 @@ package eddsa
 
 import (
 	"encoding/json"
-	"fmt"
 	"math/big"
 	"sort"
 	"strconv"
@@ -108,15 +107,16 @@ func (tKeySign *KeySign) SignMessage(
 	partiesID, localPartyID, err := conversion.GetParties(parties, localStateItem.LocalPartyKey)
 	tKeySign.localParty = localPartyID
 	if err != nil {
-		return nil, fmt.Errorf("fail to form key sign party: %w", err)
+		return nil, errors.Wrap(err, "fail to form key sign party")
 	}
+
 	if !common.Contains(partiesID, localPartyID) {
 		tKeySign.logger.Info().Msg("we are not in this rounds key sign")
 		return nil, nil
 	}
 	threshold, err := conversion.GetThreshold(len(localStateItem.ParticipantKeys))
 	if err != nil {
-		return nil, errors.New("fail to get threshold")
+		return nil, errors.Wrap(err, "fail to get threshold")
 	}
 
 	outCh := make(chan btss.Message, 2*len(partiesID)*len(msgsToSign))
@@ -128,21 +128,25 @@ func (tKeySign *KeySign) SignMessage(
 	for i, val := range msgsToSign {
 		m, err := common.MsgToHashInt(val, common.EdDSA)
 		if err != nil {
-			return nil, fmt.Errorf("fail to convert msg to hash int: %w", err)
+			return nil, errors.Wrap(err, "fail to convert msg to hash int")
 		}
+
 		moniker := m.String() + ":" + strconv.Itoa(i)
 		partiesID, eachLocalPartyID, err := conversion.GetParties(parties, localStateItem.LocalPartyKey)
 		ctx := btss.NewPeerContext(partiesID)
 		if err != nil {
-			return nil, fmt.Errorf("error to create parties in batch signing %w", err)
+			return nil, errors.Wrap(err, "error to create parties in batch signing")
 		}
+
 		eachLocalPartyID.Moniker = moniker
 		params := btss.NewParameters(btss.Edwards(), ctx, eachLocalPartyID, len(partiesID), threshold)
 		var localData eddsakeygen.LocalPartySaveData
+
 		err = json.Unmarshal(localStateItem.LocalData, &localData)
 		if err != nil {
-			return nil, fmt.Errorf("fail to unmarshal the local saved data %w", err)
+			return nil, errors.Wrap(err, "fail to unmarshal LocalPartySaveData")
 		}
+
 		keySignParty := signing.NewLocalParty(m, params, localData, outCh, endCh)
 		keySignPartyMap.Store(moniker, keySignParty)
 	}
@@ -186,7 +190,7 @@ func (tKeySign *KeySign) SignMessage(
 	results, err := tKeySign.processKeySign(len(msgsToSign), errCh, outCh, endCh)
 	if err != nil {
 		close(tKeySign.commStopChan)
-		return nil, fmt.Errorf("fail to process key sign: %w", err)
+		return nil, errors.Wrap(err, "fail to process key sign")
 	}
 
 	select {

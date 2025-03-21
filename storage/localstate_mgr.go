@@ -105,16 +105,19 @@ func (fsm *FileStateMgr) getFilePathName(pubKey string) (string, error) {
 func (fsm *FileStateMgr) SaveLocalState(state KeygenLocalState) error {
 	buf, err := json.Marshal(state)
 	if err != nil {
-		return fmt.Errorf("fail to marshal KeygenLocalState to json: %w", err)
+		return errors.Wrap(err, "fail to marshal KeygenLocalState to json")
 	}
+
 	filePathName, err := fsm.getFilePathName(state.PubKey)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "fail to get file path name")
 	}
+
 	data, err := fsm.encryptFragment(buf)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "fail to encrypt fragment")
 	}
+
 	return ioutil.WriteFile(filePathName, data, 0o600)
 }
 
@@ -138,40 +141,38 @@ func (fsm *FileStateMgr) GetLocalState(pubKey string) (KeygenLocalState, error) 
 	}
 	filePathName = filepath.Clean(filePathName)
 
-	buf, err := ioutil.ReadFile(filePathName)
+	buf, err := os.ReadFile(filePathName)
 	if err != nil {
-		return KeygenLocalState{}, fmt.Errorf("fail to read from file(%s): %w", filePathName, err)
+		return KeygenLocalState{}, errors.Wrapf(err, "fail to read from %q", filePathName)
 	}
+
 	pt, err := fsm.decryptFragment(buf)
 	if err != nil {
-		return KeygenLocalState{}, fmt.Errorf("fail to decrypt data: %w", err)
+		return KeygenLocalState{}, errors.Wrap(err, "fail to decrypt data")
 	}
+
 	var localState KeygenLocalState
 	if err := json.Unmarshal(pt, &localState); nil != err {
-		// try unmarshalling with the old format
+		// try unmarshaling with the old format
 		var localStateOld KeygenLocalStateOld
 		if err := json.Unmarshal(pt, &localStateOld); nil != err {
-			return KeygenLocalState{}, fmt.Errorf(
-				"fail to unmarshal KeygenLocalState with backwards compatibility: %w",
-				err,
-			)
+			return KeygenLocalState{}, errors.Wrap(err, "fail to unmarshal KeygenLocalStateOld")
 		}
 
 		localState.PubKey = localStateOld.PubKey
 		localState.ParticipantKeys = localStateOld.ParticipantKeys
 		localState.LocalPartyKey = localStateOld.LocalPartyKey
 		localState.LocalData, err = json.Marshal(localStateOld.LocalData)
-
 		if err != nil {
-			return KeygenLocalState{}, fmt.Errorf(
-				"fail to marshal KeygenLocalState.LocalData for backwards compatibility: %w",
-				err,
-			)
+			return KeygenLocalState{}, errors.Wrap(err, "fail to marshal LocalPartySaveData")
 		}
 	}
+
 	fsm.writeLock.Lock()
 	defer fsm.writeLock.Unlock()
+
 	fsm.keyGenState[pubKey] = &localState
+
 	return localState, nil
 }
 
@@ -225,12 +226,15 @@ func (fsm *FileStateMgr) RetrieveP2PAddresses() ([]maddr.Multiaddr, error) {
 		if len(el) == 0 {
 			continue
 		}
+
 		addr, err := maddr.NewMultiaddr(el)
 		if err != nil {
-			return nil, fmt.Errorf("invalid address in address book %w", err)
+			return nil, errors.Wrapf(err, "invalid address in address book")
 		}
+
 		peerAddresses = append(peerAddresses, addr)
 	}
+
 	return peerAddresses, nil
 }
 

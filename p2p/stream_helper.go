@@ -90,27 +90,28 @@ func ReadStreamWithBuffer(stream network.Stream) ([]byte, error) {
 			return nil, err
 		}
 	}
+
 	streamReader := bufio.NewReader(stream)
-	lengthBytes := make([]byte, LengthHeader)
-	n, err := io.ReadFull(streamReader, lengthBytes)
-	if n != LengthHeader || err != nil {
-		return nil, errors.Wrap(err, "error in read the message head")
+
+	header := make([]byte, LengthHeader)
+	n, err := io.ReadFull(streamReader, header)
+	if err != nil {
+		return nil, errors.Wrapf(err, "unable to read header from the stream (got %d bytes)", n)
 	}
-	length := binary.LittleEndian.Uint32(lengthBytes)
-	if length > MaxPayload {
-		return nil, errors.Errorf("payload length:%d exceed max payload length:%d", length, MaxPayload)
+
+	payloadSize := binary.LittleEndian.Uint32(header)
+	if payloadSize > MaxPayload {
+		return nil, errors.Errorf("stream payload exceeded (got %d, max %d)", payloadSize, MaxPayload)
 	}
-	dataBuf := make([]byte, length)
-	n, err = io.ReadFull(streamReader, dataBuf)
-	if uint32(n) != length || err != nil {
-		return nil, errors.Wrapf(
-			err,
-			"short read, we would like to read: %d, however we only read: %d",
-			length,
-			n,
-		)
+
+	result := make([]byte, payloadSize)
+
+	n, err = io.ReadFull(streamReader, result)
+	if err != nil {
+		return nil, errors.Wrapf(err, "unable to read payload from the stream (got %d/%d bytes)", n, payloadSize)
 	}
-	return dataBuf, nil
+
+	return result, nil
 }
 
 // WriteStreamWithBuffer write the message to stream
