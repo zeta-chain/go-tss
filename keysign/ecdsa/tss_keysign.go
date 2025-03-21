@@ -15,8 +15,8 @@ import (
 	btss "github.com/bnb-chain/tss-lib/tss"
 	"github.com/btcsuite/btcd/btcec/v2"
 	tcrypto "github.com/cometbft/cometbft/crypto"
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
-	"gitlab.com/tozd/go/errors"
 	"go.uber.org/atomic"
 
 	"github.com/zeta-chain/go-tss/blame"

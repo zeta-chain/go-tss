@@ -7,10 +7,10 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	"gitlab.com/tozd/go/errors"
 
 	"github.com/zeta-chain/go-tss/keygen"
 	"github.com/zeta-chain/go-tss/keysign"

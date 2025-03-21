@@ -11,8 +11,8 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	maddr "github.com/multiformats/go-multiaddr"
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
-	"gitlab.com/tozd/go/errors"
 
 	"github.com/zeta-chain/go-tss/common"
 	"github.com/zeta-chain/go-tss/conversion"

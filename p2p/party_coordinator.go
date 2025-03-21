@@ -9,8 +9,8 @@ import (
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
-	"gitlab.com/tozd/go/errors"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/proto"
 

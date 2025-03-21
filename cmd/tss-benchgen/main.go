@@ -18,7 +18,7 @@ import (
 	"github.com/bnb-chain/tss-lib/tss"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/ipfs/go-log"
-	"gitlab.com/tozd/go/errors"
+	"github.com/pkg/errors"
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
 )

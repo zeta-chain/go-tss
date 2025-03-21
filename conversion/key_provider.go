@@ -13,7 +13,7 @@ import (
 	"github.com/decred/dcrd/dcrec/edwards/v2"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
-	"gitlab.com/tozd/go/errors"
+	"github.com/pkg/errors"
 )
 
 // GetPeerIDFromPubKey get the peer.ID from bech32 format node pub key

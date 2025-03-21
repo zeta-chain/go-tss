@@ -4,7 +4,7 @@ import (
 	"sync"
 
 	btss "github.com/bnb-chain/tss-lib/tss"
-	"gitlab.com/tozd/go/errors"
+	"github.com/pkg/errors"
 )
 
 const (

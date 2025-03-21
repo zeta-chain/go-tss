@@ -27,7 +27,6 @@ require (
 	github.com/stretchr/testify v1.10.0
 	github.com/tendermint/btcd v0.1.1
 	gitlab.com/thorchain/binance-sdk v1.2.3-0.20210117202539-d569b6b9ba5d
-	gitlab.com/tozd/go/errors v0.10.0
 	go.uber.org/atomic v1.10.0
 	golang.org/x/crypto v0.32.0
 	golang.org/x/sync v0.10.0
@@ -35,6 +34,8 @@ require (
 	google.golang.org/protobuf v1.36.4
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
 )
+
+require github.com/pkg/errors v0.9.1
 
 require (
 	cosmossdk.io/api v0.7.6 // indirect
@@ -179,7 +180,6 @@ require (
 	github.com/pbnjay/memory v0.0.0-20210728143218-7b4eea64cf58 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.2 // indirect
 	github.com/petermattis/goid v0.0.0-20240813172612-4fcff4a6cae7 // indirect
-	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/common v0.62.0 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect

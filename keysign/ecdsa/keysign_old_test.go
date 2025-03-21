@@ -18,8 +18,8 @@ import (
 	tsslibcommon "github.com/bnb-chain/tss-lib/common"
 	btss "github.com/bnb-chain/tss-lib/tss"
 	"github.com/ipfs/go-log"
+	"github.com/pkg/errors"
 	zlog "github.com/rs/zerolog/log"
-	"gitlab.com/tozd/go/errors"
 
 	"github.com/zeta-chain/go-tss/conversion"
 	"github.com/zeta-chain/go-tss/keysign"

@@ -14,8 +14,8 @@ import (
 	"github.com/bnb-chain/tss-lib/eddsa/signing"
 	btss "github.com/bnb-chain/tss-lib/tss"
 	tcrypto "github.com/cometbft/cometbft/crypto"
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
-	"gitlab.com/tozd/go/errors"
 	"go.uber.org/atomic"
 
 	"github.com/zeta-chain/go-tss/blame"

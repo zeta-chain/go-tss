@@ -11,8 +11,8 @@ import (
 	"github.com/cometbft/cometbft/crypto/secp256k1"
 	sdk "github.com/cosmos/cosmos-sdk/types/bech32/legacybech32"
 	"github.com/decred/dcrd/dcrec/edwards/v2"
+	"github.com/pkg/errors"
 	"github.com/tendermint/btcd/btcec"
-	"gitlab.com/tozd/go/errors"
 )
 
 const defaultNotifierTTL = time.Second * 30

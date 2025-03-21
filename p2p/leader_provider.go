@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strconv"
 
-	"gitlab.com/tozd/go/errors"
+	"github.com/pkg/errors"
 )
 
 // LeaderNode use the given input buf to calculate a hash , and consistently choose a node as a master coordinate note

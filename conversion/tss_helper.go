@@ -10,7 +10,7 @@ import (
 	atypes "github.com/cosmos/cosmos-sdk/x/auth/vesting/types"
 	"github.com/libp2p/go-libp2p/core/peer"
 	maddr "github.com/multiformats/go-multiaddr"
-	"gitlab.com/tozd/go/errors"
+	"github.com/pkg/errors"
 )
 
 // GetRandomPubKey for test

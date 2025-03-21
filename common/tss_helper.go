@@ -19,9 +19,9 @@ import (
 	tcrypto "github.com/cometbft/cometbft/crypto"
 	"github.com/decred/dcrd/dcrec/edwards/v2"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	"gitlab.com/tozd/go/errors"
 
 	"github.com/zeta-chain/go-tss/blame"
 	"github.com/zeta-chain/go-tss/messages"

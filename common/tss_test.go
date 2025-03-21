@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"gitlab.com/tozd/go/errors"
+	"github.com/pkg/errors"
 
 	btsskeygen "github.com/bnb-chain/tss-lib/ecdsa/keygen"
 	btss "github.com/bnb-chain/tss-lib/tss"

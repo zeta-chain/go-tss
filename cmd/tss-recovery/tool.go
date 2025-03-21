@@ -13,7 +13,7 @@ import (
 	coskey "github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	bech32 "github.com/cosmos/cosmos-sdk/types/bech32/legacybech32"
-	"gitlab.com/tozd/go/errors"
+	"github.com/pkg/errors"
 )
 
 type (
