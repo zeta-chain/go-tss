@@ -2,7 +2,6 @@ package keysign
 
 import (
 	"crypto/ecdsa"
-	"fmt"
 	"math/big"
 	"sync"
 	"time"
@@ -88,38 +87,42 @@ func (n *notifier) updateUnset(messages [][]byte, poolPubKey string, signatures 
 func (n *notifier) verifySignature(data *common.SignatureData, msg []byte) error {
 	// we should be able to use any of the pubkeys to verify the signature
 	n.lock.RLock()
-	pubKey, err := sdk.UnmarshalPubKey(sdk.AccPK, n.poolPubKey)
+	pk := n.poolPubKey
 	n.lock.RUnlock()
+
+	pubKey, err := sdk.UnmarshalPubKey(sdk.AccPK, pk)
 	if err != nil {
-		return fmt.Errorf("fail to get pubkey from bech32 pubkey string(%s):%w", n.poolPubKey, err)
+		return errors.Wrapf(err, "unable to unmarshal pubkey %q", pk)
 	}
 
 	switch pubKey.Type() {
 	case secp256k1.KeyType:
 		pub, err := btcec.ParsePubKey(pubKey.Bytes(), btcec.S256())
 		if err != nil {
-			return err
+			return errors.Wrapf(err, "failed to parse pubkey %q", pk)
 		}
+
 		verified := ecdsa.Verify(pub.ToECDSA(), msg, new(big.Int).SetBytes(data.R), new(big.Int).SetBytes(data.S))
 		if !verified {
-			return fmt.Errorf("signature did not verify")
+			return errors.New("signature did not verify")
 		}
-		return nil
 
+		return nil
 	case ed25519.KeyType:
 		bPk, err := edwards.ParsePubKey(pubKey.Bytes())
 		if err != nil {
-			return fmt.Errorf("invalid ed25519 key with error %w", err)
+			return errors.Wrapf(err, "invalid ed25519 key")
 		}
 		newSig, err := edwards.ParseSignature(data.Signature)
 		if err != nil {
-			return err
+			return errors.Wrapf(err, "failed to parse signature")
 		}
 
 		verified := edwards.Verify(bPk, msg, newSig.R, newSig.S)
 		if !verified {
-			return fmt.Errorf("signature did not verify")
+			return errors.New("signature did not verify")
 		}
+
 		return nil
 	default:
 		return errors.New("invalid pubkey type")
@@ -130,29 +133,31 @@ func (n *notifier) verifySignature(data *common.SignatureData, msg []byte) error
 // return value bool , true indicated we already gather all the signature from keysign party, and they are all match
 // false means we are still waiting for more signature from keysign party
 func (n *notifier) processSignature(data []*common.SignatureData) error {
-	n.lock.RLock()
-	defer n.lock.RUnlock()
 	// only need to verify the signature when data is not nil
 	// when data is nil , which means keysign  failed, there is no signature to be verified in that case
 	// for gg20, it wrap the signature R,S into ECSignature structure
-	if len(data) != 0 {
-		for i := 0; i < len(data); i++ {
-			eachSig := data[i]
-			msg := n.messages[i]
-			if eachSig.GetSignature() != nil {
-				err := n.verifySignature(eachSig, msg)
-				if err != nil {
-					return fmt.Errorf("error verifying signature (%d of %d) %x: %v",
-						i, len(data), eachSig.Signature, err)
-				}
-			} else {
-				return fmt.Errorf("keysign failed with nil signature")
-			}
-		}
-		n.processed = true
-		n.resp <- data
+	if len(data) == 0 {
 		return nil
 	}
+
+	n.lock.RLock()
+	defer n.lock.RUnlock()
+
+	for i := 0; i < len(data); i++ {
+		eachSig := data[i]
+		msg := n.messages[i]
+
+		if eachSig == nil {
+			return errors.New("keysign failed with nil signature")
+		}
+
+		if err := n.verifySignature(eachSig, msg); err != nil {
+			return errors.Wrapf(err, "verify failed (%d/%d) %x", i, len(data), eachSig.Signature)
+		}
+	}
+
+	n.processed = true
+	n.resp <- data
 
 	return nil
 }

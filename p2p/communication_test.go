@@ -7,7 +7,7 @@ import (
 
 	"github.com/libp2p/go-libp2p/core/peer"
 	maddr "github.com/multiformats/go-multiaddr"
-	"github.com/rs/zerolog/log"
+	"github.com/rs/zerolog"
 	"github.com/zeta-chain/go-tss/messages"
 
 	"github.com/libp2p/go-libp2p/core/crypto"
@@ -19,7 +19,7 @@ type CommunicationTestSuite struct{}
 var _ = Suite(&CommunicationTestSuite{})
 
 func (CommunicationTestSuite) TestBasicCommunication(c *C) {
-	comm, err := NewCommunication(nil, 6668, "", []peer.ID{}, log.Logger)
+	comm, err := NewCommunication(nil, 6668, "", []peer.ID{}, logger("TestBasicCommunication"))
 	c.Assert(err, IsNil)
 	c.Assert(comm, NotNil)
 	comm.SetSubscribe(messages.TSSKeyGenMsg, "hello", make(chan *Message))
@@ -40,6 +40,7 @@ func checkExist(a []maddr.Multiaddr, b string) bool {
 }
 
 func (CommunicationTestSuite) TestEstablishP2pCommunication(c *C) {
+	log := logger("TestEstablishP2pCommunication")
 
 	bootstrapPeerID, err := peer.Decode("16Uiu2HAm4TmEzUqy3q3Dv7HvdoSboHk5sFj2FH3npiN5vDbJC6gh")
 	c.Assert(err, IsNil)
@@ -62,13 +63,13 @@ func (CommunicationTestSuite) TestEstablishP2pCommunication(c *C) {
 	c.Assert(err, IsNil)
 	privKey, err := base64.StdEncoding.DecodeString(bootstrapPrivKey)
 	c.Assert(err, IsNil)
-	comm, err := NewCommunication(nil, 2220, fakeExternalIP, whitelistedPeers, log.Logger)
+	comm, err := NewCommunication(nil, 2220, fakeExternalIP, whitelistedPeers, log)
 	c.Assert(err, IsNil)
 	c.Assert(comm.Start(privKey), IsNil)
 
 	defer comm.Stop()
 	c.Assert(err, IsNil)
-	comm2, err := NewCommunication([]maddr.Multiaddr{validMultiAddr}, 2221, "", whitelistedPeers, log.Logger)
+	comm2, err := NewCommunication([]maddr.Multiaddr{validMultiAddr}, 2221, "", whitelistedPeers, log)
 	c.Assert(err, IsNil)
 	err = comm2.Start(sk1raw)
 	c.Assert(err, IsNil)
@@ -78,7 +79,7 @@ func (CommunicationTestSuite) TestEstablishP2pCommunication(c *C) {
 	invalidAddr := "/ip4/127.0.0.1/tcp/2220/p2p/" + id2.String()
 	invalidMultiAddr, err := maddr.NewMultiaddr(invalidAddr)
 	c.Assert(err, IsNil)
-	comm3, err := NewCommunication([]maddr.Multiaddr{invalidMultiAddr}, 2222, "", whitelistedPeers, log.Logger)
+	comm3, err := NewCommunication([]maddr.Multiaddr{invalidMultiAddr}, 2222, "", whitelistedPeers, log)
 	c.Assert(err, IsNil)
 	err = comm3.Start(sk1raw)
 	c.Assert(err, ErrorMatches, "fail to connect to bootstrap peer: fail to connect to any peer")
@@ -90,7 +91,7 @@ func (CommunicationTestSuite) TestEstablishP2pCommunication(c *C) {
 		2223,
 		"",
 		whitelistedPeers,
-		log.Logger,
+		log,
 	)
 	c.Assert(err, IsNil)
 	err = comm4.Start(sk1raw)
@@ -110,10 +111,18 @@ func (CommunicationTestSuite) TestEstablishP2pCommunication(c *C) {
 		2224,
 		"",
 		[]peer.ID{},
-		log.Logger,
+		log,
 	)
 	c.Assert(err, IsNil)
 	err = comm5.Start(sk1raw)
 	c.Assert(err, ErrorMatches, "fail to connect to bootstrap peer: fail to connect to any peer")
 	defer comm5.Stop()
+}
+
+func logger(name string) zerolog.Logger {
+	cw := zerolog.NewConsoleWriter()
+
+	return zerolog.New(cw).
+		Level(zerolog.InfoLevel).
+		With().Timestamp().Str("test", name).Logger()
 }

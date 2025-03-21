@@ -18,8 +18,8 @@ import (
 	"github.com/libp2p/go-libp2p/p2p/net/connmgr"
 	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
 	maddr "github.com/multiformats/go-multiaddr"
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
-	"gitlab.com/tozd/go/errors"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/zeta-chain/go-tss/logs"
@@ -67,17 +67,23 @@ func NewCommunication(
 	whitelistedPeers []peer.ID,
 	logger zerolog.Logger,
 ) (*Communication, error) {
-	addr, err := maddr.NewMultiaddr(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", port))
+	listenTo := fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", port)
+
+	addr, err := maddr.NewMultiaddr(listenTo)
 	if err != nil {
-		return nil, fmt.Errorf("fail to create listen addr: %w", err)
+		return nil, errors.Wrap(err, listenTo)
 	}
-	var externalAddr maddr.Multiaddr
+
+	externalAddr := maddr.Multiaddr(nil)
+
 	if len(externalIP) != 0 {
-		externalAddr, err = maddr.NewMultiaddr(fmt.Sprintf("/ip4/%s/tcp/%d", externalIP, port))
+		myself := fmt.Sprintf("/ip4/%s/tcp/%d", externalIP, port)
+		externalAddr, err = maddr.NewMultiaddr(myself)
 		if err != nil {
-			return nil, fmt.Errorf("fail to create listen with given external IP: %w", err)
+			return nil, errors.Wrapf(err, "external addr %q", myself)
 		}
 	}
+
 	return &Communication{
 		bootstrapPeers:   bootstrapPeers,
 		logger:           logger.With().Str(logs.Component, "communication").Logger(),
@@ -142,18 +148,17 @@ func (c *Communication) writeToStream(pID peer.ID, msg []byte, msgID string) err
 	}
 
 	stream, err := c.connectToOnePeer(pID)
-	if err != nil {
-		return fmt.Errorf("fail to open stream to peer: %w", err)
-	}
-
-	if nil == stream {
+	switch {
+	case err != nil:
+		return errors.Wrap(err, "connectToOnePeer failed")
+	case stream == nil:
 		return nil
 	}
 
+	// todo: why we need to add stream here?
 	defer func() {
 		c.streamMgr.AddStream(msgID, stream)
 	}()
-	c.logger.Debug().Msgf(">>>writing messages to peer(%s)", pID)
 
 	return WriteStreamWithBuffer(msg, stream)
 }
@@ -267,13 +272,14 @@ func (c *Communication) bootStrapConnectivityCheck() error {
 func (c *Communication) startChannel(privKeyBytes []byte) error {
 	p2pPriKey, err := crypto.UnmarshalSecp256k1PrivateKey(privKeyBytes)
 	if err != nil {
-		return fmt.Errorf("fail to unmarshal private key: %w", err)
+		return errors.Wrapf(err, "fail to unmarshal secp256k1 private key")
 	}
 
 	addressFactory := func(addrs []maddr.Multiaddr) []maddr.Multiaddr {
 		if c.externalAddr != nil {
 			return []maddr.Multiaddr{c.externalAddr}
 		}
+
 		return addrs
 	}
 
@@ -297,13 +303,15 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 		scalingLimits.AddProtocolLimit(item, protocolPeerBaseLimit, protocolPeerLimitIncrease)
 		scalingLimits.AddProtocolPeerLimit(item, protocolPeerBaseLimit, protocolPeerLimitIncrease)
 	}
+
 	// Add limits around included libp2p protocols
 	libp2p.SetDefaultServiceLimits(&scalingLimits)
+
 	// Turn the scaling limits into a static set of limits using `.AutoScale`. This
 	// scales the limits proportional to your system memory.
 	limits := scalingLimits.AutoScale()
-	// The resource manager expects a limiter, se we create one from our limits.
 
+	// The resource manager expects a limiter, se we create one from our limits.
 	limiter := rcmgr.NewFixedLimiter(limits)
 
 	m, err := rcmgr.NewResourceManager(
@@ -311,12 +319,14 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 		rcmgr.WithAllowlistedMultiaddrs(c.bootstrapPeers),
 		rcmgr.WithMetrics(NewResourceMetricReporter(c.logger)),
 	)
+
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "fail to create resource manager")
 	}
+
 	cmgr, err := connmgr.NewConnManager(1024, 1500)
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "fail to create connection manager")
 	}
 
 	h, err := libp2p.New(libp2p.ListenAddrs([]maddr.Multiaddr{c.listenAddr}...),
@@ -328,45 +338,50 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 		libp2p.DisableRelay(),
 	)
 	if err != nil {
-		return fmt.Errorf("fail to create p2p host: %w", err)
+		return errors.Wrapf(err, "fail to create p2p host")
 	}
+
 	c.host = h
-	c.logger.Info().Msgf("Host created, we are: %s, at: %s", h.ID(), h.Addrs())
+	c.logger.Info().
+		Stringer(logs.Host, h.ID()).
+		Stringer("address", maddr.Join(h.Addrs()...)).
+		Msgf("HOST CREATED")
+
 	h.SetStreamHandler(TSSProtocolID, c.handleStream)
-	// Start a DHT, for use in peer discovery. We can't just make a new DHT
-	// client because we want each peer to maintain its own local copy of the
-	// DHT, so that the bootstrapping node of the DHT can go down without
-	// inhibiting future peer discovery.
 
-	var connectionErr error
 	for i := 0; i < 5; i++ {
-		connectionErr = c.connectToBootstrapPeers()
-		if connectionErr == nil {
-			break
+		err = c.connectToBootstrapPeers()
+		switch {
+		case err == nil:
+			// connected; proceed to connectivity check
+			return c.bootStrapConnectivityCheck()
+		case i < 4:
+			c.logger.Error().Msg("Unable to connect to any bootstrap node, retry in 5 seconds")
+			time.Sleep(time.Second * 5)
 		}
-		c.logger.Error().Msg("cannot connect to any bootstrap node, retry in 5 seconds")
-		time.Sleep(time.Second * 5)
-	}
-	if connectionErr != nil {
-		return fmt.Errorf("fail to connect to bootstrap peer: %w", connectionErr)
 	}
 
-	return c.bootStrapConnectivityCheck()
+	return errors.Wrapf(err, "fail to connect to bootstrap peer")
 }
 
-func (c *Communication) connectToOnePeer(pID peer.ID) (network.Stream, error) {
-	c.logger.Debug().Msgf("peer:%s,current:%s", pID, c.host.ID())
-	// dont connect to itself
-	if pID == c.host.ID() {
+func (c *Communication) connectToOnePeer(pid peer.ID) (network.Stream, error) {
+	c.logger.Debug().Msgf("peer:%s,current:%s", pid, c.host.ID())
+
+	// don't connect to itself
+	if pid == c.host.ID() {
 		return nil, nil
 	}
-	c.logger.Debug().Msgf("connect to peer : %s", pID.String())
+
+	c.logger.Debug().Stringer(logs.Peer, pid).Msg("Connecting to peer")
+
 	ctx, cancel := context.WithTimeout(context.Background(), TimeoutConnecting)
 	defer cancel()
-	stream, err := c.host.NewStream(ctx, pID, TSSProtocolID)
+
+	stream, err := c.host.NewStream(ctx, pid, TSSProtocolID)
 	if err != nil {
-		return nil, fmt.Errorf("fail to create new stream to peer: %s, %w", pID, err)
+		return nil, errors.Wrapf(err, "unable to create %s stream to peer", TSSProtocolID)
 	}
+
 	return stream, nil
 }
 

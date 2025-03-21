@@ -2,23 +2,24 @@ package p2p
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/binary"
-	"fmt"
 	"io"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/libp2p/go-libp2p/core/network"
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
 
 const (
 	LengthHeader        = 4 // LengthHeader represent how many bytes we used as header
-	TimeoutReadPayload  = time.Second * 20
-	TimeoutWritePayload = time.Second * 20
-	MaxPayload          = 20000000 // 20M
+	TimeoutReadPayload  = 20 * time.Second
+	TimeoutWritePayload = 20 * time.Second
+	MaxPayload          = 20 * 1024 * 1024 // 20M
 )
 
 // applyDeadline will be true , and only disable it when we are doing test
@@ -93,18 +94,18 @@ func ReadStreamWithBuffer(stream network.Stream) ([]byte, error) {
 	lengthBytes := make([]byte, LengthHeader)
 	n, err := io.ReadFull(streamReader, lengthBytes)
 	if n != LengthHeader || err != nil {
-		return nil, fmt.Errorf("error in read the message head %w", err)
+		return nil, errors.Wrap(err, "error in read the message head")
 	}
 	length := binary.LittleEndian.Uint32(lengthBytes)
 	if length > MaxPayload {
-		return nil, fmt.Errorf("payload length:%d exceed max payload length:%d", length, MaxPayload)
+		return nil, errors.Errorf("payload length:%d exceed max payload length:%d", length, MaxPayload)
 	}
 	dataBuf := make([]byte, length)
 	n, err = io.ReadFull(streamReader, dataBuf)
 	if uint32(n) != length || err != nil {
-		return nil, fmt.Errorf(
-			"short read err(%w), we would like to read: %d, however we only read: %d",
+		return nil, errors.Wrapf(
 			err,
+			"short read, we would like to read: %d, however we only read: %d",
 			length,
 			n,
 		)
@@ -114,32 +115,38 @@ func ReadStreamWithBuffer(stream network.Stream) ([]byte, error) {
 
 // WriteStreamWithBuffer write the message to stream
 func WriteStreamWithBuffer(msg []byte, stream network.Stream) error {
-	length := uint32(len(msg))
-	lengthBytes := make([]byte, LengthHeader)
-	binary.LittleEndian.PutUint32(lengthBytes, length)
+	const uint32Size = 4
+	if len(msg) > (MaxPayload - uint32Size) {
+		return errors.Errorf("payload size exceeded (got %d, max %d)", len(msg), MaxPayload)
+	}
+
 	if ApplyDeadline.Load() {
-		if err := stream.SetWriteDeadline(time.Now().Add(TimeoutWritePayload)); nil != err {
+		deadline := time.Now().Add(TimeoutWritePayload)
+
+		if err := stream.SetWriteDeadline(deadline); err != nil {
 			if errReset := stream.Reset(); errReset != nil {
-				return errReset
+				return errors.Wrap(errReset, "failed to reset stream during failure in write deadline")
 			}
-			return err
+
+			return errors.Wrap(err, "failed to set write deadline")
 		}
 	}
-	streamWrite := bufio.NewWriter(stream)
-	n, err := streamWrite.Write(lengthBytes)
-	if n != LengthHeader || err != nil {
-		return fmt.Errorf("fail to write head: %w", err)
+
+	// Create header containing the message length
+	header := make([]byte, LengthHeader)
+	msgLen := uint32(len(msg))
+	binary.LittleEndian.PutUint32(header, msgLen)
+
+	// Create buffer containing the header and message
+	buf := bytes.NewBuffer(header)
+	if _, err := buf.Write(msg); err != nil {
+		return errors.Wrap(err, "failed to write message to buffer")
 	}
-	n, err = streamWrite.Write(msg)
+
+	n, err := stream.Write(buf.Bytes())
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "stream write failed (wrote %d/%d bytes)", n, buf.Len())
 	}
-	if uint32(n) != length {
-		return fmt.Errorf("short write, we would like to write: %d, however we only write: %d", length, n)
-	}
-	err = streamWrite.Flush()
-	if err != nil {
-		return fmt.Errorf("fail to flush stream: %w", err)
-	}
+
 	return nil
 }
