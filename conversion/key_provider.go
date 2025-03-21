@@ -142,6 +142,6 @@ func CheckKeyOnCurve(pk string) (bool, error) {
 
 		return isOnCurve(bPk.X, bPk.Y, edwards.Edwards()), nil
 	default:
-		return false, errors.Wrapf(err, "failed to parse pubkey %q", pk)
+		return false, errors.Errorf("failed to parse pubkey %q", pk)
 	}
 }
