@@ -103,7 +103,7 @@ func (t *Server) generateSignature(
 		t.tssMetrics.KeysignJoinParty(joinPartyTime, false)
 
 		var blameLeader blame.Blame
-		leaderPubKey, err := conversion.GetPubKeyFromPeerID(leader)
+		leaderPubKey, err := conversion.GetPubKeyFromPeerID(leader.String())
 		if err != nil {
 			t.logger.Error().Err(errJoinParty).Msgf("fail to convert the peerID to public key %s", leader)
 			blameLeader = blame.NewBlame(blame.TssSyncFail, []blame.Node{})
@@ -132,7 +132,7 @@ func (t *Server) generateSignature(
 
 	t.logger.Info().
 		Str(logs.MsgID, msgID).
-		Str(logs.Leader, leader).
+		Stringer(logs.Leader, leader).
 		Float64(logs.Latency, joinPartyTime.Seconds()).
 		Msg("Joined party for keysign")
 
@@ -320,15 +320,20 @@ func (t *Server) KeySign(req keysign.Request) (keysign.Response, error) {
 	// we wait for signatures
 	go func() {
 		defer wg.Done()
+
 		receivedSig, errWait = t.waitForSignatures(msgID, req.PoolPubKey, msgsToSign, sigChan)
-		// we received an valid signature indeed
-		if errWait == nil {
-			sigChan <- "signature received"
-			t.logger.Debug().Msgf("received signature for messageID (%s) from peer", msgID)
-			return
-		}
-		if errWait != p2p.ErrSigGenerated {
+		switch {
+		case errors.Is(errWait, p2p.ErrSigGenerated):
+			// ok, we generate the signature ourselves
+		case errWait != nil:
 			t.logger.Error().Err(errWait).Msg("waitForSignatures returned error")
+		default:
+			// we received an valid signature
+			sigChan <- "signature received"
+			t.logger.Debug().
+				Str(logs.MsgID, msgID).
+				Stringer(logs.Peer, receivedSig.Blame).
+				Msg("received signature")
 		}
 	}()
 
