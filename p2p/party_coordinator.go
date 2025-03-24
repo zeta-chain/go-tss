@@ -27,6 +27,11 @@ var (
 	ErrSigGenerated     = errors.New("signature generated")
 )
 
+const (
+	msgTypeRequest  = "request"
+	msgTypeResponse = "response"
+)
+
 type PartyCoordinator struct {
 	logger             zerolog.Logger
 	host               host.Host
@@ -56,7 +61,7 @@ func NewPartyCoordinator(host host.Host, timeout time.Duration, logger zerolog.L
 		streamMgr:          NewStreamMgr(logger),
 	}
 
-	host.SetStreamHandler(joinPartyProtocolWithLeader, pc.HandleStreamWithLeader)
+	host.SetStreamHandler(ProtocolJoinPartyWithLeader, pc.HandleStreamWithLeader)
 
 	return pc
 }
@@ -64,7 +69,7 @@ func NewPartyCoordinator(host host.Host, timeout time.Duration, logger zerolog.L
 // Stop the PartyCoordinator rune
 func (pc *PartyCoordinator) Stop() {
 	defer pc.logger.Info().Msg("stopping party coordinator")
-	pc.host.RemoveStreamHandler(joinPartyProtocolWithLeader)
+	pc.host.RemoveStreamHandler(ProtocolJoinPartyWithLeader)
 	close(pc.stopChan)
 }
 
@@ -137,8 +142,10 @@ func (pc *PartyCoordinator) processReqMsg(requestMsg *messages.JoinPartyLeaderCo
 // HandleStream handle party coordinate stream
 func (pc *PartyCoordinator) HandleStreamWithLeader(stream network.Stream) {
 	remotePeer := stream.Conn().RemotePeer()
+
 	logger := pc.logger.With().Stringer(logs.Peer, remotePeer).Logger()
 	logger.Debug().Msg("reading from join party request")
+
 	payload, err := ReadStreamWithBuffer(stream)
 	if err != nil {
 		logger.Err(err).Msg("fail to read payload from stream")
@@ -147,8 +154,8 @@ func (pc *PartyCoordinator) HandleStreamWithLeader(stream network.Stream) {
 	}
 
 	var msg messages.JoinPartyLeaderComm
-	err = proto.Unmarshal(payload, &msg)
-	if err != nil {
+
+	if err = proto.Unmarshal(payload, &msg); err != nil {
 		logger.Err(err).Msg("fail to unmarshal party data")
 		pc.streamMgr.AddStream("UNKNOWN", stream)
 		return
@@ -157,11 +164,14 @@ func (pc *PartyCoordinator) HandleStreamWithLeader(stream network.Stream) {
 	logger.Debug().Msgf("received message type=%s", msg.MsgType)
 
 	switch msg.MsgType {
-	case "request":
+	case msgTypeRequest:
 		pc.processReqMsg(&msg, stream)
 		return
-	case "response":
+	case msgTypeResponse:
 		pc.processRespMsg(&msg, stream)
+
+		// todo WHY we need to write this IF
+		// todo processRespMsg already writes the same?
 		err := WriteStreamWithBuffer([]byte("done"), stream)
 		if err != nil {
 			pc.logger.Error().Err(err).Msg("Failed to send response to leader")
@@ -193,6 +203,7 @@ func (pc *PartyCoordinator) createJoinPartyGroups(
 	return peerStatus, nil
 }
 
+// todo drop this function and use []peer.ID
 func (pc *PartyCoordinator) getPeerIDs(ids []string) ([]peer.ID, error) {
 	result := make([]peer.ID, len(ids))
 	for i, item := range ids {
@@ -222,7 +233,7 @@ func (pc *PartyCoordinator) sendResponseToAll(msg *messages.JoinPartyLeaderComm,
 		}
 
 		errGroup.Go(func() error {
-			err := pc.sendMsgToPeer(msgSend, msg.ID, peer, joinPartyProtocolWithLeader, true)
+			err := pc.sendMsgToPeer(msgSend, msg.ID, peer, ProtocolJoinPartyWithLeader, true)
 			if err != nil {
 				pc.logger.Error().Err(err).
 					Str(logs.MsgID, msg.ID).
@@ -243,7 +254,7 @@ func (pc *PartyCoordinator) sendRequestToLeader(msg *messages.JoinPartyLeaderCom
 		return errors.Wrap(err, "failed to marshall request")
 	}
 
-	if err := pc.sendMsgToPeer(msgSend, msg.ID, leader, joinPartyProtocolWithLeader, false); err != nil {
+	if err := pc.sendMsgToPeer(msgSend, msg.ID, leader, ProtocolJoinPartyWithLeader, false); err != nil {
 		return errors.Wrap(err, "sendMsgToPeer")
 	}
 

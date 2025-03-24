@@ -26,15 +26,8 @@ import (
 	"github.com/zeta-chain/go-tss/messages"
 )
 
-var joinPartyProtocolWithLeader protocol.ID = "/p2p/join-party-leader"
-
-// TSSProtocolID protocol id used for tss
-var TSSProtocolID protocol.ID = "/p2p/tss"
-
-const (
-	// TimeoutConnecting maximum time for wait for peers to connect
-	TimeoutConnecting = time.Second * 20
-)
+// TimeoutConnecting maximum time for wait for peers to connect
+const TimeoutConnecting = 20 * time.Second
 
 // Message that get transfer across the wire
 type Message struct {
@@ -115,16 +108,15 @@ func (c *Communication) Broadcast(peers []peer.ID, msg []byte, msgID string) {
 	if len(peers) == 0 {
 		return
 	}
+
 	// try to discover all peers and then broadcast the messages
-	c.wg.Add(1)
 	go c.broadcastToPeers(peers, msg, msgID)
 }
 
 func (c *Communication) broadcastToPeers(peers []peer.ID, msg []byte, msgID string) {
+	c.wg.Add(1)
 	defer c.wg.Done()
-	defer func() {
-		c.logger.Debug().Msgf("finished sending message to peer(%v)", peers)
-	}()
+
 	var wgSend sync.WaitGroup
 	wgSend.Add(len(peers))
 	for _, p := range peers {
@@ -299,7 +291,7 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 
 	scalingLimits.ProtocolPeerBaseLimit = protocolPeerBaseLimit
 	scalingLimits.ProtocolPeerLimitIncrease = protocolPeerLimitIncrease
-	for _, item := range []protocol.ID{joinPartyProtocolWithLeader, TSSProtocolID} {
+	for _, item := range []protocol.ID{ProtocolJoinPartyWithLeader, ProtocolTSS} {
 		scalingLimits.AddProtocolLimit(item, protocolPeerBaseLimit, protocolPeerLimitIncrease)
 		scalingLimits.AddProtocolPeerLimit(item, protocolPeerBaseLimit, protocolPeerLimitIncrease)
 	}
@@ -347,7 +339,7 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 		Stringer("address", maddr.Join(h.Addrs()...)).
 		Msgf("HOST CREATED")
 
-	h.SetStreamHandler(TSSProtocolID, c.handleStream)
+	h.SetStreamHandler(ProtocolTSS, c.handleStream)
 
 	for i := 0; i < 5; i++ {
 		if err = c.connectToBootstrapPeers(); err == nil {
@@ -367,8 +359,6 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 }
 
 func (c *Communication) connectToOnePeer(pid peer.ID) (network.Stream, error) {
-	c.logger.Debug().Msgf("peer:%s,current:%s", pid, c.host.ID())
-
 	// don't connect to itself
 	if pid == c.host.ID() {
 		return nil, nil
@@ -379,9 +369,11 @@ func (c *Communication) connectToOnePeer(pid peer.ID) (network.Stream, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), TimeoutConnecting)
 	defer cancel()
 
-	stream, err := c.host.NewStream(ctx, pid, TSSProtocolID)
+	// todo: WOULD this code REUSE the existing stream or create a new one on EACH message?
+	// TODO check this
+	stream, err := c.host.NewStream(ctx, pid, ProtocolTSS)
 	if err != nil {
-		return nil, errors.Wrapf(err, "unable to create %s stream to peer", TSSProtocolID)
+		return nil, errors.Wrapf(err, "unable to create %s stream to peer", ProtocolTSS)
 	}
 
 	return stream, nil

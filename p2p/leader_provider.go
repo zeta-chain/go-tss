@@ -10,6 +10,7 @@ import (
 )
 
 // LeaderNode use the given input buf to calculate a hash , and consistently choose a node as a master coordinate note
+// todo move to protocol
 func LeaderNode(msgID string, blockHeight int64, pIDs []string) (string, error) {
 	if len(pIDs) == 0 || len(msgID) == 0 || blockHeight == 0 {
 		return "", errors.New("invalid input for finding the leader")
