@@ -193,6 +193,7 @@ func (t *Server) joinParty(
 		return nil, "", errors.New("fail to convert the public key to peer ID")
 	}
 
+	// todo use []peer.ID instead
 	var peersIDStr []string
 	for _, el := range peersID {
 		peersIDStr = append(peersIDStr, el.String())

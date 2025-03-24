@@ -880,6 +880,7 @@ func (t *TssCommon) processTSSMsg(
 	return t.applyShare(localCacheItem, threshold, key, msgType)
 }
 
+// todo should we skip unknown message types?
 func getBroadcastMessageType(msgType messages.THORChainTSSMessageType) messages.THORChainTSSMessageType {
 	switch msgType {
 	case messages.TSSKeyGenMsg:
@@ -887,7 +888,8 @@ func getBroadcastMessageType(msgType messages.THORChainTSSMessageType) messages.
 	case messages.TSSKeySignMsg:
 		return messages.TSSKeySignVerMsg
 	default:
-		return messages.Unknown // this should not happen
+		// this should not happen
+		return messages.Unknown
 	}
 }
 

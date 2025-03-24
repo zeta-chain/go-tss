@@ -70,28 +70,40 @@ func (tKeySign *TssKeySign) GetTssCommonStruct() *common.TssCommon {
 	return tKeySign.tssCommonStruct
 }
 
-func (tKeySign *TssKeySign) startBatchSigning(keySignPartyMap *sync.Map, msgNum int) bool {
+// startBatchSigning runs async party.Start() or returns false if ANY party fails
+// note that partyMap is a map of "local" parties.
+// One keysign req. might contain multiple hashes to sign, thus we can have multiple local parties
+func (tKeySign *TssKeySign) startBatchSigning(partyMap *sync.Map, msgNum int) bool {
+	started := atomic.NewBool(true)
+
 	// start the batch sign
-	var keySignWg sync.WaitGroup
-	ret := atomic.NewBool(true)
-	keySignWg.Add(msgNum)
-	keySignPartyMap.Range(func(_, value any) bool {
-		eachParty := value.(btss.Party)
-		go func(eachParty btss.Party) {
-			defer keySignWg.Done()
-			if err := eachParty.Start(); err != nil {
-				tKeySign.logger.Error().Err(err).Msg("fail to start key sign party")
-				ret.Store(false)
+	var wg sync.WaitGroup
+	wg.Add(msgNum)
+
+	partyMap.Range(func(_, value any) bool {
+		party := value.(btss.Party)
+
+		go func(party btss.Party) {
+			defer wg.Done()
+
+			if err := party.Start(); err != nil {
+				tKeySign.logger.Error().Err(err).Msg("Failed to start keysign party")
+				started.Store(false)
+				return
 			}
-			tKeySign.logger.Info().Fields(logs.Party(eachParty)).Msg("Local party is ready")
-		}(eachParty)
+
+			tKeySign.logger.Info().Fields(logs.Party(party)).Msg("Local party is ready")
+		}(party)
+
 		return true
 	})
-	keySignWg.Wait()
-	return ret.Load()
+
+	wg.Wait()
+
+	return started.Load()
 }
 
-// signMessage
+// SignMessage
 func (tKeySign *TssKeySign) SignMessage(
 	msgsToSign [][]byte,
 	localStateItem storage.KeygenLocalState,
@@ -102,6 +114,7 @@ func (tKeySign *TssKeySign) SignMessage(
 		return nil, errors.Wrap(err, "fail to form key sign party")
 	}
 
+	// todo should we return error here? like ErrNotInTheParty
 	if !common.Contains(partiesID, localPartyID) {
 		tKeySign.logger.Info().Msg("we are not in this rounds key sign")
 		return nil, nil
