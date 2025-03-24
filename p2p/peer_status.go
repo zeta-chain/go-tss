@@ -12,30 +12,34 @@ import (
 
 type peerStatus struct {
 	peersResponse  map[peer.ID]bool
-	peerStatusLock *sync.RWMutex
 	allPeers       []peer.ID
 	notify         chan bool
 	leaderResponse *messages.JoinPartyLeaderComm
 	leader         peer.ID
 	threshold      int
 	reqCount       int
+
+	mu sync.RWMutex
 }
 
 func (ps *peerStatus) getLeaderResponse() *messages.JoinPartyLeaderComm {
-	ps.peerStatusLock.RLock()
-	defer ps.peerStatusLock.RUnlock()
+	ps.mu.RLock()
+	defer ps.mu.RUnlock()
+
 	return ps.leaderResponse
 }
 
 func (ps *peerStatus) setLeaderResponse(resp *messages.JoinPartyLeaderComm) {
-	ps.peerStatusLock.Lock()
-	defer ps.peerStatusLock.Unlock()
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+
 	ps.leaderResponse = resp
 }
 
 func (ps *peerStatus) getLeader() peer.ID {
-	ps.peerStatusLock.RLock()
-	defer ps.peerStatusLock.RUnlock()
+	ps.mu.RLock()
+	defer ps.mu.RUnlock()
+
 	return ps.leader
 }
 
@@ -45,18 +49,19 @@ func newPeerStatus(peerNodes []peer.ID, myPeerID, leaderID peer.ID, threshold in
 		if el == myPeerID {
 			continue
 		}
+
 		dat[el] = false
 	}
-	peerStatus := &peerStatus{
-		peersResponse:  dat,
-		peerStatusLock: &sync.RWMutex{},
-		notify:         make(chan bool, len(peerNodes)),
-		allPeers:       peerNodes,
-		leader:         leaderID,
-		threshold:      threshold,
-		reqCount:       0,
+
+	return &peerStatus{
+		peersResponse: dat,
+		notify:        make(chan bool, len(peerNodes)),
+		allPeers:      peerNodes,
+		leader:        leaderID,
+		threshold:     threshold,
+		reqCount:      0,
+		mu:            sync.RWMutex{},
 	}
-	return peerStatus
 }
 
 //nolint:unused // used in tests
@@ -66,30 +71,34 @@ func (ps *peerStatus) getCoordinationStatus() bool {
 }
 
 func (ps *peerStatus) getAllPeers() []peer.ID {
-	ps.peerStatusLock.RLock()
-	defer ps.peerStatusLock.RUnlock()
+	ps.mu.RLock()
+	defer ps.mu.RUnlock()
+
 	return ps.allPeers
 }
 
 func (ps *peerStatus) getPeersStatus() ([]peer.ID, []peer.ID) {
-	var online []peer.ID
-	var offline []peer.ID
-	ps.peerStatusLock.RLock()
-	defer ps.peerStatusLock.RUnlock()
-	for peerNode, val := range ps.peersResponse {
-		if val {
-			online = append(online, peerNode)
-		} else {
-			offline = append(offline, peerNode)
+	var offline, online []peer.ID
+
+	ps.mu.RLock()
+	defer ps.mu.RUnlock()
+
+	for peerID, isOnline := range ps.peersResponse {
+		if isOnline {
+			online = append(online, peerID)
+			continue
 		}
+
+		offline = append(offline, peerID)
 	}
 
 	return online, offline
 }
 
 func (ps *peerStatus) updatePeer(peerNode peer.ID) (bool, error) {
-	ps.peerStatusLock.Lock()
-	defer ps.peerStatusLock.Unlock()
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+
 	val, ok := ps.peersResponse[peerNode]
 	if !ok {
 		return false, errors.New("key not found")
@@ -99,6 +108,7 @@ func (ps *peerStatus) updatePeer(peerNode peer.ID) (bool, error) {
 	if ps.reqCount >= ps.threshold {
 		return false, nil
 	}
+
 	if !val {
 		ps.peersResponse[peerNode] = true
 		ps.reqCount++
