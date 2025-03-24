@@ -350,12 +350,14 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 	h.SetStreamHandler(TSSProtocolID, c.handleStream)
 
 	for i := 0; i < 5; i++ {
-		err = c.connectToBootstrapPeers()
-		switch {
-		case err == nil:
+		if err = c.connectToBootstrapPeers(); err == nil {
 			// connected; proceed to connectivity check
 			return c.bootStrapConnectivityCheck()
-		case i < 4:
+		}
+
+		hasMoreAttempts := i < 4
+
+		if hasMoreAttempts {
 			c.logger.Error().Msg("Unable to connect to any bootstrap node, retry in 5 seconds")
 			time.Sleep(time.Second * 5)
 		}

@@ -123,8 +123,8 @@ func (m *Manager) GetBroadcastBlame(lastMessageType string) ([]Node, error) {
 	return blameNodes, nil
 }
 
-// this blame blames the node who provide the wrong share
-func (m *Manager) TssWrongShareBlame(wiredMsg *messages.WireMessage) (string, error) {
+// TSSWrongShareBlame blames the node who provide the wrong share
+func (m *Manager) TSSWrongShareBlame(wiredMsg *messages.WireMessage) (string, error) {
 	shareOwner := wiredMsg.Routing.From
 	owner, ok := m.partyInfo.PartyIDMap[shareOwner.Id]
 	if !ok {
@@ -139,10 +139,10 @@ func (m *Manager) TssWrongShareBlame(wiredMsg *messages.WireMessage) (string, er
 	return pk, nil
 }
 
-// this blame blames the node fail to send the shares to the node
+// TSSMissingShareBlame blames the node fail to send the shares to the node
 // with batch signing, we need to put the accepted shares into different message group
-// then search the missing share for each keysign message
-func (m *Manager) TssMissingShareBlame(rounds int, algo messages.Algo) ([]Node, bool, error) {
+// then search the missing share for each keysign message.
+func (m *Manager) TSSMissingShareBlame(rounds int, algo messages.Algo) ([]Node, bool, error) {
 	var (
 		acceptedShareForMsg = make(map[string][][]string)
 		blameNodes          []Node

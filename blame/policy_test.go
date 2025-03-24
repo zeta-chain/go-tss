@@ -121,7 +121,7 @@ func (p *policyTestSuite) TestTssWrongShareBlame(c *C) {
 		RoundInfo: "key2",
 		Message:   nil,
 	}
-	target, err := p.blameMgr.TssWrongShareBlame(&msg)
+	target, err := p.blameMgr.TSSWrongShareBlame(&msg)
 	c.Assert(err, IsNil)
 	c.Assert(target, Equals, "thorpub1addwnpepqfjcw5l4ay5t00c32mmlky7qrppepxzdlkcwfs2fd5u73qrwna0vzag3y4j")
 }
@@ -136,14 +136,14 @@ func (p *policyTestSuite) TestTssMissingShareBlame(c *C) {
 	acceptedShares[RoundInfo{0, "testRound", "123:0"}] = []string{"1", "2"}
 	acceptedShares[RoundInfo{1, "testRound", "123:0"}] = []string{"1"}
 	blameMgr.acceptShareLocker.Unlock()
-	nodes, _, err := blameMgr.TssMissingShareBlame(2, messages.ECDSAKEYGEN)
+	nodes, _, err := blameMgr.TSSMissingShareBlame(2, messages.ECDSAKEYGEN)
 	c.Assert(err, IsNil)
 	c.Assert(nodes[0].Pubkey, Equals, localTestPubKeys[3])
 	// we test if the missing share happens in round2
 	blameMgr.acceptShareLocker.Lock()
 	acceptedShares[RoundInfo{0, "testRound", "123:0"}] = []string{"1", "2", "3"}
 	blameMgr.acceptShareLocker.Unlock()
-	nodes, _, err = blameMgr.TssMissingShareBlame(2, messages.ECDSAKEYGEN)
+	nodes, _, err = blameMgr.TSSMissingShareBlame(2, messages.ECDSAKEYGEN)
 	c.Assert(err, IsNil)
 	results := []string{nodes[0].Pubkey, nodes[1].Pubkey}
 	sort.Strings(results)

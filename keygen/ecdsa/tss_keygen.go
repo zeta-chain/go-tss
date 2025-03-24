@@ -216,7 +216,7 @@ func (tKeyGen *TssKeyGen) processKeyGen(errChan chan struct{},
 
 			// if we cannot find the blame node, we check whether everyone send me the share
 			if len(blameMgr.GetBlame().BlameNodes) == 0 {
-				blameNodesMisingShare, isUnicast, err := blameMgr.TssMissingShareBlame(
+				blameNodesMisingShare, isUnicast, err := blameMgr.TSSMissingShareBlame(
 					messages.TSSKEYGENROUNDS,
 					messages.ECDSAKEYGEN,
 				)

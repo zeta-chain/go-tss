@@ -622,7 +622,7 @@ func (t *TssCommon) applyShare(
 	case err != nil:
 		unicast := !localCacheItem.Msg.Routing.IsBroadcast
 
-		blamePk, err := t.blameMgr.TssWrongShareBlame(localCacheItem.Msg)
+		blamePk, err := t.blameMgr.TSSWrongShareBlame(localCacheItem.Msg)
 		if err != nil {
 			t.logger.Error().Err(err).Msg("TssWrongShareBlame failed")
 			t.blameMgr.GetBlame().SetBlame(blame.HashCheckFail, nil, unicast, t.RoundInfo)
