@@ -27,11 +27,6 @@ var (
 	ErrSigGenerated     = errors.New("signature generated")
 )
 
-const (
-	msgTypeRequest  = "request"
-	msgTypeResponse = "response"
-)
-
 type PartyCoordinator struct {
 	logger             zerolog.Logger
 	host               host.Host
@@ -105,7 +100,7 @@ func (pc *PartyCoordinator) processRespMsg(respMsg *messages.JoinPartyLeaderComm
 	peerGroup.setLeaderResponse(respMsg)
 	peerGroup.notify <- true
 
-	err := WriteStreamWithBuffer([]byte("done"), stream)
+	err := WriteStreamWithBuffer([]byte(ResponseMessage), stream)
 	if err != nil {
 		pc.logger.Error().Err(err).
 			Stringer(logs.Peer, remotePeer).
@@ -169,13 +164,6 @@ func (pc *PartyCoordinator) HandleStreamWithLeader(stream network.Stream) {
 		return
 	case msgTypeResponse:
 		pc.processRespMsg(&msg, stream)
-
-		// todo WHY we need to write this IF
-		// todo processRespMsg already writes the same?
-		err := WriteStreamWithBuffer([]byte("done"), stream)
-		if err != nil {
-			pc.logger.Error().Err(err).Msg("Failed to send response to leader")
-		}
 		return
 	default:
 		logger.Err(err).Msg("fail to process this message")
@@ -272,6 +260,7 @@ func (pc *PartyCoordinator) sendMsgToPeer(
 	defer cancel()
 
 	pc.logger.Debug().Msgf("try to open stream to (%s) ", remotePeer)
+
 	stream, err := pc.host.NewStream(ctx, remotePeer, protoID)
 	if err != nil {
 		return errors.Wrapf(err, "failed to create %s stream to peer %q", protoID, remotePeer.String())
@@ -314,7 +303,7 @@ func (pc *PartyCoordinator) joinPartyMember(
 ) ([]peer.ID, error) {
 	leaderID := peerGroup.getLeader()
 	msg := messages.JoinPartyLeaderComm{
-		MsgType: "request",
+		MsgType: msgTypeRequest,
 		ID:      msgID,
 	}
 
@@ -432,7 +421,7 @@ func (pc *PartyCoordinator) joinPartyLeader(
 	}
 
 	msg := messages.JoinPartyLeaderComm{
-		MsgType: "response",
+		MsgType: msgTypeResponse,
 		ID:      msgID,
 		Type:    messages.JoinPartyLeaderComm_Success,
 		PeerIDs: tssNodes,

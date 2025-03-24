@@ -116,7 +116,7 @@ func TestReadLength(t *testing.T) {
 			expectError:    false,
 			streamProvider: func() network.Stream {
 				s := NewMockNetworkStream()
-				buf := make([]byte, LengthHeader)
+				buf := make([]byte, PayloadHeaderLen)
 				binary.LittleEndian.PutUint32(buf, 1024)
 				s.Buffer.Write(buf)
 				s.Buffer.Write(bytes.Repeat([]byte("a"), 1024))
@@ -130,7 +130,7 @@ func TestReadLength(t *testing.T) {
 			streamProvider: func() network.Stream {
 				s := NewMockNetworkStream()
 				s.errSetReadDeadLine = true
-				buf := make([]byte, LengthHeader)
+				buf := make([]byte, PayloadHeaderLen)
 				binary.LittleEndian.PutUint32(buf, 1024)
 				s.Buffer.Write(buf)
 				s.Buffer.Write(bytes.Repeat([]byte("a"), 1024))
@@ -143,7 +143,7 @@ func TestReadLength(t *testing.T) {
 			expectError:    false,
 			streamProvider: func() network.Stream {
 				s := NewMockNetworkStream()
-				buf := make([]byte, LengthHeader)
+				buf := make([]byte, PayloadHeaderLen)
 				binary.LittleEndian.PutUint32(buf, 1024)
 				s.Buffer.Write(buf)
 				s.Buffer.Write(bytes.Repeat([]byte("a"), 1026))
@@ -156,7 +156,7 @@ func TestReadLength(t *testing.T) {
 			expectError:    true,
 			streamProvider: func() network.Stream {
 				s := NewMockNetworkStream()
-				buf := make([]byte, LengthHeader)
+				buf := make([]byte, PayloadHeaderLen)
 				binary.LittleEndian.PutUint32(buf, 1024)
 				s.Buffer.Write(buf)
 				s.errRead = true

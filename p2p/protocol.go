@@ -24,6 +24,22 @@ const ProtocolTSS protocol.ID = "/p2p/tss"
 // Each peer is responsible for signature verification.
 const ProtocolSignatureNotifier protocol.ID = "/p2p/signatureNotifier"
 
+// message types for JoinPartyLeaderComm
+const (
+	msgTypeRequest  = "request"
+	msgTypeResponse = "response"
+)
+
+const (
+	// PayloadHeaderLen we use first 4 bytes (uint32)
+	// to indicate the payload size over the wire.
+	PayloadHeaderLen = 4
+
+	// similar to TCP "ack"
+	ResponseMessage         = "done"
+	ResponseMessageBytesLen = 4
+)
+
 // PickLeader picks party leader based on provided input
 // The logic is preserved as in the original implementation.
 func PickLeader(msgID string, blockHeight int64, peers []peer.ID) (peer.ID, error) {

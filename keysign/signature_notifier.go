@@ -117,7 +117,7 @@ func (s *SignatureNotifier) handleStream(stream network.Stream) {
 	}
 
 	// we tell the sender we have received the message
-	err = p2p.WriteStreamWithBuffer([]byte("done"), stream)
+	err = p2p.WriteStreamWithBuffer([]byte(p2p.ResponseMessage), stream)
 	if err != nil {
 		logger.Error().Err(err).Msg("Fail to write the reply to peer")
 	}
@@ -203,10 +203,11 @@ func (s *SignatureNotifier) sendOneMsgToPeer(m *signatureItem) error {
 		return errors.Wrapf(err, "fail to set read deadline to stream")
 	}
 
-	// todo header for uint32 + 4b for  "done"
-	ret := make([]byte, 8)
-	if _, err := stream.Read(ret); err != nil {
-		return errors.Wrapf(err, "fail to read response from stream")
+	const expectedResponseSize = p2p.PayloadHeaderLen + p2p.ResponseMessageBytesLen
+
+	ack := make([]byte, expectedResponseSize)
+	if _, err := stream.Read(ack); err != nil {
+		return errors.Wrapf(err, "failed to read response from stream")
 	}
 
 	return err

@@ -17,7 +17,6 @@ import (
 )
 
 const (
-	LengthHeader        = 4 // LengthHeader represent how many bytes we used as header
 	TimeoutReadPayload  = 20 * time.Second
 	TimeoutWritePayload = 20 * time.Second
 	MaxPayload          = 20 * 1024 * 1024 // 20M
@@ -102,7 +101,7 @@ func ReadStreamWithBuffer(stream network.Stream) ([]byte, error) {
 
 	streamReader := bufio.NewReader(stream)
 
-	header := make([]byte, LengthHeader)
+	header := make([]byte, PayloadHeaderLen)
 	n, err := io.ReadFull(streamReader, header)
 	if err != nil {
 		return nil, errors.Wrapf(err, "unable to read header from the stream (got %d bytes)", n)
@@ -125,8 +124,7 @@ func ReadStreamWithBuffer(stream network.Stream) ([]byte, error) {
 
 // WriteStreamWithBuffer write the message to stream
 func WriteStreamWithBuffer(msg []byte, stream network.Stream) error {
-	const uint32Size = 4
-	if len(msg) > (MaxPayload - uint32Size) {
+	if len(msg) > (MaxPayload - PayloadHeaderLen) {
 		return errors.Errorf("payload size exceeded (got %d, max %d)", len(msg), MaxPayload)
 	}
 
@@ -143,7 +141,7 @@ func WriteStreamWithBuffer(msg []byte, stream network.Stream) error {
 	}
 
 	// Create header containing the message length
-	header := make([]byte, LengthHeader)
+	header := make([]byte, PayloadHeaderLen)
 	msgLen := uint32(len(msg))
 	binary.LittleEndian.PutUint32(header, msgLen)
 
