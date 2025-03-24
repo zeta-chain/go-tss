@@ -191,7 +191,7 @@ func (s *TssECDSAKeygenTestSuite) TestGenerateNewKey(c *C) {
 			comm := s.comms[idx]
 			stopChan := make(chan struct{})
 			localPubKey := testPubKeys[idx]
-			keygenInstance := NewTssKeyGen(
+			keygenInstance := New(
 				comm.GetLocalPeerID(),
 				conf,
 				localPubKey,
@@ -205,7 +205,7 @@ func (s *TssECDSAKeygenTestSuite) TestGenerateNewKey(c *C) {
 				zlog.Logger,
 			)
 			c.Assert(keygenInstance, NotNil)
-			keygenMsgChannel := keygenInstance.GetTssKeyGenChannels()
+			keygenMsgChannel := keygenInstance.KeygenChannel()
 			comm.SetSubscribe(messages.TSSKeyGenMsg, messageID, keygenMsgChannel)
 			comm.SetSubscribe(messages.TSSKeyGenVerMsg, messageID, keygenMsgChannel)
 			comm.SetSubscribe(messages.TSSControlMsg, messageID, keygenMsgChannel)
@@ -249,7 +249,7 @@ func (s *TssECDSAKeygenTestSuite) TestGenerateNewKeyWithStop(c *C) {
 			comm := s.comms[idx]
 			stopChan := make(chan struct{})
 			localPubKey := testPubKeys[idx]
-			keygenInstance := NewTssKeyGen(
+			keygenInstance := New(
 				comm.GetLocalPeerID(),
 				conf,
 				localPubKey,
@@ -263,7 +263,7 @@ func (s *TssECDSAKeygenTestSuite) TestGenerateNewKeyWithStop(c *C) {
 				zlog.Logger,
 			)
 			c.Assert(keygenInstance, NotNil)
-			keygenMsgChannel := keygenInstance.GetTssKeyGenChannels()
+			keygenMsgChannel := keygenInstance.KeygenChannel()
 			comm.SetSubscribe(messages.TSSKeyGenMsg, messageID, keygenMsgChannel)
 			comm.SetSubscribe(messages.TSSKeyGenVerMsg, messageID, keygenMsgChannel)
 			comm.SetSubscribe(messages.TSSControlMsg, messageID, keygenMsgChannel)
@@ -282,7 +282,7 @@ func (s *TssECDSAKeygenTestSuite) TestGenerateNewKeyWithStop(c *C) {
 			c.Assert(err, NotNil)
 			// we skip the node 1 as we force it to stop
 			if idx != 0 {
-				blames := keygenInstance.GetTssCommonStruct().GetBlameMgr().GetBlame().BlameNodes
+				blames := keygenInstance.Common().GetBlameMgr().GetBlame().BlameNodes
 				c.Assert(blames, HasLen, 1)
 				c.Assert(blames[0].Pubkey, Equals, testPubKeys[0])
 			}
@@ -297,7 +297,7 @@ func (s *TssECDSAKeygenTestSuite) TestKeyGenWithError(c *C) {
 	}
 	conf := common.TssConfig{}
 	stateManager := &storage.MockLocalStateManager{}
-	keyGenInstance := NewTssKeyGen(
+	keyGenInstance := New(
 		"",
 		conf,
 		"",
@@ -318,7 +318,7 @@ func (s *TssECDSAKeygenTestSuite) TestKeyGenWithError(c *C) {
 func (s *TssECDSAKeygenTestSuite) TestCloseKeyGenNotifyChannel(c *C) {
 	conf := common.TssConfig{}
 	stateManager := &storage.MockLocalStateManager{}
-	keyGenInstance := NewTssKeyGen(
+	keyGenInstance := New(
 		"",
 		conf,
 		"",

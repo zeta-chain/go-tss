@@ -33,7 +33,7 @@ func (t *Server) Keygen(req keygen.Request) (keygen.Response, error) {
 	var keygenInstance keygen.Service
 	switch req.Algo {
 	case common.ECDSA:
-		keygenInstance = ecdsa.NewTssKeyGen(
+		keygenInstance = ecdsa.New(
 			t.p2pCommunication.GetLocalPeerID(),
 			t.conf,
 			t.localNodePubKey,
@@ -63,7 +63,7 @@ func (t *Server) Keygen(req keygen.Request) (keygen.Response, error) {
 		return keygen.Response{}, errors.New("invalid keygen algo")
 	}
 
-	keygenMsgChannel := keygenInstance.GetTssKeyGenChannels()
+	keygenMsgChannel := keygenInstance.KeygenChannel()
 	t.p2pCommunication.SetSubscribe(messages.TSSKeyGenMsg, msgID, keygenMsgChannel)
 	t.p2pCommunication.SetSubscribe(messages.TSSKeyGenVerMsg, msgID, keygenMsgChannel)
 	t.p2pCommunication.SetSubscribe(messages.TSSControlMsg, msgID, keygenMsgChannel)
@@ -80,7 +80,7 @@ func (t *Server) Keygen(req keygen.Request) (keygen.Response, error) {
 	}()
 
 	sigChan := make(chan string)
-	blameMgr := keygenInstance.GetTssCommonStruct().GetBlameMgr()
+	blameMgr := keygenInstance.Common().GetBlameMgr()
 	joinPartyStartTime := time.Now()
 
 	onlinePeers, leader, errJoinParty := t.joinParty(
@@ -207,7 +207,7 @@ func (t *Server) KeygenAllAlgo(req keygen.Request) ([]keygen.Response, error) {
 		return nil, errors.Wrap(err, "unable to get message id")
 	}
 
-	ecdsaKeygenInstance := ecdsa.NewTssKeyGen(
+	ecdsaKeygenInstance := ecdsa.New(
 		t.p2pCommunication.GetLocalPeerID(),
 		t.conf,
 		t.localNodePubKey,
@@ -241,7 +241,7 @@ func (t *Server) KeygenAllAlgo(req keygen.Request) ([]keygen.Response, error) {
 
 	for algo, instance := range keygenInstances {
 		msgID := msgID + string(algo)
-		keygenMsgChannel := instance.GetTssKeyGenChannels()
+		keygenMsgChannel := instance.KeygenChannel()
 		t.p2pCommunication.SetSubscribe(messages.TSSKeyGenMsg, msgID, keygenMsgChannel)
 		t.p2pCommunication.SetSubscribe(messages.TSSKeyGenVerMsg, msgID, keygenMsgChannel)
 		t.p2pCommunication.SetSubscribe(messages.TSSControlMsg, msgID, keygenMsgChannel)
@@ -259,7 +259,7 @@ func (t *Server) KeygenAllAlgo(req keygen.Request) ([]keygen.Response, error) {
 	}
 	sigChan := make(chan string)
 	// since all the keygen algorithms share the join party, so we need to use the ecdsa algo's blame manager
-	blameMgr := keygenInstances[common.ECDSA].GetTssCommonStruct().GetBlameMgr()
+	blameMgr := keygenInstances[common.ECDSA].Common().GetBlameMgr()
 
 	joinPartyStartTime := time.Now()
 
@@ -328,7 +328,7 @@ func (t *Server) KeygenAllAlgo(req keygen.Request) ([]keygen.Response, error) {
 		if keygenErr != nil {
 			t.tssMetrics.UpdateKeyGen(keygenTime, false)
 			t.logger.Error().Err(keygenErr).Msg("err in keygen")
-			blameMgr := instance.GetTssCommonStruct().GetBlameMgr()
+			blameMgr := instance.Common().GetBlameMgr()
 			blameNode = *blameMgr.GetBlame()
 			break
 		}

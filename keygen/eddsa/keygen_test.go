@@ -176,7 +176,7 @@ func (s *EddsaKeygenTestSuite) TestGenerateNewKey(c *C) {
 				zlog.Logger,
 			)
 			c.Assert(keygenInstance, NotNil)
-			keygenMsgChannel := keygenInstance.GetTssKeyGenChannels()
+			keygenMsgChannel := keygenInstance.KeygenChannel()
 			comm.SetSubscribe(messages.TSSKeyGenMsg, messageID, keygenMsgChannel)
 			comm.SetSubscribe(messages.TSSKeyGenVerMsg, messageID, keygenMsgChannel)
 			comm.SetSubscribe(messages.TSSControlMsg, messageID, keygenMsgChannel)
