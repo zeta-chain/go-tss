@@ -265,7 +265,6 @@ func (t *Server) KeySign(req keysign.Request) (keysign.Response, error) {
 		t.p2pCommunication.CancelSubscribe(messages.TSSTaskDone, msgID)
 
 		t.p2pCommunication.FreeStreams(msgID)
-		t.signatureNotifier.FreeStreams(msgID)
 		t.partyCoordinator.FreeStreams(msgID)
 
 		t.partyCoordinator.RemovePeerGroup(msgID)

@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"io"
-	"math/rand"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -34,17 +33,38 @@ func init() {
 }
 
 type StreamManager struct {
-	streams map[string][]network.Stream
-	mu      sync.RWMutex
-	logger  zerolog.Logger
+	streams             map[string]streamItem
+	maxAgeBeforeCleanup time.Duration
+	mu                  sync.RWMutex
+	logger              zerolog.Logger
+}
+
+type streamItem struct {
+	msgID  string
+	stream network.Stream
 }
 
 func NewStreamManager(logger zerolog.Logger) *StreamManager {
-	return &StreamManager{
-		streams: make(map[string][]network.Stream),
-		mu:      sync.RWMutex{},
-		logger:  logger,
+	// the max age before cleanup for unused streams
+	const maxAgeBeforeCleanup = 1 * time.Minute
+
+	sm := &StreamManager{
+		streams:             make(map[string]streamItem),
+		maxAgeBeforeCleanup: maxAgeBeforeCleanup,
+		mu:                  sync.RWMutex{},
+		logger:              logger,
 	}
+
+	ticker := time.NewTicker(sm.maxAgeBeforeCleanup)
+
+	go func() {
+		for {
+			<-ticker.C
+			sm.cleanup()
+		}
+	}()
+
+	return sm
 }
 
 func (sm *StreamManager) Stash(msgID string, stream network.Stream) {
@@ -52,16 +72,21 @@ func (sm *StreamManager) Stash(msgID string, stream network.Stream) {
 		return
 	}
 
+	streamID := stream.ID()
+
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
-	entries, ok := sm.streams[msgID]
-	if !ok {
-		sm.streams[msgID] = []network.Stream{stream}
+	// already exists
+	if _, ok := sm.streams[streamID]; ok {
 		return
 	}
 
-	sm.streams[msgID] = append(entries, stream)
+	// add stream items
+	sm.streams[streamID] = streamItem{
+		msgID:  msgID,
+		stream: stream,
+	}
 }
 
 func (sm *StreamManager) StashUnknown(stream network.Stream) {
@@ -69,92 +94,116 @@ func (sm *StreamManager) StashUnknown(stream network.Stream) {
 }
 
 func (sm *StreamManager) Free(msgID string) {
+	var streamIDs []string
+
 	sm.mu.RLock()
-	streams, ok := sm.streams[msgID]
+	for sid, streamItem := range sm.streams {
+		if streamItem.msgID == msgID {
+			streamIDs = append(streamIDs, sid)
+		}
+	}
 	sm.mu.RUnlock()
 
 	// noop
-	if !ok {
+	if len(streamIDs) == 0 {
 		return
-	}
-
-	for _, stream := range streams {
-		lifespan := time.Since(stream.Stat().Opened)
-
-		if err := stream.Reset(); err != nil {
-			sm.logger.Error().Err(err).
-				Str(logs.MsgID, msgID).
-				Stringer(logs.Peer, stream.Conn().RemotePeer()).
-				Str("protocol", string(stream.Protocol())).
-				Float64("lifespan", lifespan.Seconds()).
-				Msg("Failed to reset the stream")
-		}
 	}
 
 	sm.mu.Lock()
-	delete(sm.streams, msgID)
-	sm.mu.Unlock()
+	defer sm.mu.Unlock()
 
-	if msgID == unknown {
-		return
-	}
-
-	chance := rand.Intn(100)
-
-	// 10% chance to clear unknown streams
-	if chance < 10 {
-		sm.Free(unknown)
-	}
-
-	// 2% chance to log stats
-	if chance < 2 {
-		sm.logStats()
+	for _, streamID := range streamIDs {
+		sm.deleteStream(streamID)
 	}
 }
 
-func (sm *StreamManager) logStats() {
-	sm.mu.RLock()
-	defer sm.mu.RUnlock()
+func (sm *StreamManager) FreeNow(msgID string, stream network.Stream) {
+	if err := stream.Reset(); err != nil {
+		sm.logger.Error().Err(err).
+			Str(logs.MsgID, msgID).
+			Stringer(logs.Peer, stream.Conn().RemotePeer()).
+			Str("protocol", string(stream.Protocol())).
+			Msg("Failed to reset the stream")
+	}
+}
+
+// not thread safe
+func (sm *StreamManager) deleteStream(streamID string) bool {
+	s, ok := sm.streams[streamID]
+	if !ok {
+		return false
+	}
+
+	if err := s.stream.Reset(); err != nil {
+		sm.logger.Error().Err(err).
+			Str(logs.MsgID, s.msgID).
+			Stringer(logs.Peer, s.stream.Conn().RemotePeer()).
+			Str("protocol", string(s.stream.Protocol())).
+			Msg("Failed to reset the stream")
+
+		return false
+	}
+
+	delete(sm.streams, streamID)
+
+	return true
+}
+
+func (sm *StreamManager) cleanup() {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
 
 	var (
-		streamLists      = len(sm.streams)
-		totalStreams     = 0
-		maxStreamsPerMsg = 0
-		unknownStreams   = len(sm.streams[unknown])
-		oldestStream     = time.Duration(0)
+		totalStreams   = len(sm.streams)
+		unknownStreams = 0
+		freedStreams   = 0
+		oldestStream   = time.Duration(0)
 	)
 
-	for _, streams := range sm.streams {
-		sl := len(streams)
-		totalStreams += sl
+	for streamID, streamItem := range sm.streams {
+		var (
+			s        = streamItem.stream
+			lifespan = time.Since(s.Stat().Opened)
+		)
 
-		if sl > maxStreamsPerMsg {
-			maxStreamsPerMsg = sl
+		if streamItem.msgID == unknown {
+			unknownStreams++
 		}
 
-		for _, stream := range streams {
-			lifespan := time.Since(stream.Stat().Opened)
-			if lifespan > oldestStream {
-				oldestStream = lifespan
-			}
+		if lifespan > oldestStream {
+			oldestStream = lifespan
+		}
+
+		// let's revisit later
+		if lifespan <= sm.maxAgeBeforeCleanup {
+			continue
+		}
+
+		if sm.deleteStream(streamID) {
+			freedStreams++
 		}
 	}
 
-	lg := map[string]any{
-		"streams.msg_ids_count":          streamLists,
-		"streams.streams_count":          totalStreams,
-		"streams.max_streams_per_msg_id": maxStreamsPerMsg,
-		"streams.unknown_streams_count":  unknownStreams,
-		"streams.oldest_stream_lifespan": oldestStream.Seconds(),
+	if freedStreams == 0 {
+		return
 	}
 
-	sm.logger.Info().Fields(lg).Msg("Stream stats")
+	lf := map[string]any{
+		"streams.total_before":      totalStreams,
+		"streams.total_after":       totalStreams - freedStreams,
+		"streams.freed":             freedStreams,
+		"streams.unknown_streams":   unknownStreams,
+		"streams.oldest_stream_sec": oldestStream.Seconds(),
+	}
+
+	sm.logger.Info().Fields(lf).Msg("Stats for stashed streams")
 }
 
 // ReadStreamWithBuffer read data from the given stream
 func ReadStreamWithBuffer(stream network.Stream) ([]byte, error) {
 	if ApplyDeadline.Load() {
-		if err := stream.SetReadDeadline(time.Now().Add(TimeoutReadPayload)); nil != err {
+		deadline := time.Now().Add(TimeoutReadPayload)
+		if err := stream.SetReadDeadline(deadline); err != nil {
 			if errReset := stream.Reset(); errReset != nil {
 				return nil, errReset
 			}

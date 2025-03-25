@@ -237,7 +237,12 @@ func (s *SignatureNotifier) broadcastCommon(messageID string, sig []*common.Sign
 		go func() {
 			defer wg.Done()
 
-			if err := s.sendOneMsgToPeer(sig); err != nil {
+			err := s.sendOneMsgToPeer(sig)
+			switch {
+			case errors.Is(err, network.ErrReset):
+				// someone above dropped the stream
+				// (eg the signature is already processed) that's fine
+			case err != nil:
 				s.logger.Error().Err(err).
 					Str(logs.MsgID, sig.messageID).
 					Stringer(logs.Peer, sig.peerID).
@@ -312,6 +317,8 @@ func (s *SignatureNotifier) WaitForSignature(
 ) ([]*common.SignatureData, error) {
 	s.logger.Debug().Msg("waiting for signature")
 
+	defer s.streamMgr.Free(messageID)
+
 	n, err := s.createOrUpdateNotifier(messageID, message, poolPubKey, nil, timeout+time.Second)
 	if err != nil {
 		return nil, errors.Wrapf(err, "unable to create or update notifier")
@@ -331,8 +338,4 @@ func (s *SignatureNotifier) WaitForSignature(
 	case <-sigChan:
 		return nil, p2p.ErrSigGenerated
 	}
-}
-
-func (s *SignatureNotifier) FreeStreams(msgID string) {
-	s.streamMgr.Free(msgID)
 }

@@ -121,9 +121,11 @@ func (c *Communication) broadcastToPeers(peers []peer.ID, msg []byte, msgID stri
 
 	var wgSend sync.WaitGroup
 	wgSend.Add(len(peers))
+
 	for _, p := range peers {
 		go func(p peer.ID) {
 			defer wgSend.Done()
+
 			if err := c.writeToStream(p, msg, msgID); nil != err {
 				c.logger.Error().Err(err).
 					Stringer(logs.Peer, p).
@@ -132,16 +134,23 @@ func (c *Communication) broadcastToPeers(peers []peer.ID, msg []byte, msgID stri
 			}
 		}(p)
 	}
+
 	wgSend.Wait()
 }
 
-func (c *Communication) writeToStream(pID peer.ID, msg []byte, msgID string) error {
-	stream, err := c.connectToOnePeer(pID)
-	switch {
-	case err != nil:
-		return errors.Wrap(err, "connectToOnePeer failed")
-	case stream == nil:
+func (c *Communication) writeToStream(pid peer.ID, msg []byte, msgID string) error {
+	if pid == c.host.ID() {
 		return nil
+	}
+
+	c.logger.Debug().Stringer(logs.Peer, pid).Msg("Connecting to peer")
+
+	ctx, cancel := context.WithTimeout(context.Background(), TimeoutConnecting)
+	defer cancel()
+
+	stream, err := c.host.NewStream(ctx, pid, ProtocolTSS)
+	if err != nil {
+		return errors.Wrapf(err, "unable to create %s stream to peer", ProtocolTSS)
 	}
 
 	defer c.streamMgr.Stash(msgID, stream)
@@ -152,8 +161,6 @@ func (c *Communication) writeToStream(pID peer.ID, msg []byte, msgID string) err
 func (c *Communication) readFromStream(stream network.Stream) {
 	peerID := stream.Conn().RemotePeer().String()
 	c.logger.Debug().Str(logs.Peer, peerID).Msg("Reading from peer's stream")
-
-	const timeout = 10 * time.Second
 
 	payload, err := ReadStreamWithBuffer(stream)
 	if err != nil {
@@ -170,10 +177,8 @@ func (c *Communication) readFromStream(stream network.Stream) {
 	}
 
 	channel := c.getSubscriber(wrappedMsg.MessageType, wrappedMsg.MsgID)
-	if nil == channel {
-		c.logger.Debug().Msgf("no MsgID %s found for this message", wrappedMsg.MsgID)
-		c.logger.Debug().Msgf("no MsgID %s found for this message", wrappedMsg.MessageType)
-		_ = stream.Reset()
+	if channel == nil {
+		c.streamMgr.StashUnknown(stream)
 		return
 	}
 
@@ -183,6 +188,8 @@ func (c *Communication) readFromStream(stream network.Stream) {
 		PeerID:  stream.Conn().RemotePeer(),
 		Payload: payload,
 	}
+
+	const timeout = 10 * time.Second
 
 	select {
 	case channel <- msg:
@@ -350,27 +357,6 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 	}
 
 	return errors.Wrapf(err, "fail to connect to bootstrap peer")
-}
-
-func (c *Communication) connectToOnePeer(pid peer.ID) (network.Stream, error) {
-	// don't connect to itself
-	if pid == c.host.ID() {
-		return nil, nil
-	}
-
-	c.logger.Debug().Stringer(logs.Peer, pid).Msg("Connecting to peer")
-
-	ctx, cancel := context.WithTimeout(context.Background(), TimeoutConnecting)
-	defer cancel()
-
-	// todo: WOULD this code REUSE the existing stream or create a new one on EACH message?
-	// TODO check this
-	stream, err := c.host.NewStream(ctx, pid, ProtocolTSS)
-	if err != nil {
-		return nil, errors.Wrapf(err, "unable to create %s stream to peer", ProtocolTSS)
-	}
-
-	return stream, nil
 }
 
 func (c *Communication) connectToBootstrapPeers() error {
