@@ -4,8 +4,8 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
-	"hash/crc32"
 	"io"
+	"math/rand"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -95,10 +95,60 @@ func (sm *StreamManager) Free(msgID string) {
 	delete(sm.streams, msgID)
 	sm.mu.Unlock()
 
+	if msgID == unknown {
+		return
+	}
+
+	chance := rand.Intn(100)
+
 	// 10% chance to clear unknown streams
-	if msgID != unknown && hashCRC32(msgID)%10 == 0 {
+	if chance < 10 {
 		sm.Free(unknown)
 	}
+
+	// 2% chance to log stats
+	if chance < 2 {
+		sm.logStats()
+	}
+}
+
+func (sm *StreamManager) logStats() {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+
+	var (
+		streamLists      = len(sm.streams)
+		totalStreams     = 0
+		maxStreamsPerMsg = 0
+		unknownStreams   = len(sm.streams[unknown])
+		oldestStream     = time.Duration(0)
+	)
+
+	for _, streams := range sm.streams {
+		sl := len(streams)
+		totalStreams += sl
+
+		if sl > maxStreamsPerMsg {
+			maxStreamsPerMsg = sl
+		}
+
+		for _, stream := range streams {
+			lifespan := time.Since(stream.Stat().Opened)
+			if lifespan > oldestStream {
+				oldestStream = lifespan
+			}
+		}
+	}
+
+	lg := map[string]any{
+		"streams.msg_ids_count":          streamLists,
+		"streams.streams_count":          totalStreams,
+		"streams.max_streams_per_msg_id": maxStreamsPerMsg,
+		"streams.unknown_streams_count":  unknownStreams,
+		"streams.oldest_stream_lifespan": oldestStream.Seconds(),
+	}
+
+	sm.logger.Info().Fields(lg).Msg("Stream stats")
 }
 
 // ReadStreamWithBuffer read data from the given stream
@@ -170,8 +220,4 @@ func WriteStreamWithBuffer(msg []byte, stream network.Stream) error {
 	}
 
 	return nil
-}
-
-func hashCRC32(v string) uint32 {
-	return crc32.ChecksumIEEE([]byte(v))
 }
