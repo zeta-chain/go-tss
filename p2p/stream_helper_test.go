@@ -235,24 +235,24 @@ func TestReadPayload(t *testing.T) {
 }
 
 func TestStreamManager(t *testing.T) {
-	streamMgr := NewStreamMgr(zerolog.New(zerolog.NewTestWriter(t)))
+	streamMgr := NewStreamManager(zerolog.New(zerolog.NewTestWriter(t)))
 	stream := NewMockNetworkStream()
 
-	streamMgr.AddStream("1", nil)
-	assert.Equal(t, len(streamMgr.unusedStreams), 0)
-	streamMgr.AddStream("1", stream)
-	streamMgr.AddStream("2", stream)
-	streamMgr.AddStream("3", stream)
-	streamMgr.ReleaseStream("1")
-	_, ok := streamMgr.unusedStreams["2"]
+	streamMgr.Stash("1", nil)
+	assert.Equal(t, len(streamMgr.streams), 0)
+	streamMgr.Stash("1", stream)
+	streamMgr.Stash("2", stream)
+	streamMgr.Stash("3", stream)
+	streamMgr.Free("1")
+	_, ok := streamMgr.streams["2"]
 	assert.Equal(t, ok, true)
-	_, ok = streamMgr.unusedStreams["3"]
+	_, ok = streamMgr.streams["3"]
 	assert.Equal(t, ok, true)
-	streamMgr.ReleaseStream("2")
-	_, ok = streamMgr.unusedStreams["2"]
+	streamMgr.Free("2")
+	_, ok = streamMgr.streams["2"]
 	assert.Equal(t, ok, false)
-	streamMgr.ReleaseStream("3")
-	assert.Equal(t, len(streamMgr.unusedStreams), 0)
-	streamMgr.ReleaseStream("3")
-	assert.Equal(t, len(streamMgr.unusedStreams), 0)
+	streamMgr.Free("3")
+	assert.Equal(t, len(streamMgr.streams), 0)
+	streamMgr.Free("3")
+	assert.Equal(t, len(streamMgr.streams), 0)
 }

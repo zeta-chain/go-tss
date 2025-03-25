@@ -34,7 +34,7 @@ type PartyCoordinator struct {
 	timeout            time.Duration
 	peersGroup         map[string]*peerStatus
 	joinPartyGroupLock *sync.Mutex
-	streamMgr          *StreamMgr
+	streamMgr          *StreamManager
 }
 
 // NewPartyCoordinator create a new instance of PartyCoordinator
@@ -53,7 +53,7 @@ func NewPartyCoordinator(host host.Host, timeout time.Duration, logger zerolog.L
 		timeout:            timeout,
 		peersGroup:         make(map[string]*peerStatus),
 		joinPartyGroupLock: &sync.Mutex{},
-		streamMgr:          NewStreamMgr(logger),
+		streamMgr:          NewStreamManager(logger),
 	}
 
 	host.SetStreamHandler(ProtocolJoinPartyWithLeader, pc.HandleStreamWithLeader)
@@ -83,7 +83,7 @@ func (pc *PartyCoordinator) processRespMsg(respMsg *messages.JoinPartyLeaderComm
 		return
 	}
 
-	pc.streamMgr.AddStream(respMsg.ID, stream)
+	pc.streamMgr.Stash(respMsg.ID, stream)
 
 	leaderID := peerGroup.getLeader()
 
@@ -111,7 +111,7 @@ func (pc *PartyCoordinator) processRespMsg(respMsg *messages.JoinPartyLeaderComm
 }
 
 func (pc *PartyCoordinator) processReqMsg(requestMsg *messages.JoinPartyLeaderComm, stream network.Stream) {
-	pc.streamMgr.AddStream(requestMsg.ID, stream)
+	pc.streamMgr.Stash(requestMsg.ID, stream)
 
 	pc.joinPartyGroupLock.Lock()
 	peerGroup, ok := pc.peersGroup[requestMsg.ID]
@@ -144,7 +144,7 @@ func (pc *PartyCoordinator) HandleStreamWithLeader(stream network.Stream) {
 	payload, err := ReadStreamWithBuffer(stream)
 	if err != nil {
 		logger.Err(err).Msg("fail to read payload from stream")
-		pc.streamMgr.AddStream("UNKNOWN", stream)
+		pc.streamMgr.StashUnknown(stream)
 		return
 	}
 
@@ -152,7 +152,7 @@ func (pc *PartyCoordinator) HandleStreamWithLeader(stream network.Stream) {
 
 	if err = proto.Unmarshal(payload, &msg); err != nil {
 		logger.Err(err).Msg("fail to unmarshal party data")
-		pc.streamMgr.AddStream("UNKNOWN", stream)
+		pc.streamMgr.StashUnknown(stream)
 		return
 	}
 
@@ -167,7 +167,7 @@ func (pc *PartyCoordinator) HandleStreamWithLeader(stream network.Stream) {
 		return
 	default:
 		logger.Err(err).Msg("fail to process this message")
-		pc.streamMgr.AddStream("UNKNOWN", stream)
+		pc.streamMgr.StashUnknown(stream)
 		return
 	}
 }
@@ -266,17 +266,7 @@ func (pc *PartyCoordinator) sendMsgToPeer(
 		return errors.Wrapf(err, "failed to create %s stream to peer %q", protoID, remotePeer.String())
 	}
 
-	defer func() {
-		// todo: why we need to add the stream to the stream manager here?
-		pc.streamMgr.AddStream(msgID, stream)
-		if err := stream.Close(); err != nil {
-			pc.logger.Error().Err(err).
-				Str(logs.MsgID, msgID).
-				Msg("Failed to close stream")
-		}
-	}()
-
-	pc.logger.Debug().Msgf("open stream to (%s) successfully", remotePeer)
+	defer pc.streamMgr.Stash(msgID, stream)
 
 	if err = WriteStreamWithBuffer(msgBuf, stream); err != nil {
 		return errors.Wrap(err, "failed to write message to opened stream")
@@ -473,6 +463,6 @@ func (pc *PartyCoordinator) JoinPartyWithLeader(
 	return onlines, leader, err
 }
 
-func (pc *PartyCoordinator) ReleaseStream(msgID string) {
-	pc.streamMgr.ReleaseStream(msgID)
+func (pc *PartyCoordinator) FreeStreams(msgID string) {
+	pc.streamMgr.Free(msgID)
 }

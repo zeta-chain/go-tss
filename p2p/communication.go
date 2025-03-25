@@ -48,7 +48,7 @@ type Communication struct {
 	streamCount      int64
 	BroadcastMsgChan chan *messages.BroadcastMsgChan
 	externalAddr     maddr.Multiaddr
-	streamMgr        *StreamMgr
+	streamMgr        *StreamManager
 	whitelistedPeers []peer.ID
 }
 
@@ -88,7 +88,7 @@ func NewCommunication(
 		streamCount:      0,
 		BroadcastMsgChan: make(chan *messages.BroadcastMsgChan, 1024),
 		externalAddr:     externalAddr,
-		streamMgr:        NewStreamMgr(logger),
+		streamMgr:        NewStreamManager(logger),
 		whitelistedPeers: whitelistedPeers,
 	}, nil
 }
@@ -134,11 +134,6 @@ func (c *Communication) broadcastToPeers(peers []peer.ID, msg []byte, msgID stri
 }
 
 func (c *Communication) writeToStream(pID peer.ID, msg []byte, msgID string) error {
-	// don't send to ourselves
-	if pID == c.host.ID() {
-		return nil
-	}
-
 	stream, err := c.connectToOnePeer(pID)
 	switch {
 	case err != nil:
@@ -147,10 +142,7 @@ func (c *Communication) writeToStream(pID peer.ID, msg []byte, msgID string) err
 		return nil
 	}
 
-	// todo: why we need to add stream here?
-	defer func() {
-		c.streamMgr.AddStream(msgID, stream)
-	}()
+	defer c.streamMgr.Stash(msgID, stream)
 
 	return WriteStreamWithBuffer(msg, stream)
 }
@@ -164,14 +156,14 @@ func (c *Communication) readFromStream(stream network.Stream) {
 	payload, err := ReadStreamWithBuffer(stream)
 	if err != nil {
 		c.logger.Error().Err(err).Str(logs.Peer, peerID).Msg("Failed to read from stream")
-		c.streamMgr.AddStream("UNKNOWN", stream)
+		c.streamMgr.StashUnknown(stream)
 		return
 	}
 
 	var wrappedMsg messages.WrappedMessage
 	if err := json.Unmarshal(payload, &wrappedMsg); nil != err {
 		c.logger.Error().Err(err).Msg("Failed to unmarshal WrappedMessage")
-		c.streamMgr.AddStream("UNKNOWN", stream)
+		c.streamMgr.StashUnknown(stream)
 		return
 	}
 
@@ -183,7 +175,7 @@ func (c *Communication) readFromStream(stream network.Stream) {
 		return
 	}
 
-	c.streamMgr.AddStream(wrappedMsg.MsgID, stream)
+	c.streamMgr.Stash(wrappedMsg.MsgID, stream)
 
 	msg := &Message{
 		PeerID:  stream.Conn().RemotePeer(),
@@ -521,6 +513,6 @@ func (c *Communication) ProcessBroadcast() {
 	}
 }
 
-func (c *Communication) ReleaseStream(msgID string) {
-	c.streamMgr.ReleaseStream(msgID)
+func (c *Communication) FreeStreams(msgID string) {
+	c.streamMgr.Free(msgID)
 }

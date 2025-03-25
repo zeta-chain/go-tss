@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
+	"hash/crc32"
 	"io"
 	"sync"
 	"sync/atomic"
@@ -22,6 +23,8 @@ const (
 	MaxPayload          = 20 * 1024 * 1024 // 20M
 )
 
+const unknown = "unknown"
+
 // applyDeadline will be true , and only disable it when we are doing test
 // the reason being the p2p network , mocknet, mock stream doesn't support SetReadDeadline ,SetWriteDeadline feature
 var ApplyDeadline = &atomic.Bool{}
@@ -30,48 +33,21 @@ func init() {
 	ApplyDeadline.Store(true)
 }
 
-type StreamMgr struct {
-	unusedStreams map[string][]network.Stream
-	mu            *sync.RWMutex
-	logger        zerolog.Logger
+type StreamManager struct {
+	streams map[string][]network.Stream
+	mu      sync.RWMutex
+	logger  zerolog.Logger
 }
 
-func NewStreamMgr(logger zerolog.Logger) *StreamMgr {
-	return &StreamMgr{
-		unusedStreams: make(map[string][]network.Stream),
-		mu:            &sync.RWMutex{},
-		logger:        logger.With().Str(logs.Component, "stream_manager").Logger(),
+func NewStreamManager(logger zerolog.Logger) *StreamManager {
+	return &StreamManager{
+		streams: make(map[string][]network.Stream),
+		mu:      sync.RWMutex{},
+		logger:  logger,
 	}
 }
 
-func (sm *StreamMgr) ReleaseStream(msgID string) {
-	sm.mu.RLock()
-	usedStreams, okStream := sm.unusedStreams[msgID]
-	unknownStreams, okUnknown := sm.unusedStreams["UNKNOWN"]
-	streams := append(usedStreams, unknownStreams...)
-	sm.mu.RUnlock()
-
-	// noop
-	if !(okStream || okUnknown) {
-		return
-	}
-
-	for _, stream := range streams {
-		if err := stream.Reset(); err != nil {
-			sm.logger.Error().Err(err).
-				Str(logs.MsgID, msgID).
-				Str("stream_id", stream.ID()).
-				Msg("Failed to reset the stream")
-		}
-	}
-
-	sm.mu.Lock()
-	delete(sm.unusedStreams, msgID)
-	delete(sm.unusedStreams, "UNKNOWN")
-	sm.mu.Unlock()
-}
-
-func (sm *StreamMgr) AddStream(msgID string, stream network.Stream) {
+func (sm *StreamManager) Stash(msgID string, stream network.Stream) {
 	if stream == nil {
 		return
 	}
@@ -79,13 +55,50 @@ func (sm *StreamMgr) AddStream(msgID string, stream network.Stream) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
-	entries, ok := sm.unusedStreams[msgID]
+	entries, ok := sm.streams[msgID]
 	if !ok {
-		sm.unusedStreams[msgID] = []network.Stream{stream}
+		sm.streams[msgID] = []network.Stream{stream}
 		return
 	}
 
-	sm.unusedStreams[msgID] = append(entries, stream)
+	sm.streams[msgID] = append(entries, stream)
+}
+
+func (sm *StreamManager) StashUnknown(stream network.Stream) {
+	sm.Stash(unknown, stream)
+}
+
+func (sm *StreamManager) Free(msgID string) {
+	sm.mu.RLock()
+	streams, ok := sm.streams[msgID]
+	sm.mu.RUnlock()
+
+	// noop
+	if !ok {
+		return
+	}
+
+	for _, stream := range streams {
+		lifespan := time.Since(stream.Stat().Opened)
+
+		if err := stream.Reset(); err != nil {
+			sm.logger.Error().Err(err).
+				Str(logs.MsgID, msgID).
+				Stringer(logs.Peer, stream.Conn().RemotePeer()).
+				Str("protocol", string(stream.Protocol())).
+				Float64("lifespan", lifespan.Seconds()).
+				Msg("Failed to reset the stream")
+		}
+	}
+
+	sm.mu.Lock()
+	delete(sm.streams, msgID)
+	sm.mu.Unlock()
+
+	// 10% chance to clear unknown streams
+	if msgID != unknown && hashCRC32(msgID)%10 == 0 {
+		sm.Free(unknown)
+	}
 }
 
 // ReadStreamWithBuffer read data from the given stream
@@ -157,4 +170,8 @@ func WriteStreamWithBuffer(msg []byte, stream network.Stream) error {
 	}
 
 	return nil
+}
+
+func hashCRC32(v string) uint32 {
+	return crc32.ChecksumIEEE([]byte(v))
 }

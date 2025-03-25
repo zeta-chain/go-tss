@@ -34,7 +34,7 @@ type SignatureNotifier struct {
 	host         host.Host
 	notifierLock *sync.Mutex
 	notifiers    map[string]*notifier
-	streamMgr    *p2p.StreamMgr
+	streamMgr    *p2p.StreamManager
 }
 
 // NewSignatureNotifier create a new instance of SignatureNotifier
@@ -47,7 +47,7 @@ func NewSignatureNotifier(host host.Host, logger zerolog.Logger) *SignatureNotif
 		host:         host,
 		notifierLock: &sync.Mutex{},
 		notifiers:    make(map[string]*notifier),
-		streamMgr:    p2p.NewStreamMgr(logger),
+		streamMgr:    p2p.NewStreamManager(logger),
 		logger: logger.With().
 			Str(logs.Component, "signature_notifier").
 			Stringer(logs.Host, host.ID()).
@@ -112,7 +112,7 @@ func (s *SignatureNotifier) handleStream(stream network.Stream) {
 	payload, err := p2p.ReadStreamWithBuffer(stream)
 	if err != nil {
 		logger.Err(err).Msg("fail to read payload from stream")
-		s.streamMgr.AddStream("UNKNOWN", stream)
+		s.streamMgr.StashUnknown(stream)
 		return
 	}
 
@@ -125,30 +125,31 @@ func (s *SignatureNotifier) handleStream(stream network.Stream) {
 	var msg messages.KeysignSignature
 	if err := proto.Unmarshal(payload, &msg); err != nil {
 		logger.Err(err).Msg("fail to unmarshal join party request")
-		s.streamMgr.AddStream("UNKNOWN", stream)
+		s.streamMgr.StashUnknown(stream)
 		return
 	}
 
-	s.streamMgr.AddStream(msg.ID, stream)
+	s.streamMgr.Stash(msg.ID, stream)
+
+	success := msg.KeysignStatus == messages.KeysignSignature_Success && len(msg.Signatures) > 0
+	if !success {
+		return
+	}
 
 	var signatures []*common.SignatureData
-
-	// todo log failure and flip the condition
-
-	if len(msg.Signatures) > 0 && msg.KeysignStatus == messages.KeysignSignature_Success {
-		for _, el := range msg.Signatures {
-			var signature common.SignatureData
-			if err := proto.Unmarshal(el, &signature); err != nil {
-				logger.Error().Err(err).Msg("fail to unmarshal signature data")
-				return
-			}
-			signatures = append(signatures, &signature)
+	for _, el := range msg.Signatures {
+		var signature common.SignatureData
+		if err := proto.Unmarshal(el, &signature); err != nil {
+			logger.Error().Err(err).Msg("fail to unmarshal signature data")
+			return
 		}
 
-		_, err = s.createOrUpdateNotifier(msg.ID, nil, "", signatures, defaultNotifierTTL)
-		if err != nil {
-			s.logger.Error().Err(err).Msg("fail to update notifier")
-		}
+		signatures = append(signatures, &signature)
+	}
+
+	_, err = s.createOrUpdateNotifier(msg.ID, nil, "", signatures, defaultNotifierTTL)
+	if err != nil {
+		s.logger.Error().Err(err).Msg("fail to update notifier")
 	}
 }
 
@@ -161,12 +162,9 @@ func (s *SignatureNotifier) sendOneMsgToPeer(m *signatureItem) error {
 		return errors.Wrapf(err, "unable to create %s stream to peer", p2p.ProtocolSignatureNotifier)
 	}
 
-	s.logger.Debug().Stringer(logs.Peer, m.peerID).Msg("opened stream to peer successfully")
+	defer s.streamMgr.Stash(m.messageID, stream)
 
-	defer func() {
-		// todo: why we need to add stream to streamMgr here?
-		s.streamMgr.AddStream(m.messageID, stream)
-	}()
+	s.logger.Debug().Stringer(logs.Peer, m.peerID).Msg("opened stream to peer successfully")
 
 	ks := &messages.KeysignSignature{
 		ID:            m.messageID,
@@ -333,6 +331,6 @@ func (s *SignatureNotifier) WaitForSignature(
 	}
 }
 
-func (s *SignatureNotifier) ReleaseStream(msgID string) {
-	s.streamMgr.ReleaseStream(msgID)
+func (s *SignatureNotifier) FreeStreams(msgID string) {
+	s.streamMgr.Free(msgID)
 }
