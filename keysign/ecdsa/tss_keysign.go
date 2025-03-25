@@ -92,7 +92,7 @@ func (tKeySign *TssKeySign) startBatchSigning(partyMap *sync.Map, msgNum int) bo
 				return
 			}
 
-			tKeySign.logger.Info().Fields(logs.Party(party)).Msg("Local party is ready")
+			tKeySign.logger.Debug().Fields(logs.Party(party)).Msg("Local party is ready")
 		}(party)
 
 		return true

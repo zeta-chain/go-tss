@@ -186,7 +186,7 @@ func (t *Server) joinParty(
 		return nil, "", errors.New("no participants can be found")
 	}
 
-	t.logger.Info().Str(logs.MsgID, msgID).Msg("We apply the join party with a leader")
+	t.logger.Debug().Str(logs.MsgID, msgID).Msg("We apply the join party with a leader")
 
 	peersID, err := conversion.GetPeerIDsFromPubKeys(participants)
 	if err != nil {
