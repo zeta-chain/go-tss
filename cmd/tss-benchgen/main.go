@@ -165,7 +165,7 @@ outer:
 				}
 			} else { // point-to-point!
 				if dest[0].Index == msg.GetFrom().Index {
-					panic(fmt.Errorf("party %d tried to send a message to itself (%d)", dest[0].Index, msg.GetFrom().Index))
+					panic(errors.Errorf("party %d tried to send a message to itself (%d)", dest[0].Index, msg.GetFrom().Index))
 				}
 				go updater(parties[dest[0].Index], msg, errCh)
 			}

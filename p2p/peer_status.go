@@ -1,10 +1,10 @@
 package p2p
 
 import (
-	"errors"
 	"sync"
 
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 
 	"github.com/zeta-chain/go-tss/messages"

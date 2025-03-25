@@ -2,8 +2,6 @@ package ecdsa
 
 import (
 	"encoding/json"
-	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -12,6 +10,7 @@ import (
 	btss "github.com/bnb-chain/tss-lib/tss"
 	"github.com/btcsuite/btcd/btcec/v2"
 	tcrypto "github.com/cometbft/cometbft/crypto"
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 
 	"github.com/zeta-chain/go-tss/blame"
@@ -24,7 +23,7 @@ import (
 	"github.com/zeta-chain/go-tss/storage"
 )
 
-type TssKeyGen struct {
+type Keygen struct {
 	logger          zerolog.Logger
 	localNodePubKey string
 	preParams       *bkg.LocalPreParams
@@ -36,7 +35,7 @@ type TssKeyGen struct {
 	p2pComm         *p2p.Communication
 }
 
-func NewTssKeyGen(
+func New(
 	localP2PID string,
 	conf common.TssConfig,
 	localNodePubKey string,
@@ -48,13 +47,10 @@ func NewTssKeyGen(
 	privateKey tcrypto.PrivKey,
 	p2pComm *p2p.Communication,
 	logger zerolog.Logger,
-) *TssKeyGen {
-	logger = logger.With().
-		Str(logs.Component, "keygen").
-		Str(logs.MsgID, msgID).
-		Logger()
+) *Keygen {
+	logger = logger.With().Str(logs.Component, "keygen").Str(logs.MsgID, msgID).Logger()
 
-	return &TssKeyGen{
+	return &Keygen{
 		logger:          logger,
 		localNodePubKey: localNodePubKey,
 		preParams:       preParam,
@@ -67,48 +63,56 @@ func NewTssKeyGen(
 	}
 }
 
-func (tKeyGen *TssKeyGen) GetTssKeyGenChannels() chan *p2p.Message {
-	return tKeyGen.tssCommonStruct.TssMsg
+func (kg *Keygen) KeygenChannel() chan *p2p.Message {
+	return kg.tssCommonStruct.TssMsg
 }
 
-func (tKeyGen *TssKeyGen) GetTssCommonStruct() *common.TssCommon {
-	return tKeyGen.tssCommonStruct
+func (kg *Keygen) Common() *common.TssCommon {
+	return kg.tssCommonStruct
 }
 
-func (tKeyGen *TssKeyGen) GenerateNewKey(keygenReq keygen.Request) (*bcrypto.ECPoint, error) {
-	partiesID, localPartyID, err := conversion.GetParties(keygenReq.Keys, tKeyGen.localNodePubKey)
+func (kg *Keygen) GenerateNewKey(req keygen.Request) (*bcrypto.ECPoint, error) {
+	if kg.preParams == nil {
+		return nil, errors.New("pre-parameters are nil")
+	}
+
+	partiesID, localPartyID, err := conversion.GetParties(req.Keys, kg.localNodePubKey)
 	if err != nil {
-		return nil, fmt.Errorf("fail to get keygen parties: %w", err)
+		return nil, errors.Wrapf(err, "fail to get keygen parties")
 	}
 
 	keyGenLocalStateItem := storage.KeygenLocalState{
-		ParticipantKeys: keygenReq.Keys,
-		LocalPartyKey:   tKeyGen.localNodePubKey,
+		ParticipantKeys: req.Keys,
+		LocalPartyKey:   kg.localNodePubKey,
 	}
 
 	threshold, err := conversion.GetThreshold(len(partiesID))
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrapf(err, "fail to get threshold")
 	}
-	keyGenPartyMap := new(sync.Map)
-	ctx := btss.NewPeerContext(partiesID)
-	params := btss.NewParameters(btcec.S256(), ctx, localPartyID, len(partiesID), threshold)
-	outCh := make(chan btss.Message, len(partiesID))
-	endCh := make(chan bkg.LocalPartySaveData, len(partiesID))
-	errChan := make(chan struct{})
-	if tKeyGen.preParams == nil {
-		tKeyGen.logger.Error().Err(err).Msg("error, empty pre-parameters")
-		return nil, errors.New("error, empty pre-parameters")
+
+	var (
+		keyGenPartyMap = new(sync.Map)
+		ctx            = btss.NewPeerContext(partiesID)
+		params         = btss.NewParameters(btcec.S256(), ctx, localPartyID, len(partiesID), threshold)
+		outCh          = make(chan btss.Message, len(partiesID))
+		endCh          = make(chan bkg.LocalPartySaveData, len(partiesID))
+		errChan        = make(chan struct{})
+		blameMgr       = kg.tssCommonStruct.GetBlameMgr()
+		keyGenParty    = bkg.NewLocalParty(params, outCh, endCh, *kg.preParams)
+		partyIDMap     = conversion.SetupPartyIDMap(partiesID)
+	)
+
+	err = conversion.SetupIDMaps(partyIDMap, kg.tssCommonStruct.PartyIDtoP2PID)
+	if err != nil {
+		return nil, errors.Wrapf(err, "unable to setup ID maps #1")
 	}
-	blameMgr := tKeyGen.tssCommonStruct.GetBlameMgr()
-	keyGenParty := bkg.NewLocalParty(params, outCh, endCh, *tKeyGen.preParams)
-	partyIDMap := conversion.SetupPartyIDMap(partiesID)
-	err1 := conversion.SetupIDMaps(partyIDMap, tKeyGen.tssCommonStruct.PartyIDtoP2PID)
-	err2 := conversion.SetupIDMaps(partyIDMap, blameMgr.PartyIDtoP2PID)
-	if err1 != nil || err2 != nil {
-		tKeyGen.logger.Error().Msgf("error in creating mapping between partyID and P2P ID")
-		return nil, err
+
+	err = conversion.SetupIDMaps(partyIDMap, blameMgr.PartyIDtoP2PID)
+	if err != nil {
+		return nil, errors.Wrapf(err, "unable to setup ID maps #2")
 	}
+
 	// we never run multi keygen, so the moniker is set to default empty value
 	keyGenPartyMap.Store("", keyGenParty)
 	partyInfo := &common.PartyInfo{
@@ -116,82 +120,86 @@ func (tKeyGen *TssKeyGen) GenerateNewKey(keygenReq keygen.Request) (*bcrypto.ECP
 		PartyIDMap: partyIDMap,
 	}
 
-	tKeyGen.tssCommonStruct.SetPartyInfo(partyInfo)
+	kg.tssCommonStruct.SetPartyInfo(partyInfo)
 	blameMgr.SetPartyInfo(keyGenPartyMap, partyIDMap)
-	tKeyGen.tssCommonStruct.P2PPeersLock.Lock()
-	tKeyGen.tssCommonStruct.P2PPeers = conversion.GetPeersID(
-		tKeyGen.tssCommonStruct.PartyIDtoP2PID,
-		tKeyGen.tssCommonStruct.GetLocalPeerID(),
+	kg.tssCommonStruct.P2PPeersLock.Lock()
+	kg.tssCommonStruct.P2PPeers = conversion.GetPeersID(
+		kg.tssCommonStruct.PartyIDtoP2PID,
+		kg.tssCommonStruct.GetLocalPeerID(),
 	)
-	tKeyGen.tssCommonStruct.P2PPeersLock.Unlock()
+	kg.tssCommonStruct.P2PPeersLock.Unlock()
+
 	var keyGenWg sync.WaitGroup
 	keyGenWg.Add(2)
+
 	// start keygen
 	go func() {
 		defer keyGenWg.Done()
-		defer tKeyGen.logger.Debug().Msg(">>>>>>>>>>>>>.keyGenParty started")
+		defer kg.logger.Debug().Msg(">>>>>>>>>>>>>.keyGenParty started")
 		if err := keyGenParty.Start(); nil != err {
-			tKeyGen.logger.Error().Err(err).Msg("fail to start keygen party")
+			kg.logger.Error().Err(err).Msg("fail to start keygen party")
 			close(errChan)
 		}
 	}()
-	go tKeyGen.tssCommonStruct.ProcessInboundMessages(tKeyGen.commStopChan, &keyGenWg)
 
-	r, err := tKeyGen.processKeyGen(errChan, outCh, endCh, keyGenLocalStateItem)
+	go kg.tssCommonStruct.ProcessInboundMessages(kg.commStopChan, &keyGenWg)
+
+	r, err := kg.processKeyGen(errChan, outCh, endCh, keyGenLocalStateItem)
 	if err != nil {
-		close(tKeyGen.commStopChan)
-		return nil, fmt.Errorf("fail to process key sign: %w", err)
+		close(kg.commStopChan)
+		return nil, errors.Wrapf(err, "failed to process key sign")
 	}
+
 	select {
 	case <-time.After(time.Second * 5):
-		close(tKeyGen.commStopChan)
-
-	case <-tKeyGen.tssCommonStruct.GetTaskDone():
-		close(tKeyGen.commStopChan)
+		close(kg.commStopChan)
+	case <-kg.tssCommonStruct.GetTaskDone():
+		close(kg.commStopChan)
 	}
 
 	keyGenWg.Wait()
+
 	return r, err
 }
 
-func (tKeyGen *TssKeyGen) processKeyGen(errChan chan struct{},
+func (kg *Keygen) processKeyGen(errChan chan struct{},
 	outCh <-chan btss.Message,
 	endCh <-chan bkg.LocalPartySaveData,
 	keyGenLocalStateItem storage.KeygenLocalState) (*bcrypto.ECPoint, error) {
-	defer tKeyGen.logger.Debug().Msg("finished keygen process")
-	tKeyGen.logger.Debug().Msg("start to read messages from local party")
-	tssConf := tKeyGen.tssCommonStruct.GetConf()
-	blameMgr := tKeyGen.tssCommonStruct.GetBlameMgr()
+	defer kg.logger.Debug().Msg("finished keygen process")
+	kg.logger.Debug().Msg("start to read messages from local party")
+	tssConf := kg.tssCommonStruct.GetConf()
+	blameMgr := kg.tssCommonStruct.GetBlameMgr()
 	for {
 		select {
 		case <-errChan: // when keyGenParty return
-			tKeyGen.logger.Error().Msg("key gen failed")
+			kg.logger.Error().Msg("key gen failed")
 			return nil, errors.New("error channel closed fail to start local party")
 
-		case <-tKeyGen.stopChan: // when TSS processor receive signal to quit
+		case <-kg.stopChan: // when TSS processor receive signal to quit
 			return nil, errors.New("received exit signal")
 
 		case <-time.After(tssConf.KeyGenTimeout):
 			// we bail out after KeyGenTimeoutSeconds
-			tKeyGen.logger.Error().Msgf("fail to generate message with %s", tssConf.KeyGenTimeout.String())
+			kg.logger.Error().Msgf("fail to generate message with %s", tssConf.KeyGenTimeout.String())
 			lastMsg := blameMgr.GetLastMsg()
 			failReason := blameMgr.GetBlame().FailReason
 			if failReason == "" {
 				failReason = blame.TssTimeout
 			}
 			if lastMsg == nil {
-				tKeyGen.logger.Error().Msg("fail to start the keygen, the last produced message of this node is none")
+				kg.logger.Error().Msg("fail to start the keygen, the last produced message of this node is none")
 				return nil, errors.New("timeout before shared message is generated")
 			}
 			blameNodesUnicast, err := blameMgr.GetUnicastBlame(messages.KEYGEN2aUnicast)
 			if err != nil {
-				tKeyGen.logger.Error().Err(err).Msg("error in get unicast blame")
+				kg.logger.Error().Err(err).Msg("error in get unicast blame")
 			}
-			tKeyGen.tssCommonStruct.P2PPeersLock.RLock()
-			threshold, err := conversion.GetThreshold(len(tKeyGen.tssCommonStruct.P2PPeers) + 1)
-			tKeyGen.tssCommonStruct.P2PPeersLock.RUnlock()
+			kg.tssCommonStruct.P2PPeersLock.RLock()
+			threshold, err := conversion.GetThreshold(len(kg.tssCommonStruct.P2PPeers) + 1)
+			kg.tssCommonStruct.P2PPeersLock.RUnlock()
 			if err != nil {
-				tKeyGen.logger.Error().Err(err).Msg("error in get the threshold to generate blame")
+				kg.logger.Error().Err(err).Msg("error in get the threshold to generate blame")
 			}
 
 			if len(blameNodesUnicast) > 0 && len(blameNodesUnicast) <= threshold {
@@ -199,18 +207,18 @@ func (tKeyGen *TssKeyGen) processKeyGen(errChan chan struct{},
 			}
 			blameNodesBroadcast, err := blameMgr.GetBroadcastBlame(lastMsg.Type())
 			if err != nil {
-				tKeyGen.logger.Error().Err(err).Msg("error in get broadcast blame")
+				kg.logger.Error().Err(err).Msg("error in get broadcast blame")
 			}
 			blameMgr.GetBlame().AddBlameNodes(blameNodesBroadcast...)
 
 			// if we cannot find the blame node, we check whether everyone send me the share
 			if len(blameMgr.GetBlame().BlameNodes) == 0 {
-				blameNodesMisingShare, isUnicast, err := blameMgr.TssMissingShareBlame(
+				blameNodesMisingShare, isUnicast, err := blameMgr.TSSMissingShareBlame(
 					messages.TSSKEYGENROUNDS,
 					messages.ECDSAKEYGEN,
 				)
 				if err != nil {
-					tKeyGen.logger.Error().Err(err).Msg("fail to get the node of missing share ")
+					kg.logger.Error().Err(err).Msg("fail to get the node of missing share ")
 				}
 				if len(blameNodesMisingShare) > 0 && len(blameNodesMisingShare) <= threshold {
 					blameMgr.GetBlame().AddBlameNodes(blameNodesMisingShare...)
@@ -220,38 +228,42 @@ func (tKeyGen *TssKeyGen) processKeyGen(errChan chan struct{},
 			return nil, blame.ErrTimeoutTSS
 
 		case msg := <-outCh:
-			tKeyGen.logger.Debug().Msgf(">>>>>>>>>>msg: %s", msg.String())
+			kg.logger.Debug().Msgf(">>>>>>>>>>msg: %s", msg.String())
 			blameMgr.SetLastMsg(msg)
-			err := tKeyGen.tssCommonStruct.ProcessOutCh(msg, messages.TSSKeyGenMsg)
+			err := kg.tssCommonStruct.ProcessOutCh(msg, messages.TSSKeyGenMsg)
 			if err != nil {
-				tKeyGen.logger.Error().Err(err).Msg("fail to process the message")
-				return nil, err
+				return nil, errors.Wrapf(err, "failed to ProcessOutCh")
 			}
 
 		case msg := <-endCh:
-			tKeyGen.logger.Debug().Msgf("keygen finished successfully: %s", msg.ECDSAPub.Y().String())
-			err := tKeyGen.tssCommonStruct.NotifyTaskDone()
+			kg.logger.Debug().Msgf("keygen finished successfully: %s", msg.ECDSAPub.Y().String())
+
+			err := kg.tssCommonStruct.NotifyTaskDone()
 			if err != nil {
-				tKeyGen.logger.Error().Err(err).Msg("fail to broadcast the keysign done")
+				kg.logger.Error().Err(err).Msg("fail to broadcast the keysign done")
 			}
+
 			pubKey, _, err := conversion.GetTssPubKeyECDSA(msg.ECDSAPub)
 			if err != nil {
-				return nil, fmt.Errorf("fail to get thorchain pubkey: %w", err)
+				return nil, errors.Wrapf(err, "failed to get thorchain pubkey")
 			}
+
 			marshaledMsg, err := json.Marshal(msg)
 			if err != nil {
-				tKeyGen.logger.Error().Err(err).Msg("fail to marshal the result")
-				return nil, errors.New("fail to marshal the result")
+				return nil, errors.Wrap(err, "failed to marshal LocalPartySaveData")
 			}
+
 			keyGenLocalStateItem.LocalData = marshaledMsg
 			keyGenLocalStateItem.PubKey = pubKey
-			if err := tKeyGen.stateManager.SaveLocalState(keyGenLocalStateItem); err != nil {
-				return nil, fmt.Errorf("fail to save keygen result to storage: %w", err)
+			if err := kg.stateManager.SaveLocalState(keyGenLocalStateItem); err != nil {
+				return nil, errors.Wrapf(err, "failed to save keygen result to storage")
 			}
-			address := tKeyGen.p2pComm.ExportPeerAddress()
-			if err := tKeyGen.stateManager.SaveAddressBook(address); err != nil {
-				tKeyGen.logger.Error().Err(err).Msg("fail to save the peer addresses")
+
+			address := kg.p2pComm.ExportPeerAddress()
+			if err := kg.stateManager.SaveAddressBook(address); err != nil {
+				kg.logger.Error().Err(err).Msg("failed to save the peer addresses")
 			}
+
 			return msg.ECDSAPub, nil
 		}
 	}

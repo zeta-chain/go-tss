@@ -5,12 +5,13 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/pkg/errors"
 
 	btsskeygen "github.com/bnb-chain/tss-lib/ecdsa/keygen"
 	btss "github.com/bnb-chain/tss-lib/tss"
@@ -440,7 +441,7 @@ func (t *TssTestSuite) testVerMsgAndUpdate(
 	err = tssCommonStruct.ProcessOneMessage(wrappedVerMsg, tssCommonStruct.PartyIDtoP2PID[partiesID[1].Id].String())
 	c.Assert(err, NotNil)
 	// workaround: when we hit this error, in this test, it indicates we accept the share.
-	if !strings.Contains(err.Error(), "fail to update the message to local party: proto:") {
+	if !strings.Contains(err.Error(), "unable to update the message TSSKeyGenVerMsg to local party") {
 		c.Fatalf("error \"%v\" did not match the expected one", err.Error())
 	}
 }

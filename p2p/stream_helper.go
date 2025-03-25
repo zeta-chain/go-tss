@@ -2,23 +2,25 @@ package p2p
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/binary"
-	"fmt"
 	"io"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/libp2p/go-libp2p/core/network"
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
+
+	"github.com/zeta-chain/go-tss/logs"
 )
 
 const (
 	LengthHeader        = 4 // LengthHeader represent how many bytes we used as header
-	TimeoutReadPayload  = time.Second * 20
-	TimeoutWritePayload = time.Second * 20
-	MaxPayload          = 20000000 // 20M
+	TimeoutReadPayload  = 20 * time.Second
+	TimeoutWritePayload = 20 * time.Second
+	MaxPayload          = 20 * 1024 * 1024 // 20M
 )
 
 // applyDeadline will be true , and only disable it when we are doing test
@@ -31,52 +33,60 @@ func init() {
 
 type StreamMgr struct {
 	unusedStreams map[string][]network.Stream
-	streamLocker  *sync.RWMutex
+	mu            *sync.RWMutex
 	logger        zerolog.Logger
 }
 
-func NewStreamMgr() *StreamMgr {
+func NewStreamMgr(logger zerolog.Logger) *StreamMgr {
 	return &StreamMgr{
 		unusedStreams: make(map[string][]network.Stream),
-		streamLocker:  &sync.RWMutex{},
-		logger:        log.With().Str("module", "communication").Logger(),
+		mu:            &sync.RWMutex{},
+		logger:        logger.With().Str(logs.Component, "stream_manager").Logger(),
 	}
 }
 
 func (sm *StreamMgr) ReleaseStream(msgID string) {
-	sm.streamLocker.RLock()
+	sm.mu.RLock()
 	usedStreams, okStream := sm.unusedStreams[msgID]
 	unknownStreams, okUnknown := sm.unusedStreams["UNKNOWN"]
 	streams := append(usedStreams, unknownStreams...)
-	sm.streamLocker.RUnlock()
-	if okStream || okUnknown {
-		for _, el := range streams {
-			err := el.Reset()
-			if err != nil {
-				sm.logger.Error().Err(err).Msg("fail to reset the stream,skip it")
-			}
-		}
-		sm.streamLocker.Lock()
-		delete(sm.unusedStreams, msgID)
-		delete(sm.unusedStreams, "UNKNOWN")
-		sm.streamLocker.Unlock()
+	sm.mu.RUnlock()
+
+	// noop
+	if !(okStream || okUnknown) {
+		return
 	}
+
+	for _, stream := range streams {
+		if err := stream.Reset(); err != nil {
+			sm.logger.Error().Err(err).
+				Str(logs.MsgID, msgID).
+				Str("stream_id", stream.ID()).
+				Msg("Failed to reset the stream")
+		}
+	}
+
+	sm.mu.Lock()
+	delete(sm.unusedStreams, msgID)
+	delete(sm.unusedStreams, "UNKNOWN")
+	sm.mu.Unlock()
 }
 
 func (sm *StreamMgr) AddStream(msgID string, stream network.Stream) {
 	if stream == nil {
 		return
 	}
-	sm.streamLocker.Lock()
-	defer sm.streamLocker.Unlock()
+
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
 	entries, ok := sm.unusedStreams[msgID]
 	if !ok {
-		entries := []network.Stream{stream}
-		sm.unusedStreams[msgID] = entries
-	} else {
-		entries = append(entries, stream)
-		sm.unusedStreams[msgID] = entries
+		sm.unusedStreams[msgID] = []network.Stream{stream}
+		return
 	}
+
+	sm.unusedStreams[msgID] = append(entries, stream)
 }
 
 // ReadStreamWithBuffer read data from the given stream
@@ -89,57 +99,64 @@ func ReadStreamWithBuffer(stream network.Stream) ([]byte, error) {
 			return nil, err
 		}
 	}
+
 	streamReader := bufio.NewReader(stream)
-	lengthBytes := make([]byte, LengthHeader)
-	n, err := io.ReadFull(streamReader, lengthBytes)
-	if n != LengthHeader || err != nil {
-		return nil, fmt.Errorf("error in read the message head %w", err)
+
+	header := make([]byte, LengthHeader)
+	n, err := io.ReadFull(streamReader, header)
+	if err != nil {
+		return nil, errors.Wrapf(err, "unable to read header from the stream (got %d bytes)", n)
 	}
-	length := binary.LittleEndian.Uint32(lengthBytes)
-	if length > MaxPayload {
-		return nil, fmt.Errorf("payload length:%d exceed max payload length:%d", length, MaxPayload)
+
+	payloadSize := binary.LittleEndian.Uint32(header)
+	if payloadSize > MaxPayload {
+		return nil, errors.Errorf("stream payload exceeded (got %d, max %d)", payloadSize, MaxPayload)
 	}
-	dataBuf := make([]byte, length)
-	n, err = io.ReadFull(streamReader, dataBuf)
-	if uint32(n) != length || err != nil {
-		return nil, fmt.Errorf(
-			"short read err(%w), we would like to read: %d, however we only read: %d",
-			err,
-			length,
-			n,
-		)
+
+	result := make([]byte, payloadSize)
+
+	n, err = io.ReadFull(streamReader, result)
+	if err != nil {
+		return nil, errors.Wrapf(err, "unable to read payload from the stream (got %d/%d bytes)", n, payloadSize)
 	}
-	return dataBuf, nil
+
+	return result, nil
 }
 
 // WriteStreamWithBuffer write the message to stream
 func WriteStreamWithBuffer(msg []byte, stream network.Stream) error {
-	length := uint32(len(msg))
-	lengthBytes := make([]byte, LengthHeader)
-	binary.LittleEndian.PutUint32(lengthBytes, length)
+	const uint32Size = 4
+	if len(msg) > (MaxPayload - uint32Size) {
+		return errors.Errorf("payload size exceeded (got %d, max %d)", len(msg), MaxPayload)
+	}
+
 	if ApplyDeadline.Load() {
-		if err := stream.SetWriteDeadline(time.Now().Add(TimeoutWritePayload)); nil != err {
+		deadline := time.Now().Add(TimeoutWritePayload)
+
+		if err := stream.SetWriteDeadline(deadline); err != nil {
 			if errReset := stream.Reset(); errReset != nil {
-				return errReset
+				return errors.Wrap(errReset, "failed to reset stream during failure in write deadline")
 			}
-			return err
+
+			return errors.Wrap(err, "failed to set write deadline")
 		}
 	}
-	streamWrite := bufio.NewWriter(stream)
-	n, err := streamWrite.Write(lengthBytes)
-	if n != LengthHeader || err != nil {
-		return fmt.Errorf("fail to write head: %w", err)
+
+	// Create header containing the message length
+	header := make([]byte, LengthHeader)
+	msgLen := uint32(len(msg))
+	binary.LittleEndian.PutUint32(header, msgLen)
+
+	// Create buffer containing the header and message
+	buf := bytes.NewBuffer(header)
+	if _, err := buf.Write(msg); err != nil {
+		return errors.Wrap(err, "failed to write message to buffer")
 	}
-	n, err = streamWrite.Write(msg)
+
+	n, err := stream.Write(buf.Bytes())
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "stream write failed (wrote %d/%d bytes)", n, buf.Len())
 	}
-	if uint32(n) != length {
-		return fmt.Errorf("short write, we would like to write: %d, however we only write: %d", length, n)
-	}
-	err = streamWrite.Flush()
-	if err != nil {
-		return fmt.Errorf("fail to flush stream: %w", err)
-	}
+
 	return nil
 }

@@ -1,33 +1,32 @@
 package blame
 
 import (
-	"errors"
-	"fmt"
-
 	btss "github.com/bnb-chain/tss-lib/tss"
 	mapset "github.com/deckarep/golang-set"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/pkg/errors"
 
 	"github.com/zeta-chain/go-tss/conversion"
 	"github.com/zeta-chain/go-tss/messages"
 )
 
 func (m *Manager) tssTimeoutBlame(lastMessageType string, partyIDMap map[string]*btss.PartyID) ([]string, error) {
+	standbyNodes := m.roundMgr.GetByRound(lastMessageType)
+	if len(standbyNodes) == 0 {
+		return nil, nil
+	}
+
+	standbySet := mapset.NewSet()
+	for _, v := range standbyNodes {
+		standbySet.Add(v)
+	}
+
 	peersSet := mapset.NewSet()
 	for _, el := range partyIDMap {
 		if el.Id != m.localPartyID {
 			peersSet.Add(el.Id)
 		}
 	}
-	standbyNodes := m.roundMgr.GetByRound(lastMessageType)
-	if len(standbyNodes) == 0 {
-		return nil, nil
-	}
-	s := make([]interface{}, len(standbyNodes))
-	for i, v := range standbyNodes {
-		s[i] = v
-	}
-	standbySet := mapset.NewSetFromSlice(s)
 
 	var blames []string
 	diff := peersSet.Difference(standbySet).ToSlice()
@@ -37,8 +36,7 @@ func (m *Manager) tssTimeoutBlame(lastMessageType string, partyIDMap map[string]
 
 	blamePubKeys, err := conversion.AccPubKeysFromPartyIDs(blames, m.partyInfo.PartyIDMap)
 	if err != nil {
-		m.logger.Error().Err(err).Msg("fail to get the public keys of the blame node")
-		return nil, err
+		return nil, errors.Wrap(err, "unable to derive blame public keys")
 	}
 
 	return blamePubKeys, nil
@@ -47,39 +45,47 @@ func (m *Manager) tssTimeoutBlame(lastMessageType string, partyIDMap map[string]
 // this blame blames the node who cause the timeout in node sync
 func (m *Manager) NodeSyncBlame(keys []string, onlinePeers []peer.ID) (Blame, error) {
 	blame := NewBlame(TssSyncFail, nil)
+
 	for _, item := range keys {
 		found := false
 		peerID, err := conversion.GetPeerIDFromPubKey(item)
 		if err != nil {
-			return blame, fmt.Errorf("fail to get peer id from pub key")
+			return blame, errors.Wrap(err, "unable to get peer id from pub key")
 		}
+
 		for _, p := range onlinePeers {
 			if p == peerID {
 				found = true
 				break
 			}
 		}
+
 		if !found {
 			blame.BlameNodes = append(blame.BlameNodes, NewNode(item, nil, nil))
 		}
 	}
+
 	return blame, nil
 }
 
 // this blame blames the node who cause the timeout in unicast message
 func (m *Manager) GetUnicastBlame(lastMsgType string) ([]Node, error) {
 	m.lastMsgLocker.RLock()
+
 	if len(m.lastUnicastPeer) == 0 {
 		m.lastMsgLocker.RUnlock()
 		m.logger.Debug().Msg("we do not have any unicast message received yet")
 		return nil, nil
 	}
+
 	peersMap := make(map[string]bool)
 	peersID, ok := m.lastUnicastPeer[lastMsgType]
 	m.lastMsgLocker.RUnlock()
+
 	if !ok {
-		return nil, fmt.Errorf("fail to find peers of the given msg type %w", ErrTimeoutTSS)
+		return nil, errors.Wrap(ErrTimeoutTSS, "fail to find peers of the given msg type")
 	}
+
 	for _, el := range peersID {
 		peersMap[el.String()] = true
 	}
@@ -88,15 +94,17 @@ func (m *Manager) GetUnicastBlame(lastMsgType string) ([]Node, error) {
 	for key := range peersMap {
 		onlinePeers = append(onlinePeers, key)
 	}
+
 	_, blamePeers, err := m.GetBlamePubKeysLists(onlinePeers)
 	if err != nil {
-		m.logger.Error().Err(err).Msg("fail to get the blamed peers")
-		return nil, fmt.Errorf("fail to get the blamed peers %w", ErrTimeoutTSS)
+		return nil, errors.Wrap(err, "unable to get the blamed peers")
 	}
+
 	var blameNodes []Node
 	for _, el := range blamePeers {
 		blameNodes = append(blameNodes, NewNode(el, nil, nil))
 	}
+
 	return blameNodes, nil
 }
 
@@ -104,39 +112,44 @@ func (m *Manager) GetUnicastBlame(lastMsgType string) ([]Node, error) {
 func (m *Manager) GetBroadcastBlame(lastMessageType string) ([]Node, error) {
 	blamePeers, err := m.tssTimeoutBlame(lastMessageType, m.partyInfo.PartyIDMap)
 	if err != nil {
-		m.logger.Error().Err(err).Msg("fail to get the blamed peers")
-		return nil, fmt.Errorf("fail to get the blamed peers %w", ErrTimeoutTSS)
+		return nil, errors.Wrap(err, "tssTimeoutBlame")
 	}
+
 	var blameNodes []Node
 	for _, el := range blamePeers {
 		blameNodes = append(blameNodes, NewNode(el, nil, nil))
 	}
+
 	return blameNodes, nil
 }
 
-// this blame blames the node who provide the wrong share
-func (m *Manager) TssWrongShareBlame(wiredMsg *messages.WireMessage) (string, error) {
+// TSSWrongShareBlame blames the node who provide the wrong share
+func (m *Manager) TSSWrongShareBlame(wiredMsg *messages.WireMessage) (string, error) {
 	shareOwner := wiredMsg.Routing.From
 	owner, ok := m.partyInfo.PartyIDMap[shareOwner.Id]
 	if !ok {
-		m.logger.Error().Msg("cannot find the blame node public key")
-		return "", errors.New("fail to find the share Owner")
+		return "", errors.New("unable to find the share owner")
 	}
+
 	pk, err := conversion.PartyIDtoPubKey(owner)
 	if err != nil {
-		return "", err
+		return "", errors.Wrap(err, "unable to convert party id to pub key")
 	}
+
 	return pk, nil
 }
 
-// this blame blames the node fail to send the shares to the node
+// TSSMissingShareBlame blames the node fail to send the shares to the node
 // with batch signing, we need to put the accepted shares into different message group
-// then search the missing share for each keysign message
-func (m *Manager) TssMissingShareBlame(rounds int, algo messages.Algo) ([]Node, bool, error) {
-	acceptedShareForMsg := make(map[string][][]string)
-	var blameNodes []Node
-	var peers []string
-	isUnicast := false
+// then search the missing share for each keysign message.
+func (m *Manager) TSSMissingShareBlame(rounds int, algo messages.Algo) ([]Node, bool, error) {
+	var (
+		acceptedShareForMsg = make(map[string][][]string)
+		blameNodes          []Node
+		peers               []string
+		isUnicast           bool
+	)
+
 	m.acceptShareLocker.Lock()
 	for roundInfo, value := range m.acceptedShares {
 		cachedShares, ok := acceptedShareForMsg[roundInfo.MsgIdentifier]
@@ -146,6 +159,19 @@ func (m *Manager) TssMissingShareBlame(rounds int, algo messages.Algo) ([]Node, 
 			acceptedShareForMsg[roundInfo.MsgIdentifier] = cachedShares
 			continue
 		}
+
+		// should not happen
+		if roundInfo.Index >= len(cachedShares) {
+			m.logger.Error().
+				Int("round_index", roundInfo.Index).
+				Int("cached_shares_len", len(cachedShares)).
+				Int("rounds", rounds).
+				Int("algo", int(algo)).
+				Msg("Unexpected round index")
+
+			continue
+		}
+
 		cachedShares[roundInfo.Index] = value
 	}
 	m.acceptShareLocker.Unlock()
@@ -198,8 +224,9 @@ func (m *Manager) TssMissingShareBlame(rounds int, algo messages.Algo) ([]Node, 
 		}
 		blamePubKeys, err := m.getBlamePubKeysNotInList(peers)
 		if err != nil {
-			return nil, isUnicast, err
+			return nil, isUnicast, errors.Wrap(err, "getBlamePubKeysNotInList")
 		}
+
 		for _, el := range blamePubKeys {
 			node := Node{
 				el,

@@ -14,8 +14,8 @@ import (
 // Service TSS key generation service
 type Service interface {
 	GenerateNewKey(request Request) (*crypto.ECPoint, error)
-	GetTssKeyGenChannels() chan *p2p.Message
-	GetTssCommonStruct() *common.TssCommon
+	KeygenChannel() chan *p2p.Message
+	Common() *common.TssCommon
 }
 
 // Request request to do keygen

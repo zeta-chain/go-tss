@@ -176,7 +176,7 @@ func (s *EddsaKeygenTestSuite) TestGenerateNewKey(c *C) {
 				zlog.Logger,
 			)
 			c.Assert(keygenInstance, NotNil)
-			keygenMsgChannel := keygenInstance.GetTssKeyGenChannels()
+			keygenMsgChannel := keygenInstance.KeygenChannel()
 			comm.SetSubscribe(messages.TSSKeyGenMsg, messageID, keygenMsgChannel)
 			comm.SetSubscribe(messages.TSSKeyGenVerMsg, messageID, keygenMsgChannel)
 			comm.SetSubscribe(messages.TSSControlMsg, messageID, keygenMsgChannel)
@@ -238,5 +238,5 @@ func (s *EddsaKeygenTestSuite) TestCloseKeyGennotifyChannel(c *C) {
 	err = keyGenInstance.tssCommonStruct.ProcessOneMessage(msg, "node2")
 	c.Assert(err, IsNil)
 	err = keyGenInstance.tssCommonStruct.ProcessOneMessage(msg, "node1")
-	c.Assert(err, ErrorMatches, "duplicated notification from peer node1 ignored")
+	c.Assert(err, ErrorMatches, "duplicated notification from peer node1")
 }
