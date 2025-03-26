@@ -9,10 +9,11 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/protocol"
-	"github.com/magiconair/properties/assert"
 )
 
 const testProtocolID protocol.ID = "/p2p/test-stream"
@@ -235,24 +236,51 @@ func TestReadPayload(t *testing.T) {
 }
 
 func TestStreamManager(t *testing.T) {
-	streamMgr := NewStreamManager(zerolog.New(zerolog.NewTestWriter(t)))
-	stream := NewMockNetworkStream()
+	// ARRANGE
+	streamManager := NewStreamManager(zerolog.New(zerolog.NewTestWriter(t)))
 
-	streamMgr.Stash("1", nil)
-	assert.Equal(t, len(streamMgr.streams), 0)
-	streamMgr.Stash("1", stream)
-	streamMgr.Stash("2", stream)
-	streamMgr.Stash("3", stream)
-	streamMgr.Free("1")
-	_, ok := streamMgr.streams["2"]
-	assert.Equal(t, ok, true)
-	_, ok = streamMgr.streams["3"]
-	assert.Equal(t, ok, true)
-	streamMgr.Free("2")
-	_, ok = streamMgr.streams["2"]
-	assert.Equal(t, ok, false)
-	streamMgr.Free("3")
-	assert.Equal(t, len(streamMgr.streams), 0)
-	streamMgr.Free("3")
-	assert.Equal(t, len(streamMgr.streams), 0)
+	streamA := NewMockNetworkStream()
+	streamA.id = 10
+
+	streamB := NewMockNetworkStream()
+	streamB.id = 20
+
+	streamC := NewMockNetworkStream()
+	streamC.id = 30
+
+	streamD := NewMockNetworkStream()
+	streamD.id = 40
+
+	// ACT
+
+	// noop
+	streamManager.Stash("1", nil)
+	require.Equal(t, 0, len(streamManager.streams))
+
+	streamManager.Stash("1", streamA)
+	streamManager.Stash("2", streamB)
+	streamManager.Stash("3", streamC)
+	streamManager.Stash("3", streamD)
+
+	streamManager.Free("1")
+
+	_, ok := streamManager.streams["10"]
+	assert.False(t, ok)
+
+	si, ok := streamManager.streams["20"]
+	assert.True(t, ok)
+	assert.Equal(t, "2", si.msgID)
+
+	_, ok = streamManager.streams["30"]
+	assert.True(t, ok)
+
+	streamManager.Free("2")
+	_, ok = streamManager.streams["20"]
+	assert.False(t, ok)
+
+	streamManager.Free("3")
+	assert.Equal(t, 0, len(streamManager.streams))
+
+	streamManager.Free("3")
+	assert.Equal(t, 0, len(streamManager.streams))
 }
