@@ -8,7 +8,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
@@ -224,7 +223,7 @@ func (pc *PartyCoordinator) sendResponseToAll(msg *messages.JoinPartyLeaderComm,
 		}
 
 		errGroup.Go(func() error {
-			err := pc.sendMsgToPeer(msgSend, msg.ID, peer, ProtocolJoinPartyWithLeader, true)
+			err := pc.sendMsgToPeer(msg.ID, peer, msgSend, true)
 			if err != nil {
 				pc.logger.Error().Err(err).
 					Str(logs.MsgID, msg.ID).
@@ -245,33 +244,29 @@ func (pc *PartyCoordinator) sendRequestToLeader(msg *messages.JoinPartyLeaderCom
 		return errors.Wrap(err, "failed to marshall request")
 	}
 
-	if err := pc.sendMsgToPeer(msgSend, msg.ID, leader, ProtocolJoinPartyWithLeader, false); err != nil {
+	if err := pc.sendMsgToPeer(msg.ID, leader, msgSend, false); err != nil {
 		return errors.Wrap(err, "sendMsgToPeer")
 	}
 
 	return nil
 }
 
-func (pc *PartyCoordinator) sendMsgToPeer(
-	msgBuf []byte,
-	msgID string,
-	remotePeer peer.ID,
-	protoID protocol.ID,
-	needResponse bool,
-) error {
+func (pc *PartyCoordinator) sendMsgToPeer(msgID string, pid peer.ID, payload []byte, needResponse bool) error {
+	const protoID = ProtocolJoinPartyWithLeader
+
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*4)
 	defer cancel()
 
-	pc.logger.Debug().Msgf("try to open stream to (%s) ", remotePeer)
+	pc.logger.Debug().Msgf("try to open stream to (%s) ", pid)
 
-	stream, err := pc.host.NewStream(ctx, remotePeer, protoID)
+	stream, err := pc.host.NewStream(ctx, pid, protoID)
 	if err != nil {
-		return errors.Wrapf(err, "failed to create %s stream to peer %q", protoID, remotePeer.String())
+		return errors.Wrapf(err, "failed to create %s stream to peer %q", protoID, pid.String())
 	}
 
 	defer pc.streamMgr.Stash(msgID, stream)
 
-	if err = WriteStreamWithBuffer(msgBuf, stream); err != nil {
+	if err = WriteStreamWithBuffer(payload, stream); err != nil {
 		return errors.Wrap(err, "failed to write message to opened stream")
 	}
 
@@ -286,7 +281,7 @@ func (pc *PartyCoordinator) sendMsgToPeer(
 	case err != nil:
 		pc.logger.Error().Err(err).
 			Str(logs.MsgID, msgID).
-			Stringer(logs.Peer, remotePeer).
+			Stringer(logs.Peer, pid).
 			Msg("Failed to await the response from peer")
 	}
 
