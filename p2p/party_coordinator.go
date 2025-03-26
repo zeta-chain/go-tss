@@ -81,7 +81,7 @@ func (pc *PartyCoordinator) processRespMsg(respMsg *messages.JoinPartyLeaderComm
 			Stringer(logs.Peer, remotePeer).
 			Msg("message id from peer can not be found")
 
-		pc.streamMgr.FreeNow(respMsg.ID, stream)
+		pc.streamMgr.ResetStream(respMsg.ID, stream)
 		return
 	}
 
@@ -119,7 +119,7 @@ func (pc *PartyCoordinator) processReqMsg(requestMsg *messages.JoinPartyLeaderCo
 
 	if !ok {
 		pc.logger.Info().Str(logs.MsgID, requestMsg.ID).Msg("This party is not ready")
-		pc.streamMgr.FreeNow(requestMsg.ID, stream)
+		pc.streamMgr.ResetStream(requestMsg.ID, stream)
 		return
 	}
 
