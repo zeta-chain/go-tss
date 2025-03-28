@@ -24,8 +24,8 @@ const (
 
 const unknown = "unknown"
 
-// applyDeadline will be true , and only disable it when we are doing test
-// the reason being the p2p network , mocknet, mock stream doesn't support SetReadDeadline ,SetWriteDeadline feature
+// ApplyDeadline will be true, and only disable it when we are doing test
+// the reason being the p2p network, mocknet, mock stream doesn't support SetReadDeadline ,SetWriteDeadline feature
 var ApplyDeadline = &atomic.Bool{}
 
 func init() {
