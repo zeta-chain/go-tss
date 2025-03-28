@@ -26,15 +26,8 @@ import (
 	"github.com/zeta-chain/go-tss/messages"
 )
 
-var joinPartyProtocolWithLeader protocol.ID = "/p2p/join-party-leader"
-
-// TSSProtocolID protocol id used for tss
-var TSSProtocolID protocol.ID = "/p2p/tss"
-
-const (
-	// TimeoutConnecting maximum time for wait for peers to connect
-	TimeoutConnecting = time.Second * 20
-)
+// TimeoutConnecting maximum time for wait for peers to connect
+const TimeoutConnecting = 20 * time.Second
 
 // Message that get transfer across the wire
 type Message struct {
@@ -55,7 +48,7 @@ type Communication struct {
 	streamCount      int64
 	BroadcastMsgChan chan *messages.BroadcastMsgChan
 	externalAddr     maddr.Multiaddr
-	streamMgr        *StreamMgr
+	streamMgr        *StreamManager
 	whitelistedPeers []peer.ID
 }
 
@@ -67,6 +60,8 @@ func NewCommunication(
 	whitelistedPeers []peer.ID,
 	logger zerolog.Logger,
 ) (*Communication, error) {
+	logger = logger.With().Str(logs.Component, "communication").Logger()
+
 	listenTo := fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", port)
 
 	addr, err := maddr.NewMultiaddr(listenTo)
@@ -86,7 +81,7 @@ func NewCommunication(
 
 	return &Communication{
 		bootstrapPeers:   bootstrapPeers,
-		logger:           logger.With().Str(logs.Component, "communication").Logger(),
+		logger:           logger,
 		listenAddr:       addr,
 		wg:               &sync.WaitGroup{},
 		stopChan:         make(chan struct{}),
@@ -95,7 +90,7 @@ func NewCommunication(
 		streamCount:      0,
 		BroadcastMsgChan: make(chan *messages.BroadcastMsgChan, 1024),
 		externalAddr:     externalAddr,
-		streamMgr:        NewStreamMgr(logger),
+		streamMgr:        NewStreamManager(logger),
 		whitelistedPeers: whitelistedPeers,
 	}, nil
 }
@@ -115,21 +110,22 @@ func (c *Communication) Broadcast(peers []peer.ID, msg []byte, msgID string) {
 	if len(peers) == 0 {
 		return
 	}
+
 	// try to discover all peers and then broadcast the messages
-	c.wg.Add(1)
 	go c.broadcastToPeers(peers, msg, msgID)
 }
 
 func (c *Communication) broadcastToPeers(peers []peer.ID, msg []byte, msgID string) {
+	c.wg.Add(1)
 	defer c.wg.Done()
-	defer func() {
-		c.logger.Debug().Msgf("finished sending message to peer(%v)", peers)
-	}()
+
 	var wgSend sync.WaitGroup
 	wgSend.Add(len(peers))
+
 	for _, p := range peers {
 		go func(p peer.ID) {
 			defer wgSend.Done()
+
 			if err := c.writeToStream(p, msg, msgID); nil != err {
 				c.logger.Error().Err(err).
 					Stringer(logs.Peer, p).
@@ -138,27 +134,26 @@ func (c *Communication) broadcastToPeers(peers []peer.ID, msg []byte, msgID stri
 			}
 		}(p)
 	}
+
 	wgSend.Wait()
 }
 
-func (c *Communication) writeToStream(pID peer.ID, msg []byte, msgID string) error {
-	// don't send to ourselves
-	if pID == c.host.ID() {
+func (c *Communication) writeToStream(pid peer.ID, msg []byte, msgID string) error {
+	if pid == c.host.ID() {
 		return nil
 	}
 
-	stream, err := c.connectToOnePeer(pID)
-	switch {
-	case err != nil:
-		return errors.Wrap(err, "connectToOnePeer failed")
-	case stream == nil:
-		return nil
+	c.logger.Debug().Stringer(logs.Peer, pid).Msg("Connecting to peer")
+
+	ctx, cancel := context.WithTimeout(context.Background(), TimeoutConnecting)
+	defer cancel()
+
+	stream, err := c.host.NewStream(ctx, pid, ProtocolTSS)
+	if err != nil {
+		return errors.Wrapf(err, "unable to create %s stream to peer", ProtocolTSS)
 	}
 
-	// todo: why we need to add stream here?
-	defer func() {
-		c.streamMgr.AddStream(msgID, stream)
-	}()
+	defer c.streamMgr.Stash(msgID, stream)
 
 	return WriteStreamWithBuffer(msg, stream)
 }
@@ -167,36 +162,34 @@ func (c *Communication) readFromStream(stream network.Stream) {
 	peerID := stream.Conn().RemotePeer().String()
 	c.logger.Debug().Str(logs.Peer, peerID).Msg("Reading from peer's stream")
 
-	const timeout = 10 * time.Second
-
 	payload, err := ReadStreamWithBuffer(stream)
 	if err != nil {
 		c.logger.Error().Err(err).Str(logs.Peer, peerID).Msg("Failed to read from stream")
-		c.streamMgr.AddStream("UNKNOWN", stream)
+		c.streamMgr.StashUnknown(stream)
 		return
 	}
 
 	var wrappedMsg messages.WrappedMessage
 	if err := json.Unmarshal(payload, &wrappedMsg); nil != err {
 		c.logger.Error().Err(err).Msg("Failed to unmarshal WrappedMessage")
-		c.streamMgr.AddStream("UNKNOWN", stream)
+		c.streamMgr.StashUnknown(stream)
 		return
 	}
 
 	channel := c.getSubscriber(wrappedMsg.MessageType, wrappedMsg.MsgID)
-	if nil == channel {
-		c.logger.Debug().Msgf("no MsgID %s found for this message", wrappedMsg.MsgID)
-		c.logger.Debug().Msgf("no MsgID %s found for this message", wrappedMsg.MessageType)
-		_ = stream.Reset()
+	if channel == nil {
+		c.streamMgr.StashUnknown(stream)
 		return
 	}
 
-	c.streamMgr.AddStream(wrappedMsg.MsgID, stream)
+	c.streamMgr.Stash(wrappedMsg.MsgID, stream)
 
 	msg := &Message{
 		PeerID:  stream.Conn().RemotePeer(),
 		Payload: payload,
 	}
+
+	const timeout = 10 * time.Second
 
 	select {
 	case channel <- msg:
@@ -299,7 +292,7 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 
 	scalingLimits.ProtocolPeerBaseLimit = protocolPeerBaseLimit
 	scalingLimits.ProtocolPeerLimitIncrease = protocolPeerLimitIncrease
-	for _, item := range []protocol.ID{joinPartyProtocolWithLeader, TSSProtocolID} {
+	for _, item := range []protocol.ID{ProtocolJoinPartyWithLeader, ProtocolTSS} {
 		scalingLimits.AddProtocolLimit(item, protocolPeerBaseLimit, protocolPeerLimitIncrease)
 		scalingLimits.AddProtocolPeerLimit(item, protocolPeerBaseLimit, protocolPeerLimitIncrease)
 	}
@@ -347,7 +340,7 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 		Stringer("address", maddr.Join(h.Addrs()...)).
 		Msgf("HOST CREATED")
 
-	h.SetStreamHandler(TSSProtocolID, c.handleStream)
+	h.SetStreamHandler(ProtocolTSS, c.handleStream)
 
 	for i := 0; i < 5; i++ {
 		if err = c.connectToBootstrapPeers(); err == nil {
@@ -364,27 +357,6 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 	}
 
 	return errors.Wrapf(err, "fail to connect to bootstrap peer")
-}
-
-func (c *Communication) connectToOnePeer(pid peer.ID) (network.Stream, error) {
-	c.logger.Debug().Msgf("peer:%s,current:%s", pid, c.host.ID())
-
-	// don't connect to itself
-	if pid == c.host.ID() {
-		return nil, nil
-	}
-
-	c.logger.Debug().Stringer(logs.Peer, pid).Msg("Connecting to peer")
-
-	ctx, cancel := context.WithTimeout(context.Background(), TimeoutConnecting)
-	defer cancel()
-
-	stream, err := c.host.NewStream(ctx, pid, TSSProtocolID)
-	if err != nil {
-		return nil, errors.Wrapf(err, "unable to create %s stream to peer", TSSProtocolID)
-	}
-
-	return stream, nil
 }
 
 func (c *Communication) connectToBootstrapPeers() error {
@@ -529,6 +501,6 @@ func (c *Communication) ProcessBroadcast() {
 	}
 }
 
-func (c *Communication) ReleaseStream(msgID string) {
-	c.streamMgr.ReleaseStream(msgID)
+func (c *Communication) FreeStreams(msgID string) {
+	c.streamMgr.Free(msgID)
 }

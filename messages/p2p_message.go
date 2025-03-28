@@ -7,7 +7,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
-// THORChainTSSMessageType  represent the messgae type used in THORChain TSS
+// THORChainTSSMessageType represent the message type used in THORChain TSS
 type THORChainTSSMessageType uint8
 
 const (
@@ -19,17 +19,16 @@ const (
 	TSSKeyGenVerMsg
 	// TSSKeySignVerMsg is the message we create to make sure every party receive the same broadcast message
 	TSSKeySignVerMsg
-	// TSSControlMsg is the message we create to exchange Tss share
+	// TSSControlMsg is the message we create to exchange TSS share
 	TSSControlMsg
-	// TSSTaskDone is the message of Tss process notification
+	// TSSTaskDone is the message of TSS process notification
 	TSSTaskDone
 	// Unknown is the message indicates the undefined message type
 	Unknown
 )
 
-// String implement fmt.Stringer
-func (msgType THORChainTSSMessageType) String() string {
-	switch msgType {
+func (t THORChainTSSMessageType) String() string {
+	switch t {
 	case TSSKeyGenMsg:
 		return "TSSKeyGenMsg"
 	case TSSKeySignMsg:
@@ -38,8 +37,14 @@ func (msgType THORChainTSSMessageType) String() string {
 		return "TSSKeyGenVerMsg"
 	case TSSKeySignVerMsg:
 		return "TSSKeySignVerMsg"
-	default:
+	case TSSControlMsg:
+		return "TSSControlMsg"
+	case TSSTaskDone:
+		return "TSSTaskDone"
+	case Unknown:
 		return "Unknown"
+	default:
+		return fmt.Sprintf("Unknown(%d)", t)
 	}
 }
 

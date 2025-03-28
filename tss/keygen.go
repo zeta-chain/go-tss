@@ -75,8 +75,8 @@ func (t *Server) Keygen(req keygen.Request) (keygen.Response, error) {
 		t.p2pCommunication.CancelSubscribe(messages.TSSControlMsg, msgID)
 		t.p2pCommunication.CancelSubscribe(messages.TSSTaskDone, msgID)
 
-		t.p2pCommunication.ReleaseStream(msgID)
-		t.partyCoordinator.ReleaseStream(msgID)
+		t.p2pCommunication.FreeStreams(msgID)
+		t.partyCoordinator.FreeStreams(msgID)
 	}()
 
 	sigChan := make(chan string)
@@ -110,7 +110,7 @@ func (t *Server) Keygen(req keygen.Request) (keygen.Response, error) {
 			t.logger.Error().Err(err).Msg("failed to blame nodes for joinParty failure")
 		}
 
-		leaderPubKey, err := conversion.GetPubKeyFromPeerID(leader)
+		leaderPubKey, err := conversion.GetPubKeyFromPeerID(leader.String())
 		if err != nil {
 			t.logger.Error().Err(err).Msgf("failed to convert peerID->pubkey for leader %s", leader)
 			blameLeader = blame.NewBlame(blame.TssSyncFail, []blame.Node{})
@@ -253,8 +253,8 @@ func (t *Server) KeygenAllAlgo(req keygen.Request) ([]keygen.Response, error) {
 			t.p2pCommunication.CancelSubscribe(messages.TSSControlMsg, msgID)
 			t.p2pCommunication.CancelSubscribe(messages.TSSTaskDone, msgID)
 
-			t.p2pCommunication.ReleaseStream(msgID)
-			t.partyCoordinator.ReleaseStream(msgID)
+			t.p2pCommunication.FreeStreams(msgID)
+			t.partyCoordinator.FreeStreams(msgID)
 		}()
 	}
 	sigChan := make(chan string)
@@ -283,7 +283,7 @@ func (t *Server) KeygenAllAlgo(req keygen.Request) ([]keygen.Response, error) {
 		if err != nil {
 			t.logger.Err(errJoinParty).Msg("fail to get peers to blame")
 		}
-		leaderPubKey, err := conversion.GetPubKeyFromPeerID(leader)
+		leaderPubKey, err := conversion.GetPubKeyFromPeerID(leader.String())
 		if err != nil {
 			t.logger.Error().Err(errJoinParty).Msgf("fail to convert the peerID to public key with leader %s", leader)
 			blameLeader = blame.NewBlame(blame.TssSyncFail, []blame.Node{})

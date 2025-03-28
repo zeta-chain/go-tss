@@ -9,6 +9,7 @@ import (
 
 	tnet "github.com/libp2p/go-libp2p-testing/net"
 	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/peer"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -41,7 +42,7 @@ func setupHosts(t *testing.T, n int) []host.Host {
 	return hosts
 }
 
-func leaderAppearsLastTest(t *testing.T, msgID string, peers []string, pcs []*PartyCoordinator) {
+func leaderAppearsLastTest(t *testing.T, msgID string, peers []peer.ID, pcs []*PartyCoordinator) {
 	wg := sync.WaitGroup{}
 
 	for _, el := range pcs[1:] {
@@ -71,7 +72,7 @@ func leaderAppearsLastTest(t *testing.T, msgID string, peers []string, pcs []*Pa
 	wg.Wait()
 }
 
-func leaderAppersFirstTest(t *testing.T, msgID string, peers []string, pcs []*PartyCoordinator) {
+func leaderAppearsFirstTest(t *testing.T, msgID string, peers []peer.ID, pcs []*PartyCoordinator) {
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	// we start the leader firstly
@@ -104,12 +105,12 @@ func TestNewPartyCoordinator(t *testing.T) {
 
 	hosts := setupHosts(t, 4)
 	var pcs []*PartyCoordinator
-	var peers []string
+	var peers []peer.ID
 
 	timeout := time.Second * 4
 	for _, el := range hosts {
 		pcs = append(pcs, NewPartyCoordinator(el, timeout, log))
-		peers = append(peers, el.ID().String())
+		peers = append(peers, el.ID())
 	}
 
 	defer func() {
@@ -119,12 +120,12 @@ func TestNewPartyCoordinator(t *testing.T) {
 	}()
 
 	msgID := conversion.RandStringBytesMask(64)
-	leader, err := LeaderNode(msgID, 10, peers)
+	leader, err := PickLeader(msgID, 10, peers)
 	assert.NoError(t, err)
 
 	// we sort the slice to ensure the leader is the first one easy for testing
 	for i, el := range pcs {
-		if el.host.ID().String() == leader {
+		if el.host.ID() == leader {
 			if i == 0 {
 				break
 			}
@@ -134,9 +135,9 @@ func TestNewPartyCoordinator(t *testing.T) {
 			break
 		}
 	}
-	assert.Equal(t, pcs[0].host.ID().String(), leader)
+	assert.Equal(t, pcs[0].host.ID(), leader)
 	// now we test the leader appears firstly and the the members
-	leaderAppersFirstTest(t, msgID, peers, pcs)
+	leaderAppearsFirstTest(t, msgID, peers, pcs)
 	leaderAppearsLastTest(t, msgID, peers, pcs)
 }
 
@@ -146,7 +147,7 @@ func TestNewPartyCoordinatorTimeOut(t *testing.T) {
 	timeout := time.Second * 3
 	hosts := setupHosts(t, 4)
 	var pcs []*PartyCoordinator
-	var peers []string
+	var peers []peer.ID
 	for _, el := range hosts {
 		pcs = append(pcs, NewPartyCoordinator(el, timeout, log))
 	}
@@ -154,7 +155,7 @@ func TestNewPartyCoordinatorTimeOut(t *testing.T) {
 		return pcs[i].host.ID().String() > pcs[j].host.ID().String()
 	})
 	for _, el := range pcs {
-		peers = append(peers, el.host.ID().String())
+		peers = append(peers, el.host.ID())
 	}
 
 	defer func() {
@@ -165,12 +166,12 @@ func TestNewPartyCoordinatorTimeOut(t *testing.T) {
 
 	msgID := conversion.RandStringBytesMask(64)
 	wg := sync.WaitGroup{}
-	leader, err := LeaderNode(msgID, 10, peers)
+	leader, err := PickLeader(msgID, 10, peers)
 	assert.NoError(t, err)
 
 	// we sort the slice to ensure the leader is the first one easy for testing
 	for i, el := range pcs {
-		if el.host.ID().String() == leader {
+		if el.host.ID() == leader {
 			if i == 0 {
 				break
 			}
@@ -180,7 +181,7 @@ func TestNewPartyCoordinatorTimeOut(t *testing.T) {
 			break
 		}
 	}
-	assert.Equal(t, pcs[0].host.ID().String(), leader)
+	assert.Equal(t, pcs[0].host.ID(), leader)
 
 	// we test the leader is offline
 	for _, el := range pcs[1:] {

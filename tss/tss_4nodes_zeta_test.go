@@ -244,6 +244,11 @@ func (s *FourNodeScaleZetaSuite) getTssServer(c *C, index int, conf common.TssCo
 		whitelistedPeers = append(whitelistedPeers, peer)
 	}
 
+	logger := zlog.With().
+		Int("test.node_index", index).
+		Int("test.node_port", s.ports[index]).
+		Logger()
+
 	networkConfig := NetworkConfig{
 		TssConfig:        conf,
 		ExternalIP:       "",
@@ -258,7 +263,7 @@ func (s *FourNodeScaleZetaSuite) getTssServer(c *C, index int, conf common.TssCo
 		priKey,
 		"password",
 		s.preParams[index],
-		zlog.Logger,
+		logger,
 	)
 
 	c.Assert(err, IsNil)
