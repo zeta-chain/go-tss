@@ -114,7 +114,8 @@ func (tKeySign *TssKeySign) SignMessage(
 		return nil, errors.Wrap(err, "fail to form key sign party")
 	}
 
-	// todo should we return error here? like ErrNotInTheParty
+	// TODO should we return error here? like ErrNotInTheParty
+	// https://github.com/zeta-chain/go-tss/issues/58
 	if !common.Contains(partiesID, localPartyID) {
 		tKeySign.logger.Info().Msg("we are not in this rounds key sign")
 		return nil, nil

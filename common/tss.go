@@ -880,7 +880,8 @@ func (t *TssCommon) processTSSMsg(
 	return t.applyShare(localCacheItem, threshold, key, msgType)
 }
 
-// todo should we skip unknown message types?
+// TODO should we skip unknown message types?
+// https://github.com/zeta-chain/go-tss/issues/57
 func getBroadcastMessageType(msgType messages.THORChainTSSMessageType) messages.THORChainTSSMessageType {
 	switch msgType {
 	case messages.TSSKeyGenMsg:
