@@ -181,24 +181,19 @@ func (t *Server) joinParty(
 	participants []string,
 	threshold int,
 	sigChan chan string,
-) ([]peer.ID, string, error) {
+) ([]peer.ID, peer.ID, error) {
 	if len(participants) == 0 {
 		return nil, "", errors.New("no participants can be found")
 	}
 
-	t.logger.Info().Str(logs.MsgID, msgID).Msg("We apply the join party with a leader")
+	t.logger.Debug().Str(logs.MsgID, msgID).Msg("We apply the join party with a leader")
 
 	peersID, err := conversion.GetPeerIDsFromPubKeys(participants)
 	if err != nil {
 		return nil, "", errors.New("fail to convert the public key to peer ID")
 	}
 
-	var peersIDStr []string
-	for _, el := range peersID {
-		peersIDStr = append(peersIDStr, el.String())
-	}
-
-	return t.partyCoordinator.JoinPartyWithLeader(msgID, blockHeight, peersIDStr, threshold, sigChan)
+	return t.partyCoordinator.JoinPartyWithLeader(msgID, blockHeight, peersID, threshold, sigChan)
 }
 
 // GetLocalPeerID return the local peer

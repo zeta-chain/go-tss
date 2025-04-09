@@ -40,6 +40,7 @@ func newNotifier(
 	if len(messageID) == 0 {
 		return nil, errors.New("messageID is empty")
 	}
+
 	return &notifier{
 		messageID:   messageID,
 		messages:    messages,

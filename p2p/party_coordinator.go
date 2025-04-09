@@ -8,7 +8,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
@@ -28,13 +27,13 @@ var (
 )
 
 type PartyCoordinator struct {
-	logger             zerolog.Logger
-	host               host.Host
-	stopChan           chan struct{}
-	timeout            time.Duration
-	peersGroup         map[string]*peerStatus
-	joinPartyGroupLock *sync.Mutex
-	streamMgr          *StreamMgr
+	logger     zerolog.Logger
+	host       host.Host
+	stopChan   chan struct{}
+	timeout    time.Duration
+	peersGroup map[string]*peerStatus
+	mu         *sync.Mutex
+	streamMgr  *StreamManager
 }
 
 // NewPartyCoordinator create a new instance of PartyCoordinator
@@ -47,16 +46,16 @@ func NewPartyCoordinator(host host.Host, timeout time.Duration, logger zerolog.L
 	}
 
 	pc := &PartyCoordinator{
-		logger:             logger,
-		host:               host,
-		stopChan:           make(chan struct{}),
-		timeout:            timeout,
-		peersGroup:         make(map[string]*peerStatus),
-		joinPartyGroupLock: &sync.Mutex{},
-		streamMgr:          NewStreamMgr(logger),
+		logger:     logger,
+		host:       host,
+		stopChan:   make(chan struct{}),
+		timeout:    timeout,
+		peersGroup: make(map[string]*peerStatus),
+		mu:         &sync.Mutex{},
+		streamMgr:  NewStreamManager(logger),
 	}
 
-	host.SetStreamHandler(joinPartyProtocolWithLeader, pc.HandleStreamWithLeader)
+	host.SetStreamHandler(ProtocolJoinPartyWithLeader, pc.HandleStreamWithLeader)
 
 	return pc
 }
@@ -64,26 +63,28 @@ func NewPartyCoordinator(host host.Host, timeout time.Duration, logger zerolog.L
 // Stop the PartyCoordinator rune
 func (pc *PartyCoordinator) Stop() {
 	defer pc.logger.Info().Msg("stopping party coordinator")
-	pc.host.RemoveStreamHandler(joinPartyProtocolWithLeader)
+	pc.host.RemoveStreamHandler(ProtocolJoinPartyWithLeader)
 	close(pc.stopChan)
 }
 
 func (pc *PartyCoordinator) processRespMsg(respMsg *messages.JoinPartyLeaderComm, stream network.Stream) {
 	remotePeer := stream.Conn().RemotePeer()
 
-	pc.joinPartyGroupLock.Lock()
+	pc.mu.Lock()
 	peerGroup, ok := pc.peersGroup[respMsg.ID]
-	pc.joinPartyGroupLock.Unlock()
+	pc.mu.Unlock()
 
 	if !ok {
 		pc.logger.Info().
+			Str(logs.MsgID, respMsg.ID).
 			Stringer(logs.Peer, remotePeer).
-			Msg("message ID from peer can not be found")
-		_ = stream.Reset()
+			Msg("message id from peer can not be found")
+
+		pc.streamMgr.ResetStream(respMsg.ID, stream)
 		return
 	}
 
-	pc.streamMgr.AddStream(respMsg.ID, stream)
+	defer pc.streamMgr.Stash(respMsg.ID, stream)
 
 	leaderID := peerGroup.getLeader()
 
@@ -100,7 +101,7 @@ func (pc *PartyCoordinator) processRespMsg(respMsg *messages.JoinPartyLeaderComm
 	peerGroup.setLeaderResponse(respMsg)
 	peerGroup.notify <- true
 
-	err := WriteStreamWithBuffer([]byte("done"), stream)
+	err := WriteStreamWithBuffer([]byte(ResponseMessage), stream)
 	if err != nil {
 		pc.logger.Error().Err(err).
 			Stringer(logs.Peer, remotePeer).
@@ -111,17 +112,17 @@ func (pc *PartyCoordinator) processRespMsg(respMsg *messages.JoinPartyLeaderComm
 }
 
 func (pc *PartyCoordinator) processReqMsg(requestMsg *messages.JoinPartyLeaderComm, stream network.Stream) {
-	pc.streamMgr.AddStream(requestMsg.ID, stream)
-
-	pc.joinPartyGroupLock.Lock()
+	pc.mu.Lock()
 	peerGroup, ok := pc.peersGroup[requestMsg.ID]
-	pc.joinPartyGroupLock.Unlock()
+	pc.mu.Unlock()
 
 	if !ok {
-		_ = stream.Reset()
 		pc.logger.Info().Str(logs.MsgID, requestMsg.ID).Msg("This party is not ready")
+		pc.streamMgr.ResetStream(requestMsg.ID, stream)
 		return
 	}
+
+	pc.streamMgr.Stash(requestMsg.ID, stream)
 
 	remotePeer := stream.Conn().RemotePeer()
 	partyFormed, err := peerGroup.updatePeer(remotePeer)
@@ -129,6 +130,7 @@ func (pc *PartyCoordinator) processReqMsg(requestMsg *messages.JoinPartyLeaderCo
 		pc.logger.Error().Err(err).Msg("receive msg from unknown peer")
 		return
 	}
+
 	if partyFormed {
 		peerGroup.notify <- true
 	}
@@ -137,46 +139,44 @@ func (pc *PartyCoordinator) processReqMsg(requestMsg *messages.JoinPartyLeaderCo
 // HandleStream handle party coordinate stream
 func (pc *PartyCoordinator) HandleStreamWithLeader(stream network.Stream) {
 	remotePeer := stream.Conn().RemotePeer()
+
 	logger := pc.logger.With().Stringer(logs.Peer, remotePeer).Logger()
 	logger.Debug().Msg("reading from join party request")
+
 	payload, err := ReadStreamWithBuffer(stream)
 	if err != nil {
 		logger.Err(err).Msg("fail to read payload from stream")
-		pc.streamMgr.AddStream("UNKNOWN", stream)
+		pc.streamMgr.StashUnknown(stream)
 		return
 	}
 
 	var msg messages.JoinPartyLeaderComm
-	err = proto.Unmarshal(payload, &msg)
-	if err != nil {
+
+	if err = proto.Unmarshal(payload, &msg); err != nil {
 		logger.Err(err).Msg("fail to unmarshal party data")
-		pc.streamMgr.AddStream("UNKNOWN", stream)
+		pc.streamMgr.StashUnknown(stream)
 		return
 	}
 
 	logger.Debug().Msgf("received message type=%s", msg.MsgType)
 
 	switch msg.MsgType {
-	case "request":
+	case msgTypeRequest:
 		pc.processReqMsg(&msg, stream)
 		return
-	case "response":
+	case msgTypeResponse:
 		pc.processRespMsg(&msg, stream)
-		err := WriteStreamWithBuffer([]byte("done"), stream)
-		if err != nil {
-			pc.logger.Error().Err(err).Msg("Failed to send response to leader")
-		}
 		return
 	default:
 		logger.Err(err).Msg("fail to process this message")
-		pc.streamMgr.AddStream("UNKNOWN", stream)
+		pc.streamMgr.StashUnknown(stream)
 		return
 	}
 }
 
 func (pc *PartyCoordinator) RemovePeerGroup(messageID string) {
-	pc.joinPartyGroupLock.Lock()
-	defer pc.joinPartyGroupLock.Unlock()
+	pc.mu.Lock()
+	defer pc.mu.Unlock()
 	delete(pc.peersGroup, messageID)
 }
 
@@ -186,13 +186,14 @@ func (pc *PartyCoordinator) createJoinPartyGroups(
 	peerIDs []peer.ID,
 	threshold int,
 ) (*peerStatus, error) {
-	pc.joinPartyGroupLock.Lock()
-	defer pc.joinPartyGroupLock.Unlock()
+	pc.mu.Lock()
+	defer pc.mu.Unlock()
 	peerStatus := newPeerStatus(peerIDs, pc.host.ID(), leaderID, threshold)
 	pc.peersGroup[messageID] = peerStatus
 	return peerStatus, nil
 }
 
+// todo drop this function and use []peer.ID
 func (pc *PartyCoordinator) getPeerIDs(ids []string) ([]peer.ID, error) {
 	result := make([]peer.ID, len(ids))
 	for i, item := range ids {
@@ -222,7 +223,7 @@ func (pc *PartyCoordinator) sendResponseToAll(msg *messages.JoinPartyLeaderComm,
 		}
 
 		errGroup.Go(func() error {
-			err := pc.sendMsgToPeer(msgSend, msg.ID, peer, joinPartyProtocolWithLeader, true)
+			err := pc.sendMsgToPeer(msg.ID, peer, msgSend, true)
 			if err != nil {
 				pc.logger.Error().Err(err).
 					Str(logs.MsgID, msg.ID).
@@ -243,42 +244,29 @@ func (pc *PartyCoordinator) sendRequestToLeader(msg *messages.JoinPartyLeaderCom
 		return errors.Wrap(err, "failed to marshall request")
 	}
 
-	if err := pc.sendMsgToPeer(msgSend, msg.ID, leader, joinPartyProtocolWithLeader, false); err != nil {
+	if err := pc.sendMsgToPeer(msg.ID, leader, msgSend, false); err != nil {
 		return errors.Wrap(err, "sendMsgToPeer")
 	}
 
 	return nil
 }
 
-func (pc *PartyCoordinator) sendMsgToPeer(
-	msgBuf []byte,
-	msgID string,
-	remotePeer peer.ID,
-	protoID protocol.ID,
-	needResponse bool,
-) error {
+func (pc *PartyCoordinator) sendMsgToPeer(msgID string, pid peer.ID, payload []byte, needResponse bool) error {
+	const protoID = ProtocolJoinPartyWithLeader
+
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*4)
 	defer cancel()
 
-	pc.logger.Debug().Msgf("try to open stream to (%s) ", remotePeer)
-	stream, err := pc.host.NewStream(ctx, remotePeer, protoID)
+	pc.logger.Debug().Msgf("try to open stream to (%s) ", pid)
+
+	stream, err := pc.host.NewStream(ctx, pid, protoID)
 	if err != nil {
-		return errors.Wrapf(err, "failed to create %s stream to peer %q", protoID, remotePeer.String())
+		return errors.Wrapf(err, "failed to create %s stream to peer %q", protoID, pid.String())
 	}
 
-	defer func() {
-		// todo: why we need to add the stream to the stream manager here?
-		pc.streamMgr.AddStream(msgID, stream)
-		if err := stream.Close(); err != nil {
-			pc.logger.Error().Err(err).
-				Str(logs.MsgID, msgID).
-				Msg("Failed to close stream")
-		}
-	}()
+	defer pc.streamMgr.Stash(msgID, stream)
 
-	pc.logger.Debug().Msgf("open stream to (%s) successfully", remotePeer)
-
-	if err = WriteStreamWithBuffer(msgBuf, stream); err != nil {
+	if err = WriteStreamWithBuffer(payload, stream); err != nil {
 		return errors.Wrap(err, "failed to write message to opened stream")
 	}
 
@@ -286,10 +274,14 @@ func (pc *PartyCoordinator) sendMsgToPeer(
 		return nil
 	}
 
-	if _, err = ReadStreamWithBuffer(stream); err != nil {
+	_, err = ReadStreamWithBuffer(stream)
+	switch {
+	case errors.Is(err, network.ErrReset):
+		// expected case
+	case err != nil:
 		pc.logger.Error().Err(err).
 			Str(logs.MsgID, msgID).
-			Stringer(logs.Peer, remotePeer).
+			Stringer(logs.Peer, pid).
 			Msg("Failed to await the response from peer")
 	}
 
@@ -303,7 +295,7 @@ func (pc *PartyCoordinator) joinPartyMember(
 ) ([]peer.ID, error) {
 	leaderID := peerGroup.getLeader()
 	msg := messages.JoinPartyLeaderComm{
-		MsgType: "request",
+		MsgType: msgTypeRequest,
 		ID:      msgID,
 	}
 
@@ -357,7 +349,7 @@ func (pc *PartyCoordinator) joinPartyMember(
 	if peerGroup.getLeaderResponse() == nil {
 		leaderPk, err := conversion.GetPubKeyFromPeerID(leaderID.String())
 		if err != nil {
-			pc.logger.Error().Msg("received no response from the leader")
+			pc.logger.Error().Err(err).Msg("received no response from the leader")
 		} else {
 			pc.logger.Error().Str(logs.Leader, leaderPk).Msg("received no response from the leader")
 		}
@@ -365,12 +357,12 @@ func (pc *PartyCoordinator) joinPartyMember(
 	}
 
 	onlineNodes := peerGroup.getLeaderResponse().PeerIDs
-	// we trust the returned nodes returned by the leader, if tss fail, the leader
-	// also will get blamed.
+
+	// we trust the returned nodes returned by the leader,
+	// if tss fail, the leader also will get blamed.
 	pIDs, err := pc.getPeerIDs(onlineNodes)
 	if err != nil {
-		pc.logger.Error().Err(err).Msg("fail to parse peer ids")
-		return nil, err
+		return nil, errors.Wrap(err, "failed to parse peer ids")
 	}
 
 	if len(pIDs) < peerGroup.threshold {
@@ -385,7 +377,7 @@ func (pc *PartyCoordinator) joinPartyMember(
 	if stopped {
 		pc.logger.Trace().Msg("join party stopped")
 	} else {
-		pc.logger.Trace().Msg("join party timedout")
+		pc.logger.Trace().Msg("join party timed out")
 	}
 	return pIDs, ErrJoinPartyTimeout
 }
@@ -404,7 +396,7 @@ func (pc *PartyCoordinator) joinPartyLeader(
 		pc.logger.Debug().Msg("we have enough participants")
 	case <-time.After(pc.timeout / 2):
 		// timeout, reporting to peers before their timeout
-		pc.logger.Debug().Msgf("leader timedout waiting for peers after %s", pc.timeout/2)
+		pc.logger.Debug().Msgf("leader timed out waiting for peers after %s", pc.timeout/2)
 	case result := <-sigChan:
 		sigNotify = result
 	}
@@ -421,7 +413,7 @@ func (pc *PartyCoordinator) joinPartyLeader(
 	}
 
 	msg := messages.JoinPartyLeaderComm{
-		MsgType: "response",
+		MsgType: msgTypeResponse,
 		ID:      msgID,
 		Type:    messages.JoinPartyLeaderComm_Success,
 		PeerIDs: tssNodes,
@@ -445,42 +437,33 @@ func (pc *PartyCoordinator) joinPartyLeader(
 func (pc *PartyCoordinator) JoinPartyWithLeader(
 	msgID string,
 	blockHeight int64,
-	peers []string,
+	peers []peer.ID,
 	threshold int,
 	sigChan chan string,
-) ([]peer.ID, string, error) {
-	leader, err := LeaderNode(msgID, blockHeight, peers)
+) ([]peer.ID, peer.ID, error) {
+	leader, err := PickLeader(msgID, blockHeight, peers)
 	if err != nil {
-		return nil, "", err
+		return nil, "", errors.Wrap(err, "failed to pick leader")
 	}
 
-	leaderID, err := peer.Decode(leader)
+	peerGroup, err := pc.createJoinPartyGroups(msgID, leader, peers, threshold)
 	if err != nil {
-		return nil, "", err
-	}
-
-	peerIDs, err := pc.getPeerIDs(peers)
-	if err != nil {
-		return nil, "", err
-	}
-
-	peerGroup, err := pc.createJoinPartyGroups(msgID, leaderID, peerIDs, threshold)
-	if err != nil {
-		pc.logger.Error().Err(err).Msg("error creating peerStatus")
-		return nil, leader, err
+		return nil, leader, errors.Wrap(err, "error creating peerStatus")
 	}
 
 	defer pc.RemovePeerGroup(msgID)
 
-	if pc.host.ID() == leaderID {
-		onlines, err := pc.joinPartyLeader(msgID, peerGroup, sigChan)
-		return onlines, leader, err
+	if pc.host.ID() == leader {
+		onlinePeers, err := pc.joinPartyLeader(msgID, peerGroup, sigChan)
+
+		return onlinePeers, leader, err
 	}
+
 	// now we are just the normal peer
 	onlines, err := pc.joinPartyMember(msgID, peerGroup, sigChan)
 	return onlines, leader, err
 }
 
-func (pc *PartyCoordinator) ReleaseStream(msgID string) {
-	pc.streamMgr.ReleaseStream(msgID)
+func (pc *PartyCoordinator) FreeStreams(msgID string) {
+	pc.streamMgr.Free(msgID)
 }

@@ -9,10 +9,11 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/protocol"
-	"github.com/magiconair/properties/assert"
 )
 
 const testProtocolID protocol.ID = "/p2p/test-stream"
@@ -116,7 +117,7 @@ func TestReadLength(t *testing.T) {
 			expectError:    false,
 			streamProvider: func() network.Stream {
 				s := NewMockNetworkStream()
-				buf := make([]byte, LengthHeader)
+				buf := make([]byte, PayloadHeaderLen)
 				binary.LittleEndian.PutUint32(buf, 1024)
 				s.Buffer.Write(buf)
 				s.Buffer.Write(bytes.Repeat([]byte("a"), 1024))
@@ -130,7 +131,7 @@ func TestReadLength(t *testing.T) {
 			streamProvider: func() network.Stream {
 				s := NewMockNetworkStream()
 				s.errSetReadDeadLine = true
-				buf := make([]byte, LengthHeader)
+				buf := make([]byte, PayloadHeaderLen)
 				binary.LittleEndian.PutUint32(buf, 1024)
 				s.Buffer.Write(buf)
 				s.Buffer.Write(bytes.Repeat([]byte("a"), 1024))
@@ -143,7 +144,7 @@ func TestReadLength(t *testing.T) {
 			expectError:    false,
 			streamProvider: func() network.Stream {
 				s := NewMockNetworkStream()
-				buf := make([]byte, LengthHeader)
+				buf := make([]byte, PayloadHeaderLen)
 				binary.LittleEndian.PutUint32(buf, 1024)
 				s.Buffer.Write(buf)
 				s.Buffer.Write(bytes.Repeat([]byte("a"), 1026))
@@ -156,7 +157,7 @@ func TestReadLength(t *testing.T) {
 			expectError:    true,
 			streamProvider: func() network.Stream {
 				s := NewMockNetworkStream()
-				buf := make([]byte, LengthHeader)
+				buf := make([]byte, PayloadHeaderLen)
 				binary.LittleEndian.PutUint32(buf, 1024)
 				s.Buffer.Write(buf)
 				s.errRead = true
@@ -235,24 +236,51 @@ func TestReadPayload(t *testing.T) {
 }
 
 func TestStreamManager(t *testing.T) {
-	streamMgr := NewStreamMgr(zerolog.New(zerolog.NewTestWriter(t)))
-	stream := NewMockNetworkStream()
+	// ARRANGE
+	streamManager := NewStreamManager(zerolog.New(zerolog.NewTestWriter(t)))
 
-	streamMgr.AddStream("1", nil)
-	assert.Equal(t, len(streamMgr.unusedStreams), 0)
-	streamMgr.AddStream("1", stream)
-	streamMgr.AddStream("2", stream)
-	streamMgr.AddStream("3", stream)
-	streamMgr.ReleaseStream("1")
-	_, ok := streamMgr.unusedStreams["2"]
-	assert.Equal(t, ok, true)
-	_, ok = streamMgr.unusedStreams["3"]
-	assert.Equal(t, ok, true)
-	streamMgr.ReleaseStream("2")
-	_, ok = streamMgr.unusedStreams["2"]
-	assert.Equal(t, ok, false)
-	streamMgr.ReleaseStream("3")
-	assert.Equal(t, len(streamMgr.unusedStreams), 0)
-	streamMgr.ReleaseStream("3")
-	assert.Equal(t, len(streamMgr.unusedStreams), 0)
+	streamA := NewMockNetworkStream()
+	streamA.id = 10
+
+	streamB := NewMockNetworkStream()
+	streamB.id = 20
+
+	streamC := NewMockNetworkStream()
+	streamC.id = 30
+
+	streamD := NewMockNetworkStream()
+	streamD.id = 40
+
+	// ACT
+
+	// noop
+	streamManager.Stash("1", nil)
+	require.Equal(t, 0, len(streamManager.streams))
+
+	streamManager.Stash("1", streamA)
+	streamManager.Stash("2", streamB)
+	streamManager.Stash("3", streamC)
+	streamManager.Stash("3", streamD)
+
+	streamManager.Free("1")
+
+	_, ok := streamManager.streams["10"]
+	assert.False(t, ok)
+
+	si, ok := streamManager.streams["20"]
+	assert.True(t, ok)
+	assert.Equal(t, "2", si.msgID)
+
+	_, ok = streamManager.streams["30"]
+	assert.True(t, ok)
+
+	streamManager.Free("2")
+	_, ok = streamManager.streams["20"]
+	assert.False(t, ok)
+
+	streamManager.Free("3")
+	assert.Equal(t, 0, len(streamManager.streams))
+
+	streamManager.Free("3")
+	assert.Equal(t, 0, len(streamManager.streams))
 }
