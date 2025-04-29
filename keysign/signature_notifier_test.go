@@ -18,7 +18,6 @@ import (
 	"github.com/zeta-chain/go-tss/conversion"
 
 	"github.com/zeta-chain/go-tss/common"
-	"github.com/zeta-chain/go-tss/p2p"
 )
 
 func TestSignatureNotifierHappyPath(t *testing.T) {
@@ -31,7 +30,6 @@ func TestSignatureNotifierHappyPath(t *testing.T) {
 	assert.NoError(t, err)
 	messageID, err := common.MsgToHashString(buf)
 	assert.NoError(t, err)
-	p2p.ApplyDeadline.Store(false)
 	id1 := tnet.RandIdentityOrFatal(t)
 	id2 := tnet.RandIdentityOrFatal(t)
 	id3 := tnet.RandIdentityOrFatal(t)
@@ -104,7 +102,6 @@ func TestSignatureNotifierBroadcastFirst(t *testing.T) {
 	assert.NoError(t, err)
 	messageID, err := common.MsgToHashString(buf)
 	assert.NoError(t, err)
-	p2p.ApplyDeadline.Store(false)
 	id1 := tnet.RandIdentityOrFatal(t)
 	id2 := tnet.RandIdentityOrFatal(t)
 	id3 := tnet.RandIdentityOrFatal(t)

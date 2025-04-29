@@ -17,10 +17,6 @@ import (
 	"github.com/zeta-chain/go-tss/conversion"
 )
 
-func init() {
-	ApplyDeadline.Store(false)
-}
-
 func setupHosts(t *testing.T, n int) []host.Host {
 	mn := mocknet.New()
 
