@@ -14,16 +14,11 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 
+	"github.com/zeta-chain/go-tss/config"
 	"github.com/zeta-chain/go-tss/logs"
 )
 
-const (
-	TimeoutReadPayload  = 20 * time.Second
-	TimeoutWritePayload = 20 * time.Second
-	MaxPayload          = 20 * 1024 * 1024 // 20M
-)
-
-const unknown = "unknown"
+const unknownMsgID = "unknown"
 
 // StreamManager is responsible fro libp2p stream bookkeeping.
 // It can store streams by message id for latter release
@@ -93,7 +88,7 @@ func (sm *StreamManager) Stash(msgID string, stream network.Stream) {
 
 // StashUnknown adds an unknown stream to the manager for later release.
 func (sm *StreamManager) StashUnknown(stream network.Stream) {
-	sm.Stash(unknown, stream)
+	sm.Stash(unknownMsgID, stream)
 }
 
 // Free synchronously releases all streams by the given message id.
@@ -172,7 +167,7 @@ func (sm *StreamManager) cleanup() {
 			lifespan = time.Since(s.Stat().Opened)
 		)
 
-		if streamItem.msgID == unknown {
+		if streamItem.msgID == unknownMsgID {
 			unknownStreams++
 		}
 
@@ -207,7 +202,7 @@ func (sm *StreamManager) cleanup() {
 
 // ReadStreamWithBuffer read data from the given stream
 func ReadStreamWithBuffer(stream network.Stream) ([]byte, error) {
-	if err := applyDeadline(stream, TimeoutReadPayload, true); err != nil {
+	if err := applyDeadline(stream, config.StreamTimeoutRead, true); err != nil {
 		return nil, err
 	}
 
@@ -220,8 +215,8 @@ func ReadStreamWithBuffer(stream network.Stream) ([]byte, error) {
 	}
 
 	payloadSize := binary.LittleEndian.Uint32(header)
-	if payloadSize > MaxPayload {
-		return nil, errors.Errorf("stream payload exceeded (got %d, max %d)", payloadSize, MaxPayload)
+	if payloadSize > config.StreamMaxPayload {
+		return nil, errors.Errorf("stream payload exceeded (got %d, max %d)", payloadSize, config.StreamMaxPayload)
 	}
 
 	result := make([]byte, payloadSize)
@@ -236,11 +231,11 @@ func ReadStreamWithBuffer(stream network.Stream) ([]byte, error) {
 
 // WriteStreamWithBuffer write the message to stream
 func WriteStreamWithBuffer(msg []byte, stream network.Stream) error {
-	if len(msg) > (MaxPayload - PayloadHeaderLen) {
-		return errors.Errorf("payload size exceeded (got %d, max %d)", len(msg), MaxPayload)
+	if len(msg) > (config.StreamMaxPayload - PayloadHeaderLen) {
+		return errors.Errorf("payload size exceeded (got %d, max %d)", len(msg), config.StreamMaxPayload)
 	}
 
-	if err := applyDeadline(stream, TimeoutWritePayload, false); err != nil {
+	if err := applyDeadline(stream, config.StreamTimeoutWrite, false); err != nil {
 		return err
 	}
 

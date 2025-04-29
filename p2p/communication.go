@@ -22,12 +22,10 @@ import (
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/zeta-chain/go-tss/config"
 	"github.com/zeta-chain/go-tss/logs"
 	"github.com/zeta-chain/go-tss/messages"
 )
-
-// TimeoutConnecting maximum time for wait for peers to connect
-const TimeoutConnecting = 20 * time.Second
 
 // Message that get transfer across the wire
 type Message struct {
@@ -145,7 +143,7 @@ func (c *Communication) writeToStream(pid peer.ID, msg []byte, msgID string) err
 
 	c.logger.Debug().Stringer(logs.Peer, pid).Msg("Connecting to peer")
 
-	ctx, cancel := context.WithTimeout(context.Background(), TimeoutConnecting)
+	ctx, cancel := context.WithTimeout(context.Background(), config.StreamTimeoutConnect)
 	defer cancel()
 
 	stream, err := c.host.NewStream(ctx, pid, ProtocolTSS)
@@ -383,7 +381,7 @@ func (c *Communication) connectToBootstrapPeers() error {
 		}
 
 		errGroup.Go(func() error {
-			ctx, cancel := context.WithTimeout(context.Background(), TimeoutConnecting)
+			ctx, cancel := context.WithTimeout(context.Background(), config.StreamTimeoutConnect)
 			defer cancel()
 
 			if err := c.host.Connect(ctx, *pi); err != nil {
