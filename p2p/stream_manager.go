@@ -39,10 +39,12 @@ type streamItem struct {
 }
 
 // NewStreamManager StreamManager constructor.
-func NewStreamManager(logger zerolog.Logger) *StreamManager {
+func NewStreamManager(logger zerolog.Logger, maxAgeBeforeCleanup time.Duration) *StreamManager {
 	// The max age before cleanup for unused streams
 	// Could be moved to an constructor argument in the future.
-	const maxAgeBeforeCleanup = time.Minute
+	if maxAgeBeforeCleanup == 0 {
+		maxAgeBeforeCleanup = time.Minute
+	}
 
 	sm := &StreamManager{
 		streams:             make(map[string]streamItem),

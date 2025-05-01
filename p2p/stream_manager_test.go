@@ -149,7 +149,7 @@ func TestReadPayload(t *testing.T) {
 
 func TestStreamManager(t *testing.T) {
 	// ARRANGE
-	streamManager := NewStreamManager(zerolog.New(zerolog.NewTestWriter(t)))
+	streamManager := NewStreamManager(zerolog.New(zerolog.NewTestWriter(t)), 0)
 
 	streamA := mocks.NewStream(t)
 	streamB := mocks.NewStream(t)

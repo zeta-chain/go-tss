@@ -151,6 +151,7 @@ func (kg *Keygen) GenerateNewKey(req keygen.Request) (*bcrypto.ECPoint, error) {
 	}
 
 	select {
+	// TODO MOVE to const
 	case <-time.After(time.Second * 5):
 		close(kg.commStopChan)
 	case <-kg.tssCommonStruct.GetTaskDone():

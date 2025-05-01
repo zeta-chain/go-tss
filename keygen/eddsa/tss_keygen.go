@@ -142,6 +142,7 @@ func (kg *Keygen) GenerateNewKey(req keygen.Request) (*bcrypto.ECPoint, error) {
 	}
 
 	select {
+	// TODO MOVE to const && Investigate why 5 seconds???
 	case <-time.After(time.Second * 5):
 		close(kg.commStopChan)
 

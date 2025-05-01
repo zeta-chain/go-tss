@@ -13,6 +13,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/zeta-chain/go-tss/config"
 	"github.com/zeta-chain/go-tss/conversion"
 	"github.com/zeta-chain/go-tss/logs"
 	"github.com/zeta-chain/go-tss/messages"
@@ -41,7 +42,8 @@ func NewPartyCoordinator(host host.Host, timeout time.Duration, logger zerolog.L
 	logger = logger.With().Str(logs.Component, "party_coordinator").Logger()
 
 	// if no timeout is given, default to 10 seconds
-	if timeout.Nanoseconds() == 0 {
+	if timeout == 0 {
+		// TODO MOVE to const
 		timeout = 10 * time.Second
 	}
 
@@ -52,7 +54,7 @@ func NewPartyCoordinator(host host.Host, timeout time.Duration, logger zerolog.L
 		timeout:    timeout,
 		peersGroup: make(map[string]*peerStatus),
 		mu:         &sync.Mutex{},
-		streamMgr:  NewStreamManager(logger),
+		streamMgr:  NewStreamManager(logger, config.StreamManagerMaxAgeBeforeCleanup),
 	}
 
 	host.SetStreamHandler(ProtocolJoinPartyWithLeader, pc.HandleStreamWithLeader)
@@ -254,6 +256,7 @@ func (pc *PartyCoordinator) sendRequestToLeader(msg *messages.JoinPartyLeaderCom
 func (pc *PartyCoordinator) sendMsgToPeer(msgID string, pid peer.ID, payload []byte, needResponse bool) error {
 	const protoID = ProtocolJoinPartyWithLeader
 
+	// TODO MOVE (use config.StreamTimeoutConnect)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*4)
 	defer cancel()
 
@@ -316,8 +319,10 @@ func (pc *PartyCoordinator) joinPartyMember(
 						Str(logs.MsgID, msgID).
 						Stringer(logs.Leader, leaderID).
 						Msg("Request to the leader failed")
+					// TODO CHECK DataDog for this message!
 				}
 			}
+			// TODO MOVE
 			time.Sleep(time.Millisecond * 500)
 		}
 	}()
@@ -342,6 +347,7 @@ func (pc *PartyCoordinator) joinPartyMember(
 	close(done)
 	wg.Wait()
 
+	// TODO MOVE to const
 	if sigNotify == "signature received" {
 		return nil, ErrSignReceived
 	}
@@ -400,9 +406,12 @@ func (pc *PartyCoordinator) joinPartyLeader(
 	case result := <-sigChan:
 		sigNotify = result
 	}
+
+	// TODO MOVE to const
 	if sigNotify == "signature received" {
 		return nil, ErrSignReceived
 	}
+
 	allPeers := peerGroup.getAllPeers()
 	onlinePeers, _ := peerGroup.getPeersStatus()
 	onlinePeers = append(onlinePeers, pc.host.ID())

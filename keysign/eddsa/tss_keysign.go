@@ -194,6 +194,7 @@ func (tKeySign *KeySign) SignMessage(
 	}
 
 	select {
+	// TODO MOVE & Investigate why 5 seconds???
 	case <-time.After(time.Second * 5):
 		close(tKeySign.commStopChan)
 	case <-tKeySign.tssCommonStruct.GetTaskDone():

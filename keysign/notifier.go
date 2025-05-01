@@ -15,6 +15,7 @@ import (
 	"github.com/tendermint/btcd/btcec"
 )
 
+// TODO MOVE to const
 const defaultNotifierTTL = time.Second * 30
 
 // notifier is design to receive keysign signature, success or failure

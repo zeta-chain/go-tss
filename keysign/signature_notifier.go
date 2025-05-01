@@ -13,6 +13,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 
+	"github.com/zeta-chain/go-tss/config"
 	"github.com/zeta-chain/go-tss/logs"
 	"github.com/zeta-chain/go-tss/messages"
 	"github.com/zeta-chain/go-tss/p2p"
@@ -52,7 +53,7 @@ func NewSignatureNotifier(host host.Host, logger zerolog.Logger) *SignatureNotif
 		host:         host,
 		notifierLock: &sync.Mutex{},
 		notifiers:    make(map[string]*notifier),
-		streamMgr:    p2p.NewStreamManager(logger),
+		streamMgr:    p2p.NewStreamManager(logger, config.StreamManagerMaxAgeBeforeCleanup),
 		logger:       logger,
 	}
 
@@ -86,6 +87,7 @@ func (s *SignatureNotifier) cleanupStaleNotifiers() {
 		}
 		s.notifierLock.Unlock()
 	}
+	// TODO MOVE to const && add logs how many cleaned
 	ticker := time.NewTicker(time.Second * 15)
 	defer ticker.Stop()
 
@@ -156,6 +158,7 @@ func (s *SignatureNotifier) handleStream(stream network.Stream) {
 }
 
 func (s *SignatureNotifier) sendOneMsgToPeer(m *signatureItem) error {
+	// TODO MOVE to const
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
 	defer cancel()
 
@@ -199,6 +202,7 @@ func (s *SignatureNotifier) sendOneMsgToPeer(m *signatureItem) error {
 	}
 
 	// we wait for 1 second to allow the receive notify us
+	// TODO MOVE to const
 	if err := stream.SetReadDeadline(time.Now().Add(time.Second * 1)); nil != err {
 		return errors.Wrapf(err, "fail to set read deadline to stream")
 	}
