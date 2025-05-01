@@ -11,15 +11,16 @@ import (
 
 // stream-related constants
 const (
-	StreamTimeoutConnect = 20 * time.Second
-	StreamTimeoutRead    = 20 * time.Second
-	StreamTimeoutWrite   = 20 * time.Second
-	StreamMaxPayload     = 1024 * 1024 * 10 // 20MB
+	StreamTimeoutConnect             = 20 * time.Second
+	StreamTimeoutRead                = 20 * time.Second
+	StreamTimeoutWrite               = 20 * time.Second
+	StreamMaxPayload                 = 1024 * 1024 * 10 // 20MB
+	StreamManagerMaxAgeBeforeCleanup = time.Minute
 )
 
-const StreamManagerMaxAgeBeforeCleanup = time.Minute
-
 const TSSCommonFinalTimeout = 5 * time.Second
+
+const PartyJoinMemberRetryInterval = 500 * time.Millisecond
 
 // ScalingLimits creates a config for libp2p scaling limits
 func ScalingLimits(protocols ...protocol.ID) resources.ConcreteLimitConfig {
