@@ -19,10 +19,12 @@ import (
 	"github.com/zeta-chain/go-tss/messages"
 )
 
+const NotificationSigReceived = "signature received"
+
 var (
 	ErrJoinPartyTimeout = errors.New("fail to join party, timeout")
 	ErrLeaderNotReady   = errors.New("leader not reachable")
-	ErrSignReceived     = errors.New("signature received")
+	ErrSigReceived      = errors.New(NotificationSigReceived)
 	ErrNotActiveSigner  = errors.New("not active signer")
 	ErrSigGenerated     = errors.New("signature generated")
 )
@@ -345,9 +347,8 @@ func (pc *PartyCoordinator) joinPartyMember(
 	close(done)
 	wg.Wait()
 
-	// TODO MOVE to const
-	if sigNotify == "signature received" {
-		return nil, ErrSignReceived
+	if sigNotify == NotificationSigReceived {
+		return nil, ErrSigReceived
 	}
 
 	if peerGroup.getLeaderResponse() == nil {
@@ -405,9 +406,8 @@ func (pc *PartyCoordinator) joinPartyLeader(
 		sigNotify = result
 	}
 
-	// TODO MOVE to const
-	if sigNotify == "signature received" {
-		return nil, ErrSignReceived
+	if sigNotify == NotificationSigReceived {
+		return nil, ErrSigReceived
 	}
 
 	allPeers := peerGroup.getAllPeers()
