@@ -159,7 +159,7 @@ func (s *SignatureNotifier) handleStream(stream network.Stream) {
 		signatures = append(signatures, &signature)
 	}
 
-	_, err = s.createOrUpdateNotifier(msg.ID, nil, "", signatures, defaultNotifierTTL)
+	_, err = s.createOrUpdateNotifier(msg.ID, nil, "", signatures, config.SigNotifierTTL)
 	if err != nil {
 		s.logger.Error().Err(err).Msg("fail to update notifier")
 	}

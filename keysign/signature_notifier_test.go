@@ -15,6 +15,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zeta-chain/go-tss/config"
 	"github.com/zeta-chain/go-tss/conversion"
 
 	"github.com/zeta-chain/go-tss/common"
@@ -163,7 +164,7 @@ func TestSignatureNotifierBroadcastFirst(t *testing.T) {
 	notifier := n1.notifiers[messageID]
 	n1.notifierLock.Unlock()
 	assert.False(t, notifier.readyToProcess())
-	assert.Equal(t, defaultNotifierTTL, notifier.ttl)
+	assert.Equal(t, config.SigNotifierTTL, notifier.ttl)
 
 	sig, err := n1.WaitForSignature(messageID, [][]byte{buf}, poolPubKey, time.Second*30, sigChan)
 	assert.NoError(t, err)
