@@ -307,7 +307,13 @@ func (pc *PartyCoordinator) joinPartyMember(
 		logs.Leader: leaderID,
 	}
 
-	var wg sync.WaitGroup
+	sendRequest := func() {
+		if err := pc.sendRequestToLeader(&msg, leaderID); err != nil {
+			pc.logger.Error().Err(err).Fields(lf).Msg("Request to the leader failed")
+		}
+	}
+
+	wg := sync.WaitGroup{}
 	done := make(chan struct{})
 
 	wg.Add(1)
@@ -317,14 +323,15 @@ func (pc *PartyCoordinator) joinPartyMember(
 		ticker := time.NewTicker(config.PartyJoinMemberRetryInterval)
 		defer ticker.Stop()
 
+		// send the first request (to avoid initial ticker delay)
+		sendRequest()
+
 		for {
 			select {
 			case <-done:
 				return
 			case <-ticker.C:
-				if err := pc.sendRequestToLeader(&msg, leaderID); err != nil {
-					pc.logger.Error().Err(err).Fields(lf).Msg("Request to the leader failed")
-				}
+				sendRequest()
 			}
 		}
 	}()
