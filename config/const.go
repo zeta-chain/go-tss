@@ -25,6 +25,7 @@ const PartyJoinMemberRetryInterval = 500 * time.Millisecond
 const (
 	SigNotifierCleanupInterval = 15 * time.Second
 	SigNotifierTTL             = 30 * time.Second
+	SigNotifierAckTimeout      = 2 * time.Second
 )
 
 // ScalingLimits creates a config for libp2p scaling limits

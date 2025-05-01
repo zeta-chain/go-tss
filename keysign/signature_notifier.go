@@ -208,9 +208,9 @@ func (s *SignatureNotifier) sendOneMsgToPeer(m *signatureItem) error {
 		return errors.Wrapf(err, "fail to write KeysignSignature to stream")
 	}
 
-	// we wait for 1 second to allow the receive notify us
-	// TODO MOVE to const
-	if err := stream.SetReadDeadline(time.Now().Add(time.Second * 1)); nil != err {
+	// We allow this duration to receive ACK back from the peer
+	ackDeadline := time.Now().Add(config.SigNotifierAckTimeout)
+	if err := stream.SetReadDeadline(ackDeadline); nil != err {
 		return errors.Wrapf(err, "fail to set read deadline to stream")
 	}
 
