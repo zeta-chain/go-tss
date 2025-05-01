@@ -78,29 +78,37 @@ func (s *SignatureNotifier) Stop() {
 // for longer than notifierTTL. This was added because we allow broadcasts to create notifier objects
 // in handleStream, and need a way to cleanup notifiers that went unused
 func (s *SignatureNotifier) cleanupStaleNotifiers() {
-	doCleanup := func() {
+	cleanup := func() {
 		s.notifierLock.Lock()
-		for messageID, notifier := range s.notifiers {
+		defer s.notifierLock.Unlock()
+
+		var deleted uint
+
+		for msgID, notifier := range s.notifiers {
 			if time.Since(notifier.lastUpdated) > notifier.ttl {
-				delete(s.notifiers, messageID)
+				delete(s.notifiers, msgID)
+				deleted++
 			}
 		}
-		s.notifierLock.Unlock()
+
+		if deleted > 0 {
+			s.logger.Info().Uint("deleted_notifiers", deleted).Msg("Cleaned stale notifiers")
+		}
 	}
-	// TODO MOVE to const && add logs how many cleaned
-	ticker := time.NewTicker(time.Second * 15)
+
+	ticker := time.NewTicker(config.SigNotifierCleanupInterval)
 	defer ticker.Stop()
 
 	// quickly do an initial cleanup instead of waiting for the ticker. this aids
 	// in testing so we don't have to wait for the ticker to fire
-	doCleanup()
+	cleanup()
 
 	for {
 		select {
 		case <-s.ctx.Done():
 			return
 		case <-ticker.C:
-			doCleanup()
+			cleanup()
 		}
 	}
 }
