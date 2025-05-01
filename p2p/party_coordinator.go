@@ -43,7 +43,6 @@ func NewPartyCoordinator(host host.Host, timeout time.Duration, logger zerolog.L
 
 	// if no timeout is given, default to 10 seconds
 	if timeout == 0 {
-		// TODO MOVE to const
 		timeout = 10 * time.Second
 	}
 
@@ -256,8 +255,7 @@ func (pc *PartyCoordinator) sendRequestToLeader(msg *messages.JoinPartyLeaderCom
 func (pc *PartyCoordinator) sendMsgToPeer(msgID string, pid peer.ID, payload []byte, needResponse bool) error {
 	const protoID = ProtocolJoinPartyWithLeader
 
-	// TODO MOVE (use config.StreamTimeoutConnect)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*4)
+	ctx, cancel := context.WithTimeout(context.Background(), config.StreamTimeoutConnect)
 	defer cancel()
 
 	pc.logger.Debug().Msgf("try to open stream to (%s) ", pid)

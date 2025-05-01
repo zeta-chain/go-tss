@@ -19,6 +19,8 @@ const (
 
 const StreamManagerMaxAgeBeforeCleanup = time.Minute
 
+const TSSCommonFinalTimeout = 5 * time.Second
+
 // ScalingLimits creates a config for libp2p scaling limits
 func ScalingLimits(protocols ...protocol.ID) resources.ConcreteLimitConfig {
 	limits := resources.DefaultLimits
