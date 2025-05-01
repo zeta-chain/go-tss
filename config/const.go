@@ -9,24 +9,37 @@ import (
 	resources "github.com/libp2p/go-libp2p/p2p/host/resource-manager"
 )
 
-// stream-related constants
+// Stream related constants
 const (
-	StreamTimeoutConnect             = 20 * time.Second
-	StreamTimeoutRead                = 20 * time.Second
-	StreamTimeoutWrite               = 20 * time.Second
-	StreamMaxPayload                 = 1024 * 1024 * 10 // 20MB
-	StreamManagerMaxAgeBeforeCleanup = time.Minute
+	// We allow this duration to connect to the peer
+	StreamTimeoutConnect = 10 * time.Second
+
+	// We allow this duration to read from the stream
+	StreamTimeoutRead = 20 * time.Second
+
+	// We allow this duration to write to the stream
+	StreamTimeoutWrite = 20 * time.Second
+
+	// Cleanup interval && TTL for "waste" streams (aka streams that are not used)
+	StreamExcessTTL = 1 * time.Minute
+
+	// Max payload for a stream in bytes. 20MB
+	StreamMaxPayload = 20 << 20
+)
+
+// Signature Notifier related constants
+const (
+	// We allow this duration to receive ACK back from the peer
+	SigNotifierAckTimeout = 2 * time.Second
+
+	// Notifier tll. Will be cleaned up if no response from the peer
+	SigNotifierTTL             = 30 * time.Second
+	SigNotifierCleanupInterval = 15 * time.Second
 )
 
 const TSSCommonFinalTimeout = 5 * time.Second
 
 const PartyJoinMemberRetryInterval = 500 * time.Millisecond
-
-const (
-	SigNotifierCleanupInterval = 15 * time.Second
-	SigNotifierTTL             = 30 * time.Second
-	SigNotifierAckTimeout      = 2 * time.Second
-)
 
 // ScalingLimits creates a config for libp2p scaling limits
 func ScalingLimits(protocols ...protocol.ID) resources.ConcreteLimitConfig {

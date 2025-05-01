@@ -87,7 +87,7 @@ func NewCommunication(
 		streamCount:      0,
 		BroadcastMsgChan: make(chan *messages.BroadcastMsgChan, 1024),
 		externalAddr:     externalAddr,
-		streamMgr:        NewStreamManager(logger, config.StreamManagerMaxAgeBeforeCleanup),
+		streamMgr:        NewStreamManager(logger, config.StreamExcessTTL),
 		whitelistedPeers: whitelistedPeers,
 	}, nil
 }

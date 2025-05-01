@@ -55,7 +55,7 @@ func NewPartyCoordinator(host host.Host, timeout time.Duration, logger zerolog.L
 		timeout:    timeout,
 		peersGroup: make(map[string]*peerStatus),
 		mu:         &sync.Mutex{},
-		streamMgr:  NewStreamManager(logger, config.StreamManagerMaxAgeBeforeCleanup),
+		streamMgr:  NewStreamManager(logger, config.StreamExcessTTL),
 	}
 
 	host.SetStreamHandler(ProtocolJoinPartyWithLeader, pc.HandleStreamWithLeader)

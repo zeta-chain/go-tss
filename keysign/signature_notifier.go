@@ -53,7 +53,7 @@ func NewSignatureNotifier(host host.Host, logger zerolog.Logger) *SignatureNotif
 		host:         host,
 		notifierLock: &sync.Mutex{},
 		notifiers:    make(map[string]*notifier),
-		streamMgr:    p2p.NewStreamManager(logger, config.StreamManagerMaxAgeBeforeCleanup),
+		streamMgr:    p2p.NewStreamManager(logger, config.StreamExcessTTL),
 		logger:       logger,
 	}
 
