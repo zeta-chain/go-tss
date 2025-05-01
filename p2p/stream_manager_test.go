@@ -3,105 +3,15 @@ package p2p
 import (
 	"bytes"
 	"encoding/binary"
-	"strconv"
 	"testing"
-	"time"
 
-	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zeta-chain/go-tss/p2p/mocks"
 
 	"github.com/libp2p/go-libp2p/core/network"
-	"github.com/libp2p/go-libp2p/core/protocol"
 )
-
-const testProtocolID protocol.ID = "/p2p/test-stream"
-
-type MockNetworkStream struct {
-	*bytes.Buffer
-	protocol            protocol.ID
-	errSetReadDeadLine  bool
-	errSetWriteDeadLine bool
-	errRead             bool
-	id                  int64
-}
-
-func NewMockNetworkStream() *MockNetworkStream {
-	return &MockNetworkStream{
-		Buffer:   &bytes.Buffer{},
-		protocol: testProtocolID,
-	}
-}
-
-func (m MockNetworkStream) Read(buf []byte) (int, error) {
-	if m.errRead {
-		return 0, errors.New("you asked for it")
-	}
-	return m.Buffer.Read(buf)
-}
-
-func (m MockNetworkStream) Close() error {
-	return nil
-}
-
-func (m MockNetworkStream) CloseRead() error {
-	return nil
-}
-
-func (m MockNetworkStream) CloseWrite() error {
-	return nil
-}
-
-func (m MockNetworkStream) Reset() error {
-	return nil
-}
-
-func (m MockNetworkStream) SetDeadline(time.Time) error {
-	return nil
-}
-
-func (m MockNetworkStream) SetReadDeadline(time.Time) error {
-	if m.errSetReadDeadLine {
-		return errors.New("you asked for it")
-	}
-	return nil
-}
-
-func (m MockNetworkStream) SetWriteDeadline(time.Time) error {
-	if m.errSetWriteDeadLine {
-		return errors.New("you asked for it")
-	}
-	return nil
-}
-
-func (m MockNetworkStream) Protocol() protocol.ID {
-	return m.protocol
-}
-
-func (m MockNetworkStream) SetProtocol(id protocol.ID) error {
-	m.protocol = id
-	return nil
-}
-
-func (s MockNetworkStream) ID() string {
-	return strconv.FormatInt(s.id, 10)
-}
-
-func (m MockNetworkStream) Stat() network.Stats {
-	return network.Stats{
-		Direction: 0,
-		Extra:     make(map[interface{}]interface{}),
-	}
-}
-
-func (m MockNetworkStream) Conn() network.Conn {
-	return nil
-}
-
-func (m MockNetworkStream) Scope() network.StreamScope {
-	return &network.NullScope{}
-}
 
 func TestReadLength(t *testing.T) {
 	testCases := []struct {
@@ -116,11 +26,13 @@ func TestReadLength(t *testing.T) {
 			expectedLength: 1024,
 			expectError:    false,
 			streamProvider: func() network.Stream {
-				s := NewMockNetworkStream()
+				s := mocks.NewStream(t)
 				buf := make([]byte, PayloadHeaderLen)
 				binary.LittleEndian.PutUint32(buf, 1024)
-				s.Buffer.Write(buf)
-				s.Buffer.Write(bytes.Repeat([]byte("a"), 1024))
+
+				s.MustWrite(buf)
+				s.MustWrite(bytes.Repeat([]byte("a"), 1024))
+
 				return s
 			},
 		},
@@ -129,12 +41,15 @@ func TestReadLength(t *testing.T) {
 			expectedLength: 1024,
 			expectError:    true,
 			streamProvider: func() network.Stream {
-				s := NewMockNetworkStream()
-				s.errSetReadDeadLine = true
+				s := mocks.NewStream(t)
 				buf := make([]byte, PayloadHeaderLen)
 				binary.LittleEndian.PutUint32(buf, 1024)
-				s.Buffer.Write(buf)
-				s.Buffer.Write(bytes.Repeat([]byte("a"), 1024))
+
+				s.MustWrite(buf)
+				s.MustWrite(bytes.Repeat([]byte("a"), 1024))
+
+				s.ErrSetReadDeadline(true)
+
 				return s
 			},
 		},
@@ -143,11 +58,13 @@ func TestReadLength(t *testing.T) {
 			expectedLength: 1024,
 			expectError:    false,
 			streamProvider: func() network.Stream {
-				s := NewMockNetworkStream()
+				s := mocks.NewStream(t)
 				buf := make([]byte, PayloadHeaderLen)
 				binary.LittleEndian.PutUint32(buf, 1024)
-				s.Buffer.Write(buf)
-				s.Buffer.Write(bytes.Repeat([]byte("a"), 1026))
+
+				s.MustWrite(buf)
+				s.MustWrite(bytes.Repeat([]byte("a"), 1026))
+
 				return s
 			},
 		},
@@ -156,32 +73,34 @@ func TestReadLength(t *testing.T) {
 			expectedLength: 1024,
 			expectError:    true,
 			streamProvider: func() network.Stream {
-				s := NewMockNetworkStream()
+				s := mocks.NewStream(t)
 				buf := make([]byte, PayloadHeaderLen)
 				binary.LittleEndian.PutUint32(buf, 1024)
-				s.Buffer.Write(buf)
-				s.errRead = true
+
+				s.MustWrite(buf)
+				s.ErrRead(true)
+
 				return s
 			},
 		},
 	}
+
 	for _, tc := range testCases {
-		ApplyDeadline.Store(true)
 		t.Run(tc.name, func(st *testing.T) {
+			// ARRANGE
 			stream := tc.streamProvider()
+
+			// ACT
 			l, err := ReadStreamWithBuffer(stream)
-			if tc.expectError && err == nil {
-				st.Errorf("expecting error , however got none")
-				st.FailNow()
+
+			// ASSERT
+			if tc.expectError {
+				require.Error(t, err)
+				return
 			}
-			if !tc.expectError && err != nil {
-				st.Error(err)
-				st.FailNow()
-			}
-			if !tc.expectError && tc.expectedLength != uint32(len(l)) {
-				st.Errorf("expecting length to be %d, however got :%d", tc.expectedLength, l)
-				st.FailNow()
-			}
+
+			require.NoError(t, err, "fail to read")
+			require.Equal(t, tc.expectedLength, uint32(len(l)), "length mismatch")
 		})
 	}
 }
@@ -189,20 +108,19 @@ func TestReadLength(t *testing.T) {
 func TestReadPayload(t *testing.T) {
 	testCases := []struct {
 		name           string
-		streamProvider func() *MockNetworkStream
+		streamProvider func() *mocks.Stream
 		expectedBytes  []byte
 		expectError    bool
 	}{
 		{
 			name: "happy path",
-			streamProvider: func() *MockNetworkStream {
-				stream := NewMockNetworkStream()
+			streamProvider: func() *mocks.Stream {
+				stream := mocks.NewStream(t)
 				input := []byte("hello world")
+
 				err := WriteStreamWithBuffer(input, stream)
-				if err != nil {
-					t.Errorf("fail to write the data to stream")
-					t.FailNow()
-				}
+				require.NoError(t, err)
+
 				return stream
 			},
 			expectedBytes: []byte("hello world"),
@@ -210,27 +128,21 @@ func TestReadPayload(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		ApplyDeadline.Store(true)
-		t.Run(tc.name, func(st *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
+			// ARRANGE
 			stream := tc.streamProvider()
+
+			// ACT
 			l, err := ReadStreamWithBuffer(stream)
-			if err != nil {
-				st.Errorf("fail to read length:%s", err)
-				st.FailNow()
-			}
-			if tc.expectError && err == nil {
-				st.Errorf("expecting error , however got none")
-				st.FailNow()
-			}
-			if !tc.expectError && err != nil {
-				st.Error(err)
-				st.FailNow()
+
+			// ASSERT
+			if tc.expectError {
+				require.Error(t, err)
+				return
 			}
 
-			if !tc.expectError && !bytes.Equal(tc.expectedBytes, l) {
-				st.Errorf("expecting %s, however got :%s", string(tc.expectedBytes), string(l))
-				st.FailNow()
-			}
+			require.NoError(t, err, "fail to read")
+			require.Equal(t, tc.expectedBytes, l, "bytes mismatch")
 		})
 	}
 }
@@ -239,17 +151,15 @@ func TestStreamManager(t *testing.T) {
 	// ARRANGE
 	streamManager := NewStreamManager(zerolog.New(zerolog.NewTestWriter(t)))
 
-	streamA := NewMockNetworkStream()
-	streamA.id = 10
+	streamA := mocks.NewStream(t)
+	streamB := mocks.NewStream(t)
+	streamC := mocks.NewStream(t)
+	streamD := mocks.NewStream(t)
 
-	streamB := NewMockNetworkStream()
-	streamB.id = 20
-
-	streamC := NewMockNetworkStream()
-	streamC.id = 30
-
-	streamD := NewMockNetworkStream()
-	streamD.id = 40
+	hasStream := func(s network.Stream) bool {
+		_, ok := streamManager.streams[s.ID()]
+		return ok
+	}
 
 	// ACT
 
@@ -264,19 +174,16 @@ func TestStreamManager(t *testing.T) {
 
 	streamManager.Free("1")
 
-	_, ok := streamManager.streams["10"]
-	assert.False(t, ok)
+	assert.False(t, hasStream(streamA))
 
-	si, ok := streamManager.streams["20"]
+	si, ok := streamManager.streams[streamB.ID()]
 	assert.True(t, ok)
 	assert.Equal(t, "2", si.msgID)
 
-	_, ok = streamManager.streams["30"]
-	assert.True(t, ok)
+	assert.True(t, hasStream(streamC))
 
 	streamManager.Free("2")
-	_, ok = streamManager.streams["20"]
-	assert.False(t, ok)
+	assert.False(t, hasStream(streamB))
 
 	streamManager.Free("3")
 	assert.Equal(t, 0, len(streamManager.streams))
