@@ -204,7 +204,7 @@ func (sm *StreamManager) cleanup() {
 
 // ReadStreamWithBuffer read data from the given stream
 func ReadStreamWithBuffer(stream network.Stream) ([]byte, error) {
-	if err := applyDeadline(stream, config.StreamTimeoutRead, true); err != nil {
+	if err := ApplyDeadline(stream, config.StreamTimeoutRead, true); err != nil {
 		return nil, err
 	}
 
@@ -237,7 +237,7 @@ func WriteStreamWithBuffer(msg []byte, stream network.Stream) error {
 		return errors.Errorf("payload size exceeded (got %d, max %d)", len(msg), config.StreamMaxPayload)
 	}
 
-	if err := applyDeadline(stream, config.StreamTimeoutWrite, false); err != nil {
+	if err := ApplyDeadline(stream, config.StreamTimeoutWrite, false); err != nil {
 		return err
 	}
 
@@ -260,10 +260,10 @@ func WriteStreamWithBuffer(msg []byte, stream network.Stream) error {
 	return nil
 }
 
-// applies read/write (read=true, write=false) deadline to the stream.
+// ApplyDeadline applies read/write (read=true, write=false) deadline to the stream.
 // Tolerates mocknet errors.
 // Resets the stream on failure.
-func applyDeadline(stream network.Stream, timeout time.Duration, readOrWrite bool) error {
+func ApplyDeadline(stream network.Stream, timeout time.Duration, readOrWrite bool) error {
 	// noop
 	if timeout == 0 {
 		return nil
@@ -298,20 +298,13 @@ func applyDeadline(stream network.Stream, timeout time.Duration, readOrWrite boo
 //	    return &net.OpError{Op: "set", Net: "pipe", Err: errors.New("deadline not supported")}
 //	}
 func isMockNetError(err error) bool {
-	if err == nil {
-		return false
-	}
-
+	// technically it's a double pointer (due to how errors.As works)
+	// also handles err==nil case.
 	opError := &net.OpError{}
-	if !errors.As(err, &opError) {
+	if !errors.As(err, &opError) || opError.Err == nil {
 		return false
 	}
 
-	if opError.Err == nil {
-		return false
-	}
-
-	return opError.Op == "set" &&
-		opError.Net == "pipe" &&
+	return opError.Op == "set" && opError.Net == "pipe" &&
 		strings.Contains(opError.Err.Error(), "deadline not supported")
 }

@@ -209,8 +209,7 @@ func (s *SignatureNotifier) sendOneMsgToPeer(m *signatureItem) error {
 	}
 
 	// We allow this duration to receive ACK back from the peer
-	ackDeadline := time.Now().Add(config.SigNotifierAckTimeout)
-	if err := stream.SetReadDeadline(ackDeadline); nil != err {
+	if err := p2p.ApplyDeadline(stream, config.SigNotifierAckTimeout, true); err != nil {
 		return errors.Wrapf(err, "fail to set read deadline to stream")
 	}
 
