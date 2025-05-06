@@ -9,36 +9,37 @@ import (
 	resources "github.com/libp2p/go-libp2p/p2p/host/resource-manager"
 )
 
-// Stream related constants
 const (
-	// We allow this duration to connect to the peer
+	// StreamTimeoutConnect allow this duration to connect to the peer
 	StreamTimeoutConnect = 10 * time.Second
 
-	// We allow this duration to read from the stream
+	// StreamTimeoutRead allow this duration to read from the stream
 	StreamTimeoutRead = 20 * time.Second
 
-	// We allow this duration to write to the stream
+	// StreamTimeoutWrite allow this duration to write to the stream
 	StreamTimeoutWrite = 20 * time.Second
 
-	// Cleanup interval && TTL for "waste" streams (aka streams that are not used)
+	// StreamExcessTTL is the cleanup interval && TTL for "waste" streams (aka streams that are not used)
 	StreamExcessTTL = 1 * time.Minute
 
-	// Max payload for a stream in bytes. 20MB
+	// StreamMaxPayload is the max payload for a stream in bytes. 20MB
 	StreamMaxPayload = 20 << 20
 )
 
 // Signature Notifier related constants
 const (
-	// We allow this duration to receive ACK back from the peer
+	// SigNotifierAckTimeout is the duration to receive ACK back from the peer
 	SigNotifierAckTimeout = 2 * time.Second
 
-	// Notifier tll. Will be cleaned up if no response from the peer
+	// SigNotifierTTL is the TTL for the notifier. Will be cleaned up if no response from the peer
 	SigNotifierTTL             = 30 * time.Second
 	SigNotifierCleanupInterval = 15 * time.Second
 )
 
+// TSSCommonFinalTimeout is the graceful timeout for keygen/keysign finalization
 const TSSCommonFinalTimeout = 5 * time.Second
 
+// PartyJoinMemberRetryInterval retry interval for joining keygen/keysign party
 const PartyJoinMemberRetryInterval = 500 * time.Millisecond
 
 // ScalingLimits creates a config for libp2p scaling limits
