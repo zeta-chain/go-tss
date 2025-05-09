@@ -14,16 +14,11 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 
+	"github.com/zeta-chain/go-tss/config"
 	"github.com/zeta-chain/go-tss/logs"
 )
 
-const (
-	TimeoutReadPayload  = 20 * time.Second
-	TimeoutWritePayload = 20 * time.Second
-	MaxPayload          = 20 * 1024 * 1024 // 20M
-)
-
-const unknown = "unknown"
+const unknownMsgID = "unknown"
 
 // StreamManager is responsible fro libp2p stream bookkeeping.
 // It can store streams by message id for latter release
@@ -44,10 +39,12 @@ type streamItem struct {
 }
 
 // NewStreamManager StreamManager constructor.
-func NewStreamManager(logger zerolog.Logger) *StreamManager {
+func NewStreamManager(logger zerolog.Logger, maxAgeBeforeCleanup time.Duration) *StreamManager {
 	// The max age before cleanup for unused streams
 	// Could be moved to an constructor argument in the future.
-	const maxAgeBeforeCleanup = time.Minute
+	if maxAgeBeforeCleanup == 0 {
+		maxAgeBeforeCleanup = time.Minute
+	}
 
 	sm := &StreamManager{
 		streams:             make(map[string]streamItem),
@@ -93,7 +90,7 @@ func (sm *StreamManager) Stash(msgID string, stream network.Stream) {
 
 // StashUnknown adds an unknown stream to the manager for later release.
 func (sm *StreamManager) StashUnknown(stream network.Stream) {
-	sm.Stash(unknown, stream)
+	sm.Stash(unknownMsgID, stream)
 }
 
 // Free synchronously releases all streams by the given message id.
@@ -172,7 +169,7 @@ func (sm *StreamManager) cleanup() {
 			lifespan = time.Since(s.Stat().Opened)
 		)
 
-		if streamItem.msgID == unknown {
+		if streamItem.msgID == unknownMsgID {
 			unknownStreams++
 		}
 
@@ -207,7 +204,7 @@ func (sm *StreamManager) cleanup() {
 
 // ReadStreamWithBuffer read data from the given stream
 func ReadStreamWithBuffer(stream network.Stream) ([]byte, error) {
-	if err := applyDeadline(stream, TimeoutReadPayload, true); err != nil {
+	if err := ApplyDeadline(stream, config.StreamTimeoutRead, true); err != nil {
 		return nil, err
 	}
 
@@ -220,8 +217,8 @@ func ReadStreamWithBuffer(stream network.Stream) ([]byte, error) {
 	}
 
 	payloadSize := binary.LittleEndian.Uint32(header)
-	if payloadSize > MaxPayload {
-		return nil, errors.Errorf("stream payload exceeded (got %d, max %d)", payloadSize, MaxPayload)
+	if payloadSize > config.StreamMaxPayload {
+		return nil, errors.Errorf("stream payload exceeded (got %d, max %d)", payloadSize, config.StreamMaxPayload)
 	}
 
 	result := make([]byte, payloadSize)
@@ -236,11 +233,11 @@ func ReadStreamWithBuffer(stream network.Stream) ([]byte, error) {
 
 // WriteStreamWithBuffer write the message to stream
 func WriteStreamWithBuffer(msg []byte, stream network.Stream) error {
-	if len(msg) > (MaxPayload - PayloadHeaderLen) {
-		return errors.Errorf("payload size exceeded (got %d, max %d)", len(msg), MaxPayload)
+	if len(msg) > (config.StreamMaxPayload - PayloadHeaderLen) {
+		return errors.Errorf("payload size exceeded (got %d, max %d)", len(msg), config.StreamMaxPayload)
 	}
 
-	if err := applyDeadline(stream, TimeoutWritePayload, false); err != nil {
+	if err := ApplyDeadline(stream, config.StreamTimeoutWrite, false); err != nil {
 		return err
 	}
 
@@ -263,10 +260,10 @@ func WriteStreamWithBuffer(msg []byte, stream network.Stream) error {
 	return nil
 }
 
-// applies read/write (read=true, write=false) deadline to the stream.
+// ApplyDeadline applies read/write (read=true, write=false) deadline to the stream.
 // Tolerates mocknet errors.
 // Resets the stream on failure.
-func applyDeadline(stream network.Stream, timeout time.Duration, readOrWrite bool) error {
+func ApplyDeadline(stream network.Stream, timeout time.Duration, readOrWrite bool) error {
 	// noop
 	if timeout == 0 {
 		return nil
@@ -301,20 +298,13 @@ func applyDeadline(stream network.Stream, timeout time.Duration, readOrWrite boo
 //	    return &net.OpError{Op: "set", Net: "pipe", Err: errors.New("deadline not supported")}
 //	}
 func isMockNetError(err error) bool {
-	if err == nil {
-		return false
-	}
-
+	// technically it's a double pointer (due to how errors.As works)
+	// also handles err==nil case.
 	opError := &net.OpError{}
-	if !errors.As(err, &opError) {
+	if !errors.As(err, &opError) || opError.Err == nil {
 		return false
 	}
 
-	if opError.Err == nil {
-		return false
-	}
-
-	return opError.Op == "set" &&
-		opError.Net == "pipe" &&
+	return opError.Op == "set" && opError.Net == "pipe" &&
 		strings.Contains(opError.Err.Error(), "deadline not supported")
 }

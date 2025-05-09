@@ -13,6 +13,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 
+	"github.com/zeta-chain/go-tss/config"
 	"github.com/zeta-chain/go-tss/logs"
 	"github.com/zeta-chain/go-tss/messages"
 	"github.com/zeta-chain/go-tss/p2p"
@@ -52,7 +53,7 @@ func NewSignatureNotifier(host host.Host, logger zerolog.Logger) *SignatureNotif
 		host:         host,
 		notifierLock: &sync.Mutex{},
 		notifiers:    make(map[string]*notifier),
-		streamMgr:    p2p.NewStreamManager(logger),
+		streamMgr:    p2p.NewStreamManager(logger, config.StreamExcessTTL),
 		logger:       logger,
 	}
 
@@ -77,28 +78,37 @@ func (s *SignatureNotifier) Stop() {
 // for longer than notifierTTL. This was added because we allow broadcasts to create notifier objects
 // in handleStream, and need a way to cleanup notifiers that went unused
 func (s *SignatureNotifier) cleanupStaleNotifiers() {
-	doCleanup := func() {
+	cleanup := func() {
 		s.notifierLock.Lock()
-		for messageID, notifier := range s.notifiers {
+		defer s.notifierLock.Unlock()
+
+		var deleted uint
+
+		for msgID, notifier := range s.notifiers {
 			if time.Since(notifier.lastUpdated) > notifier.ttl {
-				delete(s.notifiers, messageID)
+				delete(s.notifiers, msgID)
+				deleted++
 			}
 		}
-		s.notifierLock.Unlock()
+
+		if deleted > 0 {
+			s.logger.Info().Uint("deleted_notifiers", deleted).Msg("Cleaned stale notifiers")
+		}
 	}
-	ticker := time.NewTicker(time.Second * 15)
+
+	ticker := time.NewTicker(config.SigNotifierCleanupInterval)
 	defer ticker.Stop()
 
 	// quickly do an initial cleanup instead of waiting for the ticker. this aids
 	// in testing so we don't have to wait for the ticker to fire
-	doCleanup()
+	cleanup()
 
 	for {
 		select {
 		case <-s.ctx.Done():
 			return
 		case <-ticker.C:
-			doCleanup()
+			cleanup()
 		}
 	}
 }
@@ -149,14 +159,14 @@ func (s *SignatureNotifier) handleStream(stream network.Stream) {
 		signatures = append(signatures, &signature)
 	}
 
-	_, err = s.createOrUpdateNotifier(msg.ID, nil, "", signatures, defaultNotifierTTL)
+	_, err = s.createOrUpdateNotifier(msg.ID, nil, "", signatures, config.SigNotifierTTL)
 	if err != nil {
 		s.logger.Error().Err(err).Msg("fail to update notifier")
 	}
 }
 
 func (s *SignatureNotifier) sendOneMsgToPeer(m *signatureItem) error {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+	ctx, cancel := context.WithTimeout(context.Background(), config.StreamTimeoutConnect)
 	defer cancel()
 
 	stream, err := s.host.NewStream(ctx, m.peerID, p2p.ProtocolSignatureNotifier)
@@ -198,8 +208,8 @@ func (s *SignatureNotifier) sendOneMsgToPeer(m *signatureItem) error {
 		return errors.Wrapf(err, "fail to write KeysignSignature to stream")
 	}
 
-	// we wait for 1 second to allow the receive notify us
-	if err := stream.SetReadDeadline(time.Now().Add(time.Second * 1)); nil != err {
+	// We allow this duration to receive ACK back from the peer
+	if err := p2p.ApplyDeadline(stream, config.SigNotifierAckTimeout, true); err != nil {
 		return errors.Wrapf(err, "fail to set read deadline to stream")
 	}
 

@@ -13,15 +13,18 @@ import (
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/zeta-chain/go-tss/config"
 	"github.com/zeta-chain/go-tss/conversion"
 	"github.com/zeta-chain/go-tss/logs"
 	"github.com/zeta-chain/go-tss/messages"
 )
 
+const NotificationSigReceived = "signature received"
+
 var (
 	ErrJoinPartyTimeout = errors.New("fail to join party, timeout")
 	ErrLeaderNotReady   = errors.New("leader not reachable")
-	ErrSignReceived     = errors.New("signature received")
+	ErrSigReceived      = errors.New(NotificationSigReceived)
 	ErrNotActiveSigner  = errors.New("not active signer")
 	ErrSigGenerated     = errors.New("signature generated")
 )
@@ -41,7 +44,7 @@ func NewPartyCoordinator(host host.Host, timeout time.Duration, logger zerolog.L
 	logger = logger.With().Str(logs.Component, "party_coordinator").Logger()
 
 	// if no timeout is given, default to 10 seconds
-	if timeout.Nanoseconds() == 0 {
+	if timeout == 0 {
 		timeout = 10 * time.Second
 	}
 
@@ -52,7 +55,7 @@ func NewPartyCoordinator(host host.Host, timeout time.Duration, logger zerolog.L
 		timeout:    timeout,
 		peersGroup: make(map[string]*peerStatus),
 		mu:         &sync.Mutex{},
-		streamMgr:  NewStreamManager(logger),
+		streamMgr:  NewStreamManager(logger, config.StreamExcessTTL),
 	}
 
 	host.SetStreamHandler(ProtocolJoinPartyWithLeader, pc.HandleStreamWithLeader)
@@ -254,7 +257,7 @@ func (pc *PartyCoordinator) sendRequestToLeader(msg *messages.JoinPartyLeaderCom
 func (pc *PartyCoordinator) sendMsgToPeer(msgID string, pid peer.ID, payload []byte, needResponse bool) error {
 	const protoID = ProtocolJoinPartyWithLeader
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*4)
+	ctx, cancel := context.WithTimeout(context.Background(), config.StreamTimeoutConnect)
 	defer cancel()
 
 	pc.logger.Debug().Msgf("try to open stream to (%s) ", pid)
@@ -299,39 +302,49 @@ func (pc *PartyCoordinator) joinPartyMember(
 		ID:      msgID,
 	}
 
-	var wg sync.WaitGroup
+	lf := map[string]any{
+		logs.MsgID:  msgID,
+		logs.Leader: leaderID,
+	}
+
+	sendRequest := func() {
+		if err := pc.sendRequestToLeader(&msg, leaderID); err != nil {
+			pc.logger.Error().Err(err).Fields(lf).Msg("Request to the leader failed")
+		}
+	}
+
+	wg := sync.WaitGroup{}
 	done := make(chan struct{})
+
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+
+		ticker := time.NewTicker(config.PartyJoinMemberRetryInterval)
+		defer ticker.Stop()
+
+		// send the first request (to avoid initial ticker delay)
+		sendRequest()
+
 		for {
 			select {
 			case <-done:
 				return
-			default:
-				pc.logger.Trace().Msg("sending request message to leader")
-				err := pc.sendRequestToLeader(&msg, leaderID)
-				if err != nil {
-					pc.logger.Error().Err(err).
-						Str(logs.MsgID, msgID).
-						Stringer(logs.Leader, leaderID).
-						Msg("Request to the leader failed")
-				}
+			case <-ticker.C:
+				sendRequest()
 			}
-			time.Sleep(time.Millisecond * 500)
 		}
 	}()
 
-	var stopped bool
 	var sigNotify string
+
 	// now we wait for the leader to notify us who we do the keygen/keysign with
 	select {
 	case <-pc.stopChan:
 		// promptly tear down this goroutine if partyCoordinator is stopped
-		pc.logger.Debug().Msg("party coordinator stopped")
-		stopped = true
+		pc.logger.Debug().Fields(lf).Msg("party coordinator stopped")
 	case <-peerGroup.notify:
-		pc.logger.Debug().Msg("received a response from the leader")
+		pc.logger.Debug().Fields(lf).Msg("received a response from the leader")
 	case <-time.After(pc.timeout):
 		pc.logger.Debug().Msgf("timed out waiting for a response from the leader after %s", pc.timeout)
 	case result := <-sigChan:
@@ -342,17 +355,19 @@ func (pc *PartyCoordinator) joinPartyMember(
 	close(done)
 	wg.Wait()
 
-	if sigNotify == "signature received" {
-		return nil, ErrSignReceived
+	if sigNotify == NotificationSigReceived {
+		return nil, ErrSigReceived
 	}
 
 	if peerGroup.getLeaderResponse() == nil {
 		leaderPk, err := conversion.GetPubKeyFromPeerID(leaderID.String())
 		if err != nil {
-			pc.logger.Error().Err(err).Msg("received no response from the leader")
+			pc.logger.Error().Err(err).Fields(lf).Msg("received no response from the leader")
 		} else {
-			pc.logger.Error().Str(logs.Leader, leaderPk).Msg("received no response from the leader")
+			lf["leader_pk"] = leaderPk
+			pc.logger.Error().Fields(lf).Msg("received no response from the leader")
 		}
+
 		return nil, ErrLeaderNotReady
 	}
 
@@ -361,25 +376,17 @@ func (pc *PartyCoordinator) joinPartyMember(
 	// we trust the returned nodes returned by the leader,
 	// if tss fail, the leader also will get blamed.
 	pIDs, err := pc.getPeerIDs(onlineNodes)
-	if err != nil {
+
+	switch {
+	case err != nil:
 		return nil, errors.Wrap(err, "failed to parse peer ids")
-	}
-
-	if len(pIDs) < peerGroup.threshold {
+	case len(pIDs) < peerGroup.threshold:
 		return pIDs, errors.New("not enough peers")
-	}
-
-	pc.logger.Trace().Msgf("leader response message type=%s", peerGroup.getLeaderResponse().Type.String())
-	if peerGroup.getLeaderResponse().Type == messages.JoinPartyLeaderComm_Success {
+	case peerGroup.getLeaderResponse().Type == messages.JoinPartyLeaderComm_Success:
 		return pIDs, nil
+	default:
+		return pIDs, ErrJoinPartyTimeout
 	}
-
-	if stopped {
-		pc.logger.Trace().Msg("join party stopped")
-	} else {
-		pc.logger.Trace().Msg("join party timed out")
-	}
-	return pIDs, ErrJoinPartyTimeout
 }
 
 func (pc *PartyCoordinator) joinPartyLeader(
@@ -400,9 +407,11 @@ func (pc *PartyCoordinator) joinPartyLeader(
 	case result := <-sigChan:
 		sigNotify = result
 	}
-	if sigNotify == "signature received" {
-		return nil, ErrSignReceived
+
+	if sigNotify == NotificationSigReceived {
+		return nil, ErrSigReceived
 	}
+
 	allPeers := peerGroup.getAllPeers()
 	onlinePeers, _ := peerGroup.getPeersStatus()
 	onlinePeers = append(onlinePeers, pc.host.ID())

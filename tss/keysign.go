@@ -96,7 +96,7 @@ func (t *Server) generateSignature(
 
 	if errJoinParty != nil {
 		// we received the signature from waiting for signature
-		if errors.Is(errJoinParty, p2p.ErrSignReceived) {
+		if errors.Is(errJoinParty, p2p.ErrSigReceived) {
 			return keysign.Response{}, errJoinParty
 		}
 
@@ -328,7 +328,7 @@ func (t *Server) KeySign(req keysign.Request) (keysign.Response, error) {
 			t.logger.Error().Err(errWait).Msg("waitForSignatures returned error")
 		default:
 			// we received an valid signature
-			sigChan <- "signature received"
+			sigChan <- p2p.NotificationSigReceived
 			t.logger.Debug().
 				Str(logs.MsgID, msgID).
 				Stringer(logs.Peer, receivedSig.Blame).
@@ -360,7 +360,7 @@ func (t *Server) KeySign(req keysign.Request) (keysign.Response, error) {
 		return receivedSig, nil
 	}
 	// for this round, we are not the active signer
-	if errors.Is(errGen, p2p.ErrSignReceived) || errors.Is(errGen, p2p.ErrNotActiveSigner) {
+	if errors.Is(errGen, p2p.ErrSigReceived) || errors.Is(errGen, p2p.ErrNotActiveSigner) {
 		t.updateKeySignResult(receivedSig, keysignTime)
 		return receivedSig, nil
 	}

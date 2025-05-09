@@ -19,6 +19,7 @@ import (
 
 	"github.com/zeta-chain/go-tss/blame"
 	"github.com/zeta-chain/go-tss/common"
+	"github.com/zeta-chain/go-tss/config"
 	"github.com/zeta-chain/go-tss/conversion"
 	"github.com/zeta-chain/go-tss/logs"
 	"github.com/zeta-chain/go-tss/messages"
@@ -194,7 +195,7 @@ func (tKeySign *KeySign) SignMessage(
 	}
 
 	select {
-	case <-time.After(time.Second * 5):
+	case <-time.After(config.TSSCommonFinalTimeout):
 		close(tKeySign.commStopChan)
 	case <-tKeySign.tssCommonStruct.GetTaskDone():
 		close(tKeySign.commStopChan)

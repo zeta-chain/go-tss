@@ -13,9 +13,9 @@ import (
 	"github.com/decred/dcrd/dcrec/edwards/v2"
 	"github.com/pkg/errors"
 	"github.com/tendermint/btcd/btcec"
-)
 
-const defaultNotifierTTL = time.Second * 30
+	"github.com/zeta-chain/go-tss/config"
+)
 
 // notifier is design to receive keysign signature, success or failure
 type notifier struct {
@@ -48,7 +48,7 @@ func newNotifier(
 		signatures:  signatures,
 		resp:        make(chan []*common.SignatureData, 1),
 		lastUpdated: time.Now(),
-		ttl:         defaultNotifierTTL,
+		ttl:         config.SigNotifierTTL,
 		lock:        sync.RWMutex{},
 	}, nil
 }

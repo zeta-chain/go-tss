@@ -14,6 +14,7 @@ import (
 
 	"github.com/zeta-chain/go-tss/blame"
 	"github.com/zeta-chain/go-tss/common"
+	"github.com/zeta-chain/go-tss/config"
 	"github.com/zeta-chain/go-tss/conversion"
 	"github.com/zeta-chain/go-tss/keygen"
 	"github.com/zeta-chain/go-tss/logs"
@@ -142,9 +143,8 @@ func (kg *Keygen) GenerateNewKey(req keygen.Request) (*bcrypto.ECPoint, error) {
 	}
 
 	select {
-	case <-time.After(time.Second * 5):
+	case <-time.After(config.TSSCommonFinalTimeout):
 		close(kg.commStopChan)
-
 	case <-kg.tssCommonStruct.GetTaskDone():
 		close(kg.commStopChan)
 	}
