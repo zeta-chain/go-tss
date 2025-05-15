@@ -217,7 +217,11 @@ func (s *SignatureNotifier) sendOneMsgToPeer(m *signatureItem) error {
 
 	ack := make([]byte, expectedResponseSize)
 	if _, err := stream.Read(ack); err != nil {
-		return errors.Wrapf(err, "failed to read response from stream")
+		return errors.Wrapf(
+			err,
+			"failed to read response from stream (timeout: %s)",
+			config.SigNotifierAckTimeout.String(),
+		)
 	}
 
 	return err

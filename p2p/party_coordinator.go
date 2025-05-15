@@ -385,7 +385,7 @@ func (pc *PartyCoordinator) joinPartyMember(
 	case peerGroup.getLeaderResponse().Type == messages.JoinPartyLeaderComm_Success:
 		return pIDs, nil
 	default:
-		return pIDs, ErrJoinPartyTimeout
+		return pIDs, errors.Wrapf(ErrJoinPartyTimeout, "(timeout: %s)", pc.timeout.String())
 	}
 }
 
