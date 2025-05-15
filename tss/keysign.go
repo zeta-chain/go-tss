@@ -340,7 +340,7 @@ func (t *Server) KeySign(req keysign.Request) (keysign.Response, error) {
 			t.logger.Debug().
 				Str(logs.MsgID, msgID).
 				Stringer(logs.Peer, receivedSig.Blame).
-				Msg("Keysign:received signature")
+				Msg("Keysign: received signature")
 		}
 	}()
 
