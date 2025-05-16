@@ -217,7 +217,7 @@ func (tKeySign *TssKeySign) SignMessage(
 	keySignWg.Wait()
 
 	tKeySign.logger.Info().
-		Stringer("host", tKeySign.p2pComm.GetHost().ID()).
+		Stringer(logs.Host, tKeySign.p2pComm.GetHost().ID()).
 		Msg("Successfully signed the message")
 
 	sort.SliceStable(results, func(i, j int) bool {
