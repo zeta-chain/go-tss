@@ -7,8 +7,8 @@ const (
 	Component = "component"
 	MsgID     = "msg_id"
 	Peer      = "peer"
-	Host      = "host"
-	Leader    = "leader"
+	Host      = "p2p_host"
+	Leader    = "p2p_leader"
 	Latency   = "latency"
 )
 

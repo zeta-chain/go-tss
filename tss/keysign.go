@@ -121,8 +121,13 @@ func (t *Server) generateSignature(
 		t.logger.Error().
 			Err(errJoinParty).
 			Str(logs.MsgID, msgID).
+			Str(logs.Peer, t.p2pCommunication.GetLocalPeerID()).
+			Stringer(logs.Leader, leader).
+			Any("peers_count", len(onlinePeers)).
 			Any("peers", onlinePeers).
-			Msg("Failed to form keysign party with online peers")
+			Int64("block_height", req.BlockHeight).
+			Any("blame_leader", blameLeader).
+			Msg("Failed to form keysign party")
 
 		return keysign.Response{
 			Status: common.Fail,
@@ -325,14 +330,17 @@ func (t *Server) KeySign(req keysign.Request) (keysign.Response, error) {
 		case errors.Is(errWait, p2p.ErrSigGenerated):
 			// ok, we generate the signature ourselves
 		case errWait != nil:
-			t.logger.Error().Err(errWait).Msg("waitForSignatures returned error")
+			t.logger.Error().
+				Str(logs.MsgID, msgID).
+				Err(errWait).
+				Msg("Keysign: waitForSignatures failed")
 		default:
 			// we received an valid signature
 			sigChan <- p2p.NotificationSigReceived
 			t.logger.Debug().
 				Str(logs.MsgID, msgID).
 				Stringer(logs.Peer, receivedSig.Blame).
-				Msg("received signature")
+				Msg("Keysign: received signature")
 		}
 	}()
 
