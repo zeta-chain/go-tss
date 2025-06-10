@@ -302,7 +302,7 @@ func (t *Server) KeySign(req keysign.Request) (keysign.Response, error) {
 			return false
 		}
 
-		return ma.Cmp(mb) >= 0
+		return ma.Cmp(mb) > 0
 	})
 
 	threshold, err := conversion.GetThreshold(len(localStateItem.ParticipantKeys))
