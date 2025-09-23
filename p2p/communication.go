@@ -54,6 +54,7 @@ func NewCommunication(
 	bootstrapPeers []maddr.Multiaddr,
 	port int,
 	externalIP string,
+	externalDNS string,
 	whitelistedPeers []peer.ID,
 	logger zerolog.Logger,
 ) (*Communication, error) {
@@ -70,6 +71,13 @@ func NewCommunication(
 
 	if len(externalIP) != 0 {
 		myself := fmt.Sprintf("/ip4/%s/tcp/%d", externalIP, port)
+		externalAddr, err = maddr.NewMultiaddr(myself)
+		if err != nil {
+			return nil, errors.Wrapf(err, "external addr %q", myself)
+		}
+	} else if len(externalDNS) != 0 {
+		// externalDNS is used as a fallback when externalIP is not set
+		myself := fmt.Sprintf("/dns4/%s/tcp/%d", externalDNS, port)
 		externalAddr, err = maddr.NewMultiaddr(myself)
 		if err != nil {
 			return nil, errors.Wrapf(err, "external addr %q", myself)

@@ -60,6 +60,7 @@ type PeerInfo struct {
 type NetworkConfig struct {
 	common.TssConfig
 	ExternalIP       string
+	ExternalDNS      string
 	Port             int
 	BootstrapPeers   []maddr.Multiaddr
 	WhitelistedPeers []peer.ID
@@ -105,6 +106,7 @@ func New(
 		bootstrapPeers,
 		net.Port,
 		net.ExternalIP,
+		net.ExternalDNS,
 		net.WhitelistedPeers,
 		logger,
 	)

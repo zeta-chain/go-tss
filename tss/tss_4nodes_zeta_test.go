@@ -252,6 +252,7 @@ func (s *FourNodeScaleZetaSuite) getTssServer(c *C, index int, conf common.TssCo
 	networkConfig := NetworkConfig{
 		TssConfig:        conf,
 		ExternalIP:       "",
+		ExternalDNS:      "",
 		Port:             s.ports[index],
 		BootstrapPeers:   s.bootstrapPeers,
 		WhitelistedPeers: whitelistedPeers,

@@ -19,7 +19,7 @@ type CommunicationTestSuite struct{}
 var _ = Suite(&CommunicationTestSuite{})
 
 func (CommunicationTestSuite) TestBasicCommunication(c *C) {
-	comm, err := NewCommunication(nil, 6668, "", []peer.ID{}, logger("TestBasicCommunication"))
+	comm, err := NewCommunication(nil, 6668, "", "", []peer.ID{}, logger("TestBasicCommunication"))
 	c.Assert(err, IsNil)
 	c.Assert(comm, NotNil)
 	comm.SetSubscribe(messages.TSSKeyGenMsg, "hello", make(chan *Message))
@@ -63,13 +63,13 @@ func (CommunicationTestSuite) TestEstablishP2pCommunication(c *C) {
 	c.Assert(err, IsNil)
 	privKey, err := base64.StdEncoding.DecodeString(bootstrapPrivKey)
 	c.Assert(err, IsNil)
-	comm, err := NewCommunication(nil, 2220, fakeExternalIP, whitelistedPeers, log)
+	comm, err := NewCommunication(nil, 2220, fakeExternalIP, "", whitelistedPeers, log)
 	c.Assert(err, IsNil)
 	c.Assert(comm.Start(privKey), IsNil)
 
 	defer comm.Stop()
 	c.Assert(err, IsNil)
-	comm2, err := NewCommunication([]maddr.Multiaddr{validMultiAddr}, 2221, "", whitelistedPeers, log)
+	comm2, err := NewCommunication([]maddr.Multiaddr{validMultiAddr}, 2221, "", "", whitelistedPeers, log)
 	c.Assert(err, IsNil)
 	err = comm2.Start(sk1raw)
 	c.Assert(err, IsNil)
@@ -79,7 +79,7 @@ func (CommunicationTestSuite) TestEstablishP2pCommunication(c *C) {
 	invalidAddr := "/ip4/127.0.0.1/tcp/2220/p2p/" + id2.String()
 	invalidMultiAddr, err := maddr.NewMultiaddr(invalidAddr)
 	c.Assert(err, IsNil)
-	comm3, err := NewCommunication([]maddr.Multiaddr{invalidMultiAddr}, 2222, "", whitelistedPeers, log)
+	comm3, err := NewCommunication([]maddr.Multiaddr{invalidMultiAddr}, 2222, "", "", whitelistedPeers, log)
 	c.Assert(err, IsNil)
 	err = comm3.Start(sk1raw)
 	c.Assert(err, ErrorMatches, "fail to connect to bootstrap peer: fail to connect to any peer")
@@ -89,6 +89,7 @@ func (CommunicationTestSuite) TestEstablishP2pCommunication(c *C) {
 	comm4, err := NewCommunication(
 		[]maddr.Multiaddr{invalidMultiAddr, validMultiAddr},
 		2223,
+		"",
 		"",
 		whitelistedPeers,
 		log,
@@ -110,6 +111,7 @@ func (CommunicationTestSuite) TestEstablishP2pCommunication(c *C) {
 		[]maddr.Multiaddr{invalidMultiAddr, validMultiAddr},
 		2224,
 		"",
+		"",
 		[]peer.ID{},
 		log,
 	)
@@ -117,6 +119,44 @@ func (CommunicationTestSuite) TestEstablishP2pCommunication(c *C) {
 	err = comm5.Start(sk1raw)
 	c.Assert(err, ErrorMatches, "fail to connect to bootstrap peer: fail to connect to any peer")
 	defer comm5.Stop()
+}
+
+func (CommunicationTestSuite) TestEstablishP2pCommunication_ExternalDNS(c *C) {
+	log := logger("TestEstablishP2pCommunication_ExternalDNS")
+
+	bootstrapPeerID, err := peer.Decode("16Uiu2HAm4TmEzUqy3q3Dv7HvdoSboHk5sFj2FH3npiN5vDbJC6gh")
+	c.Assert(err, IsNil)
+	sk1, _, err := crypto.GenerateSecp256k1Key(rand.Reader)
+	c.Assert(err, IsNil)
+	sk1raw, _ := sk1.Raw()
+	id1, err := peer.IDFromPrivateKey(sk1)
+	c.Assert(err, IsNil)
+
+	bootstrapPeer := fmt.Sprintf("/ip4/127.0.0.1/tcp/2220/p2p/%s", bootstrapPeerID.String())
+	whitelistedPeers := []peer.ID{bootstrapPeerID, id1}
+	bootstrapPrivKey := "6LABmWB4iXqkqOJ9H0YFEA2CSSx6bA7XAKGyI/TDtas="
+	fakeExternalDNS := "p2ptest.com"
+	fakeExternalDNSMultiAddr := "/dns4/p2ptest.com/tcp/2220"
+	bootstrapMultiAddr, err := maddr.NewMultiaddr(bootstrapPeer)
+	c.Assert(err, IsNil)
+	privKey, err := base64.StdEncoding.DecodeString(bootstrapPrivKey)
+	c.Assert(err, IsNil)
+
+	comm, err := NewCommunication(nil, 2220, "", fakeExternalDNS, whitelistedPeers, log)
+	c.Assert(err, IsNil)
+	c.Assert(comm.Start(privKey), IsNil)
+	defer comm.Stop()
+
+	comm2, err := NewCommunication([]maddr.Multiaddr{bootstrapMultiAddr}, 2221, "", "", whitelistedPeers, log)
+	c.Assert(err, IsNil)
+	err = comm2.Start(sk1raw)
+	c.Assert(err, IsNil)
+	defer comm2.Stop()
+
+	// check for external dns advertising
+	c.Assert(checkExist(comm.host.Addrs(), fakeExternalDNSMultiAddr), Equals, true)
+	ps := comm2.host.Peerstore()
+	c.Assert(checkExist(ps.Addrs(comm.host.ID()), fakeExternalDNSMultiAddr), Equals, true)
 }
 
 func logger(name string) zerolog.Logger {
